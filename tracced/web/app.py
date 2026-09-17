@@ -402,7 +402,6 @@ async def token_page(request):
     if demo and demo["mint"] == mint:                                   # демо-токен: усе зі знімка, 0 запитів
         info, hints = demo["info"], demo.get("hints") or []
         rows = [{"n": 1, "label": "Demo range", "from": chart.to_input(demo["range"]["from"]), "to": chart.to_input(demo["range"]["to"])}]
-        rows += [dict(r, n=i + 2) for i, r in enumerate(_rows_from_hints(hints)) if hints]
     else:
         info, ov = await _overview(app, mint)
         rows = _rows_from_hints(ov["hints"])
@@ -411,8 +410,8 @@ async def token_page(request):
     if chart.from_input(q.get("from")) and chart.from_input(q.get("to")):
         preset = {"n": None, "label": "From the result", "from": q.get("from"), "to": q.get("to")}
     jobs_done = [j.id for j in app["jobs"].jobs.values() if j.mint == mint and j.status == "done"]
-    return render("token.html", request, info=info, mint=mint, s=s,
-                  created=info.get("created_time") or 0, now=int(time.time() * 1000),
+    return render("token.html", request, info=info, mint=mint, s=s, is_demo=bool(demo and demo["mint"] == mint),
+                  bounced=q.get("notice") == "demo", created=info.get("created_time") or 0, now=int(time.time() * 1000),
                   rows_json=json.dumps(rows), jobs_json=json.dumps(jobs_done), preset_json=json.dumps(preset))
 
 
@@ -460,6 +459,8 @@ async def analyze(request):
         job = app["jobs"].submit(mint, demo["range"]["from"], demo["range"]["to"], symbol=demo["info"].get("symbol"),
                                  replay={"log": list(stored.log), "result": stored.result})
         raise web.HTTPFound(f"/job/{job.id}")
+    if demo and demo["mint"] == mint:                                   # демо-токен: лише записаний діапазон, без живого запуску
+        raise web.HTTPFound(f"/token?mint={mint}&notice=demo")
     info, _ = await _overview(app, mint)
     errs = window.validate(t_from, t_to, info.get("created_time"), int(time.time() * 1000),
                            max_window_ms=int(s.get("max_window_hours", 0) * HOUR) or None)

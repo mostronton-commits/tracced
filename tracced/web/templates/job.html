@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ job.symbol }} · result · Tracced{% endblock %}
+{% block title %}{{ job.symbol }} · result · tracced{% endblock %}
 {% block crumb %}{{ job.symbol }} · <span class="dtc" data-ms="{{ job.t_from }}">{{ job.t_from|dt }}</span> → <span class="dtc" data-ms="{{ job.t_to }}">{{ job.t_to|dt }}</span>{% endblock %}
 {% block head %}<script src="/static/vendor/lightweight-charts.standalone.production.js?v={{ v }}"></script><script src="/static/chart.js?v={{ v }}"></script><script src="/static/term.js?v={{ v }}" defer></script>{% endblock %}
 {% block body %}

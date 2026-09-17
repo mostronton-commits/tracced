@@ -70,7 +70,16 @@ if AioHTTPTestCase:
             before = self.st.requests
             r = await self.client.get(f"/token?mint={MINT}")
             self.assertEqual(r.status, 200)
-            self.assertIn("Demo range", await r.text())
+            html = await r.text()
+            self.assertIn("Demo range", html)
+            self.assertIn("Demo token.", html)
+            # another range on the demo token bounces back with a note instead of a live run
+            r = await self.client.post("/analyze", data={"mint": MINT, "from": "2001-09-09T02:30", "to": "2001-09-09T02:50"}, allow_redirects=False)
+            self.assertEqual(r.status, 302)
+            self.assertEqual(r.headers["Location"], f"/token?mint={MINT}&notice=demo")
+            r = await self.client.get(r.headers["Location"])
+            self.assertIn("That range is not recorded.", await r.text())
+            self.assertEqual(self.st.requests, before)
             r = await self.client.get(f"/candles.json?mint={MINT}&tf=1m&a=999999900&b=1000002000")
             self.assertEqual(r.status, 200)
             self.assertTrue(len(await r.json()) > 5)
@@ -103,7 +112,7 @@ if AioHTTPTestCase:
             self.assertEqual(r.status, 200)
             self.assertIn("TRACCED", html)                              # brand line
             self.assertIn("every wallet <em>on the record</em>", html)
-            self.assertIn("Tracced", html)
+            self.assertIn("tracced", html)
             self.assertNotIn('class="top"', html)                       # no top bar on the home page
             self.assertIn('data-count=', html)                          # live counters
             self.assertIn("How it works", html)                         # footer
