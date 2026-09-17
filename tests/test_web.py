@@ -212,6 +212,24 @@ if AioHTTPTestCase:
             html = await (await self.client.get(r.headers["Location"])).text()
             self.assertIn('<main class="wide"', html)                      # таблиці потрібна ширина
 
+        async def test_a_rerun_is_not_overwritten_by_the_old_enrichment(self):
+            # той самий діапазон запустили вдруге: збагачення першого прогону не має перетерти новий результат
+            q = self.app["jobs"]
+            old = q.submit(MINT, 999999960000, 1000001160000)
+            await asyncio.to_thread(q.q.join)
+            old.result = {"marker": "old"}
+            new = q.submit(MINT, 999999960000, 1000001160000)          # той самий id → новий об'єкт
+            await asyncio.to_thread(q.q.join)
+            self.assertIsNot(old, new)
+            self.assertIs(q.jobs[new.id], new)
+            self.assertFalse(q._current(old))
+            self.assertTrue(q._current(new))
+            new.result = {"marker": "fresh"}
+            q._save(new)
+            q._current(old) and q._save(old)                            # застаріле збереження не відбувається
+            with open(f"{self.tmp.name}/web/{new.id}.json") as f:
+                self.assertEqual(json.load(f)["result"]["marker"], "fresh")
+
         async def test_how_page(self):
             r = await self.client.get("/how")
             self.assertEqual(r.status, 200)

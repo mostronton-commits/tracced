@@ -150,11 +150,18 @@ class JobQueue:
                 self.eq.put(job)
             self.q.task_done()
 
+    def _current(self, job):
+        """Чи це ще той самий аналіз? Повторний запуск того ж діапазону кладе на його місце новий."""
+        return self.jobs.get(job.id) is job
+
     def _enrich_worker(self):
         while True:
             job = self.eq.get()
             try:
-                self.enricher(job, self._save)
+                if not self._current(job):
+                    self.eq.task_done()          # аналіз перезапустили: старе збагачення не чіпає новий результат
+                    continue
+                self.enricher(job, lambda j: self._current(j) and self._save(j))
             except Exception as e:  # noqa: BLE001 — збагачення не має валити результат
                 job.log.append(f"enrichment stopped: {e}")
             self.eq.task_done()

@@ -275,7 +275,8 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
     st.flush()
     coverage = {"exits_known": covered, "total": len(early), "mode": mode, "cost_full": cost_full,
                 "lookups": counts_extra.get("lookups", 0), "entry_only": counts_extra.get("entry_only", 0),
-                "lookup_cap": lookups_cap, "plan": s.get("plan", "free"), "credits_left": credits_now()}
+                "lookup_cap": lookups_cap, "plan": s.get("plan", "free"), "credits_left": credits_now(),
+                "repaired_trades": repaired}
     result = {
         "info": info,
         "window": {"from": t_from, "to": t_to, "end": t_end},
