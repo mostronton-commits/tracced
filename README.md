@@ -1,5 +1,7 @@
 # tracced
 
+Live (password-protected): https://tracced.xyz
+
 **Every wallet, traced.** Paste a Solana token, choose the pump range on the chart, and see every wallet that
 bought there — and everything it did with the token next. Entry and exit market cap, invested, realized, held
 time, bundle funding. Every number is a raw on-chain swap you can open on Solscan. No scores, no black-box
