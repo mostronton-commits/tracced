@@ -63,7 +63,8 @@ if AioHTTPTestCase:
                 json.dump(stored, f)
             snap = {"mint": MINT, "info": stored["result"]["info"], "created": 999996400000, "captured_ms": 1000003560000,
                     "candles": {"1m": [{"time": 999999960000 + i * 60000, "open": 1.0, "high": 1.1, "low": 0.9, "close": 1.0, "volume": 1} for i in range(30)]},
-                    "hints": [], "job": jid, "range": {"from": 999999960000, "to": 1000001160000}}
+                    "hints": [], "job": jid, "range": {"from": 999999960000, "to": 1000001160000},
+                    "log": stored["log"], "result": stored["result"]}          # знімок самодостатній
             with open(f"{self.tmp.name}/demo/{MINT}.json", "w") as f:
                 json.dump(snap, f)
             self.app["jobs"]._load(); self.app["s"]["demo_job"] = jid; self.app.pop("demo", None)
@@ -96,6 +97,37 @@ if AioHTTPTestCase:
             self.assertEqual(self.st.requests, before)                    # not a single request to Solana Tracker
             st = await (await self.client.get(loc + ".state.json?since=0")).json()
             self.assertIn("page 1: 3 trades (+3 new)", st["log"])
+            with open(f"{out}/{jid}.json") as f:                               # програвання не перезаписує збережений аналіз
+                self.assertEqual(json.load(f), stored)
+
+        async def test_demo_survives_a_broken_job_file(self):
+            # знімок самодостатній: навіть якщо аналіз на диску обірвався, демо не йде в живий (платний) прогін
+            import os
+            jid = "BBBBBB_20010909-0146_0206"
+            out = self.tmp.name + "/web"; os.makedirs(self.tmp.name + "/demo", exist_ok=True)
+            result = {"info": {"mint": MINT, "symbol": "TST", "supply": 1000000, "created_time": 999996400000},
+                      "window": {"from": 999999960000, "to": 1000001160000, "end": 1000003560000}, "mode": "wallet-trades",
+                      "counts": {"n_wallets": 1, "n_trades": 3, "n_early": 1, "dust": 0, "late": 0, "pre_range_only": 0, "lookups": 1, "entry_only": 0},
+                      "coverage": {"exits_known": 1, "total": 1, "mode": "wallet-trades", "cost_full": 5, "lookup_cap": 500, "plan": "free"},
+                      "wallet_trades": {"A": {"trades": [[1000000060000, "buy", 100.0, 100.0, 1.0]], "source": "wallet-trades"}},
+                      "price_at_end": 3.0, "fresh_wallets": [], "scope": "all", "rows": [], "summary": {}, "requests": 0, "pages_fetched": 0,
+                      "enrich": {"done": 0, "total": 0, "fresh": 0, "failed": 0, "funders_done": 0}}
+            with open(f"{out}/{jid}.json", "w") as f:                          # аналіз обірвано рестартом
+                json.dump({"id": jid, "mint": MINT, "t_from": 999999960000, "t_to": 1000001160000, "t_exit": None,
+                           "status": "running", "error": None, "created_ms": 1, "started_ms": 1, "finished_ms": None,
+                           "symbol_hint": "TST", "progress": {"phase": "trades", "done": 0, "total": 1}, "log": [], "result": None}, f)
+            with open(f"{self.tmp.name}/demo/{MINT}.json", "w") as f:
+                json.dump({"mint": MINT, "info": result["info"], "created": 999996400000, "captured_ms": 1000003560000,
+                           "candles": {"1m": []}, "hints": [], "job": jid,
+                           "range": {"from": 999999960000, "to": 1000001160000}, "log": ["done"], "result": result}, f)
+            self.app["jobs"]._load(); self.app["s"]["demo_job"] = jid; self.app.pop("demo", None)
+            self.assertEqual(self.app["jobs"].get(jid).status, "error")        # обірваний аналіз позначено помилкою
+            before = self.st.requests
+            r = await self.client.get(f"/token?mint={MINT}")
+            self.assertIn("Demo token.", await r.text())
+            r = await self.client.post("/analyze", data={"mint": MINT, "from": "2001-09-09T05:00", "to": "2001-09-09T05:20"}, allow_redirects=False)
+            self.assertEqual(r.headers["Location"], f"/token?mint={MINT}&notice=demo")
+            self.assertEqual(self.st.requests, before)                         # жодного платного запиту
 
         async def test_how_page(self):
             r = await self.client.get("/how")

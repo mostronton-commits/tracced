@@ -355,22 +355,31 @@ def _replay(job):
 
 
 def _demo(app):
-    """Snapshot of the demo token (info, candles, hints, range) or None."""
+    """Snapshot of the demo token: info, candles, range, and the stored log and result of its one analysis.
+
+    Read straight from output/early/demo/<mint>.json, which the app never writes. Nothing here depends on the
+    job files, so a restart in the middle of a replay cannot turn the demo token back into a live, paid run.
+    """
     if "demo" in app:
         return app["demo"]
     app["demo"] = None
     jid = app["s"].get("demo_job")
-    job = app["jobs"].get(jid) if jid else None
-    if job and job.status == "done" and job.result:
-        path = Path(app["jobs"].dir).parent / "demo" / f"{job.mint}.json"
-        if path.exists():
+    d = Path(app["jobs"].dir).parent / "demo"
+    if jid and d.is_dir():
+        for path in sorted(d.glob("*.json")):
             try:
                 with open(path, encoding="utf-8") as f:
                     snap = json.load(f)
-                snap["job_id"], snap["mint"] = jid, job.mint
-                app["demo"] = snap
             except Exception as e:  # noqa: BLE001
                 log.warning("demo snapshot unreadable: %s", e)
+                continue
+            if snap.get("job") != jid or not snap.get("result") or not snap.get("mint"):
+                continue
+            from ..early.report import upgrade_result
+            upgrade_result(snap["result"])                 # знімок міг бути зроблений до перейменувань
+            snap["job_id"] = jid
+            app["demo"] = snap
+            break
     return app["demo"]
 
 
@@ -455,9 +464,8 @@ async def analyze(request):
     t_from, t_to = chart.from_input(form.get("from")), chart.from_input(form.get("to"))
     demo = _demo(app)
     if demo and demo["mint"] == mint and t_from and t_to and abs(t_from - demo["range"]["from"]) <= 60_000 and abs(t_to - demo["range"]["to"]) <= 60_000:
-        stored = app["jobs"].get(demo["job_id"])                       # демо: програємо збережений аналіз
         job = app["jobs"].submit(mint, demo["range"]["from"], demo["range"]["to"], symbol=demo["info"].get("symbol"),
-                                 replay={"log": list(stored.log), "result": stored.result})
+                                 replay={"log": list(demo["log"]), "result": demo["result"]})   # зі знімка, не з файлу аналізу
         raise web.HTTPFound(f"/job/{job.id}")
     if demo and demo["mint"] == mint:                                   # демо-токен: лише записаний діапазон, без живого запуску
         raise web.HTTPFound(f"/token?mint={mint}&notice=demo")

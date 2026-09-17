@@ -142,7 +142,8 @@ class JobQueue:
                 job.set_progress("error", 1, 1)
             job.finished_ms = int(time.time() * 1000)
             try:
-                self._save(job)
+                if not job.replay:                # програвання демо не чіпає збережений аналіз на диску
+                    self._save(job)
             except Exception as e:  # noqa: BLE001
                 job.log.append(f"could not save the result: {e}")
             if self.enricher and job.status == "done" and job.result:
