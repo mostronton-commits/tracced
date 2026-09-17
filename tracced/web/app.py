@@ -405,8 +405,19 @@ def _replay(job):
     return result
 
 
+def _demo_ranges(snap):
+    """Ranges of a snapshot as one list, whichever way it was written (one range, or several)."""
+    if snap.get("ranges"):
+        return [r for r in snap["ranges"] if r.get("job") and r.get("result") and r.get("from") and r.get("to")]
+    r = snap.get("range") or {}
+    if snap.get("job") and snap.get("result") and r.get("from"):
+        return [{"label": "Demo range", "from": r["from"], "to": r["to"], "job": snap["job"],
+                 "log": snap.get("log") or [], "result": snap["result"]}]
+    return []
+
+
 def _demo(app):
-    """Snapshot of the demo token: info, candles, range, and the stored log and result of its one analysis.
+    """Snapshot of the demo token: info, candles, and every recorded range with its log and result.
 
     Read straight from output/early/demo/<mint>.json, which the app never writes. Nothing here depends on the
     job files, so a restart in the middle of a replay cannot turn the demo token back into a live, paid run.
@@ -417,6 +428,7 @@ def _demo(app):
     jid = app["s"].get("demo_job")
     d = Path(app["jobs"].dir).parent / "demo"
     if jid and d.is_dir():
+        from ..early.report import upgrade_result
         for path in sorted(d.glob("*.json")):
             try:
                 with open(path, encoding="utf-8") as f:
@@ -424,11 +436,12 @@ def _demo(app):
             except Exception as e:  # noqa: BLE001
                 log.warning("demo snapshot unreadable: %s", e)
                 continue
-            if snap.get("job") != jid or not snap.get("result") or not snap.get("mint"):
+            ranges = _demo_ranges(snap)
+            if not snap.get("mint") or not any(r["job"] == jid for r in ranges):
                 continue
-            from ..early.report import upgrade_result
-            upgrade_result(snap["result"])                 # знімок міг бути зроблений до перейменувань
-            snap["job_id"] = jid
+            for r in ranges:
+                upgrade_result(r["result"])                # знімок міг бути зроблений до перейменувань
+            snap["ranges"], snap["job_id"] = ranges, jid
             app["demo"] = snap
             break
     return app["demo"]
@@ -460,8 +473,10 @@ async def token_page(request):
     s = app["s"]
     demo = _demo(app)
     if demo and demo["mint"] == mint:                                   # демо-токен: усе зі знімка, 0 запитів
-        info, hints = demo["info"], demo.get("hints") or []
-        rows = [{"n": 1, "label": "Demo range", "from": chart.to_input(demo["range"]["from"]), "to": chart.to_input(demo["range"]["to"])}]
+        info = demo["info"]
+        rows = [{"n": i + 1, "label": r.get("label") or f"Demo range {i + 1}",
+                 "from": chart.to_input(r["from"]), "to": chart.to_input(r["to"])}
+                for i, r in enumerate(demo["ranges"])]
     else:
         info, ov = await _overview(app, mint)
         rows = _rows_from_hints(ov["hints"])
@@ -471,7 +486,7 @@ async def token_page(request):
         preset = {"n": None, "label": "From the result", "from": q.get("from"), "to": q.get("to")}
     jobs_done = [j.id for j in app["jobs"].jobs.values() if j.mint == mint and j.status == "done"]
     return render("token.html", request, info=info, mint=mint, s=s, is_demo=bool(demo and demo["mint"] == mint),
-                  bounced=q.get("notice") == "demo", created=info.get("created_time") or 0, now=int(time.time() * 1000),
+                  n_demo=len(demo["ranges"]) if demo and demo["mint"] == mint else 0, bounced=q.get("notice") == "demo", created=info.get("created_time") or 0, now=int(time.time() * 1000),
                   rows_json=json.dumps(rows), jobs_json=json.dumps(jobs_done), preset_json=json.dumps(preset))
 
 
@@ -514,12 +529,13 @@ async def analyze(request):
     s = app["s"]
     t_from, t_to = chart.from_input(form.get("from")), chart.from_input(form.get("to"))
     demo = _demo(app)
-    if demo and demo["mint"] == mint and t_from and t_to and abs(t_from - demo["range"]["from"]) <= 60_000 and abs(t_to - demo["range"]["to"]) <= 60_000:
-        job = app["jobs"].submit(mint, demo["range"]["from"], demo["range"]["to"], symbol=demo["info"].get("symbol"),
-                                 replay={"log": list(demo["log"]), "result": demo["result"]})   # зі знімка, не з файлу аналізу
-        raise web.HTTPFound(f"/job/{job.id}")
-    if demo and demo["mint"] == mint:                                   # демо-токен: лише записаний діапазон, без живого запуску
-        raise web.HTTPFound(f"/token?mint={mint}&notice=demo")
+    if demo and demo["mint"] == mint:
+        for r in demo["ranges"]:                                        # демо: програємо збережений аналіз зі знімка
+            if t_from and t_to and abs(t_from - r["from"]) <= 60_000 and abs(t_to - r["to"]) <= 60_000:
+                job = app["jobs"].submit(mint, r["from"], r["to"], symbol=demo["info"].get("symbol"),
+                                         replay={"log": list(r.get("log") or []), "result": r["result"]})
+                raise web.HTTPFound(f"/job/{job.id}")
+        raise web.HTTPFound(f"/token?mint={mint}&notice=demo")           # інший діапазон — без живого (платного) прогону
     info, _ = await _overview(app, mint)
     errs = window.validate(t_from, t_to, info.get("created_time"), int(time.time() * 1000),
                            max_window_ms=int(s.get("max_window_hours", 0) * HOUR) or None)

@@ -28,37 +28,44 @@ HOUR = 3600_000
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("job_id", help="id of a finished analysis, e.g. 98kfF7_20260915-1930_1933")
+    p.add_argument("jobs", nargs="+", metavar="analysis[=label]",
+                   help="one or more finished analyses of the SAME token, in the order to show them; "
+                        "add =label to name a range, e.g. 98kfF7_20260915-1930_1950='Pump 1'")
     p.add_argument("--jobs-dir", default="output/early/web")
     p.add_argument("--demo-dir", default="output/early/demo")
     p.add_argument("--span-hours", type=float, default=0,
-                   help="hours of chart after the range (default: up to the analysis time)")
+                   help="hours of chart after the first range (default: up to now)")
     a = p.parse_args()
 
-    path = os.path.join(a.jobs_dir, a.job_id + ".json")
-    with open(path, encoding="utf-8") as f:
-        job = json.load(f)
-    if job.get("status") != "done" or not job.get("result"):
-        sys.exit(f"{a.job_id} is {job.get('status')} — capture a finished analysis")
+    ranges, info, created, mint = [], None, None, None
+    for spec in a.jobs:
+        jid, _, label = spec.partition("=")
+        with open(os.path.join(a.jobs_dir, jid + ".json"), encoding="utf-8") as f:
+            job = json.load(f)
+        if job.get("status") != "done" or not job.get("result"):
+            sys.exit(f"{jid} is {job.get('status')} — capture finished analyses only")
+        res = job["result"]
+        if mint and res["info"]["mint"] != mint:
+            sys.exit("all analyses must be of the same token")
+        info, mint = res["info"], res["info"]["mint"]
+        created = info.get("created_time") or res["window"]["from"]
+        ranges.append({"label": label or f"Range {len(ranges) + 1}", "from": res["window"]["from"],
+                       "to": res["window"]["to"], "job": jid, "log": list(job.get("log") or []), "result": res})
+        rows = (res.get("counts") or {}).get("n_early")
+        cov = res.get("coverage") or {}
+        print(f"  {jid}  {rows} wallets · exits known for {cov.get('exits_known')} of {cov.get('total')}")
 
-    res = job["result"]
-    info, win = res["info"], res["window"]
-    mint = info["mint"]
-    created = info.get("created_time") or win["from"]
-    end = win["from"] + int(a.span_hours * HOUR) if a.span_hours else int(time.time() * 1000)
+    ranges.sort(key=lambda r: r["from"])
+    end = ranges[0]["from"] + int(a.span_hours * HOUR) if a.span_hours else int(time.time() * 1000)
 
     st = EarlyST(get_key())
-    candles, reqs = {}, 0
+    candles = {}
     for tf in TFS:
-        cs = st.chart(mint, tf, created, end)
-        candles[tf] = cs
-        reqs += 1
-        print(f"  {tf}: {len(cs)} candles")
+        candles[tf] = st.chart(mint, tf, created, end)
+        print(f"  {tf}: {len(candles[tf])} candles")
 
     snap = {"mint": mint, "info": info, "created": created, "captured_ms": int(time.time() * 1000),
-            "candles": candles, "hints": [], "job": a.job_id,
-            "range": {"from": win["from"], "to": win["to"]},
-            "log": list(job.get("log") or []), "result": res}
+            "candles": candles, "hints": [], "ranges": ranges}
 
     os.makedirs(a.demo_dir, exist_ok=True)
     out = os.path.join(a.demo_dir, f"{mint}.json")
@@ -66,10 +73,8 @@ def main():
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(snap, f, ensure_ascii=False)
     os.replace(tmp, out)
-    mb = os.path.getsize(out) / 1e6
-    rows = len(res.get("rows") or []) or (res.get("counts") or {}).get("n_early")
-    print(f"\n{out}  {mb:.1f} MB · {rows} wallets · {len(snap['log'])} log lines · {reqs} chart requests")
-    print(f"Now set in config.yaml:\n  early:\n    demo_job: {a.job_id}\n    example_job: {a.job_id}")
+    print(f"\n{out}  {os.path.getsize(out) / 1e6:.1f} MB · {len(ranges)} range(s) · {len(TFS)} chart requests")
+    print(f"Now set in config.yaml:\n  early:\n    demo_job: {ranges[0]['job']}\n    example_job: {ranges[0]['job']}")
 
 
 if __name__ == "__main__":

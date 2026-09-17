@@ -31,6 +31,7 @@ class FakeWebST(FakeST):
 
 
 if AioHTTPTestCase:
+    from tracced.web import chart
     from tracced.web.app import create_app
 
     class TestWeb(AioHTTPTestCase):
@@ -99,6 +100,43 @@ if AioHTTPTestCase:
             self.assertIn("page 1: 3 trades (+3 new)", st["log"])
             with open(f"{out}/{jid}.json") as f:                               # програвання не перезаписує збережений аналіз
                 self.assertEqual(json.load(f), stored)
+
+        async def test_demo_can_hold_several_ranges(self):
+            # знімок із кількома діапазонами: кожен програється зі свого запису, чужий діапазон не йде в живий прогін
+            import os
+            def result(a, b):
+                return {"info": {"mint": MINT, "symbol": "TST", "supply": 1000000, "created_time": 999996400000},
+                        "window": {"from": a, "to": b, "end": b + 3600000}, "mode": "wallet-trades",
+                        "counts": {"n_wallets": 1, "n_trades": 3, "n_early": 1, "dust": 0, "late": 0, "pre_range_only": 0,
+                                   "lookups": 1, "entry_only": 0},
+                        "coverage": {"exits_known": 1, "total": 1, "mode": "wallet-trades", "cost_full": 5,
+                                     "lookup_cap": 500, "plan": "free"},
+                        "wallet_trades": {"A": {"trades": [[a + 1000, "buy", 100.0, 100.0, 1.0]], "source": "wallet-trades"}},
+                        "price_at_end": 3.0, "fresh_wallets": [], "scope": "all", "rows": [], "summary": {},
+                        "requests": 0, "pages_fetched": 0,
+                        "enrich": {"done": 0, "total": 0, "fresh": 0, "failed": 0, "funders_done": 0}}
+            one, two = ("AAAAAA_20010909-0146_0206", 999999960000, 1000001160000), ("AAAAAA_20010909-0300_0320", 1000004400000, 1000005600000)
+            os.makedirs(self.tmp.name + "/demo", exist_ok=True)
+            snap = {"mint": MINT, "info": result(*one[1:])["info"], "created": 999996400000, "captured_ms": 1,
+                    "candles": {"1m": []}, "hints": [],
+                    "ranges": [{"label": "Pump 1", "from": one[1], "to": one[2], "job": one[0], "log": ["first"], "result": result(one[1], one[2])},
+                               {"label": "Pump 2", "from": two[1], "to": two[2], "job": two[0], "log": ["second"], "result": result(two[1], two[2])}]}
+            with open(f"{self.tmp.name}/demo/{MINT}.json", "w") as f:
+                json.dump(snap, f)
+            self.app["s"]["demo_job"] = one[0]; self.app.pop("demo", None)
+            before = self.st.requests
+            html = await (await self.client.get(f"/token?mint={MINT}")).text()
+            self.assertIn("Pump 1", html)
+            self.assertIn("Pump 2", html)
+            self.assertIn("These ranges are", html)                        # текст знає, що діапазонів кілька
+            for jid, a, b in (one, two):                                   # обидва програються
+                r = await self.client.post("/analyze", allow_redirects=False, data={
+                    "mint": MINT, "from": chart.to_input(a), "to": chart.to_input(b)})
+                self.assertEqual(r.headers["Location"], f"/job/{jid}")
+            r = await self.client.post("/analyze", data={"mint": MINT, "from": "2001-09-09T06:00", "to": "2001-09-09T06:20"},
+                                       allow_redirects=False)
+            self.assertEqual(r.headers["Location"], f"/token?mint={MINT}&notice=demo")
+            self.assertEqual(self.st.requests, before)                     # жодного платного запиту
 
         async def test_demo_survives_a_broken_job_file(self):
             # знімок самодостатній: навіть якщо аналіз на диску обірвався, демо не йде в живий (платний) прогін

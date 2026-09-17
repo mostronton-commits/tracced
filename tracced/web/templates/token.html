@@ -19,7 +19,7 @@
     </dl>
   </div>
 
-  {% if is_demo %}<div class="demo-note">{% if bounced %}<b>Only the range below is recorded.</b> Pick it and press Analyze.{% else %}<b>Demo token.</b> The range below is pre-recorded — it opens with no requests.{% endif %}</div>{% endif %}
+  {% if is_demo %}<div class="demo-note">{% if bounced %}<b>Only the {{ "ranges" if n_demo > 1 else "range" }} below {{ "are" if n_demo > 1 else "is" }} recorded.</b> Pick one and press Analyze.{% else %}<b>Demo token.</b> {{ "These ranges are" if n_demo > 1 else "The range below is" }} pre-recorded — {{ "they open" if n_demo > 1 else "it opens" }} with no requests.{% endif %}</div>{% endif %}
   <div class="stepbar">
     <span class="stepn">02</span>
     <div class="stepx"><b>Choose the range</b><span>Click the chart twice: where buying starts, where the pump takes off. <small>Drag to pan · scroll to zoom</small></span></div>
