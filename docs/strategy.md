@@ -6,7 +6,7 @@ and exit market cap, invested, realized, held time, bundle funding. Every number
 on Solscan. No scores and no "smart money" labels from a black box: the user decides who is worth following; the app
 gives the facts, then follows the wallets for the user, then trades for the user.
 
-**Slogan.** Nobody hides on-chain.
+**Slogan.** every wallet on the record (home: `tracced` on one line, the slogan under it; same line in the footer).
 
 ## Stages
 
