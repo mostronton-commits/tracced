@@ -6,7 +6,7 @@ One container, no public port. HTTPS comes from the Caddy that already serves th
 2. `cp .env.example .env` and fill in `SOLANATRACKER_API_KEY`, `WEB_PASSWORD` (the site is public: keep it set),
    `PROXY_NETWORK` (the Docker network of the Caddy container, `docker network ls`).
 3. Optional demo: copy `output/early/demo/<mint>.json` and the example analysis `output/early/web/<id>.json`
-   from the machine where they were made; the ids are in `deploy/config.vps.yaml`.
+   from the machine where they were made; the ids are in `config.yaml`.
 4. `docker compose -f compose.vps.yml up -d --build`
 5. Point the domain's A record at the server, add `deploy/Caddyfile.snippet` (with the real domain) to the
    Caddy config and reload it. Caddy fetches the certificate itself.

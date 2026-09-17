@@ -110,7 +110,7 @@ if AioHTTPTestCase:
             r = await self.client.get("/")
             html = await r.text()
             self.assertEqual(r.status, 200)
-            self.assertIn("TRACCED", html)                              # brand line
+            self.assertIn('<h1 class="brandline">tracced</h1>', html)   # brand line
             self.assertIn("every wallet <em>on the record</em>", html)
             self.assertIn("tracced", html)
             self.assertNotIn('class="top"', html)                       # no top bar on the home page

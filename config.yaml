@@ -12,5 +12,5 @@ detect:                             # pump detector: suggested ranges on the cha
 
 early:
   plan: free                        # free (2,500 requests/month, 3 req/s) | advanced (200,000/month)
-  # example_job: <analysis id>       # pin a finished analysis as the example on the home page
-  # demo_job: <analysis id>          # replay one analysis from output/early/demo/<mint>.json with zero requests
+  example_job: 52qkNp_20260916-1825_1902   # a finished analysis pinned as the example on the home page (ignored if missing)
+  demo_job: 52qkNp_20260916-1825_1902      # replays from output/early/demo/<mint>.json with zero requests (ignored if missing)

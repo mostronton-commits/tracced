@@ -13,7 +13,7 @@ services:
     volumes:
       - ./output:/app/output
       - ./cache:/app/cache
-      - ./deploy/config.vps.yaml:/app/config.yaml:ro
+      - ./config.yaml:/app/config.yaml:ro
     networks: [proxy]
     restart: unless-stopped
 networks:
