@@ -230,6 +230,48 @@ def _valid(pw, token):
     return hmac.compare_digest(_sign(pw, int(exp)), str(token))
 
 
+class Throttle:
+    """Makes password guessing slow: a few misses from one address and that address waits.
+
+    The site is public and the password guards an API key with a paid quota, so an unlimited guess rate
+    would hand a short password away in minutes. Pure bookkeeping, no I/O — easy to test.
+    """
+
+    def __init__(self, max_fails=5, window_s=300, block_s=900):
+        self.max_fails, self.window_s, self.block_s = max_fails, window_s, block_s
+        self.fails = {}                       # address -> [misses, first miss (s), blocked until (s)]
+
+    def wait_s(self, key, now):
+        """Seconds this address still has to wait; 0 means it may try."""
+        f = self.fails.get(key)
+        return max(0, int(f[2] - now)) if f else 0
+
+    def miss(self, key, now):
+        """Count a wrong password; returns the seconds to wait (0 while under the limit)."""
+        f = self.fails.get(key)
+        if not f or now - f[1] > self.window_s:
+            f = [0, now, 0]
+        f[0] += 1
+        if f[0] >= self.max_fails:
+            f[2] = now + self.block_s * (1 + (f[0] - self.max_fails))   # кожна наступна спроба — довша пауза
+        self.fails[key] = f
+        return max(0, int(f[2] - now))
+
+    def hit(self, key):
+        """A correct password clears the record."""
+        self.fails.pop(key, None)
+
+
+def _client_ip(request):
+    """The address the request really came from. Behind our proxy that is the last hop it added."""
+    xff = request.headers.get("X-Forwarded-For", "")
+    return (xff.split(",")[-1].strip() if xff else None) or request.remote or "?"
+
+
+def _wait_text(s):
+    return f"Too many attempts. Try again in {max(1, round(s / 60))} min." if s >= 60 else f"Too many attempts. Try again in {s} s."
+
+
 @web.middleware
 async def auth_mw(request, handler):
     pw = request.app["password"]
@@ -241,15 +283,23 @@ async def auth_mw(request, handler):
 
 
 async def login(request):
+    throttle, ip, now = request.app["throttle"], _client_ip(request), time.time()
     if request.method == "POST":
+        wait = throttle.wait_s(ip, now)
+        if wait:
+            return render("login.html", request, error=_wait_text(wait), status=429)
         form = await request.post()
-        if form.get("password", "") == request.app["password"]:
+        if hmac.compare_digest(str(form.get("password", "")), request.app["password"]):
+            throttle.hit(ip)
             resp = web.HTTPFound("/")
             resp.set_cookie(COOKIE, _sign(request.app["password"], int(time.time()) + 14 * 86400),
                             httponly=True, samesite="Lax")
             raise resp
-        return render("login.html", request, error="Wrong password.")
-    return render("login.html", request)
+        wait = throttle.miss(ip, now)
+        await asyncio.sleep(1)                                     # повільно навіть до ліміту
+        return render("login.html", request, error=_wait_text(wait) if wait else "Wrong password.", status=401)
+    wait = throttle.wait_s(ip, now)
+    return render("login.html", request, error=_wait_text(wait) if wait else None)
 
 
 # ───────────────────────── helpers ─────────────────────────
