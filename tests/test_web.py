@@ -129,6 +129,37 @@ if AioHTTPTestCase:
             self.assertEqual(r.headers["Location"], f"/token?mint={MINT}&notice=demo")
             self.assertEqual(self.st.requests, before)                         # жодного платного запиту
 
+        async def test_login_slows_down_guessing(self):
+            # публічний сайт + короткий пароль: після кількох промахів адреса чекає, і правильний пароль теж не пускає
+            from tracced.web.app import Throttle
+            t = Throttle(max_fails=3, window_s=300, block_s=60)
+            self.assertEqual(t.wait_s("1.2.3.4", 0), 0)
+            self.assertEqual((t.miss("1.2.3.4", 0), t.miss("1.2.3.4", 1)), (0, 0))
+            self.assertEqual(t.miss("1.2.3.4", 2), 60)                     # третій промах — пауза
+            self.assertEqual(t.wait_s("1.2.3.4", 30), 32)                 # блок від моменту промаху (t=2)
+            self.assertEqual(t.wait_s("5.6.7.8", 30), 0)                   # інша адреса не страждає
+            self.assertEqual(t.wait_s("1.2.3.4", 100), 0)                  # пауза минула
+            t.miss("9.9.9.9", 0); t.hit("9.9.9.9")
+            self.assertEqual(t.wait_s("9.9.9.9", 0), 0)                    # правильний пароль очищає лічильник
+            t2 = Throttle(max_fails=1, window_s=300, block_s=60)
+            self.assertGreater(t2.miss("a", 0), 0)
+            self.assertGreater(t2.miss("a", 1), 60)                        # кожна наступна спроба довша
+
+        async def test_login_blocks_after_wrong_passwords(self):
+            from tracced.web.app import Throttle
+            self.app["password"], self.app["throttle"] = "1717", Throttle(max_fails=2, window_s=300, block_s=900)
+            try:
+                r = await self.client.get("/")                             # без куки — на сторінку входу
+                self.assertIn("Sign in", await r.text())
+                for _ in range(2):
+                    r = await self.client.post("/login", data={"password": "0000"}, allow_redirects=False)
+                    self.assertEqual(r.status, 401)
+                r = await self.client.post("/login", data={"password": "1717"}, allow_redirects=False)
+                self.assertEqual(r.status, 429)                            # навіть правильний пароль чекає
+                self.assertIn("Too many attempts", await r.text())
+            finally:
+                self.app["password"], self.app["throttle"] = "", Throttle()
+
         async def test_how_page(self):
             r = await self.client.get("/how")
             self.assertEqual(r.status, 200)

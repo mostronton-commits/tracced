@@ -152,6 +152,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["assistant"], app["assistant_cache"] = assistant, {}
     app["st"], app["s"], app["cfg"] = st, s, cfg or {}
     app["store_dir"], app["password"] = store_dir, password or ""
+    app["throttle"] = Throttle()
     app["st_lock"] = threading.Lock()
     app["overview_cache"] = {}
     _lock_st(st, app["st_lock"])
