@@ -12,8 +12,8 @@ detect:                             # pump detector: suggested ranges on the cha
 
 early:
   plan: free                        # free (2,500 requests/month, 3 req/s) | advanced (200,000/month)
-  example_job: 52qkNp_20260916-1825_1902   # a finished analysis pinned as the example on the home page (ignored if missing)
-  demo_job: 52qkNp_20260916-1825_1902      # replays from output/early/demo/<mint>.json with zero requests (ignored if missing)
+  example_job: 98kfF7_20260915-1930_1950   # a finished analysis pinned as the example on the home page (ignored if missing)
+  demo_job: 98kfF7_20260915-1930_1950      # replays from output/early/demo/<mint>.json with zero requests (ignored if missing)
 
   # Wallet age and first funder (tags `fresh` and `bundle`) come from a Solana RPC, not from the Data API.
   # With SOLANA_RPC_URL set to our own node these are cheap, so tag every wallet in the table, not the first 300.
