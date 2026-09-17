@@ -44,7 +44,7 @@ def main(argv=None):
         return 0
     key = get_key()
     if not key:
-        print("Немає SOLANATRACKER_API_KEY (оточення або .env).", file=sys.stderr)
+        print("SOLANATRACKER_API_KEY is missing (environment or .env).", file=sys.stderr)
         return 1
     st = EarlyST(key, pause=float(s.get("pause_s", 0.35)), chart_cache=JsonCache("cache/early/chart.json", ttl_hours=72),
                  stats_cache=JsonCache("cache/early/wallet_token.json", ttl_hours=s["wallet_stats_ttl_hours"]))

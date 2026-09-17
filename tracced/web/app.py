@@ -157,6 +157,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     _lock_st(st, app["st_lock"])
 
     def runner(job):
+        if job.replay:
+            return _replay(job)
         return pipeline.run(st, job.mint, job.t_from, job.t_to, s,
                             log=job.log.append, progress=job.set_progress, store_dir=store_dir)
 
@@ -320,6 +322,58 @@ def _home_data(jobs):
     return totals, sample, lines
 
 
+def _replay(job):
+    """Demo: play the stored log line by line with small pauses, then return the stored result (0 requests)."""
+    import re as _re
+    lines, result = job.replay.get("log") or [], job.replay["result"]
+    n_pages = sum(1 for l in lines if l.startswith("page "))
+    n_look = 0
+    for l in lines:
+        m = _re.search(r"exits: \d+/(\d+)", l)
+        if m:
+            n_look = int(m.group(1))
+    job.set_progress("token")
+    time.sleep(0.6)
+    pages = 0
+    for l in lines:
+        job.log.append(l)
+        if l.startswith("page "):
+            pages += 1
+            job.set_progress("trades", pages, n_pages)
+            time.sleep(0.25)
+        elif l.strip().startswith("exits:"):
+            m = _re.search(r"exits: (\d+)/(\d+)", l)
+            if m:
+                job.set_progress("wallets", int(m.group(1)), int(m.group(2)))
+            time.sleep(0.5)
+        elif l.startswith("done"):
+            job.set_progress("tags")
+            time.sleep(0.6)
+        else:
+            time.sleep(0.45)
+    return result
+
+
+def _demo(app):
+    """Snapshot of the demo token (info, candles, hints, range) or None."""
+    if "demo" in app:
+        return app["demo"]
+    app["demo"] = None
+    jid = app["s"].get("demo_job")
+    job = app["jobs"].get(jid) if jid else None
+    if job and job.status == "done" and job.result:
+        path = Path(app["jobs"].dir).parent / "demo" / f"{job.mint}.json"
+        if path.exists():
+            try:
+                with open(path, encoding="utf-8") as f:
+                    snap = json.load(f)
+                snap["job_id"], snap["mint"] = jid, job.mint
+                app["demo"] = snap
+            except Exception as e:  # noqa: BLE001
+                log.warning("demo snapshot unreadable: %s", e)
+    return app["demo"]
+
+
 async def index(request):
     app = request.app
     jobs = app["jobs"].recent(30)
@@ -344,9 +398,15 @@ async def how(request):
 async def token_page(request):
     app = request.app
     mint = _mint(request.query.get("mint"))
-    info, ov = await _overview(app, mint)
     s = app["s"]
-    rows = _rows_from_hints(ov["hints"])
+    demo = _demo(app)
+    if demo and demo["mint"] == mint:                                   # демо-токен: усе зі знімка, 0 запитів
+        info, hints = demo["info"], demo.get("hints") or []
+        rows = [{"n": 1, "label": "Demo range", "from": chart.to_input(demo["range"]["from"]), "to": chart.to_input(demo["range"]["to"])}]
+        rows += [dict(r, n=i + 2) for i, r in enumerate(_rows_from_hints(hints)) if hints]
+    else:
+        info, ov = await _overview(app, mint)
+        rows = _rows_from_hints(ov["hints"])
     q = request.query
     preset = None
     if chart.from_input(q.get("from")) and chart.from_input(q.get("to")):
@@ -369,6 +429,10 @@ async def candles_json(request):
         raise WebError("Bad time range.")
     if b <= a:
         return web.json_response([])
+    demo = _demo(app)
+    if demo and demo["mint"] == mint:
+        cs = [c for c in (demo.get("candles") or {}).get(tf) or [] if a * 1000 <= c["time"] <= b * 1000]
+        return web.json_response(chart.candles_mcap(cs, demo["info"]["supply"]))
     info, _ = await _overview(app, mint)
     now = int(time.time())
     created = int((info.get("created_time") or 0) // 1000)
@@ -391,6 +455,12 @@ async def analyze(request):
     mint = _mint(form.get("mint"))
     s = app["s"]
     t_from, t_to = chart.from_input(form.get("from")), chart.from_input(form.get("to"))
+    demo = _demo(app)
+    if demo and demo["mint"] == mint and t_from and t_to and abs(t_from - demo["range"]["from"]) <= 60_000 and abs(t_to - demo["range"]["to"]) <= 60_000:
+        stored = app["jobs"].get(demo["job_id"])                       # демо: програємо збережений аналіз
+        job = app["jobs"].submit(mint, demo["range"]["from"], demo["range"]["to"], symbol=demo["info"].get("symbol"),
+                                 replay={"log": list(stored.log), "result": stored.result})
+        raise web.HTTPFound(f"/job/{job.id}")
     info, _ = await _overview(app, mint)
     errs = window.validate(t_from, t_to, info.get("created_time"), int(time.time() * 1000),
                            max_window_ms=int(s.get("max_window_hours", 0) * HOUR) or None)

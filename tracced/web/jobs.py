@@ -25,6 +25,7 @@ class Job:
         self.started_ms = None
         self.finished_ms = None
         self.symbol_hint = None
+        self.replay = None                # {"log": [...], "result": {...}} — демо: програти без запитів
         self.progress = {"phase": "queued", "done": 0, "total": None}
 
     def set_progress(self, phase, done=0, total=None):
@@ -107,7 +108,7 @@ class JobQueue:
             json.dump(job.to_dict(), f, ensure_ascii=False, default=str)
         os.replace(tmp, path)
 
-    def submit(self, mint, t_from, t_to, symbol=None):
+    def submit(self, mint, t_from, t_to, symbol=None, replay=None):
         id = make_id(mint, t_from, t_to)
         with self.lock:
             cur = self.jobs.get(id)
@@ -115,6 +116,7 @@ class JobQueue:
                 return cur                            # той самий аналіз уже йде
             job = Job(id, mint, t_from, t_to)
             job.symbol_hint = symbol
+            job.replay = replay
             self.jobs[id] = job
         self.q.put(job)
         return job

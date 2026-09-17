@@ -40,6 +40,11 @@ docker compose run --rm --no-deps -v "$PWD/tests:/app/tests" web python -m unitt
 
 Settings live in `config.yaml` (`early.plan: free | advanced` sets the request caps for the Solana Tracker plan).
 
+## Demo token
+Set `early.demo_job` in `config.yaml` to a finished analysis and put its snapshot in `output/early/demo/<mint>.json`
+(info, candles, range). Pasting that token then replays the whole flow — chart, range, live terminal, result — without a
+single request to Solana Tracker. Good for showing the product around.
+
 ## Data
 - Raw swaps and candles: [Solana Tracker Data API](https://www.solanatracker.io/data-api). Free plan: 2,500 requests/month; a cached analysis costs 0.
 - Wallet age and funder: public Solana RPC (`api.mainnet-beta.solana.com`; set `SOLANA_RPC_URL` for your own node with full signature history).

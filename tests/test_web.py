@@ -1,5 +1,6 @@
 """The web page on a fake client: no network. Needs aiohttp (present in Docker)."""
 import asyncio
+import json
 import re
 import tempfile
 import unittest
@@ -42,6 +43,50 @@ if AioHTTPTestCase:
         async def tearDownAsync(self):
             await asyncio.to_thread(self.app["jobs"].q.join)      # let the worker finish writing
             self.tmp.cleanup()
+
+        async def test_demo_token_replays_without_requests(self):
+            # a stored analysis + a snapshot make the demo token replay the whole flow with zero ST requests
+            import os
+            jid = "AAAAAA_20010909-0146_0206"
+            stored = {"id": jid, "mint": MINT, "t_from": 999999960000, "t_to": 1000001160000, "t_exit": None, "status": "done",
+                      "error": None, "created_ms": 1, "started_ms": 1, "finished_ms": 2, "symbol_hint": "TST",
+                      "progress": {"phase": "done", "done": 1, "total": 1}, "log": ["page 1: 3 trades (+3 new)", "  exits: 1/1", "done (wallet-trades): 1 wallets"],
+                      "result": {"info": {"mint": MINT, "symbol": "TST", "supply": 1000000, "created_time": 999996400000},
+                                 "window": {"from": 999999960000, "to": 1000001160000, "end": 1000003560000}, "mode": "wallet-trades",
+                                 "counts": {"n_wallets": 1, "n_trades": 3, "n_early": 1, "dust": 0, "late": 0, "pre_range_only": 0, "lookups": 1, "entry_only": 0},
+                                 "coverage": {"exits_known": 1, "total": 1, "mode": "wallet-trades", "cost_full": 5, "lookup_cap": 500, "plan": "free"},
+                                 "wallet_trades": {"A": {"trades": [[1000000060000, "buy", 100.0, 100.0, 1.0], [1000001800000, "sell", 50.0, 150.0, 3.0]], "source": "wallet-trades"}},
+                                 "price_at_end": 3.0, "fresh_wallets": [], "scope": "all", "rows": [], "summary": {}, "requests": 0, "pages_fetched": 0,
+                                 "enrich": {"done": 0, "total": 0, "fresh": 0, "failed": 0, "funders_done": 0}}}
+            out = self.tmp.name + "/web"; os.makedirs(self.tmp.name + "/demo", exist_ok=True)
+            with open(f"{out}/{jid}.json", "w") as f:
+                json.dump(stored, f)
+            snap = {"mint": MINT, "info": stored["result"]["info"], "created": 999996400000, "captured_ms": 1000003560000,
+                    "candles": {"1m": [{"time": 999999960000 + i * 60000, "open": 1.0, "high": 1.1, "low": 0.9, "close": 1.0, "volume": 1} for i in range(30)]},
+                    "hints": [], "job": jid, "range": {"from": 999999960000, "to": 1000001160000}}
+            with open(f"{self.tmp.name}/demo/{MINT}.json", "w") as f:
+                json.dump(snap, f)
+            self.app["jobs"]._load(); self.app["s"]["demo_job"] = jid; self.app.pop("demo", None)
+            before = self.st.requests
+            r = await self.client.get(f"/token?mint={MINT}")
+            self.assertEqual(r.status, 200)
+            self.assertIn("Demo range", await r.text())
+            r = await self.client.get(f"/candles.json?mint={MINT}&tf=1m&a=999999900&b=1000002000")
+            self.assertEqual(r.status, 200)
+            self.assertTrue(len(await r.json()) > 5)
+            r = await self.client.post("/analyze", data={"mint": MINT, "from": "2001-09-09T01:46", "to": "2001-09-09T02:06"}, allow_redirects=False)
+            self.assertEqual(r.status, 302)
+            loc = r.headers["Location"]
+            html = ""
+            for _ in range(80):
+                r = await self.client.get(loc); html = await r.text()
+                if "↓ Export" in html: break
+                await asyncio.sleep(0.1)
+            self.assertIn("↓ Export", html)
+            self.assertIn("Whole history", html)
+            self.assertEqual(self.st.requests, before)                    # not a single request to Solana Tracker
+            st = await (await self.client.get(loc + ".state.json?since=0")).json()
+            self.assertIn("page 1: 3 trades (+3 new)", st["log"])
 
         async def test_how_page(self):
             r = await self.client.get("/how")
