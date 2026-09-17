@@ -32,6 +32,8 @@ cp .env.example .env            # put your Solana Tracker key in SOLANATRACKER_A
 docker compose up -d --build    # http://127.0.0.1:8095
 ```
 
+On a server: see [deploy/README.md](deploy/README.md) (one container behind an existing Caddy, password on).
+
 Tests:
 
 ```bash

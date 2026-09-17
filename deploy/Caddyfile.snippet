@@ -1,0 +1,6 @@
+# Site block for the Caddy that owns ports 80/443 on the VPS. Replace DOMAIN, append to its Caddyfile,
+# then reload without downtime:  docker exec <caddy container> caddy reload --config /etc/caddy/Caddyfile
+DOMAIN {
+    encode zstd gzip
+    reverse_proxy tracced-web:8095
+}

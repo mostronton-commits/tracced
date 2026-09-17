@@ -377,8 +377,7 @@ def _demo(app):
 async def index(request):
     app = request.app
     jobs = app["jobs"].recent(30)
-    day_ago = int(time.time() * 1000) - 24 * HOUR
-    jobs = [j for j in jobs if j.status != "error" or (j.created_ms or 0) > day_ago]   # старі помилки — шум
+    jobs = [j for j in jobs if j.status != "error"]                    # помилки на головній — шум
     totals, sample, lines = _home_data(jobs)
     want = (app["s"].get("example_job") or "")
     example = app["jobs"].get(want) if want else None

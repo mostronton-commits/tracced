@@ -415,3 +415,9 @@ button.primary { transition: background .12s ease, border-color .12s ease, trans
 .tzseg b.on { background: var(--mint); color: var(--navy); }
 .stepbar .stepx small { display: block; color: #94A3B8; font-size: 12px; margin-top: 1px; }
 #selinfo .link { border-bottom-color: var(--line); color: var(--ink); }
+
+/* ── hero: brand line + tagline ── */
+.hero-dark h1.brandline { font-size: 64px; letter-spacing: .06em; font-weight: 700; margin: 0 0 6px; color: #F8FAFC; }
+.hero-dark .tagline { font-size: 20px; letter-spacing: .02em; color: #CBD5E1; margin: 0 0 18px; }
+.hero-dark .tagline em { font-style: normal; color: var(--mint); }
+@media (max-width: 640px) { .hero-dark h1.brandline { font-size: 40px; } .hero-dark .tagline { font-size: 16px; } }

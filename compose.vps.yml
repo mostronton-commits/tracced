@@ -1,0 +1,22 @@
+# Tracced on a VPS behind an existing Caddy (reverse proxy). No host port: the site is reached only
+# through the proxy, by container name. From the repo root:
+#   docker compose -f compose.vps.yml up -d --build
+# PROXY_NETWORK in .env = the Docker network of the Caddy that owns ports 80/443 (default: proxy).
+name: tracced
+services:
+  web:
+    build: .
+    container_name: tracced-web
+    env_file: .env
+    environment:
+      - WEB_PORT=8095
+    volumes:
+      - ./output:/app/output
+      - ./cache:/app/cache
+      - ./deploy/config.vps.yaml:/app/config.yaml:ro
+    networks: [proxy]
+    restart: unless-stopped
+networks:
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:-proxy}

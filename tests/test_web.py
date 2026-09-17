@@ -101,13 +101,14 @@ if AioHTTPTestCase:
             r = await self.client.get("/")
             html = await r.text()
             self.assertEqual(r.status, 200)
-            self.assertIn("Every wallet, <em>traced</em>", html)         # hero promise
+            self.assertIn("TRACCED", html)                              # brand line
+            self.assertIn("every wallet <em>on the record</em>", html)
             self.assertIn("Tracced", html)
             self.assertNotIn('class="top"', html)                       # no top bar on the home page
             self.assertIn('data-count=', html)                          # live counters
             self.assertIn("How it works", html)                         # footer
             self.assertIn("Built on Solana", html)
-            self.assertIn("NOBODY HIDES ON-CHAIN", html)
+            self.assertIn("every wallet on the record", html)          # footer
             self.assertNotIn("Where this is going", html)               # roadmap removed for now
             self.assertIn("Paste contract", html)
             self.assertIn("Get wallets", html)
