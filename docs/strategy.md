@@ -49,6 +49,30 @@ Analyses per day · 7-day return rate · watchlists created · alerts delivered 
 copied volume and fees collected. All countable from the stage-1.5 database.
 
 ## Scaling
+
+**What the cost is made of** (measured on PAID, 17 Sep 2026). An analysis needs, for every wallet that bought
+in the range, its whole story on the token. Two ways to get it:
+
+| Path | Cost on PAID's three pump ranges | What it leaves behind |
+|---|---|---|
+| One request per wallet | ~6,250 requests | nothing — the next user pays again |
+| The token's trade history, once | ~1,800 pages (450k trades) | a cache every later range and user reuses |
+
+So the bill scales with **tokens touched**, not with users or analyses — as long as the run takes the second
+path. Two things used to push it to the first: the free plan's page caps, and an estimate that carried the
+pump's trade rate (500+/min) across the quiet hours that follow (~50/min), overstating the full path 3-4x.
+The estimate is now measured with a few probe pages (`budget.pages_from_rates`).
+
+**Rough budget at 200 active users a day:** 12,000 analyses a month over 400–800 unique tokens, ~200 pages
+each on average ≈ 130,000 requests — inside the €50 / 200,000 Advanced tier. A thousand users needs the next
+tier or an own index.
+
+**What breaks first, in order.** (1) Disk: trades are JSONL per token and one hot token is ~170 MB, so
+hundreds of tokens a month fill the VPS within months — needs a database and eviction of cold tokens.
+(2) Latency: 1,800 pages is ~90 s at the Advanced pace, so the terminal has to stay honest about progress.
+(3) The API tier itself. The endgame is an own indexer on a Geyser/gRPC stream, worth it only once paid
+subscriptions exist.
+
 - **Data.** One vendor today (Solana Tracker). Mitigations: shared cache; on-chain completeness audit built in;
   a second source (Helius parsed transactions or an own swap parser for pump.fun / PumpSwap / Raydium) at stage 4.
 - **Compute.** Today one worker and JSON files. Stage 1.5: Postgres, a queue with several workers, paid users first.
