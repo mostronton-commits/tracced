@@ -177,6 +177,10 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
         log("entry range is cached — no new requests for it")
 
     # ── 2. гаманці, що купували в діапазоні ──
+    repaired = ledger.repair_quantities(store.trades)     # джерело інколи ламає кількість токенів
+    if repaired:
+        log(f"{repaired:,} of {len(store.trades):,} trades had a broken token amount from the source — "
+            f"repriced at the market rate of their minute (the USD amounts are untouched)")
     win = store.between(t_from, t_to)
     wl, lstats = ledger.build(win, t_from, t_to, t_to)
     early, counts = ledger.classify(wl, t_to, s["min_invested_usd"])
@@ -249,6 +253,7 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
                 for tr in wt:
                     if tr.get("price") and tr["time"] > last_seen[0]:
                         last_seen = (tr["time"], tr["price"])
+                ledger.repair_quantities(wt, ref=ledger.price_reference(store.trades) if store.trades else None)
                 wallet_trades[l.wallet] = {"trades": scope.pack(wt), "source": "wallet-trades"}
                 n_ok += 1
             except Exception as e:  # noqa: BLE001 — one wallet must not sink the run

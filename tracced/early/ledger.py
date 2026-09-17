@@ -6,6 +6,9 @@
 
 Угода тут = {"wallet", "type": "buy"|"sell", "time": ms, "qty", "usd", "price", "tx", "program"}.
 """
+import bisect
+import statistics
+
 from ..util import to_ms
 
 
@@ -50,6 +53,61 @@ class Ledger:
         self.first_range_buy_price = None
         self.buys_before_range = 0            # купував ще до діапазону (lifetime-масштаб)
         self.invested_before_range = 0.0
+
+
+MINUTE = 60_000
+REPAIR_FACTOR = 1000         # у скільки разів ціна має розійтись із ринковою, щоб не вірити кількості
+
+
+def price_reference(trades):
+    """Ринкова ціна по хвилинах: медіана цін угод кожної хвилини.
+
+    Медіана стійка до кількох зіпсованих значень, тому її можна рахувати прямо з сирого потоку.
+    Повертає (відсортовані хвилини, медіани) для пошуку найближчої хвилини з даними.
+    """
+    by_min = {}
+    for tr in trades:
+        t, pr = tr.get("time"), tr.get("price")
+        if t is None or not pr or pr <= 0:
+            continue
+        by_min.setdefault(t // MINUTE, []).append(float(pr))
+    mins = sorted(by_min)
+    return mins, [statistics.median(by_min[m]) for m in mins]
+
+
+def repair_quantities(trades, ref=None, factor=REPAIR_FACTOR):
+    """Лагодить угоди, у яких джерело віддало кількість токенів іншого порядку.
+
+    Приблизно в одній угоді з тисячі Solana Tracker повертає `amount`, зміщений на багато порядків
+    (баг десяткових у деяких агрегаторах: гаманець «продає» 5.8e-11 токена за $1 821). Сума в доларах
+    при цьому правильна, а похідна ціна — ні, і через неї ламаються капа виходу, множник і частка
+    проданого. Беремо ринкову ціну тієї хвилини, кількість перераховуємо з доларів; долари не чіпаємо.
+
+    Міняє список на місці. Повертає, скільки угод полагоджено.
+    """
+    mins, meds = ref if ref is not None else price_reference(trades)
+    if not mins:
+        return 0
+    fixed = 0
+    for tr in trades:
+        t, usd = tr.get("time"), float(tr.get("usd") or 0)
+        if t is None or usd <= 0:
+            continue
+        i = bisect.bisect_left(mins, t // MINUTE)
+        cands = [j for j in (i - 1, i) if 0 <= j < len(mins)]
+        if not cands:
+            continue
+        m = min(cands, key=lambda j: abs(mins[j] - t // MINUTE))
+        market = meds[m]
+        price = float(tr.get("price") or 0)
+        qty = float(tr.get("qty") or 0)
+        if market <= 0:
+            continue
+        if price > 0 and qty > 0 and 1 / factor <= price / market <= factor:
+            continue                                  # ціна в межах ринкової — віримо кількості
+        tr["price"], tr["qty"], tr["repaired"] = market, usd / market, True
+        fixed += 1
+    return fixed
 
 
 def build(trades, t_from, t_to, t_exit, range_from=None):

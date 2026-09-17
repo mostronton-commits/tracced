@@ -128,3 +128,35 @@ class TestLedger(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRepairQuantities(unittest.TestCase):
+    """Джерело інколи віддає кількість токенів іншого порядку; долари при цьому правильні."""
+
+    def market(self, n=40, price=0.01, t0=1_000_000_000_000):
+        return [{"wallet": f"W{i}", "type": "buy", "time": t0 + i * 1000, "qty": 100.0,
+                 "usd": 100.0 * price, "price": price} for i in range(n)]
+
+    def test_broken_amount_is_repriced_from_the_market(self):
+        tr = self.market()
+        broken = {"wallet": "B", "type": "sell", "time": tr[20]["time"], "qty": 5.8e-11,
+                  "usd": 1821.71, "price": 3.1e13}
+        tr.append(broken)
+        n = ledger.repair_quantities(tr)
+        self.assertEqual(n, 1)
+        self.assertTrue(broken["repaired"])
+        self.assertAlmostEqual(broken["price"], 0.01)
+        self.assertAlmostEqual(broken["qty"], 182171.0, places=0)     # долари / ринкова ціна
+        self.assertEqual(broken["usd"], 1821.71)                      # суму не чіпаємо
+        self.assertNotIn("repaired", tr[0])                           # здорові угоди не торкаємось
+
+    def test_real_moves_are_left_alone(self):
+        tr = self.market()
+        moved = {"wallet": "M", "type": "buy", "time": tr[20]["time"], "qty": 10.0, "usd": 1.0, "price": 0.1}
+        tr.append(moved)                                              # 10x дорожче за ринок — це рух, не дефект
+        self.assertEqual(ledger.repair_quantities(tr), 0)
+        self.assertNotIn("repaired", moved)
+
+    def test_no_reference_and_empty_input(self):
+        self.assertEqual(ledger.repair_quantities([]), 0)
+        self.assertEqual(ledger.repair_quantities([{"wallet": "A", "type": "buy", "time": 1, "qty": 0, "usd": 0, "price": 0}]), 0)
