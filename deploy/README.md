@@ -8,9 +8,8 @@ One container, no public port. HTTPS comes from the Caddy that already serves th
 3. Optional demo: copy `output/early/demo/<mint>.json` and the example analysis `output/early/web/<id>.json`
    from the machine where they were made; the ids are in `config.yaml`.
 4. `docker compose -f compose.vps.yml up -d --build`
-5. Point the domain's A record at the server, then `bash deploy/enable_domain.sh <domain> <Caddyfile path> <caddy container>`
-   (or add `deploy/Caddyfile.snippet` by hand to the
-   Caddy config and reload it. Caddy fetches the certificate itself.
+5. Point the domain's A record at the server, then run `bash deploy/enable_domain.sh <domain> "<Caddyfile path>" <caddy container>`:
+   it appends `deploy/Caddyfile.snippet` with a backup and reloads Caddy only if the config validates. Caddy fetches the certificate itself.
 
 Update: `git pull && docker compose -f compose.vps.yml up -d --build`. Analyses and caches live in
 `output/` and `cache/` on the host and survive rebuilds.
