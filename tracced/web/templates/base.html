@@ -28,20 +28,20 @@ window.EarlyTZ = (function () {
 {% block head %}{% endblock %}
 </head>
 <body>
-{% block topbar %}<header class="top">
+{% block topbar %}<header class="top"><div class="top-in">
   <a class="brand" href="/">tracced</a>
   <form method="get" action="/token" class="topsearch">
     <input type="text" name="mint" placeholder="Token address" pattern="[1-9A-HJ-NP-Za-km-z]{32,44}" spellcheck="false" autocomplete="off" required>
   </form>
-</header>{% endblock %}
+</div></header>{% endblock %}
 {% block full %}{% endblock %}
-<main>
+<main class="{% block main_class %}{% endblock %}">
 {% block body %}{% endblock %}
 </main>
-<footer class="foot">
+<footer class="foot"><div class="foot-in">
   <div class="foot-l"><b>tracced</b> <span class="muted mono">every wallet on the record</span></div>
   <div class="foot-c mono">◎ Built on Solana</div>
   <div class="foot-r muted small"><a href="/how">How it works</a> · <span class="tzseg" id="tz" title="Time zone for all dates" onclick="EarlyTZ.toggle()"><b class="on">UTC</b><b>Local</b></span> · <span class="mono">v {{ v }}</span></div>
-</footer>
+</div></footer>
 </body>
 </html>

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ job.symbol }} · result · tracced{% endblock %}
+{% block main_class %}wide{% endblock %}
 {% block crumb %}{{ job.symbol }} · <span class="dtc" data-ms="{{ job.t_from }}">{{ job.t_from|dt }}</span> → <span class="dtc" data-ms="{{ job.t_to }}">{{ job.t_to|dt }}</span>{% endblock %}
 {% block head %}<script src="/static/vendor/lightweight-charts.standalone.production.js?v={{ v }}"></script><script src="/static/chart.js?v={{ v }}"></script><script src="/static/term.js?v={{ v }}" defer></script>{% endblock %}
 {% block body %}
@@ -132,7 +133,7 @@
             data-tags="{{ w.tag_list|join(' ') }}"{% if loop.index0 < 40 %} style="--i: {{ loop.index0 }}"{% endif %}>
           <td><input type="checkbox" class="pick"></td>
           <td class="muted n">{{ loop.index }}</td>
-          <td class="wcell"><button type="button" class="mk" title="Show on the chart">◉</button><button type="button" class="wname mono" title="Open the story">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</button><a class="ext" href="{{ w.solscan_url }}" target="_blank" rel="noopener" title="Solscan">↗</a><span class="tags">{% for t in w.tag_list %}<span class="tag t-{{ t }}" title="{{ TAGS.get(t, t) }}">{{ t }}</span>{% endfor %}</span></td>
+          <td class="wcell"><span class="wid"><button type="button" class="mk" title="Show on the chart">◉</button><button type="button" class="wname mono" title="Open the story">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</button><a class="ext" href="{{ w.solscan_url }}" target="_blank" rel="noopener" title="Solscan">↗</a></span><span class="tags">{% for t in w.tag_list %}<span class="tag t-{{ t }}" title="{{ TAGS.get(t, t) }}">{{ t }}</span>{% endfor %}</span></td>
           <td class="num two"><b class="mono">{{ ecap|mcap }}</b><small class="dtc" data-ms="{{ etime or 0 }}">{{ etime|dt }}</small></td>
           <td class="num two"><b class="mono">{{ w.invested_in_range_usd|usd }}</b><small>{% if diff %}of {{ w.invested_usd|usd }} total{% endif %}</small></td>
           <td class="num two"><b class="mono">{{ w.exit_mcap_avg|mcap }}</b><small class="dtc" data-ms="{{ w.first_sell_ms or 0 }}">{{ w.first_sell_ms|dt if w.first_sell_ms else '' }}</small></td>

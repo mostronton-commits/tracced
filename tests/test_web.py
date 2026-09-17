@@ -79,7 +79,7 @@ if AioHTTPTestCase:
             self.assertEqual(r.status, 302)
             self.assertEqual(r.headers["Location"], f"/token?mint={MINT}&notice=demo")
             r = await self.client.get(r.headers["Location"])
-            self.assertIn("That range is not recorded.", await r.text())
+            self.assertIn("Only the range below is recorded.", await r.text())
             self.assertEqual(self.st.requests, before)
             r = await self.client.get(f"/candles.json?mint={MINT}&tf=1m&a=999999900&b=1000002000")
             self.assertEqual(r.status, 200)
@@ -159,6 +159,20 @@ if AioHTTPTestCase:
                 self.assertIn("Too many attempts", await r.text())
             finally:
                 self.app["password"], self.app["throttle"] = "", Throttle()
+
+        async def test_layout_containers(self):
+            # верстка тримається на трьох речах: смуги шапки/підвалу з внутрішнім контейнером і широка сторінка результату
+            for path in ("/", "/how"):
+                html = await (await self.client.get(path)).text()
+                self.assertIn('<footer class="foot"><div class="foot-in">', html)
+            html = await (await self.client.get("/how")).text()
+            self.assertIn('<header class="top"><div class="top-in">', html)
+            self.assertNotIn('<main class="wide"', html)
+            await self.client.get(f"/token?mint={MINT}")
+            r = await self.client.post("/analyze", data={"mint": MINT, "from": "2001-09-09T01:46", "to": "2001-09-09T02:06"},
+                                       allow_redirects=False)
+            html = await (await self.client.get(r.headers["Location"])).text()
+            self.assertIn('<main class="wide"', html)                      # таблиці потрібна ширина
 
         async def test_how_page(self):
             r = await self.client.get("/how")
