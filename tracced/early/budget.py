@@ -50,12 +50,44 @@ def choose_mode(cost_full, n_early, caps):
 
 
 def estimate_gap_pages(n_window_trades, window_ms, gap_ms, page_size=250, margin=1.0):
-    """Сторінок на непокриту дірку при щільності угод, як у вікні (нижня оцінка з запасом margin)."""
+    """Сторінок на непокриту дірку при щільності угод, як у вікні (нижня оцінка з запасом margin).
+
+    Груба оцінка: у діапазоні памп, а далі затишшя, тож вона зазвичай СИЛЬНО завищує. Там, де ціна рішення
+    висока, краще поміряти щільність усередині дірки — `pages_from_rates`.
+    """
     if gap_ms <= 0:
         return 0
     if window_ms <= 0 or n_window_trades <= 0:
         return 1
     return max(1, math.ceil(gap_ms * (n_window_trades / page_size) / window_ms * margin))
+
+
+def probe_points(gap_ms, n=3):
+    """Частки дірки, у яких її варто поміряти: початок, середина, кінець (без самих країв)."""
+    if gap_ms <= 0 or n < 1:
+        return []
+    if n == 1:
+        return [0.5]
+    return [0.05 + 0.9 * i / (n - 1) for i in range(n)]
+
+
+def pages_from_rates(rates, gap_ms, page_size=250, margin=1.0):
+    """Сторінок на дірку за виміряними темпами (угод/с) у кількох її точках — метод трапецій.
+
+    `rates` — [(частка дірки 0..1, угод/с), ...] у порядку зростання частки. Між замірами темп вважаємо
+    лінійним, до країв — сталим. Це набагато ближче до правди, ніж переносити темп пампу на всю добу.
+    """
+    pts = [(f, r) for f, r in rates if r is not None and r >= 0]
+    if gap_ms <= 0 or not pts:
+        return None
+    if len(pts) == 1:
+        trades = gap_ms / 1000 * pts[0][1]
+    else:
+        trades = pts[0][0] * gap_ms / 1000 * pts[0][1]                      # від початку дірки до першого заміру
+        for (fa, ra), (fb, rb) in zip(pts, pts[1:]):
+            trades += (fb - fa) * gap_ms / 1000 * (ra + rb) / 2
+        trades += (1 - pts[-1][0]) * gap_ms / 1000 * pts[-1][1]             # від останнього заміру до кінця
+    return max(1, math.ceil(trades / page_size * margin))
 
 
 def budget_message(planned, credits_left, pct):

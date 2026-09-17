@@ -53,6 +53,33 @@ def estimate_pages(store, t_from, t_exit, first_page_span_ms, page_size=250):
     return int(total / first_page_span_ms) + 1
 
 
+def gap_moment(gaps, frac):
+    """Момент на частці `frac` від усього непокритого часу (дірок може бути кілька)."""
+    total = sum(b - a for a, b in gaps)
+    want = total * max(0.0, min(1.0, frac))
+    for a, b in gaps:
+        if want <= b - a:
+            return int(a + want)
+        want -= b - a
+    return int(gaps[-1][1])
+
+
+def probe_rates(fetch, gaps, points):
+    """Виміряний темп (угод/с) у кількох точках дірки: по одній сторінці на точку."""
+    out = []
+    for f in points:
+        try:
+            ts = (fetch(gap_moment(gaps, f) - 1) or {}).get("trades") or []
+        except Exception:  # noqa: BLE001 — проба не має валити прогін
+            continue
+        if len(ts) < 2:
+            continue
+        span = (ts[-1]["time"] - ts[0]["time"]) / 1000
+        if span > 0:
+            out.append((f, len(ts) / span))
+    return out
+
+
 def price_at(st, mint, t_ms):
     """Price at a moment from 5m candles (1 cached request); None if the chart has nothing there."""
     try:
@@ -158,9 +185,19 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
     log(f"entry range: {len(win):,} trades · {len(wl):,} buyers · {len(early):,} bought in the range")
 
     # ── 3. рішення: уся історія токена чи угоди кожного гаманця ──
-    gap_ms = sum(b - a for a, b in store.gaps(created, t_end))
-    cost_full = budget.estimate_gap_pages(len(win), t_to - t_from, gap_ms, page_size,
-                                          float(s.get("full_fetch_margin", 1.0)))
+    gaps = store.gaps(created, t_end)
+    gap_ms = sum(b - a for a, b in gaps)
+    margin = float(s.get("full_fetch_margin", 1.0))
+    cost_full = budget.estimate_gap_pages(len(win), t_to - t_from, gap_ms, page_size, margin)
+    n_probe = int(s.get("probe_pages", 0) or 0)
+    if gaps and n_probe and cost_full >= int(s.get("probe_min_pages", 200)):
+        # темп пампу не тримається наступні години: міряємо дірку, інакше повний шлях виглядає дорожчим, ніж є
+        rates = probe_rates(fetch, gaps, budget.probe_points(gap_ms, n_probe))
+        measured = budget.pages_from_rates(rates, gap_ms, page_size, margin)
+        if measured:
+            log(f"measured the rest of the history with {len(rates)} probes: ≈{measured:,} pages "
+                f"(the range's pace alone suggested ≈{cost_full:,})")
+            cost_full = measured
     lookups_cap = int(s["max_wallet_lookups"])
     choice = budget.choose_mode(cost_full, len(early), budget.Caps(max_pages - pages, lookups_cap))
     mode = choice.mode

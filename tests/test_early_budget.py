@@ -1,5 +1,6 @@
 import unittest
 
+from tracced.early import budget
 from tracced.early.budget import Caps, budget_message, choose_mode, estimate_gap_pages
 
 MIN = 60_000
@@ -63,3 +64,36 @@ class TestEstimateAndGuard(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMeasuredGap(unittest.TestCase):
+    """Темп угод у пампі не тримається далі, тому дірку міряють, а не екстраполюють."""
+
+    def test_probe_points_spread_across_the_gap(self):
+        self.assertEqual(budget.probe_points(0, 3), [])
+        self.assertEqual(budget.probe_points(1000, 1), [0.5])
+        p = budget.probe_points(1000, 3)
+        self.assertEqual([round(x, 2) for x in p], [0.05, 0.5, 0.95])
+        self.assertEqual(len(budget.probe_points(1000, 5)), 5)
+
+    def test_pages_from_measured_rates(self):
+        hour = 3600_000
+        # рівний темп 1 угода/с на 10 годин = 36 000 угод = 144 сторінок
+        self.assertEqual(budget.pages_from_rates([(0.5, 1.0)], 10 * hour), 144)
+        # темп падає удвічі до кінця: середнє 0.75 угод/с
+        two = budget.pages_from_rates([(0.0, 1.0), (1.0, 0.5)], 10 * hour)
+        self.assertEqual(two, 108)
+        self.assertGreater(budget.pages_from_rates([(0.5, 1.0)], 10 * hour, margin=1.15), 144)
+        self.assertIsNone(budget.pages_from_rates([], 10 * hour))
+        self.assertIsNone(budget.pages_from_rates([(0.5, 1.0)], 0))
+
+    def test_measuring_beats_extrapolating_a_pump(self):
+        # памп: 24 000 угод за 45 хв; далі 42 години затишшя по ~1 угоді/с
+        gap = 42 * 3600_000
+        rough = budget.estimate_gap_pages(24000, 45 * 60_000, gap, 250, 1.15)
+        measured = budget.pages_from_rates([(0.05, 5.0), (0.5, 1.0), (0.95, 0.5)], gap, 250, 1.15)
+        self.assertGreater(rough, 5000)                       # екстраполяція пампу — тисячі сторінок
+        self.assertLess(measured, rough / 2)                  # заміри дають у рази менше
+        caps = budget.Caps(pages_left=2000, lookups=3000)
+        self.assertEqual(budget.choose_mode(rough, 3500, caps).mode, "wallet-trades")
+        self.assertEqual(budget.choose_mode(measured, 3500, caps).mode, "trades")   # рішення змінюється
