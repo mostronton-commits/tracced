@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}How it works · Tracced{% endblock %}
+{% block crumb %}How it works{% endblock %}
+{% block body %}
+<section class="card doc">
+  <h1>How it works</h1>
+  <p class="lead">Tracced shows <b>who bought a token before its pump</b> and what they did next — as facts from
+    the token's own trades. No scores, no "smart money" labels. You decide who is worth following.</p>
+
+  <h2>Where the data comes from</h2>
+  <ul>
+    <li><b>Raw swaps</b> of the token from <a href="https://www.solanatracker.io" target="_blank" rel="noopener">Solana Tracker</a>
+      — the same transactions you can open on Solscan. Every number is computed from them; nothing comes from
+      third-party PnL or scores. Completeness is verified against the chain.</li>
+    <li><b>Market cap</b> of a trade = price × token supply.</li>
+    <li><b>Wallet age and funder</b> — from the public Solana RPC: the wallet's oldest transaction.</li>
+    <li><b>Candles</b> — Solana Tracker, shown in market cap.</li>
+  </ul>
+
+  <h2>Range and scope</h2>
+  <p>The <b>range</b> (From → To) is yours to set on the chart: usually from where buying starts to where the pump takes
+    off. It only selects wallets — every wallet that bought inside it is in the table.</p>
+  <p>The numbers come from <b>all of a wallet's trades</b> on the token, before, inside and after the range. The
+    <b>scope</b> switch recounts the same trades up to the analysis time, or 24 h / 48 h after the range. Entry cap is
+    always the wallet's first buy inside the range, so it does not move with the scope.</p>
+
+  <h2>Columns</h2>
+  <dl class="cols">
+    <div><dt>Entry cap</dt><dd>Market cap at the first buy inside the range · its time</dd></div>
+    <div><dt>In range</dt><dd>USD spent inside the range · total on the token, if different</dd></div>
+    <div><dt>Exit cap</dt><dd>Average market cap of the sells · first sell time</dd></div>
+    <div><dt>Got</dt><dd>USD received from sells · share of bought tokens sold</dd></div>
+    <div><dt>Realized</dt><dd>Profit on the sold part (average cost) · unrealized value of the rest at the last price</dd></div>
+    <div><dt>×</dt><dd>Average exit cap ÷ average entry cap</dd></div>
+    <div><dt>Held</dt><dd>Minutes from the entry to the first sell after it · buys / sells</dd></div>
+  </dl>
+
+  <h2>Tags</h2>
+  <p>Tags are facts with a fixed rule, not judgments. Hover a tag to read the rule.</p>
+  <dl class="cols">
+    {% for k, d in TAGS.items() %}<div><dt><span class="tag t-{{ k }}">{{ k }}</span></dt><dd>{{ d }}</dd></div>{% endfor %}
+  </dl>
+
+  <h2>Complete data, cheapest path</h2>
+  <p>The range is always fetched in full. For each wallet's history the app takes the cheaper of two complete paths:
+    the whole trade history of the token, or each wallet's own trades. Only when neither fits the budget
+    ({{ s.max_wallet_lookups }} wallets on the {{ s.plan }} plan) do some wallets stay without exits — they get the
+    <i>no-exits</i> tag, and the line above the table says so.</p>
+
+  <h2>Limits</h2>
+  <ul>
+    <li>Range up to {{ s.max_window_hours }} h.</li>
+    <li>One run may use at most {{ s.budget_guard_pct }}% of the requests left this month; the app stops before spending more.</li>
+    <li>Wallets that spent less than ${{ s.min_invested_usd }} in the range are left out.</li>
+    <li>Wallet age is checked for up to {{ s.age_lookups_max }} wallets per analysis, in the background.</li>
+    <li>Chart markers: up to 3 wallets at once, {{ s.markers_max }} trades each.</li>
+  </ul>
+
+  <h2>The AI agent <span class="tag">Coming next</span></h2>
+  <p>It will read the facts of the visible rows and your method, and return a short list of wallets with a reason for
+    each. It sees nothing but that table and does not predict. Verify before acting.</p>
+
+  <h2>Export</h2>
+  <p>CSV, TXT and JSON export the same wallets: the selected ones, or the filtered rows if nothing is selected.
+    CSV has all columns and tags; TXT has addresses only; JSON adds the range and coverage.</p>
+</section>
+{% endblock %}

@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+{% block title %}{{ job.symbol }} · result · Tracced{% endblock %}
+{% block crumb %}{{ job.symbol }} · <span class="dtc" data-ms="{{ job.t_from }}">{{ job.t_from|dt }}</span> → <span class="dtc" data-ms="{{ job.t_to }}">{{ job.t_to|dt }}</span>{% endblock %}
+{% block head %}<script src="/static/vendor/lightweight-charts.standalone.production.js?v={{ v }}"></script><script src="/static/chart.js?v={{ v }}"></script><script src="/static/term.js?v={{ v }}" defer></script>{% endblock %}
+{% block body %}
+<section class="card">
+  <div class="tokenhead">
+    <div>
+      <h1 class="h-title">{{ job.symbol }}</h1>
+      <div class="h-addr mono"><span title="{{ job.mint }}">{{ job.mint[:6] }}…{{ job.mint[-5:] }}</span><button type="button" class="ghost copy" data-copy="{{ job.mint }}" title="Copy the token address">⧉</button><a class="ext" href="https://solscan.io/token/{{ job.mint }}" target="_blank" rel="noopener" title="Token on Solscan">↗</a></div>
+      <div class="h-sub mono muted">Range <span class="dtc" data-ms="{{ job.t_from }}">{{ job.t_from|dt }}</span> → <span class="dtc" data-ms="{{ job.t_to }}">{{ job.t_to|dt }}</span>{% if result %} · Trades up to <span class="dtc" data-ms="{{ result.window.end or job.t_exit or now }}">{{ (result.window.end or job.t_exit or now)|dt }}</span>{% endif %}</div>
+    </div>
+    <div class="h-right">
+      <span class="chip st-{{ jstatus }}">{{ {'queued':'Queued','running':'Running','done':'Done','error':'Error'}[jstatus] }}</span>
+      <a class="button" href="{{ back }}">← Adjust the range</a>
+    </div>
+  </div>
+
+  {% if jstatus != 'done' or not result %}
+    <div class="term {{ jstatus }}" id="term" data-id="{{ job.id }}" data-status="{{ jstatus }}" data-back="{{ back }}">
+      <div class="term-bar">
+        <span class="term-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="term-title">tracced · analyzing <b class="term-sym">{{ job.symbol }}</b> · <span class="term-clock">00:00</span></span>
+        <span class="term-phase"></span>
+      </div>
+      <div class="term-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div class="term-fill"></div></div>
+      <div class="term-body" role="log" aria-live="polite">
+        <div class="term-lines"></div>
+        <div class="tl cur" aria-hidden="true"><span class="ts"></span><span class="tx"><span class="caret"></span></span></div>
+      </div>
+      <div class="term-foot" hidden><p class="term-err"></p><a class="button" href="{{ back }}">← Adjust the range</a></div>
+      <noscript><pre class="log">{% for l in job.log[-15:] %}{{ l }}
+{% endfor %}{{ job.error or '' }}</pre></noscript>
+    </div>
+  {% else %}
+    {% set r = result %}{% set c = r.counts %}
+    <div class="chartbox" id="chart" data-mint="{{ job.mint }}" data-created="{{ created }}" data-now="{{ now }}"
+         data-from="{{ job.t_from }}" data-to="{{ job.t_to }}" data-exit="{{ scope_end or 0 }}" data-symbol="{{ job.symbol }}"></div>
+    <div class="onchart-bar" id="onchart" hidden></div>
+    <p class="muted small mhint" id="mhint" hidden></p>
+
+    <div class="row scoperow">
+      <span class="muted small">Numbers for</span>
+      <div class="scope" role="tablist">
+        {% for sc in scopes %}
+          {% set label = {'all': 'Whole history'}.get(sc, sc[:-1] ~ ' h after range') %}
+          {% if has_scopes %}<a role="tab" class="{{ 'on' if sc == scope else '' }}" href="?scope={{ sc }}">{{ label }}</a>
+          {% else %}<span role="tab" class="{{ 'on' if sc == scope else 'off' }}" title="Run the analysis again to unlock scopes">{{ label }}</span>{% endif %}
+        {% endfor %}
+      </div>
+      <span class="muted small">{% if scope == 'all' %}all trades up to the analysis time{% else %}trades up to {{ scope[:-1] }} h after the range{% endif %}</span>
+    </div>
+    {% if cov_text %}<p class="muted small cov">{{ cov_text }}</p>{% endif %}
+
+    <div class="stats">
+      <div title="Wallets that bought inside the range — the list below"><b data-count="{{ sm.n }}" data-fmt="int">0</b><span>Bought in range</span></div>
+      <div title="Sold 99% or more of what they bought"><b data-count="{{ sm.exited }}" data-fmt="int">0</b><span>Sold out</span></div>
+      <div title="Sold less than half of what they bought"><b data-count="{{ sm.holding }}" data-fmt="int">0</b><span>Still holding</span></div>
+      <div title="Highest exit cap ÷ entry cap among these wallets"><b data-count="{{ sm.best_multiple or 0 }}" data-fmt="mult">0</b><span>Best multiple</span></div>
+      <div title="USD these wallets spent inside the range"><b data-count="{{ (sm.invested_range or 0)|round(0)|int }}" data-fmt="usd">0</b><span>Spent in range</span></div>
+    </div>
+    <p class="muted small">{{ c.n_wallets|num }} traded in the range · {{ c.dust|num }} below ${{ s.min_invested_usd }} · {{ ((c.pre_range_only or 0) + (c.before_range_only or 0))|num }} sold only · {{ c.n_trades|num }} trades</p>
+
+    <div class="row toolbar">
+      <button type="button" id="ftoggle" aria-expanded="false">Filters</button>
+      <span class="muted small" id="shown"></span>
+      <label class="chk"><input type="checkbox" id="pickall"> Select all</label>
+      <span class="muted small" id="selinfo" hidden><b id="nsel">0</b> selected · <button type="button" class="link" id="clearsel">Clear</button></span>
+      <div class="soonwrap right" id="aiwrap">
+        <button type="button" class="button ai-btn" id="askbtn" title="{{ 'Pick wallets to watch by your method' if assistant_on else 'Coming next' }}">✦ AI agent</button>
+        <div class="soon-pop" id="aipop" hidden>
+          <b>Coming next</b>
+          <span>The agent will pick wallets to watch by your method and explain each pick.</span>
+          <span class="muted">First it will choose the range for you.</span>
+        </div>
+      </div>
+      <div class="soonwrap" id="watch" hidden>
+        <button type="button" class="button holo" id="watchbtn"><span class="holo-in"><span class="holo-txt">Add to watchlist</span><span class="holo-n" id="watchn"></span></span></button>
+        <div class="soon-pop" id="soonpop" hidden>
+          <b>Coming next</b>
+          <span>Save the wallets you pick and get alerts when they trade.</span>
+          <span class="muted">Until then, use Export.</span>
+        </div>
+      </div>
+      <div class="menu">
+        <button type="button" class="ghost xbtn" data-menu>↓ Export</button>
+        <div class="menu-panel r" hidden>
+          <button type="button" data-x="csv">CSV <small id="xcsv"></small></button>
+          <button type="button" data-x="txt">TXT <small id="xtxt"></small></button>
+          <button type="button" data-x="json">JSON <small id="xjson"></small></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="filters compact" id="filters" hidden>
+      <label title="Spent inside the range, at least">In range ≥ $<input type="number" data-f="inv" value="0" min="0" step="10"></label>
+      <label title="Exit cap ÷ entry cap, at least">Multiple ≥ <input type="number" data-f="mult" value="0" min="0" step="0.5"></label>
+      <label title="Share of bought tokens sold, at least">Sold ≥ <input type="number" data-f="sold" value="0" min="0" max="100" step="5">%</label>
+      <label title="Buys on this token, at most">Buys ≤ <input type="number" data-f="buysMax" min="1" step="1" placeholder="any"></label>
+      <label title="Minutes from entry to the first sell, at least">Held ≥ <input type="number" data-f="hold" value="0" min="0" step="5"> min</label>
+      <label class="chk" title="Only wallets that have sold"><input type="checkbox" data-f="exits"> exits only</label>
+      <span class="sep"></span>
+      <span class="muted small">Hide tags:</span>
+      {% for k, d in TAGS.items() %}<button type="button" class="tagchip t-{{ k }}" data-hide="{{ k }}" title="{{ d }}">{{ k }}</button>{% endfor %}
+      {% if s.age_lookups_max %}<span class="muted small" id="enrich" title="{{ TAGS.fresh }}">wallet age…</span>{% endif %}
+      <button type="button" class="ghost" id="fclear">Reset</button>
+    </div>
+
+    <div class="tablewrap">
+    <table class="facts" id="facts" data-id="{{ job.id }}">
+      <thead>
+      <tr class="grp"><th colspan="3"></th><th colspan="2" class="g">Entry (in range)</th><th colspan="2" class="g">Exit</th><th colspan="3" class="g">Result ({{ 'whole history' if scope == 'all' else scope[:-1] ~ ' h after range' }})</th></tr>
+      <tr>
+        <th></th><th>#</th><th class="sortable" data-key="w" data-type="text">Wallet</th>
+        <th class="num sortable" data-key="entry" title="Market cap at the first buy inside the range · its time">Entry cap</th>
+        <th class="num sortable" data-key="inv" title="Bought inside the range · total on this token in this scope">In range</th>
+        <th class="num sortable" data-key="exitcap" title="Average exit market cap · first sell time">Exit cap</th>
+        <th class="num sortable" data-key="got" title="Received from sells · share sold">Got</th>
+        <th class="num sortable" data-key="real" title="Realized · unrealized at the last price">Realized</th>
+        <th class="num sortable" data-key="mult" title="Average exit cap ÷ average entry cap">×</th>
+        <th class="num sortable" data-key="hold" title="From the entry to the first sell after it · buys / sells">Held</th>
+      </tr></thead>
+      <tbody>
+      {% for w in r.rows %}
+        {% set diff = (w.invested_usd or 0) > (w.invested_in_range_usd or 0) + 0.01 %}
+        {% set ecap = w.entry_range_mcap if w.entry_range_mcap else w.entry_mcap_avg %}
+        {% set etime = w.first_range_buy_ms or w.first_buy_ms %}
+        <tr data-w="{{ w.wallet }}" data-inv="{{ w.invested_in_range_usd or 0 }}" data-tot="{{ w.invested_usd or 0 }}"
+            data-mult="{{ w.multiple or 0 }}" data-sold="{{ w.sold_share_pct or 0 }}" data-buys="{{ w.buys or 0 }}"
+            data-hold="{{ w.hold_minutes or 0 }}" data-exit="{{ 1 if w.first_sell_ms else 0 }}" data-real="{{ w.realized_usd or 0 }}"
+            data-entry="{{ ecap or 0 }}" data-exitcap="{{ w.exit_mcap_avg or 0 }}" data-got="{{ w.proceeds_usd or 0 }}"
+            data-tags="{{ w.tag_list|join(' ') }}"{% if loop.index0 < 40 %} style="--i: {{ loop.index0 }}"{% endif %}>
+          <td><input type="checkbox" class="pick"></td>
+          <td class="muted n">{{ loop.index }}</td>
+          <td class="wcell"><button type="button" class="mk" title="Show on the chart">◉</button><button type="button" class="wname mono" title="Open the story">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</button><a class="ext" href="{{ w.solscan_url }}" target="_blank" rel="noopener" title="Solscan">↗</a><span class="tags">{% for t in w.tag_list %}<span class="tag t-{{ t }}" title="{{ TAGS.get(t, t) }}">{{ t }}</span>{% endfor %}</span></td>
+          <td class="num two"><b class="mono">{{ ecap|mcap }}</b><small class="dtc" data-ms="{{ etime or 0 }}">{{ etime|dt }}</small></td>
+          <td class="num two"><b class="mono">{{ w.invested_in_range_usd|usd }}</b><small>{% if diff %}of {{ w.invested_usd|usd }} total{% endif %}</small></td>
+          <td class="num two"><b class="mono">{{ w.exit_mcap_avg|mcap }}</b><small class="dtc" data-ms="{{ w.first_sell_ms or 0 }}">{{ w.first_sell_ms|dt if w.first_sell_ms else '' }}</small></td>
+          <td class="num two bar" style="--w: {{ (w.sold_share_pct or 0)|round|int }}%"><b class="mono">{{ w.proceeds_usd|usd }}</b><small>{{ (w.sold_share_pct|num ~ '% sold') if w.sold_share_pct is not none else '' }}</small></td>
+          <td class="num two"><b class="mono {{ 'pos' if (w.realized_usd or 0) > 0 else ('neg' if (w.realized_usd or 0) < 0 else '') }}">{{ w.realized_usd|usd }}</b><small class="{{ 'pos' if (w.unrealized_usd or 0) > 0 else ('neg' if (w.unrealized_usd or 0) < 0 else '') }}">{% if w.unrealized_usd %}{{ w.unrealized_usd|usd }} unrealized{% endif %}</small></td>
+          <td class="num bar" style="--w: {{ ((w.multiple or 1)|log10 / 1.7 * 100)|round|int if w.multiple else 0 }}%"><b class="mono">{{ (w.multiple ~ '×') if w.multiple else '—' }}</b></td>
+          <td class="num two"><b class="mono">{{ (w.hold_minutes|num ~ ' min') if w.hold_minutes is not none else '—' }}</b><small>{{ w.buys }} / {{ w.sells if w.sells is not none else '—' }}</small></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+
+    <aside class="drawer apanel" id="apanel" hidden>
+      <div class="drawer-head"><div><b>AI agent</b> <span class="muted small">wallets to watch</span></div><button type="button" class="ghost x" id="aclose" title="Close">×</button></div>
+      <div class="apanel-body">
+        <label class="muted small" for="amethod">Your method</label>
+        <textarea id="amethod" rows="5" spellcheck="false">{{ default_method }}</textarea>
+        <div class="row"><button type="button" class="primary" id="arun">Ask</button><span class="muted small" id="astat"></span><button type="button" class="ghost" id="areset" title="Restore the default method">Reset</button></div>
+        <ol class="apicks" id="apicks"></ol>
+        <div class="row" id="aact" hidden><button type="button" id="aselect">Select these</button><span class="muted small" id="anote"></span></div>
+        <p class="muted small">Reads only this table and your method. No predictions. Verify before acting.</p>
+      </div>
+    </aside>
+    <aside class="drawer" id="drawer" hidden>
+      <div class="drawer-head">
+        <div><b class="mono" id="dw"></b> <a class="ext" id="dsol" href="#" target="_blank" rel="noopener">Solscan ↗</a></div>
+        <button type="button" class="ghost x" id="dclose" title="Close">×</button>
+      </div>
+      <div class="drawer-facts" id="dfacts"></div>
+      <div class="drawer-body"><table class="story"><thead><tr><th>Time</th><th></th><th class="num">USD</th><th class="num">Tokens</th><th class="num">Cap</th></tr></thead><tbody id="dtrades"></tbody></table></div>
+      <p class="muted small" id="dnote"></p>
+    </aside>
+
+    <script>
+    (function () {
+      const table = document.getElementById('facts'), tbody = table.tBodies[0], jobId = table.dataset.id;
+      const rows = [...tbody.rows], shown = document.getElementById('shown'), nsel = document.getElementById('nsel');
+      const selected = new Set(), pinned = new Set();                 // pinned = wallets shown on the chart: never hidden by filters
+      const SKEY = 'early:sel:' + jobId, FKEY = 'early:filters:' + jobId;
+      try { JSON.parse(localStorage.getItem(SKEY) || '[]').forEach(w => selected.add(w)); } catch (e) {}
+      const saveSel = () => { try { localStorage.setItem(SKEY, JSON.stringify([...selected])); } catch (e) {} };
+      const f = { inv: 0, mult: 0, sold: 0, buysMax: 0, hold: 0, exits: false, hide: [] };
+      try { Object.assign(f, JSON.parse(localStorage.getItem(FKEY) || '{}')); } catch (e) {}
+      const saveF = () => { try { localStorage.setItem(FKEY, JSON.stringify(f)); } catch (e) {} };
+      const panel = document.getElementById('filters'), ftoggle = document.getElementById('ftoggle'), clearsel = document.getElementById('clearsel');
+      const watch = document.getElementById('watch');
+      function syncInputs() {
+        panel.querySelectorAll('[data-f]').forEach(i => { const k = i.dataset.f; if (i.type === 'checkbox') i.checked = !!f[k]; else i.value = f[k] ? f[k] : (k === 'buysMax' ? '' : '0'); });
+        panel.querySelectorAll('[data-hide]').forEach(b => b.classList.toggle('off', f.hide.includes(b.dataset.hide)));
+      }
+      function nActive() { return [f.inv, f.mult, f.sold, f.buysMax, f.hold, f.exits].filter(Boolean).length + f.hide.length; }
+      function visible() { return rows.filter(r => !r.hidden); }
+      function exportSet() { return selected.size ? rows.filter(r => selected.has(r.dataset.w)) : visible(); }
+      function apply() {
+        let n = 0;
+        rows.forEach(r => {
+          const d = r.dataset, tg = d.tags ? d.tags.split(' ') : [];
+          const ok = +d.inv >= f.inv && (!f.mult || +d.mult >= f.mult) && +d.sold >= f.sold &&
+                     (!f.buysMax || +d.buys <= f.buysMax) && (!f.hold || +d.hold >= f.hold) && (!f.exits || d.exit === '1') &&
+                     !f.hide.some(t => tg.includes(t));
+          r.hidden = !ok && !pinned.has(d.w); if (!r.hidden) { n++; r.querySelector('.n').textContent = n; }
+        });
+        const na = nActive();
+        shown.textContent = n + ' of ' + rows.length + (na ? ' · filtered' : '');
+        ftoggle.textContent = na ? 'Filters · ' + na : 'Filters'; ftoggle.classList.toggle('on', !!na);
+        syncChecks();
+      }
+      function syncChecks() {
+        rows.forEach(r => { r.querySelector('.pick').checked = selected.has(r.dataset.w); r.classList.toggle('picked', selected.has(r.dataset.w)); });
+        nsel.textContent = selected.size; document.getElementById('selinfo').hidden = !selected.size; watch.hidden = !selected.size;
+        document.getElementById('watchn').textContent = selected.size;
+        const vis = visible(); document.getElementById('pickall').checked = vis.length > 0 && vis.every(r => selected.has(r.dataset.w));
+        const xs = exportSet(), what = selected.size ? xs.length + ' selected' : (xs.length + (na() ? ' filtered' : ' wallets'));
+        document.getElementById('xcsv').textContent = '— ' + what + ', all columns';
+        document.getElementById('xtxt').textContent = '— ' + xs.length + ' addresses';
+        document.getElementById('xjson').textContent = '— ' + what + ' + coverage';
+      }
+      const na = nActive;
+      ftoggle.addEventListener('click', () => { panel.hidden = !panel.hidden; ftoggle.setAttribute('aria-expanded', String(!panel.hidden)); });
+      panel.addEventListener('input', e => { if (!e.target.dataset.f) return; const k = e.target.dataset.f; f[k] = e.target.type === 'checkbox' ? e.target.checked : (+e.target.value || 0); saveF(); apply(); });
+      panel.addEventListener('click', e => { const b = e.target.closest('[data-hide]'); if (!b) return; const t = b.dataset.hide; f.hide = f.hide.includes(t) ? f.hide.filter(x => x !== t) : [...f.hide, t]; saveF(); syncInputs(); apply(); });
+      document.getElementById('fclear').addEventListener('click', () => { Object.assign(f, { inv: 0, mult: 0, sold: 0, buysMax: 0, hold: 0, exits: false, hide: [] }); saveF(); syncInputs(); apply(); });
+      clearsel.addEventListener('click', () => { selected.clear(); saveSel(); syncChecks(); });
+      tbody.addEventListener('change', e => { if (!e.target.classList.contains('pick')) return; const w = e.target.closest('tr').dataset.w; e.target.checked ? selected.add(w) : selected.delete(w); saveSel(); syncChecks(); });
+      document.getElementById('pickall').addEventListener('change', e => { visible().forEach(r => e.target.checked ? selected.add(r.dataset.w) : selected.delete(r.dataset.w)); saveSel(); syncChecks(); });
+
+      // «Add to watchlist» — the next step, not built yet: an honest popover instead of a dead click
+      const pop = document.getElementById('soonpop'), wbtn = document.getElementById('watchbtn');
+      const showPop = v => { pop.hidden = !v; };
+      wbtn.addEventListener('click', () => showPop(pop.hidden)); wbtn.addEventListener('mouseenter', () => showPop(true));
+      watch.addEventListener('mouseleave', () => showPop(false));
+
+      let sortKey = null, sortDir = -1;
+      table.tHead.addEventListener('click', e => {
+        const th = e.target.closest('th.sortable'); if (!th) return;
+        const k = th.dataset.key; sortDir = (sortKey === k) ? -sortDir : -1; sortKey = k;
+        const text = th.dataset.type === 'text';
+        rows.sort((a, b) => text ? a.dataset[k].localeCompare(b.dataset[k]) * sortDir : ((+a.dataset[k] || 0) - (+b.dataset[k] || 0)) * sortDir);
+        rows.forEach(r => tbody.appendChild(r));
+        table.querySelectorAll('th.sortable').forEach(x => x.classList.remove('asc', 'desc'));
+        th.classList.add(sortDir > 0 ? 'asc' : 'desc');
+        apply();
+      });
+
+      const SCOPE = new URLSearchParams(location.search).get('scope') || 'all';
+      let data = null;
+      async function rowsData() { if (!data) { const r = await fetch('/job/' + jobId + '.json?scope=' + SCOPE); data = await r.json(); } return data; }
+      function download(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
+      const csvCell = v => v == null ? '' : (/[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v));
+      document.querySelector('.menu-panel').addEventListener('click', async e => {
+        const x = e.target.closest('[data-x]'); if (!x) return;
+        const wallets = exportSet().map(r => r.dataset.w), want = new Set(wallets);
+        const suffix = '-' + SCOPE + (selected.size ? '-selected' : (na() ? '-filtered' : ''));
+        if (x.dataset.x === 'txt') { download(jobId + suffix + '.txt', wallets.join('\n') + '\n', 'text/plain'); return; }
+        const d = await rowsData(), rowsOut = d.rows.filter(r => want.has(r.wallet));
+        if (x.dataset.x === 'json') { download(jobId + suffix + '.json', JSON.stringify({ ...d, rows: rowsOut, exported: selected.size ? 'selected' : (na() ? 'filtered' : 'all') }, null, 1), 'application/json'); return; }
+        const cols = d.columns, lines = [cols.join(',')];
+        rowsOut.forEach(r => lines.push(cols.map(c => csvCell(r[c])).join(',')));
+        download(jobId + suffix + '.csv', lines.join('\n') + '\n', 'text/csv');
+      });
+
+      syncInputs(); apply();
+      const el = document.getElementById('chart');
+      const ch = EarlyChart(el, { mint: el.dataset.mint, created: +el.dataset.created, now: +el.dataset.now, interactive: false, symbol: el.dataset.symbol,
+        windows: [{ n: '', label: 'Entry range', from: +el.dataset.from / 1000, to: +el.dataset.to / 1000 }], selected: 0, exit: +el.dataset.exit || null,
+        onMarkers: m => { const h = document.getElementById('mhint'); h.hidden = !m.total; h.textContent = m.inView > m.labeled ? 'Amounts for the ' + m.labeled + ' largest of ' + m.inView + ' trades in view — zoom in for all' : ''; if (!h.textContent) h.hidden = true; } });
+      ch.init().then(() => ch.focus(+el.dataset.from, +el.dataset.to, +el.dataset.exit || null));
+
+      // wallet story: markers on the chart (up to 3 wallets, a buy/sell colour pair each) + the drawer with every trade
+      const PAL = [['#A7F3D0', '#FCA5A5'], ['#FDE68A', '#FB923C'], ['#BAE6FD', '#C4B5FD']], onChart = [], bar = document.getElementById('onchart');
+      const short = w => w.slice(0, 6) + '…' + w.slice(-4);
+      const money = v => (v == null || isNaN(v) ? '—' : (v < 0 ? '-' : '') + '$' + ch.fmtMcap(Math.abs(v)));
+      const drawer = document.getElementById('drawer'), dtrades = document.getElementById('dtrades');
+      let funders = {}, bundle = {};
+      function renderOnChart() {
+        bar.innerHTML = ''; bar.hidden = !onChart.length;
+        pinned.clear(); onChart.forEach(o => pinned.add(o.wallet));
+        rows.forEach(r => { const x = onChart.find(o => o.wallet === r.dataset.w); r.classList.toggle('onchart', !!x); r.style.setProperty('--c', x ? x.buy : ''); });
+        if (onChart.length) {
+          const l = document.createElement('span'); l.className = 'muted small'; l.textContent = 'On the chart:'; bar.appendChild(l);
+          onChart.forEach(o => {
+            const c = document.createElement('span'); c.className = 'chipw';
+            const nb = o.trades.filter(t => t.side === 'buy').length, ns = o.trades.length - nb;
+            const row = rows.find(r => r.dataset.w === o.wallet), d = row ? row.dataset : {};
+            const facts = row ? ' · ' + ch.fmtMcap(+d.entry) + ' → ' + (+d.exitcap ? ch.fmtMcap(+d.exitcap) : '—') + ' · ' + money(+d.real) + ' realized' : '';
+            c.innerHTML = '<i class="dot" style="--c:' + o.buy + '" title="buys ▲"></i><i class="dot" style="--c:' + o.sell + '" title="sells ▼"></i><span class="mono">' + short(o.wallet) + '</span> <small>▲' + nb + ' ▼' + ns + (o.truncated ? ' of ' + o.n : '') + facts + '</small> ';
+            c.title = 'Stays visible when filtered · click for the story';
+            c.addEventListener('click', ev => { if (!ev.target.closest('.x')) openStory(o); });
+            const x = document.createElement('button'); x.type = 'button'; x.className = 'ghost x'; x.textContent = '×'; x.title = 'Remove from chart';
+            x.addEventListener('click', () => { onChart.splice(onChart.indexOf(o), 1); if (drawer.dataset.w === o.wallet) drawer.hidden = true; renderOnChart(); });
+            c.appendChild(x); bar.appendChild(c);
+          });
+        }
+        ch.setWalletMarkers(onChart);
+        apply();
+      }
+      function openStory(o) {
+        const row = rows.find(r => r.dataset.w === o.wallet), d = row ? row.dataset : {};
+        drawer.dataset.w = o.wallet; drawer.hidden = false;
+        document.getElementById('dw').textContent = o.wallet; document.getElementById('dsol').href = 'https://solscan.io/account/' + o.wallet;
+        document.getElementById('dfacts').innerHTML = row ? '<div><b>' + ch.fmtMcap(+d.entry) + '</b><span>entry cap</span></div><div><b>' + (+d.exitcap ? ch.fmtMcap(+d.exitcap) : '—') + '</b><span>exit cap</span></div><div><b>' + money(+d.inv) + '</b><span>in range</span></div><div><b>' + money(+d.tot) + '</b><span>total</span></div><div><b>' + money(+d.got) + '</b><span>got</span></div><div><b class="' + (+d.real > 0 ? 'pos' : (+d.real < 0 ? 'neg' : '')) + '">' + money(+d.real) + '</b><span>realized</span></div>' : '';
+        dtrades.innerHTML = o.trades.map(t => '<tr class="' + t.side + '"><td class="mono dtc" data-ms="' + t.t + '">' + EarlyTZ.fmt(t.t, false) + '</td><td>' + (t.side === 'buy' ? '<b class="buy">▲ buy</b>' : '<b class="sell">▼ sell</b>') + '</td><td class="num mono">' + money(t.usd) + '</td><td class="num mono">' + (t.qty ? ch.fmtMcap(t.qty) : '—') + '</td><td class="num mono">' + ch.fmtMcap(t.mcap) + '</td></tr>').join('');
+        const fnd = funders[o.wallet], bn = bundle[o.wallet];
+        document.getElementById('dnote').innerHTML = (fnd ? 'First SOL from <a class="mono" href="https://solscan.io/account/' + fnd + '" target="_blank" rel="noopener">' + short(fnd) + '</a>' + (bn ? ' · shared with ' + (bn.n - 1) + ' other wallets here (bundle)' : '') + '. ' : '') +
+          (o.complete === false ? 'Exits not fetched (over the cap) — only trades inside the range are known.' : 'All trades of this wallet on the token.') + (o.truncated ? ' First ' + o.trades.length + ' of ' + o.n + '.' : '');
+        if (window.EarlyTZ) EarlyTZ.apply();
+      }
+      document.getElementById('dclose').addEventListener('click', () => { drawer.hidden = true; });
+      async function toggleWallet(w, story) {
+        const i = onChart.findIndex(o => o.wallet === w);
+        if (i >= 0) { if (story) { openStory(onChart[i]); return; } onChart.splice(i, 1); if (drawer.dataset.w === w) drawer.hidden = true; renderOnChart(); return; }
+        const r = await fetch('/wallet_trades.json?' + new URLSearchParams({ job: jobId, wallet: w })); if (!r.ok) return;
+        const d = await r.json();
+        if (onChart.length >= 3) onChart.shift();
+        const used = new Set(onChart.map(o => o.buy)), pair = PAL.find(p => !used.has(p[0])) || PAL[0];
+        const o = { wallet: w, buy: pair[0], sell: pair[1], trades: d.trades, n: d.n, truncated: d.truncated, complete: d.complete };
+        onChart.push(o); renderOnChart(); if (story) openStory(o);
+      }
+      tbody.addEventListener('click', e => {
+        const b = e.target.closest('.mk, .wname'); if (!b) return;
+        b.disabled = true; toggleWallet(b.closest('tr').dataset.w, b.classList.contains('wname')).finally(() => { b.disabled = false; });
+      });
+
+      // assistant: facts of the visible rows + the user's method → picks with reasons
+      const apanel = document.getElementById('apanel'), amethod = document.getElementById('amethod'), apicks = document.getElementById('apicks');
+      const astat = document.getElementById('astat'), aact = document.getElementById('aact'), anote = document.getElementById('anote');
+      const MKEY = 'early:method', DEFAULT_METHOD = amethod.value;
+      try { const m = localStorage.getItem(MKEY); if (m) amethod.value = m; } catch (e) {}
+      let lastPicks = [];
+      const ASSIST_ON = {{ 'true' if assistant_on else 'false' }}, aipop = document.getElementById('aipop'), aiwrap = document.getElementById('aiwrap');
+      document.getElementById('askbtn').addEventListener('click', () => { if (ASSIST_ON) { apanel.hidden = !apanel.hidden; drawer.hidden = true; } else aipop.hidden = !aipop.hidden; });
+      if (!ASSIST_ON) { document.getElementById('askbtn').addEventListener('mouseenter', () => { aipop.hidden = false; }); aiwrap.addEventListener('mouseleave', () => { aipop.hidden = true; }); }
+      document.getElementById('aclose').addEventListener('click', () => { apanel.hidden = true; });
+      document.getElementById('areset').addEventListener('click', () => { amethod.value = DEFAULT_METHOD; try { localStorage.removeItem(MKEY); } catch (e) {} });
+      amethod.addEventListener('input', () => { try { localStorage.setItem(MKEY, amethod.value); } catch (e) {} });
+      document.getElementById('arun').addEventListener('click', async () => {
+        const wallets = visible().map(r => r.dataset.w).slice(0, 200);
+        astat.textContent = 'reading ' + wallets.length + ' wallets…'; apicks.innerHTML = ''; aact.hidden = true;
+        try {
+          const r = await fetch('/job/' + jobId + '/assistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wallets, method: amethod.value, scope: SCOPE }) });
+          const d = await r.json();
+          if (!r.ok) { astat.textContent = d.error || ('error ' + r.status); return; }
+          lastPicks = d.picks || [];
+          astat.textContent = lastPicks.length + ' picks' + (d.cached ? ' (cached)' : '') + ' · ' + (d.model || '');
+          lastPicks.forEach(p => { const row = rows.find(x => x.dataset.w === p.wallet), li = document.createElement('li');
+            li.innerHTML = '<button type="button" class="wname mono" data-w="' + p.wallet + '">' + short(p.wallet) + '</button>' + (row ? ' <span class="mono small">' + ch.fmtMcap(+row.dataset.entry) + ' → ' + (+row.dataset.exitcap ? ch.fmtMcap(+row.dataset.exitcap) : '—') + ' · ' + money(+row.dataset.real) + '</span>' : '') + '<div class="areason">' + p.reason.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])) + '</div>';
+            apicks.appendChild(li); });
+          anote.textContent = d.note || ''; aact.hidden = !lastPicks.length;
+        } catch (e) { astat.textContent = 'could not reach the server'; }
+      });
+      apicks.addEventListener('click', e => { const b = e.target.closest('.wname'); if (b) toggleWallet(b.dataset.w, true); });
+      document.getElementById('aselect').addEventListener('click', () => { lastPicks.forEach(p => selected.add(p.wallet)); saveSel(); syncChecks(); });
+
+      // background wallet-age check → `fresh` tags appear without a reload; filters re-apply each time
+      const en = document.getElementById('enrich');
+      if (en) {
+        const defs = {{ TAGS|tojson }};
+        const tick = async () => {
+          let d; try { const r = await fetch('/job/' + jobId + '.enrich.json'); if (!r.ok) { en.hidden = true; return; } d = await r.json(); } catch (e) { en.hidden = true; return; }
+          if (!d.total) { en.hidden = true; return; }
+          let added = 0;
+          funders = d.funders || {}; bundle = d.bundle || {};
+          const addTag = (w, tag, text, title) => { const r = rows.find(x => x.dataset.w === w); if (!r || r.dataset.tags.split(' ').includes(tag)) return;
+            r.dataset.tags = (r.dataset.tags ? r.dataset.tags + ' ' : '') + tag; added++;
+            const t = document.createElement('span'); t.className = 'tag t-' + tag; t.title = title; t.textContent = text; r.querySelector('.tags').prepend(t); };
+          d.fresh.forEach(w => addTag(w, 'fresh', 'fresh', defs.fresh));
+          Object.keys(bundle).forEach(w => addTag(w, 'bundle', 'bundle ×' + bundle[w].n, defs.bundle + ' — funder ' + short(bundle[w].funder)));
+          if (added) apply();
+          if (d.done < d.total) { en.textContent = 'wallet age ' + d.done + '/' + d.total + '…'; setTimeout(tick, 5000); }
+          else { const nb = Object.keys(bundle).length; en.textContent = 'wallet age checked' + (d.fresh.length ? ' · ' + d.fresh.length + ' fresh' : '') + (nb ? ' · ' + nb + ' in bundles' : ''); }
+        };
+        tick();
+      }
+    })();
+    </script>
+  {% endif %}
+</section>
+{% endblock %}

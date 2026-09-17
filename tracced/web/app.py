@@ -1,0 +1,586 @@
+"""Pages: / (paste a token) → /token (chart + pump windows) → /job/<id> (progress, table) → CSV.
+
+Blocking Solana Tracker calls run in threads (asyncio.to_thread); the client itself is wrapped in a
+lock so the worker thread and page requests share the 3 req/s budget. No tracebacks in the browser:
+one plain sentence for the user, details in the container log.
+"""
+import asyncio
+import csv
+import hashlib
+import hmac
+import io
+import json
+import logging
+import math
+import re
+import threading
+import time
+from pathlib import Path
+
+from aiohttp import web
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+from ..early import assistant as assistant_mod, pipeline, report, scope, tags, window
+from ..early.store import TradeStore
+from . import chart
+from .jobs import JobQueue
+
+log = logging.getLogger("early.web")
+HERE = Path(__file__).resolve().parent
+HOUR = 3_600_000
+MINT_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
+COOKIE = "early_web"
+
+env = Environment(loader=FileSystemLoader(str(HERE / "templates")),
+                  autoescape=select_autoescape(["html"]))
+
+
+def _usd(v):
+    s = chart.fmt_mcap(v)
+    if s == "—":
+        return s
+    return "-$" + s[1:] if s.startswith("-") else "$" + s
+
+
+def _num(v, digits=0):
+    try:
+        return f"{float(v):,.{digits}f}"
+    except Exception:  # noqa: BLE001 — None, '', jinja Undefined
+        return "—"
+
+
+def _asset_version():
+    """Short hash of the static assets' mtimes: appended as ?v= so browsers drop stale CSS/JS."""
+    h = hashlib.sha1()
+    for p in sorted((HERE / "static").rglob("*")):
+        if p.is_file():
+            h.update(f"{p.name}:{int(p.stat().st_mtime)}".encode())
+    return h.hexdigest()[:8]
+
+
+env.globals["v"] = _asset_version()
+env.filters["dt"] = chart.fmt_dt
+env.filters["dtu"] = lambda ms: chart.fmt_dt(ms, year=True, utc=True)
+env.filters["dtl"] = chart.to_input
+env.filters["mcap"] = chart.fmt_mcap
+env.filters["usd"] = _usd
+env.filters["num"] = _num
+env.filters["log10"] = lambda v: math.log10(v) if (v and float(v) > 0) else 0.0
+
+
+class WebError(Exception):
+    """A message we show to the user as plain text (400)."""
+
+
+def make_enricher(ages, s):
+    """Після аналізу: вік кожного гаманця з RPC (з паузами) → тег `fresh`; прогрес у result["enrich"]."""
+    def enrich(job, save):
+        r = job.result
+        rows = r.get("rows") or []
+        n = min(len(rows), int(s.get("age_lookups_max", 0)))
+        e = r.setdefault("enrich", {"done": 0, "total": n, "fresh": 0, "failed": 0})
+        e["total"] = n
+        if e.get("failed"):
+            e.update(done=0, failed=0, fresh=0)            # був збій ноди — перевіряємо заново (кеш лишається)
+        for i, row in enumerate(rows[:n], 1):
+            if i <= e.get("done", 0):
+                continue                                   # продовження після перезапуску
+            try:
+                age = ages.oldest_tx(row["wallet"])
+            except Exception as ex:  # noqa: BLE001 — одна нода/гаманець не має зупиняти решту
+                e["failed"] = e.get("failed", 0) + 1
+                if e["failed"] <= 3:
+                    job.log.append(f"age lookup failed for {row['wallet'][:8]}…: {str(ex)[:60]}")
+                age = None
+            if age and tags.is_fresh(row.get("first_buy_ms"), age) and "fresh" not in (row.get("tag_list") or []):
+                row["tag_list"] = tags.with_tag(row.get("tag_list"), "fresh")
+                row["tags"] = "|".join(row["tag_list"])
+                fw = r.setdefault("fresh_wallets", [])
+                if row["wallet"] not in fw:
+                    fw.append(row["wallet"])
+                e["fresh"] += 1
+            e["done"] = i
+            if i % 25 == 0:
+                save(job)
+                ages.flush()
+        # другий прохід: хто дав перший SOL (вік уже в кеші → 1 запит getTransaction на гаманець)
+        funders, checked = r.setdefault("funders", {}), set(r.get("funder_checked") or [])
+        for i, row in enumerate(rows[:n], 1):
+            w = row["wallet"]
+            if w in funders or w in checked:
+                continue
+            try:
+                age = ages.oldest_tx(w)
+                if age.get("exact") and age.get("n") and not age.get("oldest_sig"):
+                    age = ages.oldest_tx(w, refresh=True)          # кеш віку з часів без підпису → 1 запит
+                fund = ages.funder(w, age["oldest_sig"]) if age.get("exact") and age.get("oldest_sig") else None
+            except Exception as ex:  # noqa: BLE001
+                fund = None
+                if e.get("failed", 0) <= 3:
+                    job.log.append(f"funder lookup failed for {w[:8]}…: {str(ex)[:60]}")
+            if fund:
+                funders[w] = fund
+            checked.add(w)
+            e["funders_done"] = i
+            if i % 25 == 0:
+                r["funder_checked"] = sorted(checked)
+                _bundles(r, rows)
+                save(job)
+                ages.flush()
+        r["funder_checked"] = sorted(checked)
+        e["funders_done"] = n
+        _bundles(r, rows)
+        save(job)
+        ages.flush()
+    return enrich
+
+
+def _bundles(r, rows):
+    """Гаманці зі спільним спонсором (≥ BUNDLE_MIN у цьому списку) → тег bundle."""
+    from collections import Counter
+    funders = r.get("funders") or {}
+    cnt = Counter(funders.values())
+    r["bundle"] = {w: {"funder": f, "n": cnt[f]} for w, f in funders.items() if cnt[f] >= tags.BUNDLE_MIN}
+    for row in rows:                                    # старі результати без угод: теги прямо в рядках
+        if row["wallet"] in r["bundle"] and "bundle" not in (row.get("tag_list") or []):
+            row["tag_list"] = tags.with_tag(row.get("tag_list"), "bundle")
+            row["tags"] = "|".join(row["tag_list"])
+
+
+def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/early", password="", ages=None, assistant=None):
+    app = web.Application(middlewares=[errors_mw, auth_mw])
+    app["assistant"], app["assistant_cache"] = assistant, {}
+    app["st"], app["s"], app["cfg"] = st, s, cfg or {}
+    app["store_dir"], app["password"] = store_dir, password or ""
+    app["st_lock"] = threading.Lock()
+    app["overview_cache"] = {}
+    _lock_st(st, app["st_lock"])
+
+    def runner(job):
+        return pipeline.run(st, job.mint, job.t_from, job.t_to, s,
+                            log=job.log.append, progress=job.set_progress, store_dir=store_dir)
+
+    app["jobs"] = JobQueue(runner, out_dir, enricher=make_enricher(ages, s) if ages else None)
+    app.router.add_get("/", index)
+    app.router.add_get("/how", how)
+    app.router.add_get("/token", token_page)
+    app.router.add_get("/candles.json", candles_json)
+    app.router.add_post("/analyze", analyze)
+    app.router.add_get("/wallet_trades.json", wallet_trades_json)
+    app.router.add_get("/job/{id}.state.json", job_state_json)     # before .json: {id} would swallow ".state"
+    app.router.add_get("/job/{id}.enrich.json", job_enrich_json)   # before .json: {id} would swallow ".enrich"
+    app.router.add_get("/job/{id}.csv", job_csv)     # before /job/{id}: {id} would swallow the dot
+    app.router.add_get("/job/{id}.json", job_json)
+    app.router.add_post("/job/{id}/assistant", job_assistant)
+    app.router.add_get("/job/{id}", job_page)
+    app.router.add_get("/health", health)
+    app.router.add_get("/login", login)
+    app.router.add_post("/login", login)
+    app.router.add_static("/static", str(HERE / "static"))
+    return app
+
+
+def _lock_st(st, lock):
+    """Every client request under one lock: the 3 req/s pace is shared across threads."""
+    orig = getattr(st, "_get", None)
+    if orig is None:                      # fake client in tests
+        return
+
+    def locked(path):
+        with lock:
+            return orig(path)
+    st._get = locked
+
+
+# ───────────────────────── middleware ─────────────────────────
+
+@web.middleware
+async def errors_mw(request, handler):
+    try:
+        return await handler(request)
+    except web.HTTPException:
+        raise
+    except WebError as e:
+        return render("error.html", request, message=str(e), status=400)
+    except Exception:
+        log.exception("page %s failed", request.path)
+        return render("error.html", request,
+                      message="Something broke on our side. The log has the details.", status=500)
+
+
+def _secret(pw):
+    return hashlib.sha256(("early-web:" + pw).encode()).digest()
+
+
+def _sign(pw, exp):
+    return f"{exp}." + hmac.new(_secret(pw), str(exp).encode(), hashlib.sha256).hexdigest()[:32]
+
+
+def _valid(pw, token):
+    if not token or "." not in str(token):
+        return False
+    exp, _, _ = str(token).partition(".")
+    try:
+        if int(exp) < time.time():
+            return False
+    except ValueError:
+        return False
+    return hmac.compare_digest(_sign(pw, int(exp)), str(token))
+
+
+@web.middleware
+async def auth_mw(request, handler):
+    pw = request.app["password"]
+    if not pw or request.path.startswith(("/login", "/health", "/static")):
+        return await handler(request)
+    if not _valid(pw, request.cookies.get(COOKIE)):
+        raise web.HTTPFound("/login")
+    return await handler(request)
+
+
+async def login(request):
+    if request.method == "POST":
+        form = await request.post()
+        if form.get("password", "") == request.app["password"]:
+            resp = web.HTTPFound("/")
+            resp.set_cookie(COOKIE, _sign(request.app["password"], int(time.time()) + 14 * 86400),
+                            httponly=True, samesite="Lax")
+            raise resp
+        return render("login.html", request, error="Wrong password.")
+    return render("login.html", request)
+
+
+# ───────────────────────── helpers ─────────────────────────
+
+def render(name, request, status=200, **ctx):
+    ctx.setdefault("request", request)
+    html = env.get_template(name).render(**ctx)
+    return web.Response(text=html, content_type="text/html", status=status)
+
+
+def _mint(v):
+    v = (v or "").strip()
+    if not MINT_RE.match(v):
+        raise WebError("This doesn't look like a Solana token address (32–44 base58 characters).")
+    return v
+
+
+async def _overview(app, mint):
+    """token_info + lifetime candles + detector hints; cached in memory for 10 minutes."""
+    cache = app["overview_cache"]
+    hit = cache.get(mint)
+    if hit and time.time() - hit[0] < 600:
+        return hit[1], hit[2]
+    st, s = app["st"], app["s"]
+
+    def load():
+        info = pipeline.token(st, mint)
+        ov = pipeline.overview(st, mint, info, s, app["cfg"])
+        st.flush()
+        return info, ov
+    try:
+        info, ov = await asyncio.to_thread(load)
+    except pipeline.EarlyError as e:
+        raise WebError(str(e))
+    except Exception as e:  # noqa: BLE001
+        log.warning("overview %s: %s", mint[:8], e)
+        raise WebError("Solana Tracker returned no data for this token. Check the address or try again later.")
+    cache[mint] = (time.time(), info, ov)
+    return info, ov
+
+
+def _rows_from_hints(hints):
+    rows = []
+    for i, h in enumerate(hints, 1):
+        rows.append({
+            "n": i,
+            "label": f"Pump {i} · {chart.fmt_mcap(h['base_mcap'])} → {chart.fmt_mcap(h['peak_mcap'])} ×{h['magnitude']}",
+            "from": chart.to_input(h["acc_start"]),
+            "to": chart.to_input(h["pump_start"]),
+        })
+    return rows or [{"n": 1, "label": "Range 1", "from": "", "to": ""}]
+
+
+# ───────────────────────── pages ─────────────────────────
+
+def _home_data(jobs):
+    """Totals, the sample job and background lines for the home page — from stored results only."""
+    done = [j for j in jobs if j.status == "done" and j.result]
+    totals = {"wallets": sum((j.result.get("counts") or {}).get("n_early", 0) for j in done),
+              "tokens": len({j.mint for j in done}),
+              "trades": sum((j.result.get("counts") or {}).get("n_trades", 0) for j in done)}
+    sample = next((j for j in done if j.result.get("mode") == "trades" and j.result.get("rows")), None) \
+        or next((j for j in done if j.result.get("rows")), None)
+    lines = []
+    if sample:
+        for r in (sample.result.get("rows") or [])[:16]:
+            if r.get("first_buy_ms") and r.get("invested_in_range_usd"):
+                lines.append(f"{r['wallet'][:4]}…{r['wallet'][-4:]}  buy  {_usd(r['invested_in_range_usd'])}  @ "
+                             f"{chart.fmt_mcap(r.get('entry_mcap_avg'))}  {chart.fmt_dt(r['first_buy_ms'])}")
+    return totals, sample, lines
+
+
+async def index(request):
+    app = request.app
+    jobs = app["jobs"].recent(30)
+    day_ago = int(time.time() * 1000) - 24 * HOUR
+    jobs = [j for j in jobs if j.status != "error" or (j.created_ms or 0) > day_ago]   # старі помилки — шум
+    totals, sample, lines = _home_data(jobs)
+    want = (app["s"].get("example_job") or "")
+    example = app["jobs"].get(want) if want else None
+    if not example or example.status != "done":
+        done = [j for j in jobs if j.status == "done" and j.result and j.result.get("rows")]
+        example = min(done, key=lambda j: j.created_ms or 0) if done else None      # найстарший готовий = показовий
+    if example:
+        jobs = [example] + [j for j in jobs if j.id != example.id]
+    return render("index.html", request, jobs=jobs, totals=totals, sample=sample, bg_lines=lines,
+                  example_id=example.id if example else None)
+
+
+async def how(request):
+    return render("how.html", request, s=request.app["s"], TAGS=tags.DEFS)
+
+
+async def token_page(request):
+    app = request.app
+    mint = _mint(request.query.get("mint"))
+    info, ov = await _overview(app, mint)
+    s = app["s"]
+    rows = _rows_from_hints(ov["hints"])
+    q = request.query
+    preset = None
+    if chart.from_input(q.get("from")) and chart.from_input(q.get("to")):
+        preset = {"n": None, "label": "From the result", "from": q.get("from"), "to": q.get("to")}
+    jobs_done = [j.id for j in app["jobs"].jobs.values() if j.mint == mint and j.status == "done"]
+    return render("token.html", request, info=info, mint=mint, s=s,
+                  created=info.get("created_time") or 0, now=int(time.time() * 1000),
+                  rows_json=json.dumps(rows), jobs_json=json.dumps(jobs_done), preset_json=json.dumps(preset))
+
+
+async def candles_json(request):
+    """Market-cap candles for the browser chart: ?mint&tf&a&b (a, b in unix seconds)."""
+    app = request.app
+    q = request.query
+    mint = _mint(q.get("mint"))
+    tf = q.get("tf") if q.get("tf") in chart.TFS else "1h"
+    try:
+        a, b = int(float(q.get("a", 0))), int(float(q.get("b", 0)))
+    except ValueError:
+        raise WebError("Bad time range.")
+    if b <= a:
+        return web.json_response([])
+    info, _ = await _overview(app, mint)
+    now = int(time.time())
+    created = int((info.get("created_time") or 0) // 1000)
+    a, b = chart.snap_range(max(a, created - 3600), min(b, now + 3600), tf)
+    if b <= a:
+        return web.json_response([])
+    st = app["st"]
+
+    def load():
+        c = st.chart(mint, tf, a * 1000, b * 1000)
+        st.flush()
+        return c
+    candles = await asyncio.to_thread(load)
+    return web.json_response(chart.candles_mcap(candles, info["supply"]))
+
+
+async def analyze(request):
+    app = request.app
+    form = await request.post()
+    mint = _mint(form.get("mint"))
+    s = app["s"]
+    t_from, t_to = chart.from_input(form.get("from")), chart.from_input(form.get("to"))
+    info, _ = await _overview(app, mint)
+    errs = window.validate(t_from, t_to, info.get("created_time"), int(time.time() * 1000),
+                           max_window_ms=int(s.get("max_window_hours", 0) * HOUR) or None)
+    if errs:
+        raise WebError(" ".join(errs))
+    job = app["jobs"].submit(mint, t_from, t_to, symbol=info.get("symbol"))
+    raise web.HTTPFound(f"/job/{job.id}")
+
+
+def _hours_text(ms):
+    h = ms / HOUR
+    return f"{h:.1f}" if h < 1 else f"{h:.0f}"
+
+
+def _back_link(job):
+    return f"/token?mint={job.mint}&from={chart.to_input(job.t_from)}&to={chart.to_input(job.t_to)}"
+
+
+async def job_page(request):
+    app = request.app
+    job = app["jobs"].get(request.match_info["id"])
+    if not job:
+        raise web.HTTPNotFound(text="No such analysis.")
+    created = ((job.result or {}).get("info") or {}).get("created_time") or 0
+    if not created and job.status == "done":
+        try:
+            info, _ = await _overview(app, job.mint)
+            created = info.get("created_time") or 0
+        except WebError:
+            created = 0
+    status, result = job.status, job.result             # знімок: статус міняється з робочого потоку
+    sm, sc = None, _scope(request, app["s"])
+    if status == "done" and result:
+        rows, sm = _rows(result, sc, app["s"])
+        result = dict(result, rows=rows)
+    else:
+        result = None
+    return render("job.html", request, job=job, jstatus=status, result=result, s=app["s"], back=_back_link(job),
+                  sm=sm, TAGS=tags.DEFS, created=created or (job.t_from - 24 * HOUR), now=int(time.time() * 1000),
+                  cov_text=report.coverage_text((result or {}).get("coverage")), default_method=assistant_mod.DEFAULT_METHOD,
+                  assistant_on=app.get("assistant") is not None,
+                  scope=sc, scopes=scope.scopes_for(app["s"]), has_scopes=bool((result or {}).get("wallet_trades")),
+                  scope_end=(scope.end_for(sc, job.t_to, (result or {}).get("window", {}).get("end", 0)) if result else None))
+
+
+def _scope(request, s):
+    sc = request.query.get("scope", "all")
+    return sc if sc in scope.scopes_for(s) else "all"
+
+
+def _rows(result, sc, s):
+    """Рядки за масштабом з угод у результаті; старі результати без угод — як збережено."""
+    out = scope.rows_for(result, sc, s) if sc != "all" or result.get("wallet_trades") else None
+    if out:
+        return out
+    rows = result.get("rows") or []
+    for r in rows:                                          # результати до появи тегів
+        r.setdefault("tag_list", (r.get("tags") or "").split("|") if r.get("tags") else [])
+    return rows, {**report.summary(rows), **(result.get("summary") or {})}
+
+
+async def job_csv(request):
+    job = request.app["jobs"].get(request.match_info["id"])
+    if not job or job.status != "done" or not job.result:
+        raise web.HTTPNotFound(text="No result yet.")
+    sc = _scope(request, request.app["s"])
+    rows, _ = _rows(job.result, sc, request.app["s"])
+    buf = io.StringIO()
+    w = csv.DictWriter(buf, fieldnames=report.COLUMNS, extrasaction="ignore")
+    w.writeheader()
+    for r in rows:
+        w.writerow({k: ("" if r.get(k) is None else r.get(k)) for k in report.COLUMNS})
+    return web.Response(text=buf.getvalue(), content_type="text/csv",
+                        headers={"Content-Disposition": f'attachment; filename="{job.id}-{sc}.csv"'})
+
+
+async def job_json(request):
+    """The result as data (for client-side selection/export)."""
+    job = request.app["jobs"].get(request.match_info["id"])
+    if not job or job.status != "done" or not job.result:
+        raise web.HTTPNotFound(text="No result yet.")
+    r = job.result
+    sc = _scope(request, request.app["s"])
+    rows, _ = _rows(r, sc, request.app["s"])
+    return web.json_response({"id": job.id, "mint": job.mint, "window": r["window"], "mode": r.get("mode"),
+                              "scope": sc, "coverage": r.get("coverage"), "columns": report.COLUMNS, "rows": rows})
+
+
+async def job_assistant(request):
+    """The assistant picks wallets to watch from the facts in the table + the user's method (JSON in/out)."""
+    app = request.app
+    job = app["jobs"].get(request.match_info["id"])
+    if not job or job.status != "done" or not job.result:
+        return web.json_response({"error": "No result yet."}, status=404)
+    a = app.get("assistant")
+    if a is None:
+        return web.json_response({"error": "The assistant is not configured on this server: set ASSISTANT_KEY "
+                                           "(and optionally ASSISTANT_URL, ASSISTANT_MODEL) in .env."}, status=503)
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        body = {}
+    method = str(body.get("method") or "")[:2000]
+    want = body.get("wallets")
+    sc = body.get("scope") if body.get("scope") in scope.scopes_for(app["s"]) else "all"
+    rows, _ = _rows(job.result, sc, app["s"])
+    if isinstance(want, list) and want:
+        keep = set(str(w) for w in want)
+        rows = [r for r in rows if r["wallet"] in keep]
+    rows = rows[:assistant_mod.MAX_ROWS]
+    if not rows:
+        return web.json_response({"error": "No wallets to look at — clear the filters."}, status=400)
+    key = hashlib.sha1((job.id + sc + method + ",".join(r["wallet"] for r in rows)).encode()).hexdigest()
+    cached = app["assistant_cache"].get(key)
+    if cached:
+        return web.json_response(dict(cached, cached=True))
+    try:
+        out = await asyncio.get_running_loop().run_in_executor(None, a.ask, rows, method)
+    except assistant_mod.AssistantError as e:
+        return web.json_response({"error": str(e)}, status=502)
+    out["n_rows"] = len(rows)
+    app["assistant_cache"][key] = out
+    return web.json_response(out)
+
+
+async def job_state_json(request):
+    """Live state for the terminal while the analysis runs (never 404 for a known id)."""
+    job = request.app["jobs"].get(request.match_info["id"])
+    if not job:
+        return web.json_response({"error": "No such analysis."}, status=404)
+    try:
+        since = max(0, int(request.query.get("since", 0)))
+    except ValueError:
+        since = 0
+    status, error = job.status, job.error                 # знімок статусу ДО зрізу журналу
+    if status == "done" and not job.result:
+        status, error = "error", "The analysis finished without a result. Details are in the container log."
+    n = len(job.log)
+    return web.json_response(
+        {"id": job.id, "mint": job.mint, "symbol": job.symbol, "status": status, "error": error,
+         "started_ms": job.started_ms or job.created_ms, "finished_ms": job.finished_ms,
+         "now_ms": int(time.time() * 1000), "since": min(since, n), "n_lines": n,
+         "log": job.log[since:n] if since < n else [], "progress": job.progress},
+        headers={"Cache-Control": "no-store"})
+
+
+async def job_enrich_json(request):
+    """Progress of the background wallet-age check and the wallets tagged `fresh` so far."""
+    job = request.app["jobs"].get(request.match_info["id"])
+    if not job or job.status != "done" or not job.result:
+        raise web.HTTPNotFound(text="No result yet.")
+    e = job.result.get("enrich") or {"done": 0, "total": 0, "fresh": 0}
+    fresh = [r["wallet"] for r in job.result.get("rows") or [] if "fresh" in (r.get("tag_list") or [])]
+    return web.json_response({"done": e.get("done", 0), "total": e.get("total", 0), "fresh": fresh,
+                              "funders": job.result.get("funders") or {}, "bundle": job.result.get("bundle") or {}})
+
+
+async def wallet_trades_json(request):
+    """One wallet's buys and sells on the analysed token, for the chart markers.
+
+    Full-trades mode: from the cached token feed (no requests). Per-wallet mode: the wallet's own
+    trades from Solana Tracker (1 request, cached). Exact trade times; market cap = price × supply."""
+    app = request.app
+    job = app["jobs"].get(request.query.get("job", ""))
+    if not job or job.status != "done" or not job.result:
+        raise web.HTTPNotFound(text="No result yet.")
+    wallet = request.query.get("wallet", "")
+    if not re.fullmatch(r"[1-9A-HJ-NP-Za-km-z]{32,44}", wallet):
+        raise WebError("That does not look like a wallet address.")
+    st, s, mint = app["st"], app["s"], job.mint
+    a, b = job.t_from, job.t_exit or int(time.time() * 1000)
+    supply = (job.result.get("info") or {}).get("supply") or 0
+    stored = (job.result.get("wallet_trades") or {}).get(wallet)
+
+    def work():
+        if stored is not None:                                        # уся історія гаманця вже в результаті
+            return scope.unpack(wallet, stored.get("trades") or [])
+        if job.result.get("mode") == "trades":
+            trs = TradeStore(app["store_dir"], mint).between(a, b)
+            return [t for t in trs if t.get("wallet") == wallet]
+        return [t for t in st.wallet_token_trades(wallet, mint, s.get("max_wallet_trade_pages", 4))
+                if t["time"] is not None and a <= t["time"] <= b]
+    trs = await asyncio.get_running_loop().run_in_executor(None, work)
+    trs.sort(key=lambda t: t["time"] or 0)
+    cap = int(s.get("markers_max", 200))
+    out = [{"t": t["time"], "side": t["type"], "usd": t.get("usd"), "qty": t.get("qty"),
+            "mcap": (t.get("price") or 0) * supply} for t in trs[:cap] if t["type"] in ("buy", "sell")]
+    return web.json_response({"wallet": wallet, "n": len(trs), "truncated": len(trs) > cap, "trades": out,
+                              "complete": (stored or {}).get("source") != "entry-only" if stored is not None else True})
+
+
+async def health(request):
+    return web.json_response({"ok": True, "jobs": len(request.app["jobs"].jobs)})

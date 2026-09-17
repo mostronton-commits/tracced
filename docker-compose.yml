@@ -1,0 +1,14 @@
+# Tracced — local run. The port is bound to this machine only; put a reverse proxy in front for the internet.
+services:
+  web:
+    build: .
+    ports:
+      - "127.0.0.1:8095:8095"
+    env_file: .env
+    environment:
+      - WEB_PORT=8095
+    volumes:
+      - ./output:/app/output
+      - ./cache:/app/cache
+      - ./config.yaml:/app/config.yaml:ro
+    restart: unless-stopped

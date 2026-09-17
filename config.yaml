@@ -1,0 +1,14 @@
+# Tracced — settings. Anything under `early:` overrides tracced/early/settings.py DEFAULTS.
+
+detect:                             # pump detector: suggested ranges on the chart
+  interval: "5m"
+  window_hours: 48                  # detect pumps within the first 48 h of a token
+  accumulation_hours: 3             # accumulation range = this many hours before the breakout
+  lookback: 24                      # candles for the base (24 × 5m = 2 h)
+  pump_multiple: 2.0                # peak ≥ base × this = a pump
+  breakout_ratio: 1.3               # pump starts where price > base × this
+  min_peak_mcap: 1000000            # ignore pumps whose peak is below this market cap
+  merge_gap_min: 60                 # pumps closer than this are one pump
+
+early:
+  plan: free                        # free (2,500 requests/month, 3 req/s) | advanced (200,000/month)

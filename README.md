@@ -1,0 +1,56 @@
+# Tracced
+
+**Every wallet, traced.** Paste a Solana token, choose the pump range on the chart, and see every wallet that
+bought there — and everything it did with the token next. Entry and exit market cap, invested, realized, held
+time, bundle funding. Every number is a raw on-chain swap you can open on Solscan. No scores, no black-box
+"smart money" labels: you decide who is worth following.
+
+Built on Solana · AI-assisted (coming next) · Colosseum Crypto World's Fair 2026
+
+![Home](docs/img/home.png)
+
+## How it works
+
+1. **Paste contract** — the token's whole life loads as a market-cap chart.
+2. **Choose range** — two clicks on the chart: where buying starts, where the pump takes off. Detected pumps are pre-filled as hints.
+3. **Get wallets** — every wallet that bought inside the range, with its whole story on the token: first buy, exits, realized profit, tags. Export CSV / TXT / JSON.
+
+![Range](docs/img/range.png)
+
+![Result](docs/img/result.png)
+
+### Facts, not scores
+- **Range** only selects wallets; the numbers come from **all** of a wallet's trades on the token (before, inside and after the range). A scope switch recounts the same trades up to 24 h / 48 h after the range.
+- **Tags are rules you can read**: `sniper`, `fresh`, `bot-like`, `pre-range`, `re-bought`, `bundle` (wallets funded from one source), `no-exits`. Hover a tag to see the rule.
+- **Complete data by construction**: the range is always fetched in full (verified against the chain: 100% of the swaps in an audited range). For each wallet's history the app takes the cheaper of two complete paths — the whole token history or each wallet's own trades — and tells you the coverage above the table.
+- **Wallet story**: click a wallet to see every trade as a list and as markers on the chart.
+
+## Run it
+
+```bash
+cp .env.example .env            # put your Solana Tracker key in SOLANATRACKER_API_KEY
+docker compose up -d --build    # http://127.0.0.1:8095
+```
+
+Tests:
+
+```bash
+docker compose run --rm --no-deps -v "$PWD/tests:/app/tests" web python -m unittest discover -s tests -t .
+```
+
+Settings live in `config.yaml` (`early.plan: free | advanced` sets the request caps for the Solana Tracker plan).
+
+## Data
+- Raw swaps and candles: [Solana Tracker Data API](https://www.solanatracker.io/data-api). Free plan: 2,500 requests/month; a cached analysis costs 0.
+- Wallet age and funder: public Solana RPC (`api.mainnet-beta.solana.com`; set `SOLANA_RPC_URL` for your own node with full signature history).
+- Nothing else. No third-party PnL, labels or scores.
+
+## Roadmap
+- **Live** — analyze: range → wallets → whole story → export; bundle and fact tags.
+- **Next** — watchlist and Telegram alerts; the AI agent picks wallets by your method and suggests the range.
+- **Later** — non-custodial copy-trading on your watchlist, strategy in plain words.
+
+See [docs/strategy.md](docs/strategy.md).
+
+## License
+MIT

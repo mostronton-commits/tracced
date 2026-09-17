@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}{{ info.symbol or mint[:8] }} · Tracced{% endblock %}
+{% block crumb %}{{ info.symbol or mint[:8] }}{% endblock %}
+{% block head %}<script src="/static/vendor/lightweight-charts.standalone.production.js?v={{ v }}"></script><script src="/static/chart.js?v={{ v }}"></script>{% endblock %}
+{% block body %}
+<section class="card token" id="token" data-mint="{{ mint }}" data-symbol="{{ info.symbol or '' }}"
+         data-rows='{{ rows_json }}' data-jobs='{{ jobs_json }}' data-preset='{{ preset_json }}'
+         data-created="{{ created }}" data-now="{{ now }}">
+  <div class="tokenhead">
+    <div>
+      <h1>{{ info.symbol or '?' }}{% if info.name and info.name != info.symbol %} <span class="muted">{{ info.name }}</span>{% endif %}</h1>
+      <div class="contract mono"><span title="{{ mint }}">{{ mint[:6] }}…{{ mint[-5:] }}</span><button type="button" class="ghost copy" data-copy="{{ mint }}" title="Copy address">⧉</button><a class="ext" href="https://solscan.io/token/{{ mint }}" target="_blank" rel="noopener" title="Solscan">↗</a></div>
+    </div>
+    <dl class="meta">
+      <div><dt>Created</dt><dd class="mono dtc" data-ms="{{ info.created_time or 0 }}" data-long="1">{{ info.created_time|dtu }}</dd></div>
+      <div><dt>Supply</dt><dd class="mono">{{ info.supply|mcap }}</dd></div>
+      <div><dt>Market cap</dt><dd class="mono">{{ info.mcap|mcap }}</dd></div>
+      <div><dt>Liquidity</dt><dd class="mono">{{ info.liquidity_usd|mcap }}</dd></div>
+    </dl>
+  </div>
+
+  <div class="stepbar">
+    <span class="stepn">02</span>
+    <div class="stepx"><b>Choose the range</b><span>Click the chart twice: where buying starts, where the pump takes off. <small>Drag to pan · scroll to zoom</small></span></div>
+    <div class="soonwrap right" id="airange"><button type="button" class="button ai-btn" id="airangebtn">✦ Let AI choose</button>
+      <div class="soon-pop" id="airangepop" hidden><b>Coming next</b><span>The agent will choose the range and explain why.</span><span class="muted">Detected pumps below are its first hints.</span></div></div>
+  </div>
+  <div class="chartbox" id="chart"></div>
+
+  <div class="stepbar small"><span class="stepn">03</span><div class="stepx"><b>Check the bounds and analyze</b></div></div>
+  <template id="row-tpl">
+    <form class="wrow" method="post" action="/analyze">
+      <input type="hidden" name="mint" value="{{ mint }}">
+      <span class="n"></span>
+      <span class="label" contenteditable="true" spellcheck="false" title="Rename"></span>
+      <label class="fld"><span>From</span><input type="datetime-local" name="from" required></label>
+      <label class="fld"><span>To</span><input type="datetime-local" name="to" required></label>
+      <button type="submit" class="primary">Analyze</button>
+      <a class="result button ghost" hidden>Open result →</a>
+      <button type="button" class="ghost del" title="Remove">×</button>
+    </form>
+  </template>
+  <div class="rows" id="rows"></div>
+  <div class="row rowsfoot">
+    <button type="button" class="ghost" id="add">+ Add range</button>
+    <button type="button" class="ghost" id="reset" title="Back to the detected pumps">Reset</button>
+    <span class="muted small">Range up to {{ s.max_window_hours }} h</span>
+  </div>
+</section>
+
+<script>
+(function () {
+  const root = document.getElementById('token');
+  const mint = root.dataset.mint, KEY = 'early:' + mint;
+  const INITIAL = JSON.parse(root.dataset.rows), JOBS = new Set(JSON.parse(root.dataset.jobs)), PRESET = JSON.parse(root.dataset.preset);
+  const JOBS_BY_WINDOW = new Map(); JOBS.forEach(id => JOBS_BY_WINDOW.set(id.split('_x')[0], id));   // older results still carry a horizon suffix
+  const rowsEl = document.getElementById('rows'), tpl = document.getElementById('row-tpl');
+  const pad = n => String(n).padStart(2, '0');
+  const fmt = ms => { const d = new Date(ms); return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()) + 'T' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); };
+  const parse = v => v ? Date.parse(v + ':00Z') : null;
+  const jobId = r => { const f = parse(r.from), t = parse(r.to); if (!(f && t)) return null;
+    const F = new Date(f), T = new Date(t);
+    return mint.slice(0, 6) + '_' + F.getUTCFullYear() + pad(F.getUTCMonth() + 1) + pad(F.getUTCDate()) + '-' + pad(F.getUTCHours()) + pad(F.getUTCMinutes())
+      + '_' + pad(T.getUTCHours()) + pad(T.getUTCMinutes()); };
+
+  let state;
+  try { state = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { state = null; }
+  if (!state || !Array.isArray(state.rows) || !state.rows.length) state = { rows: INITIAL.map(r => ({...r})), sel: 0 };
+  if (PRESET && PRESET.from) {                       // came back from a result: select that window
+    let i = state.rows.findIndex(r => r.from === PRESET.from && r.to === PRESET.to);
+    if (i < 0) { state.rows.unshift({ n: null, label: PRESET.label, from: PRESET.from, to: PRESET.to }); i = 0; }
+    state.sel = i;
+  }
+  state.sel = Math.min(state.sel || 0, state.rows.length - 1);
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
+  const winList = () => state.rows.map((r, i) => ({ n: i + 1, label: r.label, from: parse(r.from), to: parse(r.to) }));
+
+  const ch = EarlyChart(document.getElementById('chart'), { symbol: root.dataset.symbol,
+    mint, created: +root.dataset.created, now: +root.dataset.now, interactive: true,
+    windows: winList(), selected: state.sel,
+    onSelect: i => { state.sel = i; save(); render(); focusSel(); },
+    onClick: ms => {
+      const r = state.rows[state.sel], f = rowsEl.querySelector('.wrow.sel');
+      if (step === 0) { r.from = fmt(ms); r.to = ''; step = 1; ch.setMarker(ms); }
+      else { r.to = fmt(ms); if (parse(r.to) <= parse(r.from)) { const t = r.from; r.from = r.to; r.to = t; } step = 0; ch.setMarker(null); }
+      save(); f.querySelector('[name=from]').value = r.from; f.querySelector('[name=to]').value = r.to;
+      refreshLink(f, r); ch.setWindows(winList(), state.sel);
+    },
+  });
+  let step = 0;
+
+  function refreshLink(f, r) { const id = jobId(r), a = f.querySelector('.result'); const hit = id && (JOBS.has(id) ? id : JOBS_BY_WINDOW.get(id)); if (hit) { a.hidden = false; a.href = '/job/' + hit; } else a.hidden = true; }
+  function render() {
+    rowsEl.innerHTML = '';
+    state.rows.forEach((r, i) => {
+      const f = tpl.content.firstElementChild.cloneNode(true);
+      f.dataset.i = i;
+      f.querySelector('.n').textContent = i + 1;
+      f.querySelector('.label').textContent = r.label || 'Range';
+      f.querySelector('[name=from]').value = r.from || '';
+      f.querySelector('[name=to]').value = r.to || '';
+      if (i === state.sel) f.classList.add('sel');
+      refreshLink(f, r);
+      rowsEl.appendChild(f);
+    });
+    ch.setWindows(winList(), state.sel);
+  }
+  function focusSel() { const r = state.rows[state.sel]; if (r && r.from && r.to) ch.focus(parse(r.from), parse(r.to), null); }
+
+  rowsEl.addEventListener('input', e => {
+    const f = e.target.closest('.wrow'); if (!f) return;
+    const i = +f.dataset.i, r = state.rows[i];
+    if (e.target.classList.contains('label')) { r.label = e.target.textContent.trim().slice(0, 60); save(); ch.setWindows(winList(), state.sel); return; }
+    r[e.target.name] = e.target.value;
+    save(); refreshLink(f, r); ch.setWindows(winList(), state.sel);
+  });
+  rowsEl.addEventListener('click', e => {
+    const f = e.target.closest('.wrow'); if (!f) return;
+    const i = +f.dataset.i;
+    if (e.target.classList.contains('del')) { e.preventDefault(); state.rows.splice(i, 1); if (!state.rows.length) state.rows.push({ n: 1, label: 'Range 1', from: '', to: '' }); state.sel = Math.min(state.sel, state.rows.length - 1); save(); render(); focusSel(); return; }
+    if (i !== state.sel && !e.target.matches('input, button, a, select, .label')) { state.sel = i; save(); render(); focusSel(); }
+  });
+  rowsEl.addEventListener('focusin', e => { const f = e.target.closest('.wrow'); if (f && +f.dataset.i !== state.sel) { const name = e.target.name; state.sel = +f.dataset.i; save(); render(); focusSel(); const nf = rowsEl.querySelector('.wrow.sel [name=' + name + ']'); if (nf) nf.focus(); } });
+  document.getElementById('add').addEventListener('click', () => { state.rows.push({ n: null, label: 'Range ' + (state.rows.length + 1), from: '', to: '' }); state.sel = state.rows.length - 1; save(); render(); });
+  document.getElementById('reset').addEventListener('click', () => { try { localStorage.removeItem(KEY); } catch (e) {} state = { rows: INITIAL.map(r => ({...r})), sel: 0 }; render(); focusSel(); });
+
+  render();
+  ch.init().then(() => focusSel());
+})();
+</script>
+<script>
+(function () {
+  const w = document.getElementById('airange'), b = document.getElementById('airangebtn'), pop = document.getElementById('airangepop');
+  if (!w) return;
+  b.addEventListener('click', () => { pop.hidden = !pop.hidden; });
+  b.addEventListener('mouseenter', () => { pop.hidden = false; }); w.addEventListener('mouseleave', () => { pop.hidden = true; });
+})();
+</script>
+{% endblock %}

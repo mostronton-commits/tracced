@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block topbar %}{% endblock %}
+{% block full %}
+<section class="hero-dark">
+  <div class="hero-bg" aria-hidden="true">
+    {% for l in bg_lines %}<span style="--i: {{ loop.index0 }}">{{ l }}</span>{% endfor %}
+  </div>
+  <div class="hero-in">
+    <div class="eyebrow mono">SOLANA &nbsp;·&nbsp; NOBODY HIDES ON-CHAIN &nbsp;·&nbsp; AI-ASSISTED</div>
+    <h1>Every wallet, <em>traced</em><span class="cursor">_</span></h1>
+    <p class="lead">Paste a token, choose the pump range — see every wallet that bought there and what it did next.</p>
+    <form method="get" action="/token" class="row herof">
+      <input type="text" name="mint" placeholder="Paste a token address" data-type-address
+             required pattern="[1-9A-HJ-NP-Za-km-z]{32,44}" spellcheck="false" autocomplete="off" aria-label="Token address">
+      <button type="submit" class="primary">Analyze<svg class="arr" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h11M8.5 3.5 13 8l-4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </form>
+    <div class="counters">
+      <div><b data-count="{{ totals.wallets }}" data-fmt="int">0</b><span>wallets on the record</span></div>
+      <div><b data-count="{{ totals.tokens }}" data-fmt="int">0</b><span>tokens analyzed</span></div>
+      <div><b data-count="{{ totals.trades }}" data-fmt="int">0</b><span>trades processed</span></div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+{% block body %}
+<section class="steps3" aria-label="How it works in three steps">
+  <div><i>01</i><b>Paste contract</b></div>
+  <em aria-hidden="true">→</em>
+  <div><i>02</i><b>Choose range</b></div>
+  <em aria-hidden="true">→</em>
+  <div><i>03</i><b>Get wallets</b></div>
+</section>
+
+<section class="ai" aria-label="AI agent">
+  <div class="ai-l">
+    <h2>AI reads the numbers. You decide.</h2>
+    <p>On-chain is numbers — that is where AI is strongest.</p>
+  </div>
+  <ul class="ai-r">
+    <li>✦ Finds the pump range</li>
+    <li>✦ Picks wallets by your method</li>
+    <li>✦ Explains every pick with facts</li>
+  </ul>
+  <span class="ai-soon">Coming next</span>
+</section>
+
+
+
+{% if jobs %}
+<section class="card" id="recent">
+  <h2>Recent analyses</h2>
+  <div class="recent">
+    {% for j in jobs %}
+      <a class="rrow{{ ' ex' if j.id == example_id else '' }}" href="/job/{{ j.id }}">
+        <span class="sym">{{ j.symbol }}</span>
+        <span class="mono muted win"><span class="dtc" data-ms="{{ j.t_from }}">{{ j.t_from|dt }}</span> → <span class="dtc" data-ms="{{ j.t_to }}">{{ j.t_to|dt }}</span></span>
+        {% if j.result %}
+          <span class="mono n">{{ j.result.counts.n_early|num }} wallets</span>
+          <span class="mono n">{% if j.result.summary and j.result.summary.best_multiple %}best {{ j.result.summary.best_multiple|round(1) }}×{% endif %}</span>
+        {% else %}
+          <span class="mono n muted">—</span><span class="mono n"></span>
+        {% endif %}
+        {% if j.id == example_id %}<span class="chip ex" title="A finished analysis — open it, no waiting">Example</span>{% else %}<span class="chip st-{{ j.status }}" title="{{ j.error or '' }}">{{ {'queued':'Queued','running':'Running','done':'Done','error':'Error'}[j.status] }}</span>{% endif %}
+        <span class="open">Open →</span>
+      </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% endblock %}

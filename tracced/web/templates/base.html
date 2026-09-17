@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Tracced{% endblock %}</title>
+<link rel="stylesheet" href="/static/style.css?v={{ v }}">
+<script src="/static/ui.js?v={{ v }}"></script>
+<script>
+/* time zone preference: 'utc' (default) or 'local'; applied to every .dtc[data-ms] on the page and to the chart */
+window.EarlyTZ = (function () {
+  const KEY = 'early:tz'; let tz = 'utc';
+  try { tz = localStorage.getItem(KEY) === 'local' ? 'local' : 'utc'; } catch (e) {}
+  const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], p = n => String(n).padStart(2, '0');
+  function fmt(ms, long) {
+    const d = new Date(+ms); if (!ms || isNaN(d)) return '—';
+    const u = tz === 'utc';
+    const mo = u ? d.getUTCMonth() : d.getMonth(), day = u ? d.getUTCDate() : d.getDate(), y = u ? d.getUTCFullYear() : d.getFullYear();
+    const hh = u ? d.getUTCHours() : d.getHours(), mm = u ? d.getUTCMinutes() : d.getMinutes();
+    return M[mo] + ' ' + day + (long ? ', ' + y : '') + ', ' + p(hh) + ':' + p(mm) + (long ? (u ? ' UTC' : '') : '');
+  }
+  function apply() { document.querySelectorAll('.dtc[data-ms]').forEach(el => { if (+el.dataset.ms) el.textContent = fmt(el.dataset.ms, el.dataset.long === '1'); }); const b = document.getElementById('tz'); if (b) b.querySelectorAll('b').forEach((x, i) => x.classList.toggle('on', i === (tz === 'utc' ? 0 : 1))); }
+  function toggle() { tz = tz === 'utc' ? 'local' : 'utc'; try { localStorage.setItem(KEY, tz); } catch (e) {} location.reload(); }
+  document.addEventListener('DOMContentLoaded', apply);
+  return { get: () => tz, fmt, apply, toggle };
+})();
+</script>
+{% block head %}{% endblock %}
+</head>
+<body>
+{% block topbar %}<header class="top">
+  <a class="brand" href="/">Tracced</a>
+  <form method="get" action="/token" class="topsearch">
+    <input type="text" name="mint" placeholder="Token address" pattern="[1-9A-HJ-NP-Za-km-z]{32,44}" spellcheck="false" autocomplete="off" required>
+  </form>
+</header>{% endblock %}
+{% block full %}{% endblock %}
+<main>
+{% block body %}{% endblock %}
+</main>
+<footer class="foot">
+  <div class="foot-l"><b>Tracced</b> <span class="muted">Every wallet, traced.</span></div>
+  <div class="foot-c mono">◎ Built on Solana</div>
+  <div class="foot-r muted small"><a href="/how">How it works</a> · <span class="tzseg" id="tz" title="Time zone for all dates" onclick="EarlyTZ.toggle()"><b class="on">UTC</b><b>Local</b></span> · <span class="mono">v {{ v }}</span></div>
+</footer>
+</body>
+</html>
