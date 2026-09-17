@@ -73,7 +73,10 @@ class TestMeasuredGap(unittest.TestCase):
         self.assertEqual(budget.probe_points(0, 3), [])
         self.assertEqual(budget.probe_points(1000, 1), [0.5])
         p = budget.probe_points(1000, 3)
-        self.assertEqual([round(x, 2) for x in p], [0.05, 0.5, 0.95])
+        self.assertEqual(len(p), 3)
+        self.assertEqual(p, sorted(p))
+        self.assertTrue(0 < p[0] < 0.05 and 0.9 < p[-1] < 1)
+        self.assertLess(p[1], 0.4)                            # густіше на початку, а не посередині
         self.assertEqual(len(budget.probe_points(1000, 5)), 5)
 
     def test_pages_from_measured_rates(self):

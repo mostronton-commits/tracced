@@ -63,12 +63,16 @@ def estimate_gap_pages(n_window_trades, window_ms, gap_ms, page_size=250, margin
 
 
 def probe_points(gap_ms, n=3):
-    """Частки дірки, у яких її варто поміряти: початок, середина, кінець (без самих країв)."""
+    """Частки дірки, у яких її варто поміряти: густіше на початку.
+
+    Після пампу активність спадає різко, і саме там крива гнеться; рівномірні заміри розтягують високий
+    темп перших годин на пів доби і завищують ціну повного шляху. Тому кроки ростуть степенево.
+    """
     if gap_ms <= 0 or n < 1:
         return []
     if n == 1:
         return [0.5]
-    return [0.05 + 0.9 * i / (n - 1) for i in range(n)]
+    return [0.02 + 0.93 * (i / (n - 1)) ** 1.8 for i in range(n)]
 
 
 def pages_from_rates(rates, gap_ms, page_size=250, margin=1.0):
