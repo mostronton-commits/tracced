@@ -447,9 +447,37 @@ def _demo(app):
     return app["demo"]
 
 
+def _by_token(jobs, example_id=None):
+    """Один запис на токен: скільки діапазонів по ньому проаналізовано і що з них вийшло.
+
+    На головній цікавий токен, а не окремий прогін: рядок веде на сторінку токена, де діапазони видно
+    на графіку і кожен відкривається своїм результатом.
+    """
+    groups = {}
+    for j in jobs:
+        groups.setdefault(j.mint, []).append(j)
+    out = []
+    for mint, js in groups.items():
+        done = [j for j in js if j.status == "done" and j.result]
+        best = max(((j.result.get("summary") or {}).get("best_multiple") or 0 for j in done), default=0)
+        out.append({
+            "mint": mint,
+            "symbol": next((j.symbol for j in js if j.symbol), mint[:6]),
+            "ranges": len(js),
+            "t_from": min(j.t_from for j in js),
+            "t_to": max(j.t_to for j in js),
+            "best": best,
+            "status": "running" if any(j.status in ("queued", "running") for j in js) else ("done" if done else "error"),
+            "example": any(j.id == example_id for j in js),
+            "at": max(j.created_ms or 0 for j in js),
+        })
+    out.sort(key=lambda g: (not g["example"], -g["at"]))               # приклад першим, далі найсвіжіші
+    return out
+
+
 async def index(request):
     app = request.app
-    jobs = app["jobs"].recent(30)
+    jobs = app["jobs"].recent(60)
     jobs = [j for j in jobs if j.status != "error"]                    # помилки на головній — шум
     totals, sample, lines = _home_data(jobs)
     want = (app["s"].get("example_job") or "")
@@ -457,10 +485,8 @@ async def index(request):
     if not example or example.status != "done":
         done = [j for j in jobs if j.status == "done" and j.result and j.result.get("rows")]
         example = min(done, key=lambda j: j.created_ms or 0) if done else None      # найстарший готовий = показовий
-    if example:
-        jobs = [example] + [j for j in jobs if j.id != example.id]
-    return render("index.html", request, jobs=jobs, totals=totals, sample=sample, bg_lines=lines,
-                  example_id=example.id if example else None)
+    return render("index.html", request, tokens=_by_token(jobs, example.id if example else None),
+                  totals=totals, sample=sample, bg_lines=lines)
 
 
 async def how(request):
@@ -474,7 +500,7 @@ async def token_page(request):
     demo = _demo(app)
     if demo and demo["mint"] == mint:                                   # демо-токен: усе зі знімка, 0 запитів
         info = demo["info"]
-        rows = [{"n": i + 1, "label": r.get("label") or f"Demo range {i + 1}",
+        rows = [{"n": i + 1, "label": r.get("label") or f"Demo range {i + 1}", "job": r.get("job"),
                  "from": chart.to_input(r["from"]), "to": chart.to_input(r["to"])}
                 for i, r in enumerate(demo["ranges"])]
     else:
@@ -484,7 +510,18 @@ async def token_page(request):
     preset = None
     if chart.from_input(q.get("from")) and chart.from_input(q.get("to")):
         preset = {"n": None, "label": "From the result", "from": q.get("from"), "to": q.get("to")}
-    jobs_done = [j.id for j in app["jobs"].jobs.values() if j.mint == mint and j.status == "done"]
+    done_jobs = sorted((j for j in app["jobs"].jobs.values() if j.mint == mint and j.status == "done"),
+                       key=lambda j: j.t_from or 0)
+    jobs_done = [j.id for j in done_jobs]
+    seen = {(r["from"], r["to"]) for r in rows}
+    for j in done_jobs:                                 # готові аналізи видно на будь-якому пристрої, не лише там, де їх робили
+        key = (chart.to_input(j.t_from), chart.to_input(j.t_to))
+        if key in seen:
+            continue
+        seen.add(key)
+        n = ((j.result or {}).get("counts") or {}).get("n_early")
+        rows.append({"n": len(rows) + 1, "label": f"Analyzed · {n:,} wallets" if n else "Analyzed",
+                     "job": j.id, "from": key[0], "to": key[1]})
     return render("token.html", request, info=info, mint=mint, s=s, is_demo=bool(demo and demo["mint"] == mint),
                   n_demo=len(demo["ranges"]) if demo and demo["mint"] == mint else 0, bounced=q.get("notice") == "demo", created=info.get("created_time") or 0, now=int(time.time() * 1000),
                   rows_json=json.dumps(rows), jobs_json=json.dumps(jobs_done), preset_json=json.dumps(preset))

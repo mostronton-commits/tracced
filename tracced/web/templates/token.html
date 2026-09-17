@@ -67,6 +67,9 @@
   let state;
   try { state = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { state = null; }
   if (!state || !Array.isArray(state.rows) || !state.rows.length) state = { rows: INITIAL.map(r => ({...r})), sel: 0 };
+  INITIAL.forEach(r => {                             // ranges that already have a result come from the server: always show them
+    if (r.job && !state.rows.some(x => x.from === r.from && x.to === r.to)) state.rows.push({...r});
+  });
   if (PRESET && PRESET.from) {                       // came back from a result: select that window
     let i = state.rows.findIndex(r => r.from === PRESET.from && r.to === PRESET.to);
     if (i < 0) { state.rows.unshift({ n: null, label: PRESET.label, from: PRESET.from, to: PRESET.to }); i = 0; }

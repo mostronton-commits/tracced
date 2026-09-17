@@ -46,21 +46,17 @@
 
 
 
-{% if jobs %}
+{% if tokens %}
 <section class="card" id="recent">
   <h2>Recent analyses</h2>
   <div class="recent">
-    {% for j in jobs %}
-      <a class="rrow{{ ' ex' if j.id == example_id else '' }}" href="/job/{{ j.id }}">
-        <span class="sym">{{ j.symbol }}</span>
-        <span class="mono muted win"><span class="dtc" data-ms="{{ j.t_from }}">{{ j.t_from|dt }}</span> → <span class="dtc" data-ms="{{ j.t_to }}">{{ j.t_to|dt }}</span></span>
-        {% if j.result %}
-          <span class="mono n">{{ j.result.counts.n_early|num }} wallets</span>
-          <span class="mono n">{% if j.result.summary and j.result.summary.best_multiple %}best {{ j.result.summary.best_multiple|round(1) }}×{% endif %}</span>
-        {% else %}
-          <span class="mono n muted">—</span><span class="mono n"></span>
-        {% endif %}
-        {% if j.id == example_id %}<span class="chip ex" title="A finished analysis — open it, no waiting">Example</span>{% else %}<span class="chip st-{{ j.status }}" title="{{ j.error or '' }}">{{ {'queued':'Queued','running':'Running','done':'Done','error':'Error'}[j.status] }}</span>{% endif %}
+    {% for t in tokens %}
+      <a class="rrow{{ ' ex' if t.example else '' }}" href="/token?mint={{ t.mint }}">
+        <span class="sym">{{ t.symbol }}</span>
+        <span class="mono muted win"><span class="dtc" data-ms="{{ t.t_from }}">{{ t.t_from|dt }}</span> → <span class="dtc" data-ms="{{ t.t_to }}">{{ t.t_to|dt }}</span></span>
+        <span class="mono n">{{ t.ranges }} range{{ '' if t.ranges == 1 else 's' }}</span>
+        <span class="mono n">{% if t.best %}best {{ t.best|round(1) }}×{% endif %}</span>
+        {% if t.example %}<span class="chip ex" title="A finished analysis — open it, no waiting">Example</span>{% else %}<span class="chip st-{{ t.status }}">{{ {'running':'Running','done':'Done','error':'Error'}[t.status] }}</span>{% endif %}
         <span class="open">Open →</span>
       </a>
     {% endfor %}

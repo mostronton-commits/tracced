@@ -230,6 +230,23 @@ if AioHTTPTestCase:
             with open(f"{self.tmp.name}/web/{new.id}.json") as f:
                 self.assertEqual(json.load(f)["result"]["marker"], "fresh")
 
+        async def test_home_groups_by_token_and_token_page_lists_its_analyses(self):
+            # головна = один рядок на токен; сторінка токена показує його готові діапазони з сервера
+            await self.client.get(f"/token?mint={MINT}")
+            for a, b in (("2001-09-09T01:46", "2001-09-09T02:06"), ("2001-09-09T02:20", "2001-09-09T02:40")):
+                await self.client.post("/analyze", data={"mint": MINT, "from": a, "to": b}, allow_redirects=False)
+            await asyncio.to_thread(self.app["jobs"].q.join)
+            html = await (await self.client.get("/")).text()
+            self.assertIn(f'href="/token?mint={MINT}"', html)              # рядок веде на токен, не на прогін
+            self.assertIn("2 ranges", html)
+            self.assertEqual(html.count('class="rrow'), 1)                 # один токен — один рядок
+            import re as _re, json as _json, html as _html
+            page = await (await self.client.get(f"/token?mint={MINT}")).text()
+            rows = _json.loads(_html.unescape(_re.search(r"data-rows='([^']*)'", page).group(1)))
+            analysed = [r for r in rows if r.get("job")]
+            self.assertEqual(len(analysed), 2)                             # обидва аналізи видно без пам'яті браузера
+            self.assertEqual({r["from"] for r in analysed}, {"2001-09-09T01:46", "2001-09-09T02:20"})
+
         async def test_how_page(self):
             r = await self.client.get("/how")
             self.assertEqual(r.status, 200)
