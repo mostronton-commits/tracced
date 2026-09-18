@@ -129,7 +129,11 @@
   document.getElementById('reset').addEventListener('click', () => { try { localStorage.removeItem(KEY); } catch (e) {} state = { rows: INITIAL.map(r => ({...r})), sel: 0 }; render(); focusSel(); });
 
   render();
-  ch.init().then(() => focusSel());
+  ch.init().then(() => {
+    const ws = winList().filter(w => w.from && w.to);      // кілька діапазонів — показуємо їх усі, а не лише перший
+    if (ws.length > 1) ch.focus(Math.min(...ws.map(w => w.from)), Math.max(...ws.map(w => w.to)), null);
+    else focusSel();
+  });
 })();
 </script>
 <script>

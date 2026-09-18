@@ -69,7 +69,7 @@
 
     const sec = v => (v == null ? null : (v > 1e11 ? v / 1000 : v));   // accept ms or seconds
     const normWins = ws => (ws || []).map(w => ({ ...w, from: sec(w.from), to: sec(w.to) }));
-    let tf = null, data = new Map(), loaded = { a: null, b: null }, busy = false, gen = 0;
+    let tf = null, data = new Map(), times = [], loaded = { a: null, b: null }, busy = false, gen = 0;
     let windows = normWins(opts.windows), selected = opts.selected || 0, exitSec = sec(opts.exit), marker = null;
 
     async function fetchChunk(a, b) {
@@ -86,6 +86,7 @@
         rows.forEach(c => data.set(c.time, c));
         loaded.a = loaded.a === null ? a : Math.min(loaded.a, a); loaded.b = loaded.b === null ? b : Math.max(loaded.b, b);
         const sorted = [...data.values()].sort((x, y) => x.time - y.time);
+        times = sorted.map(c => c.time);
         series.setData(sorted);
         if (vol) vol.setData(sorted.map(c => ({ time: c.time, value: c.volume || 0, color: c.close >= c.open ? 'rgba(167, 243, 208, 0.28)' : 'rgba(148, 163, 184, 0.22)' })));
         renderMarkers();
@@ -97,7 +98,7 @@
 
     async function setTf(newTf, keepView) {
       const v = visible();
-      tf = newTf; gen++; data.clear(); loaded = { a: null, b: null };
+      tf = newTf; gen++; data.clear(); times = []; loaded = { a: null, b: null };
       const span = CHUNK[tf];
       let a, b;
       if (v && keepView) { const c = (v.a + v.b) / 2, w = Math.max(v.b - v.a, span / 4); a = c - Math.max(w, span / 2); b = c + Math.max(w, span / 2); }
@@ -115,7 +116,7 @@
       const a = Math.max(created, fromSec - padS), b = Math.min(now, (exitS && exitS < toSec + 8 * 3600 ? exitS : toSec) + padS);
       const want = autoTf(b - a);
       if (!tf || (b - a) / TF_SEC[tf] < 12) {                       // no timeframe yet, or the range would be a few bars
-        tf = want; gen++; data.clear(); loaded = { a: null, b: null };
+        tf = want; gen++; data.clear(); times = []; loaded = { a: null, b: null };
         await load(a - CHUNK[tf] / 4, b + CHUNK[tf] / 4);
       } else {
         if (loaded.a === null) await load(a - CHUNK[tf] / 4, b + CHUNK[tf] / 4);
@@ -137,7 +138,25 @@
     new ResizeObserver(() => place()).observe(el);
 
     // overlays: windows, exit line, first-click marker
-    function xOf(sec) { const v = visible(); if (!v) return null; const s = Math.min(Math.max(sec, v.a), v.b); return chart.timeScale().timeToCoordinate(s); }
+    // A time that is not exactly a candle's timestamp has no coordinate of its own: timeToCoordinate only
+    // answers for bars that exist. A range drawn by hand almost never lands on the grid, so we interpolate
+    // between the two neighbouring bars — otherwise the band silently disappears on coarser timeframes.
+    function xOf(sec) {
+      const v = visible(); if (!v) return null;
+      const s = Math.min(Math.max(sec, v.a), v.b), ts = chart.timeScale();
+      const exact = ts.timeToCoordinate(s);
+      if (exact != null) return exact;
+      if (!times.length) return null;
+      let lo = 0, hi = times.length - 1;
+      if (s <= times[0]) return ts.timeToCoordinate(times[0]);
+      if (s >= times[hi]) return ts.timeToCoordinate(times[hi]);
+      while (lo < hi) { const m = (lo + hi + 1) >> 1; if (times[m] <= s) lo = m; else hi = m - 1; }
+      const a = times[lo], b = times[Math.min(lo + 1, times.length - 1)];
+      const xa = ts.timeToCoordinate(a), xb = ts.timeToCoordinate(b);
+      if (xa == null) return xb;
+      if (xb == null || b === a) return xa;
+      return xa + (xb - xa) * ((s - a) / (b - a));
+    }
     function place() {
       layer.innerHTML = '';
       const v = visible(); if (!v) return;
