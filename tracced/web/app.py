@@ -7,6 +7,8 @@ one plain sentence for the user, details in the container log.
 import asyncio
 import csv
 import hashlib
+import os
+import secrets
 import hmac
 import io
 import json
@@ -153,6 +155,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["st"], app["s"], app["cfg"] = st, s, cfg or {}
     app["store_dir"], app["password"] = store_dir, password or ""
     app["throttle"] = Throttle()
+    app["runs"] = Throttle(max_fails=int(s.get("runs_per_hour", 20)), window_s=3600, block_s=3600)
     app["st_lock"] = threading.Lock()
     app["overview_cache"] = {}
     _lock_st(st, app["st_lock"])
@@ -212,8 +215,14 @@ async def errors_mw(request, handler):
                       message="Something broke on our side. The log has the details.", status=500)
 
 
+_RUNTIME_SECRET = secrets.token_hex(32)   # якщо WEB_SECRET не задано: куки живуть до перезапуску
+
+
 def _secret(pw):
-    return hashlib.sha256(("early-web:" + pw).encode()).digest()
+    """Ключ підпису куки. Окремий від пароля: інакше одна перехоплена кука дозволяє підбирати пароль
+    офлайн, скільки завгодно швидко і повз будь-який захист від перебору."""
+    key = os.getenv("WEB_SECRET") or _RUNTIME_SECRET
+    return hashlib.sha256(b"early-web:" + key.encode() + b":" + pw.encode()).digest()
 
 
 def _sign(pw, exp):
@@ -290,17 +299,24 @@ async def _is_open(request):
     if not demo:
         return False
     mint, jobs = demo["mint"], {r["job"] for r in demo["ranges"]}
-    if request.path in ("/token", "/candles.json", "/wallet_trades.json"):
-        return request.query.get("mint") == mint or request.query.get("job") in jobs
+    # Кожен шлях перевіряємо по ТОМУ САМОМУ параметру, який читає його обробник. Інакше запит
+    # відмикається одним полем, а працює по іншому: ?job=<демо>&mint=<будь-який> пройшов би перевірку
+    # і витратив платні запити на чужий токен.
+    if request.path in ("/token", "/candles.json"):
+        return request.query.get("mint") == mint              # обробник дивиться на mint
+    if request.path == "/wallet_trades.json":
+        return request.query.get("job") in jobs                # обробник дивиться на job
     if request.path == "/analyze" and request.method == "POST":
         return (await request.post()).get("mint") == mint     # тіло кешується, обробник прочитає його ще раз
     if request.path.startswith("/job/"):
-        jid = request.path[len("/job/"):].split("/")[0]
+        rest = request.path[len("/job/"):]
+        if "/" in rest:
+            return False                                       # /job/<id>/assistant і будь-що глибше — по паролю
         for suffix in (".state.json", ".enrich.json", ".csv", ".json"):
-            if jid.endswith(suffix):
-                jid = jid[: -len(suffix)]
+            if rest.endswith(suffix):
+                rest = rest[: -len(suffix)]
                 break
-        return jid in jobs
+        return rest in jobs
     return False
 
 
@@ -325,7 +341,7 @@ async def login(request):
             throttle.hit(ip)
             resp = web.HTTPFound("/")
             resp.set_cookie(COOKIE, _sign(request.app["password"], int(time.time()) + 14 * 86400),
-                            httponly=True, samesite="Lax")
+                            httponly=True, samesite="Lax", secure=True, max_age=14 * 86400)
             raise resp
         wait = throttle.miss(ip, now)
         await asyncio.sleep(1)                                     # повільно навіть до ліміту
@@ -597,6 +613,11 @@ async def candles_json(request):
 
 async def analyze(request):
     app = request.app
+    ip = _client_ip(request)
+    runs = app["runs"]                                   # платний шлях: обмежуємо навіть тих, хто зайшов
+    wait = runs.wait_s(ip, time.time())
+    if wait:
+        raise WebError(f"Too many analyses from this address. Try again in {max(1, round(wait / 60))} min.")
     form = await request.post()
     mint = _mint(form.get("mint"))
     s = app["s"]
@@ -609,6 +630,7 @@ async def analyze(request):
                                          replay={"log": list(r.get("log") or []), "result": r["result"]})
                 raise web.HTTPFound(f"/job/{job.id}")
         raise web.HTTPFound(f"/token?mint={mint}&notice=demo")           # інший діапазон — без живого (платного) прогону
+    runs.miss(ip, time.time())                           # звідси починаються витрати — рахуємо цей запуск
     info, _ = await _overview(app, mint)
     errs = window.validate(t_from, t_to, info.get("created_time"), int(time.time() * 1000),
                            max_window_ms=int(s.get("max_window_hours", 0) * HOUR) or None)

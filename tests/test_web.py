@@ -185,14 +185,14 @@ if AioHTTPTestCase:
 
         async def test_login_blocks_after_wrong_passwords(self):
             from tracced.web.app import Throttle
-            self.app["password"], self.app["throttle"] = "1717", Throttle(max_fails=2, window_s=300, block_s=900)
+            self.app["password"], self.app["throttle"] = "test-only-not-a-real-password", Throttle(max_fails=2, window_s=300, block_s=900)
             try:
                 r = await self.client.get("/")                             # без куки — на сторінку входу
                 self.assertIn("Sign in", await r.text())
                 for _ in range(2):
                     r = await self.client.post("/login", data={"password": "0000"}, allow_redirects=False)
                     self.assertEqual(r.status, 401)
-                r = await self.client.post("/login", data={"password": "1717"}, allow_redirects=False)
+                r = await self.client.post("/login", data={"password": "test-only-not-a-real-password"}, allow_redirects=False)
                 self.assertEqual(r.status, 429)                            # навіть правильний пароль чекає
                 self.assertIn("Too many attempts", await r.text())
             finally:
@@ -274,7 +274,7 @@ if AioHTTPTestCase:
                            "progress": {"phase": "done", "done": 1, "total": 1}, "log": ["x"], "result": result}, f)
             self.app["jobs"]._load()
             self.app["s"]["demo_job"] = jid; self.app.pop("demo", None)
-            self.app["password"], self.app["throttle"] = "1717", Throttle()
+            self.app["password"], self.app["throttle"] = "test-only-not-a-real-password", Throttle()
             other = "B" * 40
             try:
                 before = self.st.requests
@@ -291,6 +291,44 @@ if AioHTTPTestCase:
                     "mint": other, "from": "2001-09-09T01:46", "to": "2001-09-09T02:06"})
                 self.assertEqual(r.headers["Location"], "/login")           # чужий токен — ні
                 self.assertEqual(self.st.requests, before)                  # жодного платного запиту
+            finally:
+                self.app["password"], self.app["throttle"] = "", Throttle()
+
+        async def test_open_surface_cannot_be_unlocked_by_the_wrong_parameter(self):
+            # кожен шлях має перевірятись по тому самому параметру, який читає його обробник
+            import os
+            from tracced.web.app import Throttle
+            jid, a, b = "AAAAAA_20010909-0146_0206", 999999960000, 1000001160000
+            other, other_job = "B" * 40, "BBBBBB_20010909-0300_0320"
+            result = {"info": {"mint": MINT, "symbol": "TST", "supply": 1000000, "created_time": 999996400000},
+                      "window": {"from": a, "to": b, "end": b + 3600000}, "mode": "wallet-trades",
+                      "counts": {"n_wallets": 1, "n_trades": 3, "n_early": 1, "dust": 0, "late": 0, "pre_range_only": 0,
+                                 "lookups": 1, "entry_only": 0},
+                      "coverage": {"exits_known": 1, "total": 1, "mode": "wallet-trades", "cost_full": 5,
+                                   "lookup_cap": 500, "plan": "free"},
+                      "wallet_trades": {"A": {"trades": [[a + 1000, "buy", 100.0, 100.0, 1.0]], "source": "wallet-trades"}},
+                      "price_at_end": 3.0, "fresh_wallets": [], "scope": "all", "rows": [], "summary": {},
+                      "requests": 0, "pages_fetched": 0,
+                      "enrich": {"done": 0, "total": 0, "fresh": 0, "failed": 0, "funders_done": 0}}
+            os.makedirs(self.tmp.name + "/demo", exist_ok=True)
+            with open(f"{self.tmp.name}/demo/{MINT}.json", "w") as f:
+                json.dump({"mint": MINT, "info": result["info"], "created": 999996400000, "captured_ms": 1,
+                           "candles": {"1m": []}, "hints": [],
+                           "ranges": [{"label": "Pump 1", "from": a, "to": b, "job": jid, "log": ["x"], "result": result}]}, f)
+            self.app["s"]["demo_job"] = jid; self.app.pop("demo", None)
+            self.app["password"], self.app["throttle"] = "pw", Throttle()
+            try:
+                before = self.st.requests
+                # відмикання чужим параметром: job демо + чужий mint, і навпаки
+                for path in (f"/token?mint={other}&job={jid}",
+                             f"/candles.json?mint={other}&job={jid}&tf=1h&a=1&b=9999999999",
+                             f"/wallet_trades.json?mint={MINT}&job={other_job}&wallet=A",
+                             f"/job/{jid}/assistant"):
+                    r = await self.client.get(path, allow_redirects=False)
+                    self.assertEqual(r.headers.get("Location"), "/login", path)
+                r = await self.client.post(f"/job/{jid}/assistant", json={"method": "x"}, allow_redirects=False)
+                self.assertEqual(r.headers.get("Location"), "/login")
+                self.assertEqual(self.st.requests, before)              # жодного платного запиту
             finally:
                 self.app["password"], self.app["throttle"] = "", Throttle()
 
