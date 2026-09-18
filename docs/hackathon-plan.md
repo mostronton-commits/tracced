@@ -58,12 +58,31 @@ X-акаунт: лого, банер, опис, закріплений тред-
 Перевірити доступ суддів з чистого браузера. ✅ Superteam Ukraine у формі. Український сайдтрек.
 Останній відеозвіт. Перевірити сабміт двічі.
 
-## Що вже можна написати в анкету
+## Готові поля анкети
 
 - **Project name:** tracced
-- **Website:** https://tracced.xyz
+- **One-liner (до 5 слів):** See who bought before everyone
+- **Website:** https://tracced.xyz/project — публічна сторінка проєкту
 - **GitHub:** https://github.com/mostronton-commits/tracced
 - **How did you hear about Colosseum:** Superteam Ukraine
 - **Access instructions:** демо-токен відкритий без входу; для повного доступу — пароль у полі
 - **Repo context:** щоденні коміти протягом хакатону, 111 тестів, движок у `tracced/early/`,
   веб у `tracced/web/`, аудит повноти описаний у README
+
+**Project blurb** (методика Pixar: проблема → чому нинішні рішення погані → рішення → чому вдесятеро краще →
+трекшн → ринок):
+
+> Every Solana run ends with the same question: who was already in? The evidence is public but unreadable —
+> one pump hides tens of thousands of swaps — so traders either scroll a block explorer by hand or buy someone
+> else's "smart money" ranking and trust a score they cannot check.
+>
+> tracced answers it in two clicks. Paste a token, mark the pump on the chart, and get every wallet that bought
+> inside that range with its full record on that token: entry market cap, dollars in, exits, realized profit,
+> hold time, and shared funding sources. Nothing is scored — every row opens as a transaction on Solscan, and the
+> history is audited against the pool's own signatures, so the list is complete rather than a sample. On the demo
+> token that means 489,000 swaps reconstructed and exits resolved for all 4,634 wallets across three pump ranges.
+> Traders keep the wallets they pick, at $29 a month, and the same list drives what comes next: alerts when those
+> wallets buy again, then non-custodial copy-trading that earns per trade.
+
+Слабке місце блурбу — пʼятий такт: там зараз можливості движка, а стаття просить користувачів. До подачі
+замінити на реальні цифри: інтервʼю, лист очікування, перші тестувальники.

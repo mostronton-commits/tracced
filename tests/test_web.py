@@ -256,7 +256,7 @@ if AioHTTPTestCase:
                 r = await self.client.get("/project")
                 self.assertEqual(r.status, 200)
                 html = await r.text()
-                self.assertIn("Who bought before the pump", html)
+                self.assertIn("See who bought before everyone", html)
                 self.assertIn("tracced.xyz", html)
                 self.assertEqual(self.st.requests, before)                 # нуль запитів до API
                 for gated in ("/", "/how", f"/token?mint={MINT}"):          # решта — за паролем
