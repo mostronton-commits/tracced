@@ -274,7 +274,6 @@ def _wait_text(s):
     return f"Too many attempts. Try again in {max(1, round(s / 60))} min." if s >= 60 else f"Too many attempts. Try again in {s} s."
 
 
-@web.middleware
 ALWAYS_OPEN = ("/login", "/health", "/static", "/project")
 
 
@@ -305,6 +304,7 @@ async def _is_open(request):
     return False
 
 
+@web.middleware
 async def auth_mw(request, handler):
     pw = request.app["password"]
     if not pw or await _is_open(request):

@@ -247,22 +247,50 @@ if AioHTTPTestCase:
             self.assertEqual(len(analysed), 2)                             # обидва аналізи видно без пам'яті браузера
             self.assertEqual({r["from"] for r in analysed}, {"2001-09-09T01:46", "2001-09-09T02:20"})
 
-        async def test_project_page_is_public_and_costs_nothing(self):
-            # сторінка проєкту відкрита без пароля; платні шляхи лишаються закритими
+        async def test_public_surface_is_exactly_the_demo(self):
+            # без пароля відкриті лише сторінка проєкту і демо-токен; усе, що витрачає гроші, закрите
+            import os
             from tracced.web.app import Throttle
+            jid, a, b = "AAAAAA_20010909-0146_0206", 999999960000, 1000001160000
+            result = {"info": {"mint": MINT, "symbol": "TST", "supply": 1000000, "created_time": 999996400000},
+                      "window": {"from": a, "to": b, "end": b + 3600000}, "mode": "wallet-trades",
+                      "counts": {"n_wallets": 1, "n_trades": 3, "n_early": 1, "dust": 0, "late": 0, "pre_range_only": 0,
+                                 "lookups": 1, "entry_only": 0},
+                      "coverage": {"exits_known": 1, "total": 1, "mode": "wallet-trades", "cost_full": 5,
+                                   "lookup_cap": 500, "plan": "free"},
+                      "wallet_trades": {"A": {"trades": [[a + 1000, "buy", 100.0, 100.0, 1.0]], "source": "wallet-trades"}},
+                      "price_at_end": 3.0, "fresh_wallets": [], "scope": "all", "rows": [], "summary": {},
+                      "requests": 0, "pages_fetched": 0,
+                      "enrich": {"done": 0, "total": 0, "fresh": 0, "failed": 0, "funders_done": 0}}
+            os.makedirs(self.tmp.name + "/demo", exist_ok=True)
+            with open(f"{self.tmp.name}/demo/{MINT}.json", "w") as f:
+                json.dump({"mint": MINT, "info": result["info"], "created": 999996400000, "captured_ms": 1,
+                           "candles": {"1m": []}, "hints": [],
+                           "ranges": [{"label": "Pump 1", "from": a, "to": b, "job": jid, "log": ["x"], "result": result}]}, f)
+            out = self.tmp.name + "/web"
+            with open(f"{out}/{jid}.json", "w") as f:                      # сам аналіз теж має бути на диску
+                json.dump({"id": jid, "mint": MINT, "t_from": a, "t_to": b, "t_exit": None, "status": "done",
+                           "error": None, "created_ms": 1, "started_ms": 1, "finished_ms": 2, "symbol_hint": "TST",
+                           "progress": {"phase": "done", "done": 1, "total": 1}, "log": ["x"], "result": result}, f)
+            self.app["jobs"]._load()
+            self.app["s"]["demo_job"] = jid; self.app.pop("demo", None)
             self.app["password"], self.app["throttle"] = "1717", Throttle()
+            other = "B" * 40
             try:
                 before = self.st.requests
-                r = await self.client.get("/project")
-                self.assertEqual(r.status, 200)
-                html = await r.text()
-                self.assertIn("See who bought before everyone", html)
-                self.assertIn("tracced.xyz", html)
-                self.assertEqual(self.st.requests, before)                 # нуль запитів до API
-                for gated in ("/", "/how", f"/token?mint={MINT}"):          # решта — за паролем
-                    r = await self.client.get(gated, allow_redirects=False)
-                    self.assertEqual(r.status, 302, gated)
-                    self.assertEqual(r.headers["Location"], "/login")
+                for path in ("/project", f"/token?mint={MINT}", f"/job/{jid}", f"/job/{jid}.csv"):
+                    r = await self.client.get(path, allow_redirects=False)
+                    self.assertEqual(r.status, 200, path)                  # відкрито
+                for path in ("/", "/how", f"/token?mint={other}", "/job/whatever"):
+                    r = await self.client.get(path, allow_redirects=False)
+                    self.assertEqual(r.headers.get("Location"), "/login", path)   # закрито
+                r = await self.client.post("/analyze", allow_redirects=False, data={
+                    "mint": MINT, "from": chart.to_input(a), "to": chart.to_input(b)})
+                self.assertEqual(r.headers["Location"], f"/job/{jid}")      # демо програється без пароля
+                r = await self.client.post("/analyze", allow_redirects=False, data={
+                    "mint": other, "from": "2001-09-09T01:46", "to": "2001-09-09T02:06"})
+                self.assertEqual(r.headers["Location"], "/login")           # чужий токен — ні
+                self.assertEqual(self.st.requests, before)                  # жодного платного запиту
             finally:
                 self.app["password"], self.app["throttle"] = "", Throttle()
 
