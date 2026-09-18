@@ -130,7 +130,7 @@
 
   render();
   ch.init().then(() => {
-    const ws = winList().filter(w => w.from && w.to);      // кілька діапазонів — показуємо їх усі, а не лише перший
+    const ws = winList().filter(w => w.from && w.to);      // several ranges: open showing all of them, not just the first
     if (ws.length > 1) ch.focus(Math.min(...ws.map(w => w.from)), Math.max(...ws.map(w => w.to)), null);
     else focusSel();
   });
