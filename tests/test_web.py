@@ -247,6 +247,25 @@ if AioHTTPTestCase:
             self.assertEqual(len(analysed), 2)                             # обидва аналізи видно без пам'яті браузера
             self.assertEqual({r["from"] for r in analysed}, {"2001-09-09T01:46", "2001-09-09T02:20"})
 
+        async def test_project_page_is_public_and_costs_nothing(self):
+            # сторінка проєкту відкрита без пароля; платні шляхи лишаються закритими
+            from tracced.web.app import Throttle
+            self.app["password"], self.app["throttle"] = "1717", Throttle()
+            try:
+                before = self.st.requests
+                r = await self.client.get("/project")
+                self.assertEqual(r.status, 200)
+                html = await r.text()
+                self.assertIn("Who bought before the pump", html)
+                self.assertIn("tracced.xyz", html)
+                self.assertEqual(self.st.requests, before)                 # нуль запитів до API
+                for gated in ("/", "/how", f"/token?mint={MINT}"):          # решта — за паролем
+                    r = await self.client.get(gated, allow_redirects=False)
+                    self.assertEqual(r.status, 302, gated)
+                    self.assertEqual(r.headers["Location"], "/login")
+            finally:
+                self.app["password"], self.app["throttle"] = "", Throttle()
+
         async def test_how_page(self):
             r = await self.client.get("/how")
             self.assertEqual(r.status, 200)

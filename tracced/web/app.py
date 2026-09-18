@@ -166,6 +166,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["jobs"] = JobQueue(runner, out_dir, enricher=make_enricher(ages, s) if ages else None)
     app.router.add_get("/", index)
     app.router.add_get("/how", how)
+    app.router.add_get("/project", project)
     app.router.add_get("/token", token_page)
     app.router.add_get("/candles.json", candles_json)
     app.router.add_post("/analyze", analyze)
@@ -276,7 +277,7 @@ def _wait_text(s):
 @web.middleware
 async def auth_mw(request, handler):
     pw = request.app["password"]
-    if not pw or request.path.startswith(("/login", "/health", "/static")):
+    if not pw or request.path.startswith(("/login", "/health", "/static", "/project")):   # сторінка проєкту публічна: статичний текст, нуль запитів
         return await handler(request)
     if not _valid(pw, request.cookies.get(COOKIE)):
         raise web.HTTPFound("/login")
@@ -491,6 +492,11 @@ async def index(request):
 
 async def how(request):
     return render("how.html", request, s=request.app["s"], TAGS=tags.DEFS)
+
+
+async def project(request):
+    """Статична сторінка проєкту: те, що подається на хакатон. Нічого не рахує і не ходить у мережу."""
+    return render("project.html", request)
 
 
 async def token_page(request):

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Project · tracced{% endblock %}
+{% block crumb %}Project{% endblock %}
+{% block topbar %}<header class="top"><div class="top-in"><a class="brand" href="/project">tracced</a><span class="muted mono">every wallet on the record</span></div></header>{% endblock %}
+{% block body %}
+<section class="card doc project">
+  <p class="eyebrow mono">SOLANA &nbsp;·&nbsp; CRYPTO WORLD'S FAIR 2026</p>
+  <h1>tracced</h1>
+  <p class="one">Who bought before the pump</p>
+
+  <p>Every Solana run ends with the same question: who was already in? The evidence is public but unreadable —
+    one pump hides tens of thousands of swaps — so traders either scroll a block explorer by hand or buy someone
+    else's "smart money" ranking and trust a score they cannot check.</p>
+
+  <p>tracced answers it in two clicks. Paste a token, mark the pump on the chart, and get every wallet that bought
+    inside that range with its full record on that token: entry market cap, dollars in, exits, realized profit,
+    hold time, and shared funding sources. Nothing is scored — every row opens as a transaction on Solscan, and the
+    history is audited against the pool's own signatures, so the list is complete rather than a sample. Traders keep
+    the wallets they pick, and the same list drives what comes next: alerts when those wallets buy again, then
+    non-custodial copy-trading.</p>
+
+  <h2>What it does, in three steps</h2>
+  <ol>
+    <li><b>Paste a token.</b> Any Solana mint. The chart is drawn in market cap, not price.</li>
+    <li><b>Mark the pump.</b> Two clicks on the chart set the range — from where buying starts to where it takes off.
+      Detected pumps are offered as hints; the call is yours.</li>
+    <li><b>Read the wallets.</b> Every wallet that bought inside the range, with what it paid, what it sold, what it
+      still holds, how long it waited, and who funded it. Export as CSV, TXT or JSON.</li>
+  </ol>
+
+  <h2>Proof it is complete</h2>
+  <p>Cursor-paged trade feeds drop trades silently: the cursor is exclusive and trade times are whole seconds, so
+    everything after the first trade of a boundary second disappears. On one token that was about 1% of all swaps,
+    including buys of several hundred thousand dollars. We found it by comparing our set against the pool's own
+    signatures on-chain, fixed the paging, and now re-read the boundary second every time.</p>
+  <p>The same audit found a defect in the source data: roughly one trade in a thousand comes back with a token amount
+    shifted by many orders of magnitude. The dollar figure is right, the derived price is not. Those trades are now
+    repriced at the market rate of their minute, and the count is shown with the results.</p>
+
+  <dl class="facts">
+    <div><dt>Swaps reconstructed on the demo token</dt><dd class="mono">489,000</dd></div>
+    <div><dt>Wallets with a complete exit history</dt><dd class="mono">4,634</dd></div>
+    <div><dt>Pump ranges recorded, replayed with no API calls</dt><dd class="mono">3</dd></div>
+    <div><dt>Wallets funded from a shared source</dt><dd class="mono">370</dd></div>
+  </dl>
+
+  <h2>What it refuses to do</h2>
+  <p>No wallet scores, no winrate, no "smart money" badge. Tags are facts with fixed definitions you can read —
+    bought within 60 seconds of creation, wallet younger than 24 hours, funded by the same wallet as others in the
+    list — and each one is derived from trades you can open yourself. The judgement stays with the person.</p>
+
+  <h2>Links</h2>
+  <ul class="links">
+    <li><b>Product</b> — <a href="/">tracced.xyz</a> <span class="muted">(private beta; the demo token opens with no API calls)</span></li>
+    <li><b>Code</b> — <a href="https://github.com/mostronton-commits/tracced" target="_blank" rel="noopener">github.com/mostronton-commits/tracced</a></li>
+    <li><b>Updates</b> — <a href="https://x.com/tracced_xyz" target="_blank" rel="noopener">@tracced_xyz</a></li>
+    <li><b>How it works</b> — <a href="/how">the method, the limits, the tag definitions</a></li>
+  </ul>
+
+  <p class="muted small">Built in Ukraine for the Colosseum Crypto World's Fair, 2026.</p>
+</section>
+{% endblock %}
