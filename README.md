@@ -1,6 +1,6 @@
 # tracced
 
-Live (password-protected): https://tracced.xyz
+Live demo, no sign-up: https://tracced.xyz/project
 
 **Every wallet on the record.** Paste a Solana token, choose the pump range on the chart, and see every wallet that
 bought there — and everything it did with the token next. Entry and exit market cap, invested, realized, held
