@@ -275,9 +275,39 @@ def _wait_text(s):
 
 
 @web.middleware
+ALWAYS_OPEN = ("/login", "/health", "/static", "/project")
+
+
+async def _is_open(request):
+    """Чи цей запит можна пустити без пароля.
+
+    Відкрито рівно те, що не може витратити грошей: сторінка проєкту і демо-токен цілком. Демо
+    програється зі знімка, тож жоден із цих шляхів не звертається до платного API. Усе інше — по
+    паролю, і саме там лишається аналіз будь-якого іншого токена.
+    """
+    if request.path.startswith(ALWAYS_OPEN):
+        return True
+    demo = _demo(request.app)
+    if not demo:
+        return False
+    mint, jobs = demo["mint"], {r["job"] for r in demo["ranges"]}
+    if request.path in ("/token", "/candles.json", "/wallet_trades.json"):
+        return request.query.get("mint") == mint or request.query.get("job") in jobs
+    if request.path == "/analyze" and request.method == "POST":
+        return (await request.post()).get("mint") == mint     # тіло кешується, обробник прочитає його ще раз
+    if request.path.startswith("/job/"):
+        jid = request.path[len("/job/"):].split("/")[0]
+        for suffix in (".state.json", ".enrich.json", ".csv", ".json"):
+            if jid.endswith(suffix):
+                jid = jid[: -len(suffix)]
+                break
+        return jid in jobs
+    return False
+
+
 async def auth_mw(request, handler):
     pw = request.app["password"]
-    if not pw or request.path.startswith(("/login", "/health", "/static", "/project")):   # сторінка проєкту публічна: статичний текст, нуль запитів
+    if not pw or await _is_open(request):
         return await handler(request)
     if not _valid(pw, request.cookies.get(COOKIE)):
         raise web.HTTPFound("/login")
