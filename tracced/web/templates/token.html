@@ -4,7 +4,7 @@
 {% block head %}<script src="/static/vendor/lightweight-charts.standalone.production.js?v={{ v }}"></script><script src="/static/chart.js?v={{ v }}"></script>{% endblock %}
 {% block body %}
 <section class="card token" id="token" data-mint="{{ mint }}" data-symbol="{{ info.symbol or '' }}"
-         data-rows='{{ rows_json }}' data-jobs='{{ jobs_json }}' data-preset='{{ preset_json }}'
+         data-rows='{{ rows_json }}' data-jobs='{{ jobs_json }}' data-preset='{{ preset_json }}' data-hints='{{ hints_json }}' data-min-peak="{{ min_peak }}"
          data-created="{{ created }}" data-now="{{ now }}" data-demo="{{ 1 if is_demo else 0 }}"{% if bounced %} data-bounced="Only the {{ "ranges" if n_demo > 1 else "range" }} below {{ "are" if n_demo > 1 else "is" }} recorded. Pick one and press Analyze."{% endif %}>
   <div class="tokenhead">
     <div>
@@ -22,8 +22,7 @@
   <div class="stepbar">
     <span class="stepn">02</span>
     <div class="stepx"><b>Choose the range</b><span>Click the chart twice: where buying starts, where the pump takes off. <small>Drag to pan · scroll to zoom</small></span></div>
-    <div class="soonwrap right" id="airange"><button type="button" class="button ai-btn" id="airangebtn">✦ Let AI choose</button>
-      <div class="soon-pop" id="airangepop" hidden><b>Coming next</b><span>The agent will choose the range and explain why.</span><span class="muted">Detected pumps below are its first hints.</span></div></div>
+    <button type="button" class="button right" id="findpump" title="Picks the first significant pump on the chart. You can still adjust it.">◎ Find the pump</button>
   </div>
   <div class="chartbox" id="chart"></div>
 
@@ -139,20 +138,48 @@
   if (addBtn) addBtn.addEventListener('click', () => { state.rows.push({ n: null, label: 'Range ' + (state.rows.length + 1), from: '', to: '' }); state.sel = state.rows.length - 1; save(); render(); });
   if (resetBtn) resetBtn.addEventListener('click', () => { try { localStorage.removeItem(KEY); } catch (e) {} state = { rows: INITIAL.map(r => ({...r})), sel: 0 }; render(); focusSel(); });
 
+  // «Find the pump»: the recorded ranges on the demo, the detector's hints on a live token, else a look at the loaded candles
+  const HINTS = JSON.parse(root.dataset.hints || '[]'), MIN_PEAK = +root.dataset.minPeak || 1e6;
+  const fp = document.getElementById('findpump'); let fpClicks = 0;
+  function scanCandles() {                              // base = lowest close of the trailing 24 candles; breakout ≥ 1.3× base; peak ≥ 2× base within 6 h
+    const cs = ch.candles(), out = []; let i = 24;
+    while (i < cs.length) {
+      let bi = i - 24; for (let j = i - 24; j < i; j++) if (cs[j].close < cs[bi].close) bi = j;
+      const base = cs[bi].close;
+      if (base > 0 && cs[i].close >= base * 1.3) {
+        let peak = 0; for (let j = i; j < cs.length && cs[j].time <= cs[i].time + 6 * 3600; j++) peak = Math.max(peak, cs[j].high || cs[j].close);
+        if (peak >= base * 2 && peak >= MIN_PEAK) {
+          out.push({ from: fmt(cs[bi].time * 1000), to: fmt(cs[i].time * 1000), label: 'Pump ' + (out.length + 1) + ' · ' + ch.fmtMcap(base) + ' → ' + ch.fmtMcap(peak) + ' ×' + (peak / base).toFixed(1) });
+          i += 24; continue;
+        }
+      }
+      i++;
+    }
+    return out;
+  }
+  function candidates() {
+    if (DEMO) return INITIAL.filter(r => r.job).map(r => ({ from: r.from, to: r.to, label: r.label }));
+    if (HINTS.length) return HINTS.map((h, i) => ({ from: fmt(h.from), to: fmt(h.to), label: 'Pump ' + (i + 1) + ' · ' + ch.fmtMcap(h.base) + ' → ' + ch.fmtMcap(h.peak) + ' ×' + h.mag }));
+    return scanCandles();
+  }
+  function findPump() {
+    const cs = candidates();
+    if (!cs.length) { fp.disabled = true; fp.title = 'No pump found on this chart'; EarlyUI.toast('No pump found on this chart yet. Set the range by hand.'); return; }
+    const k = fpClicks++ % cs.length, c = cs[k];
+    let i = state.rows.findIndex(r => r.from === c.from && r.to === c.to);
+    if (i < 0) { state.rows.push({ n: null, label: c.label, from: c.from, to: c.to }); i = state.rows.length - 1; }
+    state.sel = i; save(); render(); focusSel();
+    const f = rowsEl.querySelector('.wrow.sel'); if (f) { f.classList.remove('pulse'); void f.offsetWidth; f.classList.add('pulse'); }
+    fp.title = cs.length > 1 ? 'Pump ' + (k + 1) + ' of ' + cs.length + ' · click again for the next one' : 'The one pump on this chart';
+  }
+  fp.addEventListener('click', findPump);
+
   render();
   ch.init().then(() => {
     const ws = winList().filter(w => w.from && w.to);      // several ranges: open showing all of them, not just the first
     if (ws.length > 1) ch.focus(Math.min(...ws.map(w => w.from)), Math.max(...ws.map(w => w.to)), null);
     else focusSel();
   });
-})();
-</script>
-<script>
-(function () {
-  const w = document.getElementById('airange'), b = document.getElementById('airangebtn'), pop = document.getElementById('airangepop');
-  if (!w) return;
-  b.addEventListener('click', () => { pop.hidden = !pop.hidden; });
-  b.addEventListener('mouseenter', () => { pop.hidden = false; }); w.addEventListener('mouseleave', () => { pop.hidden = true; });
 })();
 </script>
 {% endblock %}

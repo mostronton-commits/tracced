@@ -378,6 +378,10 @@ if AioHTTPTestCase:
             self.assertIsNone(CYRILLIC.search(html))
             self.assertIn('id="rows"', html)
             self.assertIn('data-rows=', html)
+            self.assertIn('data-hints=', html)
+            self.assertIn("Find the pump", html)                         # a rule, not a model
+            self.assertNotIn("Let AI choose", html)
+            self.assertNotIn("Coming next", html)
             self.assertIn("Pump 1", html)                              # a detector hint became a row
             self.assertIn('id="chart"', html)
             self.assertIn("lightweight-charts", html)

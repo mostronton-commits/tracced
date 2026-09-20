@@ -29,7 +29,7 @@ main { width: 100%; max-width: var(--page); margin: 0 auto; padding: 20px 24px 6
 
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px 22px; margin-bottom: 16px; }
 .card.narrow { max-width: 420px; margin: 0 auto; width: 100%; }
-main.center { display: flex; align-items: center; justify-content: center; }   /* вхід і помилка — по центру вікна */
+main.center { display: flex; flex-direction: column; align-items: center; justify-content: center; }   /* вхід і помилка — по центру вікна, картки одна під одною */
 h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; letter-spacing: -.01em; } h2 { font-size: 15px; font-weight: 600; margin: 0 0 10px; }
 .hero h1 { font-size: 22px; margin-bottom: 12px; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } .right { margin-left: auto; }
@@ -506,6 +506,8 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
 @media (max-width: 720px) { .me .rrow { grid-template-columns: 80px 1fr 70px 30px; } .me .rrow .n:nth-child(4), .me .rrow .open { display: none; } .hero-acct { top: 12px; right: 12px; } }
 .me .rrow.evrow { grid-template-columns: 130px 120px 1fr; }
 .more { margin: 12px 0 4px; }
+@keyframes wrow-pulse { 0%, 100% { box-shadow: none; } 50% { box-shadow: 0 0 0 4px var(--sage); border-color: #34D399; } }
+.wrow.pulse { animation: wrow-pulse .65s ease 2; }
 .waitlist { margin-top: 30px; max-width: 720px; }
 .waitlist .wl-lead { margin-bottom: 10px; } .hero-dark .waitlist .wl-lead b { color: #F8FAFC; } .hero-dark .waitlist .muted { color: #94A3B8; }
 .waitlist input { min-width: 0; font-family: var(--sans); } .waitlist input[type=email] { flex: 1 1 220px; } .waitlist input[type=text] { flex: 1 1 200px; }

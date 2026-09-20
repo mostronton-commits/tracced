@@ -22,6 +22,7 @@ from pathlib import Path
 from aiohttp import web
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from ..config import DEFAULTS as CFG_DEFAULTS
 from ..early import assistant as assistant_mod, pipeline, report, scope, tags, window
 from ..early.store import TradeStore
 from . import accounts as acct_mod
@@ -874,6 +875,7 @@ async def token_page(request):
     mint = _mint(request.query.get("mint"))
     s = app["s"]
     demo = _demo(app)
+    hints = []                                                          # для «Find the pump»: підказки детектора (демо — записані діапазони)
     if demo and demo["mint"] == mint:                                   # демо-токен: усе зі знімка, 0 запитів
         info = demo["info"]
         rows = [{"n": i + 1, "label": r.get("label") or f"Demo range {i + 1}", "job": r.get("job"),
@@ -882,6 +884,9 @@ async def token_page(request):
     else:
         info, ov = await _overview(app, mint)
         rows = _rows_from_hints(ov["hints"])
+        hints = [{"from": h["acc_start"], "to": h["pump_start"], "base": h["base_mcap"], "peak": h["peak_mcap"], "mag": h["magnitude"]}
+                 for h in ov["hints"]]
+    detect_cfg = dict(CFG_DEFAULTS.get("detect") or {}, **((app["cfg"] or {}).get("detect") or {}))
     q = request.query
     preset = None
     if chart.from_input(q.get("from")) and chart.from_input(q.get("to")):
@@ -900,7 +905,8 @@ async def token_page(request):
                      "job": j.id, "from": key[0], "to": key[1]})
     return render("token.html", request, info=info, mint=mint, s=s, is_demo=bool(demo and demo["mint"] == mint),
                   n_demo=len(demo["ranges"]) if demo and demo["mint"] == mint else 0, bounced=q.get("notice") == "demo", created=info.get("created_time") or 0, now=int(time.time() * 1000),
-                  rows_json=json.dumps(rows), jobs_json=json.dumps(jobs_done), preset_json=json.dumps(preset))
+                  rows_json=json.dumps(rows), jobs_json=json.dumps(jobs_done), preset_json=json.dumps(preset),
+                  hints_json=json.dumps(hints), min_peak=int(detect_cfg.get("min_peak_mcap") or 1_000_000))
 
 
 async def candles_json(request):

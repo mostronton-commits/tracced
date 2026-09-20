@@ -215,6 +215,7 @@
       focus: (from, to, exit) => focus(sec(from), sec(to), sec(exit)),
       setTf, init: async () => { await setTf(autoTf(now - created), false); },
       fmtMcap,
+      candles: () => [...data.values()].sort((x, y) => x.time - y.time),   // loaded candles in market cap, oldest first
     };
   };
 })();
