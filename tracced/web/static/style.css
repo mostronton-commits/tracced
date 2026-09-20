@@ -365,6 +365,9 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .topsearch input:focus { border-color: #34D399; box-shadow: 0 0 0 3px rgba(167, 243, 208, .18); }
 .foot { background: var(--navy); color: #CBD5E1; border-top: 1px solid #1E293B; margin-top: 24px; flex-shrink: 0; }
 .foot-in { padding: 22px 24px 40px; }
+.foot .ico { color: #94A3B8; border: 0; display: inline-flex; vertical-align: -3px; margin: 0 2px; }
+.foot .ico:hover { color: #F8FAFC; }
+.foot .ico svg { width: 16px; height: 16px; }
 .foot .muted, .foot .foot-c, .foot .foot-r { color: #94A3B8; }
 .foot b { color: #F8FAFC; }
 .foot a, .foot .link { color: #CBD5E1; border-bottom-color: #334155; } .foot a:hover, .foot .link:hover { color: #F8FAFC; }

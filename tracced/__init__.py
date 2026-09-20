@@ -1,2 +1,2 @@
-"""pump-scout — поиск кошельков-накопителей до старта пампа (Solana)."""
-__version__ = "0.1.0"
+"""tracced — every wallet on the record: who bought a Solana token before everyone, with receipts."""
+__version__ = "0.2.0"     # bump on every merge to main; the footer shows major.minor

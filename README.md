@@ -54,6 +54,8 @@ docker compose run --rm --no-deps -v "$PWD/tests:/app/tests" web python -m unitt
 
 Settings live in `config.yaml` (`early.plan: free | advanced` sets the request caps for the Solana Tracker plan).
 
+Version: `__version__` in `tracced/__init__.py`, shown in the footer as `v0.2`; bumped on every release to `main`.
+
 ## Demo token
 Set `early.demo_job` in `config.yaml` to a finished analysis and put its snapshot in `output/early/demo/<mint>.json`
 (info, candles, range). Pasting that token then replays the whole flow — chart, range, live terminal, result — without a

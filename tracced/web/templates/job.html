@@ -45,11 +45,11 @@
       <div class="scope" role="tablist">
         {% for sc in scopes %}
           {% set label = {'all': 'Whole history'}.get(sc, sc[:-1] ~ ' h after range') %}
-          {% if has_scopes %}<a role="tab" class="{{ 'on' if sc == scope else '' }}" href="?scope={{ sc }}">{{ label }}</a>
+          {% set hint = 'All trades up to the analysis time' if sc == 'all' else 'Trades up to ' ~ sc[:-1] ~ ' h after the range' %}
+          {% if has_scopes %}<a role="tab" class="{{ 'on' if sc == scope else '' }}" href="?scope={{ sc }}" title="{{ hint }} · no new requests">{{ label }}</a>
           {% else %}<span role="tab" class="{{ 'on' if sc == scope else 'off' }}" title="Run the analysis again to unlock scopes">{{ label }}</span>{% endif %}
         {% endfor %}
       </div>
-      <span class="muted small">{% if scope == 'all' %}all trades up to the analysis time{% else %}trades up to {{ scope[:-1] }} h after the range{% endif %}</span>
     </div>
     {% if cov_text %}<p class="muted small cov">{{ cov_text }}</p>{% endif %}
 

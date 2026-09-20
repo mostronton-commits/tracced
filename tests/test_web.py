@@ -203,6 +203,9 @@ if AioHTTPTestCase:
             for path in ("/", "/how"):
                 html = await (await self.client.get(path)).text()
                 self.assertIn('<footer class="foot"><div class="foot-in">', html)
+                self.assertIn(">v0.2<", html)                                   # product version, not the asset hash
+                self.assertIn('href="https://github.com/mostronton-commits/tracced"', html)
+                self.assertIn('href="https://x.com/tracced_xyz"', html)
             html = await (await self.client.get("/how")).text()
             self.assertIn('<header class="top"><div class="top-in">', html)
             self.assertNotIn('<main class="wide"', html)
@@ -378,7 +381,7 @@ if AioHTTPTestCase:
             self.assertIn("lightweight-charts", html)
             self.assertIn("static/chart.js", html)
             self.assertIn("and analyze", html)
-            self.assertNotIn("<svg", html)
+            self.assertNotIn("<svg", html.split("<footer")[0])         # the page body draws with the chart library, not inline SVG
 
         async def test_token_page_preset_from_result(self):
             r = await self.client.get(f"/token?mint={MINT}&from=2001-09-09T01:46&to=2001-09-09T02:06&exit=2001-09-09T02:46")
