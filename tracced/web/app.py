@@ -26,6 +26,7 @@ from ..early import assistant as assistant_mod, pipeline, report, scope, tags, w
 from ..early.store import TradeStore
 from . import accounts as acct_mod
 from . import chart
+from . import replay
 from .jobs import JobQueue
 
 log = logging.getLogger("early.web")
@@ -172,7 +173,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
 
     def runner(job):
         if job.replay:
-            return _replay(job)
+            return _replay(job, page_size=int(s.get("page_size", 250)), budget_s=float(s.get("replay_s", 12)))
         return pipeline.run(st, job.mint, job.t_from, job.t_to, s,
                             log=job.log.append, progress=job.set_progress, store_dir=store_dir)
 
@@ -743,36 +744,9 @@ def _home_data(jobs):
     return totals, sample, lines
 
 
-def _replay(job):
-    """Demo: play the stored log line by line with small pauses, then return the stored result (0 requests)."""
-    import re as _re
-    lines, result = job.replay.get("log") or [], job.replay["result"]
-    n_pages = sum(1 for l in lines if l.startswith("page "))
-    n_look = 0
-    for l in lines:
-        m = _re.search(r"exits: \d+/(\d+)", l)
-        if m:
-            n_look = int(m.group(1))
-    job.set_progress("token")
-    time.sleep(0.6)
-    pages = 0
-    for l in lines:
-        job.log.append(l)
-        if l.startswith("page "):
-            pages += 1
-            job.set_progress("trades", pages, n_pages)
-            time.sleep(0.25)
-        elif l.strip().startswith("exits:"):
-            m = _re.search(r"exits: (\d+)/(\d+)", l)
-            if m:
-                job.set_progress("wallets", int(m.group(1)), int(m.group(2)))
-            time.sleep(0.5)
-        elif l.startswith("done"):
-            job.set_progress("tags")
-            time.sleep(0.6)
-        else:
-            time.sleep(0.45)
-    return result
+def _replay(job, page_size=250, budget_s=12.0):
+    """Demo: play a believable run built from the stored result's own numbers, then return that result (0 requests)."""
+    return replay.play(job, job.replay["result"], job.t_from, job.t_to, page_size=page_size, budget_s=budget_s)
 
 
 def _demo_ranges(snap):

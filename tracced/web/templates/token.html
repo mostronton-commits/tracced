@@ -5,10 +5,10 @@
 {% block body %}
 <section class="card token" id="token" data-mint="{{ mint }}" data-symbol="{{ info.symbol or '' }}"
          data-rows='{{ rows_json }}' data-jobs='{{ jobs_json }}' data-preset='{{ preset_json }}'
-         data-created="{{ created }}" data-now="{{ now }}" data-demo="{{ 1 if is_demo else 0 }}">
+         data-created="{{ created }}" data-now="{{ now }}" data-demo="{{ 1 if is_demo else 0 }}"{% if bounced %} data-bounced="Only the {{ "ranges" if n_demo > 1 else "range" }} below {{ "are" if n_demo > 1 else "is" }} recorded. Pick one and press Analyze."{% endif %}>
   <div class="tokenhead">
     <div>
-      <h1>{{ info.symbol or '?' }}{% if info.name and info.name != info.symbol %} <span class="muted">{{ info.name }}</span>{% endif %}</h1>
+      <h1>{{ info.symbol or '?' }}{% if info.name and info.name != info.symbol %} <span class="muted">{{ info.name }}</span>{% endif %}{% if is_demo %} <span class="chip demo" title="Recorded token · {{ n_demo }} pump{{ 's' if n_demo != 1 else '' }} replayed without requests">Demo</span>{% endif %}</h1>
       <div class="contract mono"><span title="{{ mint }}">{{ mint[:6] }}…{{ mint[-5:] }}</span><button type="button" class="ghost copy" data-copy="{{ mint }}" title="Copy address">⧉</button><a class="ext" href="https://solscan.io/token/{{ mint }}" target="_blank" rel="noopener" title="Solscan">↗</a></div>
     </div>
     <dl class="meta">
@@ -19,7 +19,6 @@
     </dl>
   </div>
 
-  {% if is_demo %}<div class="demo-note">{% if bounced %}<b>Only the {{ "ranges" if n_demo > 1 else "range" }} below {{ "are" if n_demo > 1 else "is" }} recorded.</b> Pick one and press Analyze.{% else %}<b>Demo token.</b> {{ n_demo if n_demo > 1 else "One" }} recorded pump{{ "s" if n_demo > 1 else "" }} below: press <b>Analyze</b> on {{ "one" if n_demo > 1 else "it" }} to watch the run. No requests are spent.{% endif %}</div>{% endif %}
   <div class="stepbar">
     <span class="stepn">02</span>
     <div class="stepx"><b>Choose the range</b><span>Click the chart twice: where buying starts, where the pump takes off. <small>Drag to pan · scroll to zoom</small></span></div>
@@ -28,7 +27,7 @@
   </div>
   <div class="chartbox" id="chart"></div>
 
-  <div class="stepbar small"><span class="stepn">03</span><div class="stepx"><b>Check the bounds and analyze</b></div></div>
+  <div class="stepbar small"><span class="stepn">03</span><div class="stepx"><b>Check the bounds and analyze</b>{% if is_demo %}<span>Press Analyze on a pump to watch the run.</span>{% endif %}</div></div>
   <template id="row-tpl">
     <form class="wrow" method="post" action="/analyze">
       <input type="hidden" name="mint" value="{{ mint }}">
@@ -56,6 +55,7 @@
   const INITIAL = JSON.parse(root.dataset.rows), JOBS = new Set(JSON.parse(root.dataset.jobs)), PRESET = JSON.parse(root.dataset.preset);
   const JOBS_BY_WINDOW = new Map(); JOBS.forEach(id => JOBS_BY_WINDOW.set(id.split('_x')[0], id));   // older results still carry a horizon suffix
   const DEMO = root.dataset.demo === '1', RAN = 'early:ran:';   // demo: the result opens only after this browser pressed Analyze on that range
+  if (root.dataset.bounced) EarlyUI.toast(root.dataset.bounced, 6000);
   const ran = id => { try { return !!localStorage.getItem(RAN + id); } catch (e) { return true; } };
   const rowsEl = document.getElementById('rows'), tpl = document.getElementById('row-tpl');
   const pad = n => String(n).padStart(2, '0');

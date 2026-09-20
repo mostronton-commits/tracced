@@ -38,8 +38,9 @@ if AioHTTPTestCase:
         async def get_application(self):
             self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
             self.st = FakeWebST(TRADES)
-            return create_app(self.st, settings.load(), {}, out_dir=self.tmp.name + "/web",
-                              store_dir=self.tmp.name + "/cache")
+            s = settings.load()
+            s["replay_s"] = 0.6                                          # демо програється швидко, щоб тести не чекали
+            return create_app(self.st, s, {}, out_dir=self.tmp.name + "/web", store_dir=self.tmp.name + "/cache")
 
         async def tearDownAsync(self):
             await asyncio.to_thread(self.app["jobs"].q.join)      # let the worker finish writing
@@ -74,7 +75,7 @@ if AioHTTPTestCase:
             self.assertEqual(r.status, 200)
             html = await r.text()
             self.assertIn("Demo range", html)
-            self.assertIn("Demo token.", html)
+            self.assertIn('class="chip demo"', html)
             # another range on the demo token bounces back with a note instead of a live run
             r = await self.client.post("/analyze", data={"mint": MINT, "from": "2001-09-09T02:30", "to": "2001-09-09T02:50"}, allow_redirects=False)
             self.assertEqual(r.status, 302)
@@ -97,7 +98,8 @@ if AioHTTPTestCase:
             self.assertIn("Whole history", html)
             self.assertEqual(self.st.requests, before)                    # not a single request to Solana Tracker
             st = await (await self.client.get(loc + ".state.json?since=0")).json()
-            self.assertIn("page 1: 3 trades (+3 new)", st["log"])
+            self.assertTrue(any(l.startswith("page 1: 3 trades (+3 new)") for l in st["log"]), st["log"])   # a believable run from the stored numbers
+            self.assertTrue(any(l.startswith("done (wallet-trades): 1 wallets") for l in st["log"]))
             with open(f"{out}/{jid}.json") as f:                               # програвання не перезаписує збережений аналіз
                 self.assertEqual(json.load(f), stored)
 
@@ -128,7 +130,7 @@ if AioHTTPTestCase:
             html = await (await self.client.get(f"/token?mint={MINT}")).text()
             self.assertIn("Pump 1", html)
             self.assertIn("Pump 2", html)
-            self.assertIn("2 recorded pumps below", html)                  # текст знає, що діапазонів кілька
+            self.assertIn("2 pumps replayed without requests", html)      # текст знає, що діапазонів кілька
             for jid, a, b in (one, two):                                   # обидва програються
                 r = await self.client.post("/analyze", allow_redirects=False, data={
                     "mint": MINT, "from": chart.to_input(a), "to": chart.to_input(b)})
@@ -162,7 +164,7 @@ if AioHTTPTestCase:
             self.assertEqual(self.app["jobs"].get(jid).status, "error")        # обірваний аналіз позначено помилкою
             before = self.st.requests
             r = await self.client.get(f"/token?mint={MINT}")
-            self.assertIn("Demo token.", await r.text())
+            self.assertIn('class="chip demo"', await r.text())
             r = await self.client.post("/analyze", data={"mint": MINT, "from": "2001-09-09T05:00", "to": "2001-09-09T05:20"}, allow_redirects=False)
             self.assertEqual(r.headers["Location"], f"/token?mint={MINT}&notice=demo")
             self.assertEqual(self.st.requests, before)                         # жодного платного запиту
@@ -578,7 +580,9 @@ if AioHTTPTestCase:
         async def get_application(self):
             self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
             self.st = FakeWebST(TRADES)
-            return create_app(self.st, settings.load(), {}, out_dir=self.tmp.name + "/web", store_dir=self.tmp.name + "/cache")
+            s = settings.load()
+            s["replay_s"] = 0.6
+            return create_app(self.st, s, {}, out_dir=self.tmp.name + "/web", store_dir=self.tmp.name + "/cache")
 
         async def tearDownAsync(self):
             await asyncio.to_thread(self.app["jobs"].q.join)
