@@ -294,7 +294,7 @@ class AccountStore:
                 if not valid_pubkey(w) or w in a["wallets"]:
                     continue
                 if len(a["wallets"]) >= MAX_WALLETS:
-                    raise AccountError(f"My list is full ({MAX_WALLETS} wallets). Remove some first.")
+                    raise AccountError(f"Your watchlist is full ({MAX_WALLETS} wallets). Remove some first.")
                 a["wallets"][w] = {"added_ms": _now_ms(), "note": "", **{k: it.get(k) for k in WALLET_FIELDS}}
                 added += 1
             return added, len(a["wallets"])

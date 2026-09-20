@@ -562,13 +562,16 @@ async def me_add_wallets(request, pk):
 
 @_acct_route
 async def me_remove_wallet(request, pk):
+    """One wallet ({wallet}) or several ({wallets: [...]})."""
     body = await _json_body(request)
     if body is None:
         return _jerr("Bad request body.")
-    ok = request.app["accounts"].remove_wallet(pk, str(body.get("wallet") or ""))
-    if ok:
-        request.app["events"].add(pk, "remove_wallet")
-    return web.json_response({"ok": ok})
+    want = body.get("wallets") if isinstance(body.get("wallets"), list) else [body.get("wallet")]
+    want = [str(w) for w in want if w][: acct_mod.MAX_WALLETS]
+    removed = sum(1 for w in want if request.app["accounts"].remove_wallet(pk, w))
+    if removed:
+        request.app["events"].add(pk, "remove_wallet", n=removed)
+    return web.json_response({"ok": bool(removed), "removed": removed})
 
 
 @_acct_route
@@ -663,7 +666,7 @@ async def me_wallets_csv(request, pk):
         w.writerow({**{k: ("" if r.get(k) is None else r.get(k)) for k in ME_COLUMNS},
                     "tags": "|".join(r.get("tags") or []), "added_utc": chart.fmt_dt(r.get("added_ms") or 0, year=True, utc=True)})
     return web.Response(text=buf.getvalue(), content_type="text/csv",
-                        headers={"Content-Disposition": 'attachment; filename="my-list.csv"'})
+                        headers={"Content-Disposition": 'attachment; filename="watchlist.csv"'})
 
 
 # ───────────────────────── helpers ─────────────────────────

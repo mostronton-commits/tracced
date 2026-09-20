@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}My list · tracced{% endblock %}
+{% block title %}Watchlist · tracced{% endblock %}
 {% block main_class %}{% if not acct %}center{% endif %}{% endblock %}
 {% block body %}
 {% if not acct %}
@@ -12,7 +12,7 @@
 {% else %}
 <section class="card me" id="list">
   <div class="row mehead">
-    <h2>My list</h2><span class="muted small">{{ wallets|length }} wallet{{ '' if wallets|length == 1 else 's' }}</span>
+    <h2>Watchlist</h2><span class="muted small">{{ wallets|length }} wallet{{ '' if wallets|length == 1 else 's' }}</span>
     {% if wallets %}<div class="menu right"><button type="button" class="ghost" data-menu>↓ Export</button>
       <div class="menu-panel r" hidden><a href="/me/wallets.csv">CSV <small>all columns</small></a><button type="button" id="xtxt">TXT <small>addresses only</small></button></div></div>{% endif %}
   </div>
@@ -29,12 +29,12 @@
       <td class="num mono">{% if w.multiple %}{{ w.multiple|round(1) }}×{% else %}—{% endif %}</td>
       <td><span class="note" contenteditable="true" spellcheck="false" data-ph="add a note" data-note>{{ w.note }}</span></td>
       <td class="muted small"><span class="dtc" data-ms="{{ w.added_ms }}">{{ w.added_ms|dt }}</span></td>
-      <td><button type="button" class="ghost x" data-rm-wallet title="Remove from my list">×</button></td>
+      <td><button type="button" class="ghost x" data-rm-wallet title="Remove from the watchlist">×</button></td>
     </tr>
   {% endfor %}
   </tbody></table></div>
   {% else %}
-  <p class="muted">Nothing here yet. Open a result, tick the wallets you want, then <b>Save to my list</b>.{% if demo_mint %} <a href="/token?mint={{ demo_mint }}">Try it on the demo</a>.{% endif %}</p>
+  <p class="muted">Nothing here yet. Open a result, tick the wallets you want, then <b>+ Watchlist</b>.{% if demo_mint %} <a href="/token?mint={{ demo_mint }}">Try it on the demo</a>.{% endif %}</p>
   {% endif %}
 </section>
 
@@ -74,7 +74,7 @@
   const tx = document.getElementById('xtxt');
   if (tx) tx.addEventListener('click', () => {
     const ws = [...document.querySelectorAll('tr[data-w]')].map(t => t.dataset.w);
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([ws.join('\n') + '\n'], { type: 'text/plain' })); a.download = 'my-list.txt'; a.click();
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([ws.join('\n') + '\n'], { type: 'text/plain' })); a.download = 'watchlist.txt'; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   });
 })();

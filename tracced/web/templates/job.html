@@ -76,7 +76,7 @@
         </div>
       </div>
       <div class="soonwrap" id="watch" hidden>
-        <button type="button" class="button holo" id="watchbtn" title="Save the selected wallets to your list"><span class="holo-in"><span class="holo-txt">Save to my list</span><span class="holo-n" id="watchn"></span></span></button>
+        <button type="button" class="button holo" id="watchbtn" title="Add the selected wallets to your watchlist"><span class="holo-in"><span class="holo-txt" id="watchtxt">+ Watchlist</span><span class="holo-n" id="watchn"></span></span></button>
       </div>
       <button type="button" class="ghost savejob" id="savejob" title="Keep this analysis under My analyses">☆ Save analysis</button>
       <div class="menu">
@@ -216,6 +216,7 @@
         nsel.textContent = selected.size; document.getElementById('selinfo').hidden = !selected.size; watch.hidden = !selected.size;
         document.getElementById('watchn').textContent = selected.size;
         const vis = visible(); document.getElementById('pickall').checked = vis.length > 0 && vis.every(r => selected.has(r.dataset.w));
+        if (typeof syncWatchBtn === 'function') syncWatchBtn();
         const xs = exportSet(), what = selected.size ? xs.length + ' selected' : (xs.length + (na() ? ' filtered' : ' wallets'));
         document.getElementById('xcsv').textContent = '— ' + what + ', all columns';
         document.getElementById('xtxt').textContent = '— ' + xs.length + ' addresses';
@@ -230,18 +231,27 @@
       tbody.addEventListener('change', e => { if (!e.target.classList.contains('pick')) return; const w = e.target.closest('tr').dataset.w; e.target.checked ? selected.add(w) : selected.delete(w); saveSel(); syncChecks(); });
       document.getElementById('pickall').addEventListener('change', e => { visible().forEach(r => e.target.checked ? selected.add(r.dataset.w) : selected.delete(r.dataset.w)); saveSel(); syncChecks(); });
 
-      // the account: selected wallets go to «My list», the whole analysis to «My analyses»; no wallet yet → sign in first, then continue
+      // the account: selected wallets go to the watchlist, the whole analysis to «My analyses»; no wallet yet → connect first, then continue.
+      // Both ways: ★ on a row removes that wallet, «★ Saved» removes the analysis, «– Watchlist» removes the selected wallets.
       let acctOn = {{ 'true' if acct else 'false' }}, me = null;
       const wbtn = document.getElementById('watchbtn'), sjob = document.getElementById('savejob');
+      const inList = w => !!(me && me.wallets && me.wallets[w]);
+      function syncWatchBtn() {
+        const ws = [...selected], removing = ws.length > 0 && ws.every(inList);
+        wbtn.dataset.mode = removing ? 'remove' : 'add';
+        document.getElementById('watchtxt').textContent = removing ? '– Watchlist' : '+ Watchlist';
+        wbtn.title = removing ? 'Remove the selected wallets from your watchlist' : 'Add the selected wallets to your watchlist';
+      }
       function markSaved() {
-        const ws = (me && me.wallets) || {};
         rows.forEach(r => {
           const wid = r.querySelector('.wid'), has = wid.querySelector('.saved');
-          if (ws[r.dataset.w]) { if (!has) { const s = document.createElement('span'); s.className = 'saved'; s.title = 'In my list'; s.textContent = '★'; wid.appendChild(s); } }
+          if (inList(r.dataset.w)) { if (!has) { const s = document.createElement('button'); s.type = 'button'; s.className = 'saved'; s.title = 'In your watchlist · click to remove'; s.textContent = '★'; wid.appendChild(s); } }
           else if (has) has.remove();
         });
         const saved = !!(me && me.analyses && me.analyses[jobId]);
-        sjob.textContent = saved ? '★ Saved' : '☆ Save analysis'; sjob.classList.toggle('on', saved); sjob.disabled = saved;
+        sjob.textContent = saved ? '★ Saved' : '☆ Save analysis'; sjob.classList.toggle('on', saved);
+        sjob.title = saved ? 'In My analyses · click to remove' : 'Keep this analysis under My analyses';
+        syncWatchBtn();
       }
       async function loadMe() {
         if (!acctOn) return;
@@ -250,12 +260,21 @@
       }
       const withAcct = fn => acctOn ? fn() : EarlyWallet.open(() => { acctOn = true; loadMe().then(fn); });
       const blank = () => { me = me || { wallets: {}, analyses: {} }; };
+      const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
       async function saveWallets() {
         const ws = [...selected]; if (!ws.length) return;
         try {
           const d = await EarlyWallet.post('/me/wallets', { job: jobId, wallets: ws });
           blank(); d.wallets.forEach(w => { me.wallets[w] = me.wallets[w] || {}; }); markSaved();
-          EarlyUI.toast((d.added ? d.added + (d.added === 1 ? ' wallet saved' : ' wallets saved') : 'Already in your list') + ' · <a href="/me#list">My list →</a>');
+          EarlyUI.toast((d.added ? plural(d.added, 'wallet') + ' added to your watchlist' : 'Already in your watchlist') + ' · <a href="/me#list">Watchlist →</a>');
+        } catch (e) { EarlyUI.toast(e.message); }
+      }
+      async function removeWallets(ws) {
+        if (!ws.length) return;
+        try {
+          const d = await EarlyWallet.post('/me/wallets/remove', { wallets: ws });
+          blank(); ws.forEach(w => { delete me.wallets[w]; }); markSaved();
+          EarlyUI.toast(d.removed ? plural(d.removed, 'wallet') + ' removed from your watchlist' : 'Not in your watchlist');
         } catch (e) { EarlyUI.toast(e.message); }
       }
       async function saveJob() {
@@ -265,8 +284,17 @@
           EarlyUI.toast((d.added ? 'Analysis saved' : 'Already saved') + ' · <a href="/me#analyses">My analyses →</a>');
         } catch (e) { EarlyUI.toast(e.message); }
       }
-      wbtn.addEventListener('click', () => withAcct(saveWallets));
-      sjob.addEventListener('click', () => withAcct(saveJob));
+      async function removeJob() {
+        try {
+          await EarlyWallet.post('/me/analyses/remove', { job: jobId });
+          blank(); delete me.analyses[jobId]; markSaved();
+          EarlyUI.toast('Removed from My analyses');
+        } catch (e) { EarlyUI.toast(e.message); }
+      }
+      // the action is what the button said at click time — not what it turns into after a sign-in loads the account
+      wbtn.addEventListener('click', () => { const remove = wbtn.dataset.mode === 'remove'; withAcct(() => remove ? removeWallets([...selected]) : saveWallets()); });
+      sjob.addEventListener('click', () => { const saved = !!(me && me.analyses && me.analyses[jobId]); withAcct(() => saved ? removeJob() : saveJob()); });
+      tbody.addEventListener('click', e => { const s = e.target.closest('.saved'); if (s) removeWallets([s.closest('tr').dataset.w]); });
       loadMe();
 
       let sortKey = null, sortDir = -1;

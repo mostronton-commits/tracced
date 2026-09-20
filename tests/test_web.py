@@ -450,7 +450,7 @@ if AioHTTPTestCase:
             page48 = await r.text()
             self.assertIn("48 h after range", page48)
             self.assertIn('class="on" href="?scope=48h"', page48)
-            self.assertIn("Save to my list", page48)                    # the real save, no placeholder
+            self.assertIn("+ Watchlist", page48)                        # the real save, no placeholder
             self.assertIn("Save analysis", page48)
             self.assertNotIn("Add to watchlist", page48)
             self.assertNotIn("soon-badge", page48)
@@ -624,7 +624,7 @@ if AioHTTPTestCase:
             r = await self.client.get("/me", headers=h)
             html = await r.text()
             self.assertEqual(r.status, 200)
-            self.assertIn("My list", html)
+            self.assertIn("Watchlist", html)
             self.assertIn("My analyses", html)
             self.assertIn(pk[:4] + "…" + pk[-4:], html)                              # пігулка в панелі
             self.assertIn("Sign out", html)
@@ -727,6 +727,11 @@ if AioHTTPTestCase:
                 self.assertEqual((await (await self.client.get("/me.json", headers=h)).json())["wallets"][W1]["note"], "watch")
                 r = await self.client.post("/me/wallets/remove", json={"wallet": W1}, headers=h)
                 self.assertTrue((await r.json())["ok"])
+                r = await self.client.post("/me/wallets", json={"job": DEMO_JID, "wallets": [W1]}, headers=h)
+                r = await self.client.post("/me/wallets/remove", json={"wallets": [W1, "nope"]}, headers=h)   # several at once
+                self.assertEqual((await r.json())["removed"], 1)
+                r = await self.client.get("/me/wallets.csv", headers=h)
+                self.assertIn("watchlist.csv", r.headers["Content-Disposition"])
                 r = await self.client.post("/me/analyses/remove", json={"job": DEMO_JID}, headers=h)
                 self.assertTrue((await r.json())["ok"])
                 old = acct_mod.MAX_ANALYSES

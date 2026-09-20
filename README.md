@@ -29,7 +29,7 @@ Built on Solana · AI-assisted (coming next) · Colosseum Crypto World's Fair 20
 
 ### Your account: a wallet, not a password
 Sign in with a Solana wallet (Phantom, Solflare, Backpack or any Wallet Standard wallet): the wallet signs a short
-message — no transaction, no fees — and that signature is the account. Tick wallets in a result and **Save to my list**;
+message — no transaction, no fees — and that signature is the account. Tick wallets in a result and **+ Watchlist**;
 **Save analysis** keeps the whole result under **My analyses**. Both live at `/me`, with notes and CSV / TXT export.
 Signing in does not unlock live analyses of new tokens: that stays behind the beta password while the free API quota lasts.
 Saving from the demo result needs no password, so anyone can try the account.

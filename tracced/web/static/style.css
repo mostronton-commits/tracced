@@ -489,6 +489,7 @@ button.primary { transition: background .12s ease, border-color .12s ease, trans
 .wstate:empty { display: none; }
 .walletline { margin: 12px 0 0; } .walletline .link { padding: 0; height: auto; display: inline; color: var(--ink); border-bottom: 1px solid var(--line); }
 .saved { color: #B45309; margin-left: 5px; font-size: 12px; cursor: default; }
+button.saved { border: 0; background: transparent; padding: 0 2px; height: auto; cursor: pointer; } button.saved:hover { color: var(--red); background: transparent; }
 .savejob.on { color: #B45309; } .savejob:disabled { cursor: default; opacity: 1; }
 .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 70; background: var(--navy); color: #F8FAFC; padding: 10px 16px; border-radius: 10px; font-size: 13px; white-space: nowrap; box-shadow: 0 12px 30px -10px rgba(0, 0, 0, .5); animation: toast-in .2s ease; }
 .toast a { color: var(--mint); border-bottom-color: rgba(167, 243, 208, .4); }
