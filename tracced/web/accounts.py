@@ -285,6 +285,20 @@ class AccountStore:
                 out.append(self.load(name[:-5]))
         return sorted(out, key=lambda a: a.get("last_seen_ms") or 0, reverse=True)
 
+    def take_run(self, pubkey, cap, day=None):
+        """Живий аналіз: True і +1, якщо сьогодні ще можна; лічильник живе у файлі, тож перезапуск його не скидає."""
+        day = int(time.time() // 86400) if day is None else int(day)
+
+        def fn(a):
+            r = a.get("runs") or {}
+            n = int(r.get("n") or 0) if r.get("day") == day else 0
+            if n >= int(cap):
+                a["runs"] = {"day": day, "n": n}
+                return False
+            a["runs"] = {"day": day, "n": n + 1}
+            return True
+        return self._update(pubkey, fn)
+
     def add_wallets(self, pubkey, items):
         """items: словники з ключем wallet і полями WALLET_FIELDS → (додано, разом)."""
         def fn(a):

@@ -109,6 +109,7 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
     max_pages = max_pages or s["max_trade_pages"]
     page_size = s.get("page_size", 250)
     guard_pct = int(s.get("budget_guard_pct", 0) or 0)
+    run_cap = int(s.get("run_cap_requests", 0) or 0)      # стеля запитів на один прогін (0 = без стелі)
     req0 = st.requests
 
     progress("token")
@@ -133,7 +134,12 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
         return credits["seen"] - (st.requests - credits["at"])
 
     def guard(planned):
-        if not guard_pct or planned <= 0:
+        if planned <= 0:
+            return
+        if run_cap and (st.requests - req0) + planned > run_cap:
+            raise EarlyError(f"This range would take about {(st.requests - req0) + planned:,} requests; one run may "
+                             f"use at most {run_cap:,}. Shorten the range.")
+        if not guard_pct:
             return
         if credits["seen"] is None:
             credits["seen"] = _credits(st, log)

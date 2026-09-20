@@ -26,6 +26,8 @@ class Job:
         self.finished_ms = None
         self.symbol_hint = None
         self.replay = None                # {"log": [...], "result": {...}} — демо: програти без запитів
+        self.owner = None                 # гаманець, який запустив аналіз (демо і старі — None)
+        self.s_over = None                # стелі саме цього прогону (адмін — без стель), не зберігаються
         self.progress = {"phase": "queued", "done": 0, "total": None}
 
     def set_progress(self, phase, done=0, total=None):
@@ -37,7 +39,7 @@ class Job:
         d = {"id": self.id, "mint": self.mint, "t_from": self.t_from, "t_to": self.t_to,
              "t_exit": self.t_exit, "status": self.status, "error": self.error,
              "created_ms": self.created_ms, "started_ms": self.started_ms, "finished_ms": self.finished_ms,
-             "symbol_hint": self.symbol_hint, "progress": self.progress,
+             "symbol_hint": self.symbol_hint, "progress": self.progress, "owner": self.owner,
              "log": self.log[-200:]}
         if with_result:
             d["result"] = self.result
@@ -49,6 +51,7 @@ class Job:
         j.status, j.error = d.get("status", "done"), d.get("error")
         j.created_ms, j.finished_ms = d.get("created_ms"), d.get("finished_ms")
         j.started_ms, j.symbol_hint = d.get("started_ms"), d.get("symbol_hint")
+        j.owner = d.get("owner")
         j.progress = d.get("progress") or {"phase": d.get("status", "done"), "done": 0, "total": None}
         j.log, j.result = d.get("log") or [], d.get("result")
         return j
@@ -108,7 +111,7 @@ class JobQueue:
             json.dump(job.to_dict(), f, ensure_ascii=False, default=str)
         os.replace(tmp, path)
 
-    def submit(self, mint, t_from, t_to, symbol=None, replay=None):
+    def submit(self, mint, t_from, t_to, symbol=None, replay=None, owner=None, s_over=None):
         id = make_id(mint, t_from, t_to)
         with self.lock:
             cur = self.jobs.get(id)
@@ -117,12 +120,25 @@ class JobQueue:
             job = Job(id, mint, t_from, t_to)
             job.symbol_hint = symbol
             job.replay = replay
+            job.owner, job.s_over = owner, s_over
             self.jobs[id] = job
         self.q.put(job)
         return job
 
     def get(self, id):
         return self.jobs.get(id)
+
+    def remove(self, id):
+        """Забрати аналіз з пам'яті і з диска; збагачення, що ще йде, помітить це через _current."""
+        with self.lock:
+            job = self.jobs.pop(id, None)
+        if job is None:
+            return False
+        try:
+            os.remove(os.path.join(self.dir, id + ".json"))
+        except FileNotFoundError:
+            pass
+        return True
 
     def recent(self, n=30):
         return sorted(self.jobs.values(), key=lambda j: j.created_ms or 0, reverse=True)[:n]

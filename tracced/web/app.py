@@ -9,7 +9,6 @@ import csv
 import hashlib
 import os
 import secrets
-import hmac
 import io
 import json
 import logging
@@ -28,14 +27,12 @@ from ..early.store import TradeStore
 from . import accounts as acct_mod
 from . import chart
 from . import replay
-from . import waitlist as waitlist_mod
-from .jobs import JobQueue
+from .jobs import JobQueue, make_id
 
 log = logging.getLogger("early.web")
 HERE = Path(__file__).resolve().parent
 HOUR = 3_600_000
 MINT_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
-COOKIE = "early_web"
 ACCT_COOKIE = "early_acct"          # вхід гаманцем: окрема кука, незалежна від пароля бети
 ACCT_DAYS = 30
 
@@ -79,7 +76,11 @@ env.filters["log10"] = lambda v: math.log10(v) if (v and float(v) > 0) else 0.0
 
 
 class WebError(Exception):
-    """A message we show to the user as plain text (400)."""
+    """A message we show to the user as plain text (400 unless told otherwise)."""
+
+    def __init__(self, message, status=400):
+        super().__init__(message)
+        self.status = status
 
 
 def make_enricher(ages, s):
@@ -157,12 +158,11 @@ def _bundles(r, rows):
             row["tags"] = "|".join(row["tag_list"])
 
 
-def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/early", password="", ages=None, assistant=None):
+def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/early", ages=None, assistant=None):
     app = web.Application(middlewares=[errors_mw, auth_mw])
     app["assistant"], app["assistant_cache"] = assistant, {}
     app["st"], app["s"], app["cfg"] = st, s, cfg or {}
-    app["store_dir"], app["password"] = store_dir, password or ""
-    app["throttle"] = Throttle()
+    app["store_dir"] = store_dir
     app["runs"] = Throttle(max_fails=int(s.get("runs_per_hour", 20)), window_s=3600, block_s=3600)
     app["st_lock"] = threading.Lock()
     app["overview_cache"] = {}
@@ -172,14 +172,12 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["admins"] = {w.strip() for w in os.getenv("ADMIN_WALLETS", "").split(",") if w.strip()}   # чиї гаманці бачать /admin
     app["auth_throttle"] = Throttle(max_fails=10, window_s=300, block_s=600)
     app["assistant_daily"] = DailyCount()
-    app["waitlist"] = waitlist_mod.Waitlist(Path(out_dir).parent / "waitlist.jsonl")
-    app["waitlist_throttle"] = Throttle(max_fails=5, window_s=86400, block_s=86400)    # 5 записів на добу з однієї адреси
     _lock_st(st, app["st_lock"])
 
     def runner(job):
         if job.replay:
             return _replay(job, page_size=int(s.get("page_size", 250)), budget_s=float(s.get("replay_s", 12)))
-        return pipeline.run(st, job.mint, job.t_from, job.t_to, s,
+        return pipeline.run(st, job.mint, job.t_from, job.t_to, dict(s, **(job.s_over or {})),   # стелі прогону залежать від того, хто запустив
                             log=job.log.append, progress=job.set_progress, store_dir=store_dir)
 
     app["jobs"] = JobQueue(runner, out_dir, enricher=make_enricher(ages, s) if ages else None)
@@ -197,8 +195,6 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_post("/job/{id}/assistant", job_assistant)
     app.router.add_get("/job/{id}", job_page)
     app.router.add_get("/health", health)
-    app.router.add_get("/login", login)
-    app.router.add_post("/login", login)
     app.router.add_post("/auth/nonce", auth_nonce)
     app.router.add_post("/auth/verify", auth_verify)
     app.router.add_post("/auth/logout", auth_logout)
@@ -211,7 +207,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_post("/me/analyses", me_add_analysis)
     app.router.add_post("/me/analyses/remove", me_remove_analysis)
     app.router.add_get("/admin", admin_page)
-    app.router.add_post("/waitlist", waitlist_add)
+    app.router.add_post("/job/{id}/delete", job_delete)
     app.router.add_static("/static", str(HERE / "static"))
     return app
 
@@ -236,8 +232,12 @@ async def errors_mw(request, handler):
         return await handler(request)
     except web.HTTPException:
         raise
+    except ConnectRequired as e:
+        if request.path.endswith(".json"):
+            return _jerr(str(e), 401)
+        return render("connect.html", request, mint=e.mint, demo_mint=(_demo(request.app) or {}).get("mint"), status=401)
     except WebError as e:
-        return render("error.html", request, message=str(e), status=400)
+        return render("error.html", request, message=str(e), status=e.status)
     except Exception:
         log.exception("page %s failed", request.path)
         return render("error.html", request,
@@ -247,34 +247,11 @@ async def errors_mw(request, handler):
 _RUNTIME_SECRET = secrets.token_hex(32)   # якщо WEB_SECRET не задано: куки живуть до перезапуску
 
 
-def _secret(pw):
-    """Ключ підпису куки. Окремий від пароля: інакше одна перехоплена кука дозволяє підбирати пароль
-    офлайн, скільки завгодно швидко і повз будь-який захист від перебору."""
-    key = os.getenv("WEB_SECRET") or _RUNTIME_SECRET
-    return hashlib.sha256(b"early-web:" + key.encode() + b":" + pw.encode()).digest()
-
-
-def _sign(pw, exp):
-    return f"{exp}." + hmac.new(_secret(pw), str(exp).encode(), hashlib.sha256).hexdigest()[:32]
-
-
-def _valid(pw, token):
-    if not token or "." not in str(token):
-        return False
-    exp, _, _ = str(token).partition(".")
-    try:
-        if int(exp) < time.time():
-            return False
-    except ValueError:
-        return False
-    return hmac.compare_digest(_sign(pw, int(exp)), str(token))
-
-
 class Throttle:
-    """Makes password guessing slow: a few misses from one address and that address waits.
+    """Makes guessing and hammering slow: a few misses from one address and that address waits.
 
-    The site is public and the password guards an API key with a paid quota, so an unlimited guess rate
-    would hand a short password away in minutes. Pure bookkeeping, no I/O — easy to test.
+    The site is public and the paid API quota is behind it, so an unlimited rate would hand it away in
+    minutes. Pure bookkeeping, no I/O — easy to test.
     """
 
     def __init__(self, max_fails=5, window_s=300, block_s=900):
@@ -287,7 +264,7 @@ class Throttle:
         return max(0, int(f[2] - now)) if f else 0
 
     def miss(self, key, now):
-        """Count a wrong password; returns the seconds to wait (0 while under the limit)."""
+        """Count a miss (or a spend); returns the seconds to wait (0 while under the limit)."""
         f = self.fails.get(key)
         if not f or now - f[1] > self.window_s:
             f = [0, now, 0]
@@ -298,7 +275,7 @@ class Throttle:
         return max(0, int(f[2] - now))
 
     def hit(self, key):
-        """A correct password clears the record."""
+        """A success clears the record."""
         self.fails.pop(key, None)
 
 
@@ -337,72 +314,33 @@ def _wait_text(s):
     return f"Too many attempts. Try again in {max(1, round(s / 60))} min." if s >= 60 else f"Too many attempts. Try again in {s} s."
 
 
-ALWAYS_OPEN = ("/login", "/health", "/static", "/project", "/auth/", "/me", "/waitlist")   # /me*, /waitlist — акаунт і лист, грошей не витрачають
+class ConnectRequired(Exception):
+    """Live mode is for connected wallets: the page says so and offers to connect (401)."""
+
+    def __init__(self, mint=None):
+        super().__init__("Connect a wallet to analyze this token.")
+        self.mint = mint
 
 
-async def _is_open(request):
-    """Чи цей запит можна пустити без пароля.
+def _is_demo_mint(app, mint):
+    demo = _demo(app)
+    return bool(demo and demo["mint"] == mint)
 
-    Відкрито рівно те, що не може витратити грошей: сторінка проєкту і демо-токен цілком. Демо
-    програється зі знімка, тож жоден із цих шляхів не звертається до платного API. Усе інше — по
-    паролю, і саме там лишається аналіз будь-якого іншого токена.
-    """
-    if request.path.startswith(ALWAYS_OPEN):
-        return True
-    demo = _demo(request.app)
-    if not demo:
-        return False
-    mint, jobs = demo["mint"], {r["job"] for r in demo["ranges"]}
-    # Кожен шлях перевіряємо по ТОМУ САМОМУ параметру, який читає його обробник. Інакше запит
-    # відмикається одним полем, а працює по іншому: ?job=<демо>&mint=<будь-який> пройшов би перевірку
-    # і витратив платні запити на чужий токен.
-    if request.path in ("/token", "/candles.json"):
-        return request.query.get("mint") == mint              # обробник дивиться на mint
-    if request.path == "/wallet_trades.json":
-        return request.query.get("job") in jobs                # обробник дивиться на job
-    if request.path == "/analyze" and request.method == "POST":
-        return (await request.post()).get("mint") == mint     # тіло кешується, обробник прочитає його ще раз
-    if request.path.startswith("/job/"):
-        rest = request.path[len("/job/"):]
-        if "/" in rest:                                        # /job/<id>/assistant відкритий лише для демо; глибше — по паролю
-            return request.method == "POST" and rest.endswith("/assistant") and rest[: -len("/assistant")] in jobs
-        for suffix in (".state.json", ".enrich.json", ".csv", ".json"):
-            if rest.endswith(suffix):
-                rest = rest[: -len(suffix)]
-                break
-        return rest in jobs
-    return False
+
+def _require_wallet(request, mint=None):
+    """Сторінки й прогони живого токена — лише з гаманцем; демо-токен відкритий усім. Повертає адресу."""
+    if mint is not None and _is_demo_mint(request.app, mint):
+        return None
+    pk = request.get("acct")
+    if not pk:
+        raise ConnectRequired(mint)
+    return pk
 
 
 @web.middleware
 async def auth_mw(request, handler):
-    request["acct"] = _acct(request)                    # хто увійшов гаманцем (або None) — до перевірки пароля
-    pw = request.app["password"]
-    if not pw or await _is_open(request):
-        return await handler(request)
-    if not _valid(pw, request.cookies.get(COOKIE)):
-        raise web.HTTPFound("/login")
+    request["acct"] = _acct(request)                    # хто увійшов гаманцем (або None); паролів на сайті нема
     return await handler(request)
-
-
-async def login(request):
-    throttle, ip, now = request.app["throttle"], _client_ip(request), time.time()
-    if request.method == "POST":
-        wait = throttle.wait_s(ip, now)
-        if wait:
-            return render("login.html", request, error=_wait_text(wait), status=429)
-        form = await request.post()
-        if hmac.compare_digest(str(form.get("password", "")), request.app["password"]):
-            throttle.hit(ip)
-            resp = web.HTTPFound("/")
-            resp.set_cookie(COOKIE, _sign(request.app["password"], int(time.time()) + 14 * 86400),
-                            httponly=True, samesite="Lax", secure=True, max_age=14 * 86400)
-            raise resp
-        wait = throttle.miss(ip, now)
-        await asyncio.sleep(1)                                     # повільно навіть до ліміту
-        return render("login.html", request, error=_wait_text(wait) if wait else "Wrong password.", status=401)
-    wait = throttle.wait_s(ip, now)
-    return render("login.html", request, error=_wait_text(wait) if wait else None)
 
 
 # ───────────────────────── wallet sign-in and the account ─────────────────────────
@@ -534,11 +472,8 @@ def _demo_job_ids(app):
 
 
 def _job_visible(request, job):
-    """Чи має цей запит право на результат: демо — усім, решта — за паролем бети (якщо він заданий)."""
-    if not job or job.status != "done" or not job.result:
-        return False
-    pw = request.app["password"]
-    return job.id in _demo_job_ids(request.app) or not pw or _valid(pw, request.cookies.get(COOKIE))
+    """Готові результати публічні: платить той, хто запускає, а не той, хто дивиться."""
+    return bool(job and job.status == "done" and job.result)
 
 
 def _wallet_snapshot(job, row):
@@ -559,8 +494,6 @@ async def _visible_job(request, body):
     job = request.app["jobs"].get(str(body.get("job") or ""))
     if not job or job.status != "done" or not job.result:
         return None, _jerr("No result yet.", 404)
-    if not _job_visible(request, job):
-        return None, _jerr("This analysis is in private beta.", 403)
     return job, None
 
 
@@ -667,27 +600,6 @@ async def me_page(request):
     return render("me.html", request, wallets=wallets, analyses=analyses, demo_mint=(demo or {}).get("mint"))
 
 
-async def waitlist_add(request):
-    """E-mail у лист очікування: лише з цього сайту, з добовим лімітом на адресу."""
-    app = request.app
-    if not _same_origin(request):
-        return _jerr("Requests must come from this site.", 403)
-    ip, now, th = _client_ip(request), time.time(), app["waitlist_throttle"]
-    if th.wait_s(ip, now):
-        return _jerr("Too many sign-ups from this address today.", 429)
-    body = await _json_body(request)
-    if body is None:
-        return _jerr("Bad request body.")
-    email = str(body.get("email") or "").strip()
-    if not waitlist_mod.EMAIL_RE.match(email.lower()):
-        return _jerr("That does not look like an e-mail.")
-    pk = request.get("acct") or ""
-    added = app["waitlist"].add(email, body.get("note"), pk)
-    th.miss(ip, now)
-    app["events"].add(pk or "guest", "waitlist", added=added)
-    return web.json_response({"ok": True, "added": added})
-
-
 async def admin_page(request):
     """Хто підключився і що робив. Лише для гаманців з ADMIN_WALLETS; без них сторінки не існує."""
     app = request.app
@@ -703,8 +615,7 @@ async def admin_page(request):
               "active_7d": sum(1 for a in accounts if (a.get("last_seen_ms") or 0) >= week),
               "wallets": sum(len(a.get("wallets") or {}) for a in accounts),
               "analyses": sum(len(a.get("analyses") or {}) for a in accounts)}
-    return render("admin.html", request, accounts=accounts, totals=totals, events=app["events"].tail(100), now=now,
-                  waitlist=app["waitlist"].tail(50), waitlist_n=app["waitlist"].count())
+    return render("admin.html", request, accounts=accounts, totals=totals, events=app["events"].tail(100), now=now)
 
 
 ME_COLUMNS = ["wallet", "symbol", "mint", "from_job", "entry_mcap", "invested_usd", "multiple", "tags", "note", "added_utc"]
@@ -764,18 +675,6 @@ async def _overview(app, mint):
         raise WebError("Solana Tracker returned no data for this token. Check the address or try again later.")
     cache[mint] = (time.time(), info, ov)
     return info, ov
-
-
-def _rows_from_hints(hints):
-    rows = []
-    for i, h in enumerate(hints, 1):
-        rows.append({
-            "n": i,
-            "label": f"Pump {i} · {chart.fmt_mcap(h['base_mcap'])} → {chart.fmt_mcap(h['peak_mcap'])} ×{h['magnitude']}",
-            "from": chart.to_input(h["acc_start"]),
-            "to": chart.to_input(h["pump_start"]),
-        })
-    return rows or [{"n": 1, "label": "Range 1", "from": "", "to": ""}]
 
 
 # ───────────────────────── pages ─────────────────────────
@@ -901,6 +800,7 @@ async def token_page(request):
     mint = _mint(request.query.get("mint"))
     s = app["s"]
     demo = _demo(app)
+    pk = _require_wallet(request, mint)                                 # живий токен — лише з гаманцем; демо — усім
     hints = []                                                          # для «Find the pump»: підказки детектора (демо — записані діапазони)
     if demo and demo["mint"] == mint:                                   # демо-токен: усе зі знімка, 0 запитів
         info = demo["info"]
@@ -909,9 +809,9 @@ async def token_page(request):
                 for i, r in enumerate(demo["ranges"])]
     else:
         info, ov = await _overview(app, mint)
-        rows = _rows_from_hints(ov["hints"])
+        rows = []                                                       # голий графік: діапазони ставить людина або кнопка
         hints = [{"from": h["acc_start"], "to": h["pump_start"], "base": h["base_mcap"], "peak": h["peak_mcap"], "mag": h["magnitude"]}
-                 for h in ov["hints"]]
+                 for h in ov["hints"][: int(s.get("finder_pumps", 2))]]
     detect_cfg = dict(CFG_DEFAULTS.get("detect") or {}, **((app["cfg"] or {}).get("detect") or {}))
     q = request.query
     preset = None
@@ -928,7 +828,10 @@ async def token_page(request):
         seen.add(key)
         n = ((j.result or {}).get("counts") or {}).get("n_early")
         rows.append({"n": len(rows) + 1, "label": f"Analyzed · {n:,} wallets" if n else "Analyzed",
-                     "job": j.id, "from": key[0], "to": key[1]})
+                     "job": j.id, "from": key[0], "to": key[1],
+                     "deletable": bool(pk) and (j.owner == pk or pk in app["admins"])})
+    if not rows:
+        rows = [{"n": 1, "label": "Range 1", "from": "", "to": ""}]
     return render("token.html", request, info=info, mint=mint, s=s, is_demo=bool(demo and demo["mint"] == mint),
                   n_demo=len(demo["ranges"]) if demo and demo["mint"] == mint else 0, bounced=q.get("notice") == "demo", created=info.get("created_time") or 0, now=int(time.time() * 1000),
                   rows_json=json.dumps(rows), jobs_json=json.dumps(jobs_done), preset_json=json.dumps(preset),
@@ -940,6 +843,7 @@ async def candles_json(request):
     app = request.app
     q = request.query
     mint = _mint(q.get("mint"))
+    _require_wallet(request, mint)
     tf = q.get("tf") if q.get("tf") in chart.TFS else "1h"
     try:
         a, b = int(float(q.get("a", 0))), int(float(q.get("b", 0)))
@@ -968,15 +872,13 @@ async def candles_json(request):
 
 
 async def analyze(request):
-    app = request.app
+    """Demo ranges replay for everyone. A live run needs a connected wallet: an existing result opens for free,
+    a token holds at most `ranges_per_token` analyses, a wallet gets `runs_per_day` runs a day, and one run may
+    spend at most `run_cap_requests` — none of that applies to the admin wallets."""
+    app, s = request.app, request.app["s"]
     ip = _client_ip(request)
-    runs = app["runs"]                                   # платний шлях: обмежуємо навіть тих, хто зайшов
-    wait = runs.wait_s(ip, time.time())
-    if wait:
-        raise WebError(f"Too many analyses from this address. Try again in {max(1, round(wait / 60))} min.")
     form = await request.post()
     mint = _mint(form.get("mint"))
-    s = app["s"]
     t_from, t_to = chart.from_input(form.get("from")), chart.from_input(form.get("to"))
     demo = _demo(app)
     if demo and demo["mint"] == mint:
@@ -986,14 +888,51 @@ async def analyze(request):
                                          replay={"log": list(r.get("log") or []), "result": r["result"]})
                 raise web.HTTPFound(f"/job/{job.id}")
         raise web.HTTPFound(f"/token?mint={mint}&notice=demo")           # інший діапазон — без живого (платного) прогону
-    runs.miss(ip, time.time())                           # звідси починаються витрати — рахуємо цей запуск
+    pk = _require_wallet(request, mint)
+    admin = pk in app["admins"]
+    cur = app["jobs"].get(make_id(mint, t_from, t_to)) if (t_from and t_to) else None
+    if cur and (cur.status in ("queued", "running") or (cur.status == "done" and cur.result)):
+        raise web.HTTPFound(f"/job/{cur.id}")                           # той самий діапазон уже є: відкриваємо, нічого не витрачаємо
+    runs = app["runs"]                                                  # платний шлях: спершу гальмо по адресі
+    wait = runs.wait_s(ip, time.time())
+    if wait:
+        raise WebError(f"Too many analyses from this address. Try again in {max(1, round(wait / 60))} min.", 429)
+    cap_tok = int(s.get("ranges_per_token", 3))
+    others = [j for j in app["jobs"].jobs.values() if j.mint == mint and j.status != "error" and j is not cur]
+    if len(others) >= cap_tok:
+        raise WebError(f"This token already has {cap_tok} analyses. Delete one of yours to add another.")
     info, _ = await _overview(app, mint)
     errs = window.validate(t_from, t_to, info.get("created_time"), int(time.time() * 1000),
                            max_window_ms=int(s.get("max_window_hours", 0) * HOUR) or None)
     if errs:
         raise WebError(" ".join(errs))
-    job = app["jobs"].submit(mint, t_from, t_to, symbol=info.get("symbol"))
+    cap_day = int(s.get("runs_per_day", 1))
+    if not admin and not app["accounts"].take_run(pk, cap_day):
+        raise WebError(f"You have used today's {'analysis' if cap_day == 1 else str(cap_day) + ' analyses'}. "
+                       "The demo is always open; more tomorrow.", 429)
+    runs.miss(ip, time.time())                                          # звідси починаються витрати — рахуємо цей запуск
+    over = {"budget_guard_pct": 0, "run_cap_requests": 0 if admin else int(s.get("run_cap_requests", 2000))}
+    job = app["jobs"].submit(mint, t_from, t_to, symbol=info.get("symbol"), owner=pk, s_over=over)
+    app["events"].add(pk, "analyze", job=job.id, symbol=info.get("symbol") or mint[:6])
     raise web.HTTPFound(f"/job/{job.id}")
+
+
+@_acct_route
+async def job_delete(request, pk):
+    """The wallet that ran an analysis (or an admin) can delete it: the token's slot is free again."""
+    app = request.app
+    job = app["jobs"].get(request.match_info["id"])
+    if not job:
+        return _jerr("No such analysis.", 404)
+    if job.id in _demo_job_ids(app):
+        return _jerr("The demo analyses stay.", 403)
+    if job.owner != pk and pk not in app["admins"]:
+        return _jerr("Only the wallet that ran this analysis (or the admin) can delete it.", 403)
+    if job.status in ("queued", "running"):
+        return _jerr("This analysis is still running. Wait for it to finish.", 409)
+    app["jobs"].remove(job.id)
+    app["events"].add(pk, "delete_analysis", job=job.id, symbol=job.symbol)
+    return web.json_response({"ok": True})
 
 
 def _hours_text(ms):
@@ -1171,6 +1110,8 @@ async def wallet_trades_json(request):
     a, b = job.t_from, job.t_exit or int(time.time() * 1000)
     supply = (job.result.get("info") or {}).get("supply") or 0
     stored = (job.result.get("wallet_trades") or {}).get(wallet)
+    if stored is None and job.result.get("mode") != "trades" and job.id not in _demo_job_ids(app):
+        _require_wallet(request)                                       # цей шлях купує угоди гаманця в ST
 
     def work():
         if stored is not None:                                        # уся історія гаманця вже в результаті
