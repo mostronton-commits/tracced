@@ -163,6 +163,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["overview_cache"] = {}
     app["accounts"] = acct_mod.AccountStore(Path(out_dir).parent / "accounts")   # поруч з web/ і demo/ у output/early
     app["nonces"] = acct_mod.NonceStore()
+    app["events"] = acct_mod.EventLog(Path(out_dir).parent / "accounts" / "_events.jsonl")
+    app["admins"] = {w.strip() for w in os.getenv("ADMIN_WALLETS", "").split(",") if w.strip()}   # чиї гаманці бачать /admin
     app["auth_throttle"] = Throttle(max_fails=10, window_s=300, block_s=600)
     _lock_st(st, app["st_lock"])
 
@@ -200,6 +202,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_post("/me/wallets/note", me_note)
     app.router.add_post("/me/analyses", me_add_analysis)
     app.router.add_post("/me/analyses/remove", me_remove_analysis)
+    app.router.add_get("/admin", admin_page)
     app.router.add_static("/static", str(HERE / "static"))
     return app
 
@@ -474,7 +477,9 @@ async def auth_verify(request):
         th.miss(ip, now)
         return _jerr(why, 401)
     th.hit(ip)
-    app["accounts"].touch(pubkey)
+    wallet_app = str(body.get("wallet") or "")[:40]
+    app["accounts"].touch(pubkey, wallet_app)
+    app["events"].add(pubkey, "signin", wallet=wallet_app)
     resp = web.json_response({"ok": True, "pubkey": pubkey, "short": _short(pubkey)})
     resp.set_cookie(ACCT_COOKIE, acct_mod.sign_acct(_acct_secret(), pubkey, int(now) + ACCT_DAYS * 86400),
                     httponly=True, samesite="Lax", secure=True, max_age=ACCT_DAYS * 86400)
@@ -548,6 +553,7 @@ async def me_add_wallets(request, pk):
         added, total = app["accounts"].add_wallets(pk, items)
     except acct_mod.AccountError as e:
         return _jerr(str(e))
+    app["events"].add(pk, "save_wallets", n=added, job=job.id, symbol=job.symbol)
     return web.json_response({"ok": True, "added": added, "total": total, "skipped": len(want) - len(items),
                               "wallets": [i["wallet"] for i in items]})
 
@@ -557,7 +563,10 @@ async def me_remove_wallet(request, pk):
     body = await _json_body(request)
     if body is None:
         return _jerr("Bad request body.")
-    return web.json_response({"ok": request.app["accounts"].remove_wallet(pk, str(body.get("wallet") or ""))})
+    ok = request.app["accounts"].remove_wallet(pk, str(body.get("wallet") or ""))
+    if ok:
+        request.app["events"].add(pk, "remove_wallet")
+    return web.json_response({"ok": ok})
 
 
 @_acct_route
@@ -583,6 +592,8 @@ async def me_add_analysis(request, pk):
         added, total = app["accounts"].add_analysis(pk, job.id, _analysis_snapshot(job, rows, sm))
     except acct_mod.AccountError as e:
         return _jerr(str(e))
+    if added:
+        app["events"].add(pk, "save_analysis", job=job.id, symbol=job.symbol)
     return web.json_response({"ok": True, "added": added, "total": total})
 
 
@@ -591,7 +602,10 @@ async def me_remove_analysis(request, pk):
     body = await _json_body(request)
     if body is None:
         return _jerr("Bad request body.")
-    return web.json_response({"ok": request.app["accounts"].remove_analysis(pk, str(body.get("job") or ""))})
+    ok = request.app["accounts"].remove_analysis(pk, str(body.get("job") or ""))
+    if ok:
+        request.app["events"].add(pk, "remove_analysis", job=str(body.get("job") or "")[:80])
+    return web.json_response({"ok": ok})
 
 
 def _account_view(app, pk):
@@ -614,6 +628,24 @@ async def me_page(request):
         return render("me.html", request, wallets=[], analyses=[])
     _, wallets, analyses = _account_view(request.app, pk)
     return render("me.html", request, wallets=wallets, analyses=analyses, demo_mint=(demo or {}).get("mint"))
+
+
+async def admin_page(request):
+    """Хто підключився і що робив. Лише для гаманців з ADMIN_WALLETS; без них сторінки не існує."""
+    app = request.app
+    if not app["admins"]:
+        raise web.HTTPNotFound(text="Not configured.")
+    pk = request.get("acct")
+    if not pk or pk not in app["admins"]:
+        return render("error.html", request, message="This page is for the owner's wallet. Connect it first.", status=403)
+    accounts = app["accounts"].all()
+    now, week = int(time.time() * 1000), int(time.time() * 1000) - 7 * 86_400_000
+    totals = {"accounts": len(accounts),
+              "new_7d": sum(1 for a in accounts if (a.get("created_ms") or 0) >= week),
+              "active_7d": sum(1 for a in accounts if (a.get("last_seen_ms") or 0) >= week),
+              "wallets": sum(len(a.get("wallets") or {}) for a in accounts),
+              "analyses": sum(len(a.get("analyses") or {}) for a in accounts)}
+    return render("admin.html", request, accounts=accounts, totals=totals, events=app["events"].tail(100), now=now)
 
 
 ME_COLUMNS = ["wallet", "symbol", "mint", "from_job", "entry_mcap", "invested_usd", "multiple", "tags", "note", "added_utc"]

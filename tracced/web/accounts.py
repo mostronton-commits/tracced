@@ -268,9 +268,22 @@ class AccountStore:
             self.save(a)
         return out
 
-    def touch(self, pubkey):
-        """Перший вхід створює акаунт; наступні лише оновлюють час."""
-        return self._update(pubkey, lambda a: a)
+    def touch(self, pubkey, wallet_app=None):
+        """Перший вхід створює акаунт; кожен вхід рахується і запам'ятовує, яким гаманцем зайшли."""
+        def fn(a):
+            a["signins"] = int(a.get("signins") or 0) + 1
+            if wallet_app:
+                a["wallet_app"] = str(wallet_app)[:40]
+            return a
+        return self._update(pubkey, fn)
+
+    def all(self):
+        """Усі акаунти, найактивніші першими — для сторінки власника."""
+        out = []
+        for name in os.listdir(self.dir):
+            if name.endswith(".json") and valid_pubkey(name[:-5]):
+                out.append(self.load(name[:-5]))
+        return sorted(out, key=lambda a: a.get("last_seen_ms") or 0, reverse=True)
 
     def add_wallets(self, pubkey, items):
         """items: словники з ключем wallet і полями WALLET_FIELDS → (додано, разом)."""
@@ -316,3 +329,33 @@ class AccountStore:
 
     def remove_analysis(self, pubkey, job_id):
         return self._update(pubkey, lambda a: a["analyses"].pop(str(job_id), None) is not None)
+
+
+class EventLog:
+    """Що роблять акаунти на сайті: один JSONL-файл, читає лише власник на /admin."""
+
+    def __init__(self, path):
+        self.path = str(path)
+        self.lock = threading.Lock()
+
+    def add(self, pubkey, event, **extra):
+        rec = {"ts_ms": _now_ms(), "pubkey": pubkey, "event": event, **extra}
+        try:
+            with self.lock, open(self.path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        except OSError as e:                          # журнал не має валити дію користувача
+            log.warning("event log: %s", e)
+
+    def tail(self, n=100):
+        try:
+            with open(self.path, encoding="utf-8") as f:
+                lines = f.readlines()[-n:]
+        except FileNotFoundError:
+            return []
+        out = []
+        for line in lines:
+            try:
+                out.append(json.loads(line))
+            except ValueError:
+                continue
+        return out[::-1]

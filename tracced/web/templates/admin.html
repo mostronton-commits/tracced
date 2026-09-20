@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Accounts · tracced{% endblock %}
+{% block body %}
+<section class="card me">
+  <div class="row mehead"><h2>Accounts</h2><span class="muted small">who connected a wallet and what they did · this page is for the owner only</span></div>
+  <div class="stats">
+    <div title="Wallets that signed in at least once"><b data-count="{{ totals.accounts }}" data-fmt="int">0</b><span>Accounts</span></div>
+    <div title="First sign-in within the last 7 days"><b data-count="{{ totals.new_7d }}" data-fmt="int">0</b><span>New · 7 d</span></div>
+    <div title="Signed in or saved something within the last 7 days"><b data-count="{{ totals.active_7d }}" data-fmt="int">0</b><span>Active · 7 d</span></div>
+    <div title="Wallets saved to lists, all accounts"><b data-count="{{ totals.wallets }}" data-fmt="int">0</b><span>Saved wallets</span></div>
+    <div title="Analyses saved, all accounts"><b data-count="{{ totals.analyses }}" data-fmt="int">0</b><span>Saved analyses</span></div>
+  </div>
+  {% if accounts %}
+  <div class="tablewrap"><table class="facts melist"><thead><tr>
+    <th>Account</th><th>Wallet app</th><th>First seen</th><th>Last seen</th><th class="num">Sign-ins</th><th class="num">Saved wallets</th><th class="num">Saved analyses</th>
+  </tr></thead><tbody>
+  {% for a in accounts %}
+    <tr>
+      <td><span class="wid"><span class="mono" title="{{ a.pubkey }}">{{ a.pubkey[:6] }}…{{ a.pubkey[-4:] }}</span><button type="button" class="ghost copy" data-copy="{{ a.pubkey }}" title="Copy address">⧉</button><a class="ext" href="https://solscan.io/account/{{ a.pubkey }}" target="_blank" rel="noopener" title="Solscan">↗</a></span></td>
+      <td>{{ a.wallet_app or '—' }}</td>
+      <td class="muted small"><span class="dtc" data-ms="{{ a.created_ms or 0 }}">{{ (a.created_ms or 0)|dt }}</span></td>
+      <td class="muted small"><span class="dtc" data-ms="{{ a.last_seen_ms or 0 }}">{{ (a.last_seen_ms or 0)|dt }}</span></td>
+      <td class="num mono">{{ a.signins or 0 }}</td>
+      <td class="num mono">{{ (a.wallets or {})|length }}</td>
+      <td class="num mono">{{ (a.analyses or {})|length }}</td>
+    </tr>
+  {% endfor %}
+  </tbody></table></div>
+  {% else %}<p class="muted">Nobody has connected a wallet yet.</p>{% endif %}
+</section>
+
+<section class="card me">
+  <div class="row mehead"><h2>Recent actions</h2><span class="muted small">last {{ events|length }}</span></div>
+  {% if events %}
+  <div class="recent">
+  {% for e in events %}
+    <div class="rrow evrow">
+      <span class="muted small"><span class="dtc" data-ms="{{ e.ts_ms }}">{{ e.ts_ms|dt }}</span></span>
+      <span class="mono" title="{{ e.pubkey }}">{{ e.pubkey[:6] }}…{{ e.pubkey[-4:] }}</span>
+      <span>
+        {% if e.event == 'signin' %}signed in{% if e.wallet %} · {{ e.wallet }}{% endif %}
+        {% elif e.event == 'save_wallets' %}saved {{ e.n }} wallet{{ '' if e.n == 1 else 's' }} from <a href="/job/{{ e.job }}">{{ e.symbol or e.job }}</a>
+        {% elif e.event == 'save_analysis' %}saved the analysis <a href="/job/{{ e.job }}">{{ e.symbol or e.job }}</a>
+        {% elif e.event == 'remove_wallet' %}removed a wallet from the list
+        {% elif e.event == 'remove_analysis' %}removed an analysis
+        {% else %}{{ e.event }}{% endif %}
+      </span>
+    </div>
+  {% endfor %}
+  </div>
+  {% else %}<p class="muted">Nothing yet.</p>{% endif %}
+</section>
+{% endblock %}

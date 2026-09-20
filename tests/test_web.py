@@ -592,7 +592,7 @@ if AioHTTPTestCase:
             d = await r.json()
             msg = acct_mod.build_message(domain or d["domain"], pk, d["nonce"], d["issued_at"])
             sig = base64.b64encode(sk.sign(msg.encode()).signature).decode()
-            r = await self.client.post("/auth/verify", json={"pubkey": pk, "signature": sig, "message": msg},
+            r = await self.client.post("/auth/verify", json={"pubkey": pk, "signature": sig, "message": msg, "wallet": "Phantom"},
                                        headers={"Origin": self.origin})
             return r, pk, msg, sig
 
@@ -627,7 +627,7 @@ if AioHTTPTestCase:
             r = await self.client.get("/me")
             html = await r.text()
             self.assertEqual(r.status, 200)
-            self.assertIn("Sign in with wallet", html)                               # не увійшов — картка входу
+            self.assertIn("Connect a wallet", html)                                  # не увійшов — картка входу
             self.assertNotIn("Sign out", html)
             self.assertIsNone(CYRILLIC.search(html))
             r = await self.client.post("/auth/logout", headers=h)
@@ -739,11 +739,11 @@ if AioHTTPTestCase:
         async def test_pages_show_the_account_control(self):
             r = await self.client.get("/")
             html = await r.text()
-            self.assertIn("Sign in with wallet", html)                               # герой головної
+            self.assertIn(">Connect</button>", html)                                 # герой головної
             self.assertNotIn('class="top"', html)
             r = await self.client.get("/login")
             html = await r.text()
-            self.assertIn("Sign in with wallet", html)
+            self.assertIn(">Connect</button>", html)
             self.assertIn("private beta", html)
             self.assertIsNone(CYRILLIC.search(html))
             r, pk, _, _ = await self._sign_in()
@@ -752,3 +752,33 @@ if AioHTTPTestCase:
             self.assertIn(pk[:4] + "…" + pk[-4:], html)                              # the pill in the hero
             self.assertIn("Sign out", html)
             self.assertNotIn("My analyses (", html)                                  # no recent analyses → no link to count
+
+        async def test_admin_sees_accounts_and_actions(self):
+            seed_demo(self.tmp.name, self.app)
+            r_user, pk_user, _, _ = await self._sign_in()
+            hu = self._hdr(r_user)
+            await self.client.post("/me/wallets", json={"job": DEMO_JID, "wallets": [W1]}, headers=hu)
+            await self.client.post("/me/analyses", json={"job": DEMO_JID}, headers=hu)
+            acct = self.app["accounts"].load(pk_user)
+            self.assertEqual((acct["signins"], acct["wallet_app"]), (1, "Phantom"))
+            events = self.app["events"].tail()
+            self.assertEqual([e["event"] for e in events], ["save_analysis", "save_wallets", "signin"])   # newest first
+            self.assertEqual(events[1]["n"], 1)
+            r = await self.client.get("/admin", headers=hu)
+            self.assertEqual(r.status, 404)                                          # not configured → no such page
+            r_admin, pk_admin, _, _ = await self._sign_in()
+            self.app["admins"] = {pk_admin}
+            r = await self.client.get("/admin", headers=hu)
+            self.assertEqual(r.status, 403)                                          # another wallet
+            r = await self.client.get("/admin")
+            self.assertEqual(r.status, 403)                                          # nobody
+            r = await self.client.get("/admin", headers=self._hdr(r_admin))
+            html = await r.text()
+            self.assertEqual(r.status, 200)
+            self.assertIn(pk_user[:6] + "…" + pk_user[-4:], html)
+            self.assertIn("Phantom", html)
+            self.assertIn("saved 1 wallet from", html)
+            self.assertIn("saved the analysis", html)
+            self.assertIn('data-count="2"', html)                                    # two accounts
+            self.assertIsNone(CYRILLIC.search(html))
+            self.app["admins"] = set()

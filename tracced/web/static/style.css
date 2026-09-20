@@ -481,6 +481,8 @@ button.primary { transition: background .12s ease, border-color .12s ease, trans
 .wlist { display: grid; gap: 8px; margin: 12px 0; }
 .wlist button { width: 100%; height: 42px; justify-content: flex-start; gap: 10px; font-weight: 600; }
 .wlist img { width: 22px; height: 22px; border-radius: 6px; }
+.wlist a.winstall { justify-content: space-between; color: var(--muted); border-style: dashed; }
+.wlist a.winstall span { font-weight: 600; } .wlist a.winstall small { font-weight: 400; }
 .wstate:empty { display: none; }
 .walletline { margin: 12px 0 0; } .walletline .link { padding: 0; height: auto; display: inline; color: var(--ink); border-bottom: 1px solid var(--line); }
 .saved { color: #B45309; margin-left: 5px; font-size: 12px; cursor: default; }
@@ -498,3 +500,5 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
 .me .rrow { grid-template-columns: 90px 1fr 110px 110px 70px 30px; }
 .me .rrow .x { justify-self: end; }
 @media (max-width: 720px) { .me .rrow { grid-template-columns: 80px 1fr 70px 30px; } .me .rrow .n:nth-child(4), .me .rrow .open { display: none; } .hero-acct { top: 12px; right: 12px; } }
+.me .rrow.evrow { grid-template-columns: 130px 120px 1fr; }
+.me .stats { margin: 4px 0 14px; }

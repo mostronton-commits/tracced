@@ -34,6 +34,9 @@ message — no transaction, no fees — and that signature is the account. Tick 
 Signing in does not unlock live analyses of new tokens: that stays behind the beta password while the free API quota lasts.
 Saving from the demo result needs no password, so anyone can try the account.
 
+The owner sees who connected and what they did at `/admin`: set `ADMIN_WALLETS` to your own wallet address and connect it.
+Accounts are JSON files under `output/early/accounts/`, actions go to `_events.jsonl` next to them; nothing leaves the server.
+
 ## Run it
 
 ```bash
