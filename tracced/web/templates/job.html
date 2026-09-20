@@ -142,6 +142,11 @@
       </tbody>
     </table>
     </div>
+    <div class="row more" id="more" hidden>
+      <button type="button" id="more100">Show 100 more</button>
+      <button type="button" class="ghost" id="moreall">Show all <span id="moren"></span></button>
+      <span class="muted small">Filters, Select all and Export work on every wallet, shown or not.</span>
+    </div>
 
     <aside class="drawer apanel" id="apanel" hidden>
       <div class="drawer-head"><div><b>AI agent</b> <span class="muted small">wallets to watch</span></div><button type="button" class="ghost x" id="aclose" title="Close">×</button></div>
@@ -182,22 +187,30 @@
         panel.querySelectorAll('[data-hide]').forEach(b => b.classList.toggle('off', f.hide.includes(b.dataset.hide)));
       }
       function nActive() { return [f.inv, f.mult, f.sold, f.buysMax, f.hold, f.exits].filter(Boolean).length + f.hide.length; }
-      function visible() { return rows.filter(r => !r.hidden); }
+      // the page shows a window of the rows that pass the filters (LIMIT, then "Show more"); every action — Select all,
+      // Export, the agent — works on all passing rows, shown or not
+      const LIMIT = 100; let limit = LIMIT; const passing = new Set();
+      const more = document.getElementById('more');
+      function visible() { return rows.filter(r => passing.has(r.dataset.w)); }
       function exportSet() { return selected.size ? rows.filter(r => selected.has(r.dataset.w)) : visible(); }
       function apply() {
-        let n = 0;
+        let n = 0; passing.clear();
         rows.forEach(r => {
           const d = r.dataset, tg = d.tags ? d.tags.split(' ') : [];
           const ok = +d.inv >= f.inv && (!f.mult || +d.mult >= f.mult) && +d.sold >= f.sold &&
                      (!f.buysMax || +d.buys <= f.buysMax) && (!f.hold || +d.hold >= f.hold) && (!f.exits || d.exit === '1') &&
                      !f.hide.some(t => tg.includes(t));
-          r.hidden = !ok && !pinned.has(d.w); if (!r.hidden) { n++; r.querySelector('.n').textContent = n; }
+          if (ok || pinned.has(d.w)) { passing.add(d.w); n++; r.querySelector('.n').textContent = n; r.hidden = n > limit && !pinned.has(d.w); }
+          else r.hidden = true;
         });
-        const na = nActive();
-        shown.textContent = n + ' of ' + rows.length + (na ? ' · filtered' : '');
+        const na = nActive(), left = Math.max(0, n - limit);
+        shown.textContent = (left ? Math.min(n, limit) + ' of ' + n + ' shown' : n + ' of ' + rows.length) + (na ? ' · filtered' : '');
+        more.hidden = !left; document.getElementById('more100').hidden = left <= 100; document.getElementById('moren').textContent = n;
         ftoggle.textContent = na ? 'Filters · ' + na : 'Filters'; ftoggle.classList.toggle('on', !!na);
         syncChecks();
       }
+      document.getElementById('more100').addEventListener('click', () => { limit += LIMIT; apply(); });
+      document.getElementById('moreall').addEventListener('click', () => { limit = Infinity; apply(); });
       function syncChecks() {
         rows.forEach(r => { r.querySelector('.pick').checked = selected.has(r.dataset.w); r.classList.toggle('picked', selected.has(r.dataset.w)); });
         nsel.textContent = selected.size; document.getElementById('selinfo').hidden = !selected.size; watch.hidden = !selected.size;

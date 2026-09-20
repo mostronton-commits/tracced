@@ -504,4 +504,5 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
 .me .rrow .x { justify-self: end; }
 @media (max-width: 720px) { .me .rrow { grid-template-columns: 80px 1fr 70px 30px; } .me .rrow .n:nth-child(4), .me .rrow .open { display: none; } .hero-acct { top: 12px; right: 12px; } }
 .me .rrow.evrow { grid-template-columns: 130px 120px 1fr; }
+.more { margin: 12px 0 4px; }
 .me .stats { margin: 4px 0 14px; }

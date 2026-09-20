@@ -430,6 +430,8 @@ if AioHTTPTestCase:
             self.assertIn("Whole history", html)                         # scope switch
             self.assertIn("Trades up to", html)
             self.assertIn("Select all", html)
+            self.assertIn('id="more"', html)                             # rows beyond the first 100 wait behind "Show more"
+            self.assertIn("Show 100 more", html)
             r = await self.client.get(loc + ".state.json?since=0")      # live state for the terminal
             self.assertEqual(r.status, 200)
             stt = await r.json()
