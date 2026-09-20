@@ -354,6 +354,7 @@ async def login(request):
 
 def render(name, request, status=200, **ctx):
     ctx.setdefault("request", request)
+    ctx.setdefault("umami_id", os.getenv("UMAMI_WEBSITE_ID", ""))   # аналітика вмикається лише там, де задано id
     html = env.get_template(name).render(**ctx)
     return web.Response(text=html, content_type="text/html", status=status)
 
