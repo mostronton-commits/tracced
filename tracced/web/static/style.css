@@ -487,7 +487,6 @@ button.primary { transition: background .12s ease, border-color .12s ease, trans
 .wlist a.winstall { justify-content: space-between; color: var(--muted); border-style: dashed; }
 .wlist a.winstall span { font-weight: 600; } .wlist a.winstall small { font-weight: 400; }
 .wstate:empty { display: none; }
-.walletline { margin: 12px 0 0; } .walletline .link { padding: 0; height: auto; display: inline; color: var(--ink); border-bottom: 1px solid var(--line); }
 .saved { color: #B45309; margin-left: 5px; font-size: 12px; cursor: default; }
 button.saved { border: 0; background: transparent; padding: 0 2px; height: auto; cursor: pointer; } button.saved:hover { color: var(--red); background: transparent; }
 .savejob.on { color: #B45309; } .savejob:disabled { cursor: default; opacity: 1; }
@@ -509,12 +508,7 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
 .achips { gap: 6px; margin: 4px 0 8px; } .achips .chip { cursor: pointer; height: auto; padding: 3px 9px; } .achips .chip:hover, .achips .chip.on { background: var(--sage); border-color: #A7F3D0; color: var(--ink); }
 @keyframes wrow-pulse { 0%, 100% { box-shadow: none; } 50% { box-shadow: 0 0 0 4px var(--sage); border-color: #34D399; } }
 .wrow.pulse { animation: wrow-pulse .65s ease 2; }
-.waitlist { margin-top: 30px; max-width: 720px; }
-.waitlist .wl-lead { margin-bottom: 10px; } .hero-dark .waitlist .wl-lead b { color: #F8FAFC; } .hero-dark .waitlist .muted { color: #94A3B8; }
-.waitlist input { min-width: 0; font-family: var(--sans); } .waitlist input[type=email] { flex: 1 1 220px; } .waitlist input[type=text] { flex: 1 1 200px; }
-.hero-dark .waitlist input { background: #0F172A; border-color: #1E293B; color: #F8FAFC; height: 38px; } .hero-dark .waitlist input::placeholder { color: #64748B; }
-.hero-dark .waitlist input:focus { border-color: #34D399; box-shadow: 0 0 0 3px rgba(167, 243, 208, .18); }
-.wlcard .waitlist { margin-top: 0; } .wlcard .waitlist input { flex: 1 1 100%; }
-.wl-state { margin: 8px 0 0; }
+.wrow .del.armed { color: var(--red); font-size: 12px; width: auto; padding: 0 8px; }
+.wrow:has(.del.armed) { grid-template-columns: 26px minmax(120px, 1fr) auto auto auto auto auto; }
 .chip.demo { vertical-align: 4px; margin-left: 6px; font-size: 11px; background: var(--sage); border-color: #A7F3D0; color: var(--ink); cursor: help; }
 .me .stats { margin: 4px 0 14px; }

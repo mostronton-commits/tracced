@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Connect a wallet · tracced{% endblock %}
+{% block main_class %}center{% endblock %}
+{% block body %}
+<section class="card narrow">
+  <h2>Connect a wallet to analyze this token</h2>
+  <p class="muted">Live analyses are for connected wallets: one analysis a day, free, no transaction. Results are public and every wallet on them opens on Solscan.</p>
+  <p class="row"><button type="button" class="primary" data-wallet-signin>Connect</button>{% if demo_mint %}<a class="button" href="/token?mint={{ demo_mint }}">Open the demo</a>{% endif %}</p>
+  <p class="muted small">The demo token is open to everyone, no wallet needed.</p>
+</section>
+{% endblock %}

@@ -1,6 +1,7 @@
 """The web page on a fake client: no network. Needs aiohttp (present in Docker)."""
 import asyncio
 import json
+import os
 import re
 import tempfile
 import unittest
@@ -32,7 +33,15 @@ class FakeWebST(FakeST):
 
 if AioHTTPTestCase:
     from tracced.web import chart
-    from tracced.web.app import create_app
+    from tracced.web import accounts as acct_mod
+    from tracced.web.app import create_app, _acct_secret
+
+    TEST_PK = acct_mod.b58encode(b"\x07" * 32)          # гаманець, від імені якого тести запускають живі аналізи
+    GUEST = {"Cookie": ""}                                # той самий запит без гаманця
+
+    def wallet_cookie(pk):
+        """Кука акаунта без підпису гаманцем: тести знають секрет сервера, а перевірка та сама, що для людей."""
+        return "early_acct=" + acct_mod.sign_acct(_acct_secret(), pk, 4_000_000_000)
 
     class TestWeb(AioHTTPTestCase):
         async def get_application(self):
@@ -40,7 +49,14 @@ if AioHTTPTestCase:
             self.st = FakeWebST(TRADES)
             s = settings.load()
             s["replay_s"] = 0.6                                          # демо програється швидко, щоб тести не чекали
-            return create_app(self.st, s, {}, out_dir=self.tmp.name + "/web", store_dir=self.tmp.name + "/cache")
+            s["ranges_per_token"] = 50                                   # стеля перевіряється окремим тестом
+            app = create_app(self.st, s, {}, out_dir=self.tmp.name + "/web", store_dir=self.tmp.name + "/cache")
+            app["admins"] = {TEST_PK}                                    # без добової квоти, як у власника
+            return app
+
+        async def setUpAsync(self):
+            await super().setUpAsync()
+            self.client.session.headers["Cookie"] = wallet_cookie(TEST_PK)   # усі запити — від підключеного гаманця
 
         async def tearDownAsync(self):
             await asyncio.to_thread(self.app["jobs"].q.join)      # let the worker finish writing
@@ -169,8 +185,8 @@ if AioHTTPTestCase:
             self.assertEqual(r.headers["Location"], f"/token?mint={MINT}&notice=demo")
             self.assertEqual(self.st.requests, before)                         # жодного платного запиту
 
-        async def test_login_slows_down_guessing(self):
-            # публічний сайт + короткий пароль: після кількох промахів адреса чекає, і правильний пароль теж не пускає
+        async def test_throttle_slows_down_guessing(self):
+            # публічний сайт: після кількох промахів адреса чекає, і успіх теж не пускає, поки пауза не мине
             from tracced.web.app import Throttle
             t = Throttle(max_fails=3, window_s=300, block_s=60)
             self.assertEqual(t.wait_s("1.2.3.4", 0), 0)
@@ -180,25 +196,10 @@ if AioHTTPTestCase:
             self.assertEqual(t.wait_s("5.6.7.8", 30), 0)                   # інша адреса не страждає
             self.assertEqual(t.wait_s("1.2.3.4", 100), 0)                  # пауза минула
             t.miss("9.9.9.9", 0); t.hit("9.9.9.9")
-            self.assertEqual(t.wait_s("9.9.9.9", 0), 0)                    # правильний пароль очищає лічильник
+            self.assertEqual(t.wait_s("9.9.9.9", 0), 0)                    # успіх очищає лічильник
             t2 = Throttle(max_fails=1, window_s=300, block_s=60)
             self.assertGreater(t2.miss("a", 0), 0)
             self.assertGreater(t2.miss("a", 1), 60)                        # кожна наступна спроба довша
-
-        async def test_login_blocks_after_wrong_passwords(self):
-            from tracced.web.app import Throttle
-            self.app["password"], self.app["throttle"] = "test-only-not-a-real-password", Throttle(max_fails=2, window_s=300, block_s=900)
-            try:
-                r = await self.client.get("/")                             # без куки — на сторінку входу
-                self.assertIn("Sign in", await r.text())
-                for _ in range(2):
-                    r = await self.client.post("/login", data={"password": "0000"}, allow_redirects=False)
-                    self.assertEqual(r.status, 401)
-                r = await self.client.post("/login", data={"password": "test-only-not-a-real-password"}, allow_redirects=False)
-                self.assertEqual(r.status, 429)                            # навіть правильний пароль чекає
-                self.assertIn("Too many attempts", await r.text())
-            finally:
-                self.app["password"], self.app["throttle"] = "", Throttle()
 
         async def test_layout_containers(self):
             # верстка тримається на трьох речах: смуги шапки/підвалу з внутрішнім контейнером і широка сторінка результату
@@ -252,10 +253,8 @@ if AioHTTPTestCase:
             self.assertEqual(len(analysed), 2)                             # обидва аналізи видно без пам'яті браузера
             self.assertEqual({r["from"] for r in analysed}, {"2001-09-09T01:46", "2001-09-09T02:20"})
 
-        async def test_public_surface_is_exactly_the_demo(self):
-            # без пароля відкриті лише сторінка проєкту і демо-токен; усе, що витрачає гроші, закрите
+        def _seed_one_demo(self):
             import os
-            from tracced.web.app import Throttle
             jid, a, b = "AAAAAA_20010909-0146_0206", 999999960000, 1000001160000
             result = {"info": {"mint": MINT, "symbol": "TST", "supply": 1000000, "created_time": 999996400000},
                       "window": {"from": a, "to": b, "end": b + 3600000}, "mode": "wallet-trades",
@@ -272,73 +271,113 @@ if AioHTTPTestCase:
                 json.dump({"mint": MINT, "info": result["info"], "created": 999996400000, "captured_ms": 1,
                            "candles": {"1m": []}, "hints": [],
                            "ranges": [{"label": "Pump 1", "from": a, "to": b, "job": jid, "log": ["x"], "result": result}]}, f)
-            out = self.tmp.name + "/web"
-            with open(f"{out}/{jid}.json", "w") as f:                      # сам аналіз теж має бути на диску
+            with open(f"{self.tmp.name}/web/{jid}.json", "w") as f:                      # сам аналіз теж має бути на диску
                 json.dump({"id": jid, "mint": MINT, "t_from": a, "t_to": b, "t_exit": None, "status": "done",
                            "error": None, "created_ms": 1, "started_ms": 1, "finished_ms": 2, "symbol_hint": "TST",
                            "progress": {"phase": "done", "done": 1, "total": 1}, "log": ["x"], "result": result}, f)
             self.app["jobs"]._load()
             self.app["s"]["demo_job"] = jid; self.app.pop("demo", None)
-            self.app["password"], self.app["throttle"] = "test-only-not-a-real-password", Throttle()
+            return jid, a, b
+
+        async def test_guests_get_the_demo_wallets_get_live_mode(self):
+            # без гаманця відкрите все, що не витрачає грошей: сторінки, демо-токен, готові результати; живий токен просить гаманець
+            jid, a, b = self._seed_one_demo()
             other = "B" * 40
-            try:
-                before = self.st.requests
-                for path in ("/project", f"/token?mint={MINT}", f"/job/{jid}", f"/job/{jid}.csv"):
-                    r = await self.client.get(path, allow_redirects=False)
-                    self.assertEqual(r.status, 200, path)                  # відкрито
-                for path in ("/", "/how", f"/token?mint={other}", "/job/whatever"):
-                    r = await self.client.get(path, allow_redirects=False)
-                    self.assertEqual(r.headers.get("Location"), "/login", path)   # закрито
-                r = await self.client.post("/analyze", allow_redirects=False, data={
-                    "mint": MINT, "from": chart.to_input(a), "to": chart.to_input(b)})
-                self.assertEqual(r.headers["Location"], f"/job/{jid}")      # демо програється без пароля
-                r = await self.client.post("/analyze", allow_redirects=False, data={
-                    "mint": other, "from": "2001-09-09T01:46", "to": "2001-09-09T02:06"})
-                self.assertEqual(r.headers["Location"], "/login")           # чужий токен — ні
-                self.assertEqual(self.st.requests, before)                  # жодного платного запиту
-            finally:
-                self.app["password"], self.app["throttle"] = "", Throttle()
+            before = self.st.requests
+            for path in ("/", "/how", "/project", f"/token?mint={MINT}", f"/job/{jid}", f"/job/{jid}.csv", "/me"):
+                r = await self.client.get(path, allow_redirects=False, headers=GUEST)
+                self.assertEqual(r.status, 200, path)
+            r = await self.client.get(f"/token?mint={other}", headers=GUEST)
+            html = await r.text()
+            self.assertEqual(r.status, 401)
+            self.assertIn("Connect a wallet to analyze this token", html)
+            self.assertIn(f"/token?mint={MINT}", html)                     # і дорога до демо
+            self.assertIsNone(CYRILLIC.search(html))
+            r = await self.client.get(f"/candles.json?mint={other}&tf=1h&a=1&b=9999999999", headers=GUEST)
+            self.assertEqual(r.status, 401)
+            self.assertIn("Connect", (await r.json())["error"])
+            r = await self.client.post("/analyze", allow_redirects=False, headers=GUEST, data={
+                "mint": MINT, "from": chart.to_input(a), "to": chart.to_input(b)})
+            self.assertEqual(r.headers["Location"], f"/job/{jid}")      # демо програється без гаманця
+            r = await self.client.post("/analyze", allow_redirects=False, headers=GUEST, data={
+                "mint": other, "from": "2001-09-09T01:46", "to": "2001-09-09T02:06"})
+            self.assertEqual(r.status, 401)                             # живий прогін — ні
+            self.assertEqual(self.st.requests, before)                  # гість не витратив жодного запиту
+            r = await self.client.get(f"/token?mint={other}")           # той самий запит з гаманцем — живий режим
+            html = await r.text()
+            self.assertEqual(r.status, 200)
+            self.assertIn("Find the pump", html)
+            self.assertIn('id="add"', html)
+            self.assertIn("&#34;label&#34;: &#34;Range 1&#34;, &#34;from&#34;: &#34;&#34;", html)   # голий графік: жодного готового діапазону
+
+        async def test_live_mode_quota_cap_and_delete(self):
+            # гаманець: 1 прогін на день; той самий діапазон удруге — безкоштовно; 3 діапазони на токен; видалити може автор або адмін
+            import time as _time
+            from tracced.web.jobs import make_id
+            self.app["admins"] = set()
+            self.app["s"]["ranges_per_token"] = 3
+            other_pk = acct_mod.b58encode(b"\x08" * 32)
+            me, other = {"Cookie": wallet_cookie(TEST_PK), "Origin": f"http://{self.client.host}:{self.client.port}"}, \
+                        {"Cookie": wallet_cookie(other_pk), "Origin": f"http://{self.client.host}:{self.client.port}"}
+            starts = {1: "01:46", 2: "01:50", 3: "01:52", 4: "01:54"}                       # ranges the fake feed has trades for
+            rng = lambda h: {"mint": MINT, "from": f"2001-09-09T{starts[h]}", "to": "2001-09-09T02:06"}   # noqa: E731
+            r = await self.client.post("/analyze", data=rng(1), allow_redirects=False, headers=me)
+            self.assertEqual(r.status, 302, await r.text())
+            jid1 = r.headers["Location"].split("/")[-1]
+            self.assertEqual(jid1, make_id(MINT, chart.from_input(rng(1)["from"]), chart.from_input(rng(1)["to"])))
+            await asyncio.to_thread(self.app["jobs"].q.join)
+            self.assertEqual(self.app["jobs"].get(jid1).status, "done", self.app["jobs"].get(jid1).error)
+            self.assertEqual(self.app["jobs"].get(jid1).owner, TEST_PK)
+            self.assertEqual(self.app["jobs"].get(jid1).s_over, {"budget_guard_pct": 0, "run_cap_requests": 2000})
+            r = await self.client.post("/analyze", data=rng(2), allow_redirects=False, headers=me)
+            self.assertEqual(r.status, 429)                              # друга за день — ні
+            self.assertIn("today", await r.text())
+            r = await self.client.post("/analyze", data=rng(1), allow_redirects=False, headers=me)
+            self.assertEqual(r.headers["Location"], f"/job/{jid1}")     # готовий результат відкривається без витрат
+            self.app["admins"] = {TEST_PK}                               # адмін: без квоти і без стелі запитів
+            for h in (2, 3):
+                r = await self.client.post("/analyze", data=rng(h), allow_redirects=False, headers=me)
+                self.assertEqual(r.status, 302, await r.text())
+                await asyncio.to_thread(self.app["jobs"].q.join)
+                j = self.app["jobs"].get(r.headers["Location"].split("/")[-1])
+                self.assertEqual(j.status, "done", j.error)
+            self.assertEqual(self.app["jobs"].get(r.headers["Location"].split("/")[-1]).s_over, {"budget_guard_pct": 0, "run_cap_requests": 0})
+            r = await self.client.post("/analyze", data=rng(4), allow_redirects=False, headers=me)
+            self.assertEqual(r.status, 400)
+            self.assertIn("already has 3 analyses", await r.text())     # стеля на токен — і для адміна
+            r = await self.client.post(f"/job/{jid1}/delete", headers=other)
+            self.assertEqual(r.status, 403)                              # чужий аналіз не видалиш
+            r = await self.client.post(f"/job/{jid1}/delete", headers={"Cookie": wallet_cookie(other_pk)})
+            self.assertEqual(r.status, 403)                              # і без Origin теж
+            r = await self.client.post(f"/job/{jid1}/delete", headers=me)
+            self.assertTrue((await r.json())["ok"])
+            self.assertIsNone(self.app["jobs"].get(jid1))
+            self.assertFalse(os.path.exists(f"{self.tmp.name}/web/{jid1}.json"))
+            r = await self.client.post("/analyze", data=rng(4), allow_redirects=False, headers=me)
+            self.assertEqual(r.status, 302)                              # місце звільнилось
+            html = await (await self.client.get(f"/token?mint={MINT}", headers=me)).text()
+            self.assertIn("&#34;deletable&#34;: true", html)              # свої аналізи можна прибрати зі сторінки
+            html = await (await self.client.get(f"/token?mint={MINT}", headers=other)).text()
+            self.assertIn("&#34;deletable&#34;: false", html)
+            self.assertNotIn("&#34;deletable&#34;: true", html)
+            self.assertEqual(self.app["events"].tail()[0]["event"], "analyze")
+            r = await self.client.post("/job/nope/delete", headers=me)
+            self.assertEqual(r.status, 404)
 
         async def test_open_surface_cannot_be_unlocked_by_the_wrong_parameter(self):
             # кожен шлях має перевірятись по тому самому параметру, який читає його обробник
-            import os
-            from tracced.web.app import Throttle
-            jid, a, b = "AAAAAA_20010909-0146_0206", 999999960000, 1000001160000
+            jid, a, b = self._seed_one_demo()
             other, other_job = "B" * 40, "BBBBBB_20010909-0300_0320"
-            result = {"info": {"mint": MINT, "symbol": "TST", "supply": 1000000, "created_time": 999996400000},
-                      "window": {"from": a, "to": b, "end": b + 3600000}, "mode": "wallet-trades",
-                      "counts": {"n_wallets": 1, "n_trades": 3, "n_early": 1, "dust": 0, "late": 0, "pre_range_only": 0,
-                                 "lookups": 1, "entry_only": 0},
-                      "coverage": {"exits_known": 1, "total": 1, "mode": "wallet-trades", "cost_full": 5,
-                                   "lookup_cap": 500, "plan": "free"},
-                      "wallet_trades": {"A": {"trades": [[a + 1000, "buy", 100.0, 100.0, 1.0]], "source": "wallet-trades"}},
-                      "price_at_end": 3.0, "fresh_wallets": [], "scope": "all", "rows": [], "summary": {},
-                      "requests": 0, "pages_fetched": 0,
-                      "enrich": {"done": 0, "total": 0, "fresh": 0, "failed": 0, "funders_done": 0}}
-            os.makedirs(self.tmp.name + "/demo", exist_ok=True)
-            with open(f"{self.tmp.name}/demo/{MINT}.json", "w") as f:
-                json.dump({"mint": MINT, "info": result["info"], "created": 999996400000, "captured_ms": 1,
-                           "candles": {"1m": []}, "hints": [],
-                           "ranges": [{"label": "Pump 1", "from": a, "to": b, "job": jid, "log": ["x"], "result": result}]}, f)
-            self.app["s"]["demo_job"] = jid; self.app.pop("demo", None)
-            self.app["password"], self.app["throttle"] = "pw", Throttle()
-            try:
-                before = self.st.requests
-                # відмикання чужим параметром: job демо + чужий mint, і навпаки
-                for path in (f"/token?mint={other}&job={jid}",
-                             f"/candles.json?mint={other}&job={jid}&tf=1h&a=1&b=9999999999",
-                             f"/wallet_trades.json?mint={MINT}&job={other_job}&wallet=A",
-                             f"/job/{jid}/assistant"):
-                    r = await self.client.get(path, allow_redirects=False)
-                    self.assertEqual(r.headers.get("Location"), "/login", path)
-                r = await self.client.post(f"/job/{jid}/assistant", json={"method": "x"}, allow_redirects=False,
-                                           headers={"Origin": f"http://{self.client.host}:{self.client.port}"})
-                self.assertIn(r.status, (404, 503))                      # the demo's agent is open: an answer, not a redirect
-                r = await self.client.post(f"/job/{other_job}/assistant", json={"method": "x"}, allow_redirects=False)
-                self.assertEqual(r.headers.get("Location"), "/login")   # any other analysis stays behind the password
-                self.assertEqual(self.st.requests, before)              # жодного платного запиту
-            finally:
-                self.app["password"], self.app["throttle"] = "", Throttle()
+            before = self.st.requests
+            for path in (f"/token?mint={other}&job={jid}", f"/candles.json?mint={other}&job={jid}&tf=1h&a=1&b=9999999999"):
+                r = await self.client.get(path, allow_redirects=False, headers=GUEST)
+                self.assertEqual(r.status, 401, path)                    # job демо не відмикає чужий mint
+            r = await self.client.get(f"/wallet_trades.json?mint={MINT}&job={other_job}&wallet=A", headers=GUEST)
+            self.assertEqual(r.status, 404)                              # чужий id — нема такого
+            r = await self.client.post(f"/job/{jid}/assistant", json={"method": "x"}, allow_redirects=False,
+                                       headers={"Origin": f"http://{self.client.host}:{self.client.port}", "Cookie": ""})
+            self.assertIn(r.status, (404, 503))                          # the demo's agent answers guests too
+            self.assertEqual(self.st.requests, before)                   # жодного платного запиту
 
         async def test_how_page(self):
             r = await self.client.get("/how")
@@ -385,7 +424,8 @@ if AioHTTPTestCase:
             self.assertIn("Find the pump", html)                         # a rule, not a model
             self.assertNotIn("Let AI choose", html)
             self.assertNotIn("Coming next", html)
-            self.assertIn("Pump 1", html)                              # a detector hint became a row
+            self.assertIn("&#34;label&#34;: &#34;Range 1&#34;, &#34;from&#34;: &#34;&#34;", html)   # a bare chart: hints wait for the button
+            self.assertNotIn("&#34;label&#34;: &#34;Pump 1", html)
             self.assertIn('id="chart"', html)
             self.assertIn("lightweight-charts", html)
             self.assertIn("static/chart.js", html)
@@ -484,7 +524,7 @@ if AioHTTPTestCase:
             self.assertEqual(r.status, 200)
             aj = await r.json()
             self.assertEqual(aj["picks"][0]["wallet"], "A")
-            self.assertEqual(aj["left"], 2)                               # guests get 3 a day
+            self.assertEqual(aj["left"], 9)                               # a wallet gets 10 a day (guests 3)
             r = await self.client.post(loc + "/assistant", json={"method": "only profitable", "wallets": ["A"]}, headers=o)
             self.assertTrue((await r.json()).get("cached"))
             self.assertIn("AI agent", page48)
@@ -545,7 +585,7 @@ if AioHTTPTestCase:
     import base64
     import os
     from tracced.web import accounts as acct_mod
-    from tracced.web.app import Throttle, _sign
+    from tracced.web.app import Throttle
 
     try:
         from nacl.signing import SigningKey
@@ -616,12 +656,9 @@ if AioHTTPTestCase:
                                        headers={"Origin": self.origin})
             return r, pk, msg, sig
 
-        def _hdr(self, r, password=None):
+        def _hdr(self, r):
             """Куки явно в заголовку: тестовий клієнт не шле Secure-куки по http."""
-            cookie = f"early_acct={r.cookies['early_acct'].value}"
-            if password:
-                cookie += f"; early_web={_sign(password, 4_000_000_000)}"
-            return {"Cookie": cookie, "Origin": self.origin}
+            return {"Cookie": f"early_acct={r.cookies['early_acct'].value}", "Origin": self.origin}
 
         async def test_sign_in_sets_the_account(self):
             r, pk, _, _ = await self._sign_in()
@@ -689,12 +726,11 @@ if AioHTTPTestCase:
             r = await self.client.post("/auth/nonce", headers={"Origin": self.origin})
             self.assertEqual(r.status, 429)
 
-        async def test_saving_from_the_demo_needs_no_password(self):
+        async def test_saving_from_results(self):
             seed_demo(self.tmp.name, self.app)
-            self.app["password"], self.app["throttle"] = "test-only-not-a-real-password", Throttle()
-            try:
+            if True:
                 r = await self.client.get("/me", allow_redirects=False)
-                self.assertEqual(r.status, 200)                                      # акаунт відкритий і за паролем
+                self.assertEqual(r.status, 200)
                 r, pk, _, _ = await self._sign_in()
                 self.assertEqual(r.status, 200)
                 h = self._hdr(r)
@@ -720,16 +756,10 @@ if AioHTTPTestCase:
                 r = await self.client.get("/me/wallets.csv", headers=h)
                 self.assertEqual(r.status, 200)
                 self.assertIn(W1, await r.text())
-                # чужий (платний) аналіз без пароля бети — ні; з паролем — так
-                r = await self.client.post("/me/wallets", json={"job": OTHER_JID, "wallets": [W1]}, headers=h)
-                self.assertEqual(r.status, 403)
+                # будь-який готовий результат публічний — зберігати можна і з нього
                 r = await self.client.post("/me/analyses", json={"job": OTHER_JID}, headers=h)
-                self.assertEqual(r.status, 403)
-                r2, pk, _, _ = await self._sign_in()
-                hp = self._hdr(r2, "test-only-not-a-real-password")
-                r = await self.client.post("/me/analyses", json={"job": OTHER_JID}, headers=hp)
                 self.assertEqual(r.status, 200, await r.text())
-                r = await self.client.post("/me/wallets", json={"job": "nope", "wallets": [W1]}, headers=hp)
+                r = await self.client.post("/me/wallets", json={"job": "nope", "wallets": [W1]}, headers=h)
                 self.assertEqual(r.status, 404)
                 # записи без куки або з чужого сайту — ні
                 r = await self.client.post("/me/wallets", json={"job": DEMO_JID, "wallets": [W1]}, headers={"Origin": self.origin})
@@ -758,18 +788,16 @@ if AioHTTPTestCase:
                 finally:
                     acct_mod.MAX_ANALYSES = old
                 self.assertEqual(self.st.requests, 0)                                # усе це — без платних запитів
-            finally:
-                self.app["password"], self.app["throttle"] = "", Throttle()
 
         async def test_pages_show_the_account_control(self):
             r = await self.client.get("/")
             html = await r.text()
             self.assertIn(">Connect</button>", html)                                 # герой головної
             self.assertNotIn('class="top"', html)
-            r = await self.client.get("/login")
+            r = await self.client.get(f"/token?mint={OTHER_MINT}")                  # живий токен без гаманця — картка Connect
             html = await r.text()
+            self.assertEqual(r.status, 401)
             self.assertIn(">Connect</button>", html)
-            self.assertIn("private beta", html)
             self.assertIsNone(CYRILLIC.search(html))
             r, pk, _, _ = await self._sign_in()
             r = await self.client.get("/", headers=self._hdr(r))
@@ -778,56 +806,18 @@ if AioHTTPTestCase:
             self.assertIn("Sign out", html)
             self.assertNotIn("My analyses (", html)                                  # no recent analyses → no link to count
 
-        async def test_waitlist(self):
-            o = {"Origin": self.origin}
-            self.app["waitlist_throttle"] = Throttle(max_fails=5, window_s=86400, block_s=86400)
-            self.app["password"], self.app["throttle"] = "test-only-not-a-real-password", Throttle()
-            try:
-                r = await self.client.post("/waitlist", json={"email": " Ann@Example.com ", "note": "memecoins, 2 years"}, headers=o)
-                self.assertEqual(r.status, 200, await r.text())                # відкрито і за паролем
-                self.assertTrue((await r.json())["added"])
-            finally:
-                self.app["password"], self.app["throttle"] = "", Throttle()
-            r = await self.client.post("/waitlist", json={"email": "ann@example.com"}, headers=o)
-            self.assertFalse((await r.json())["added"])                        # та сама адреса — без дубля
-            r = await self.client.post("/waitlist", json={"email": "nope"}, headers=o)
-            self.assertEqual(r.status, 400)
-            r = await self.client.post("/waitlist", json={"email": "x@y.io"})
-            self.assertEqual(r.status, 403)                                    # без Origin
-            for i in range(3):
-                r = await self.client.post("/waitlist", json={"email": f"t{i}@example.com"}, headers=o)
-                self.assertEqual(r.status, 200)
-            r = await self.client.post("/waitlist", json={"email": "one-too-many@example.com"}, headers=o)
-            self.assertEqual(r.status, 429)                                    # 5 записів на добу з адреси
-            self.assertEqual(self.app["waitlist"].count(), 4)
-            with open(f"{self.tmp.name}/waitlist.jsonl") as f:
-                first = json.loads(f.readline())
-            self.assertEqual((first["email"], first["note"]), ("ann@example.com", "memecoins, 2 years"))
-            html = await (await self.client.get("/login")).text()
-            self.assertIn('id="waitlist"', html)
-            self.assertIn("Join the waitlist", html)
-            self.assertIsNone(CYRILLIC.search(html))
-            html = await (await self.client.get("/")).text()
-            self.assertIn('id="waitlist"', html)
-            r_admin, pk_admin, _, _ = await self._sign_in()
-            self.app["admins"] = {pk_admin}
-            html = await (await self.client.get("/admin", headers=self._hdr(r_admin))).text()
-            self.assertIn("ann@example.com", html)
-            self.assertIn("memecoins, 2 years", html)
-            self.assertIn("joined the waitlist", html)
-            self.assertIsNone(CYRILLIC.search(html))
-            self.app["admins"] = set()
-
         async def test_demo_ranges_are_fixed(self):
             seed_demo(self.tmp.name, self.app)
             html = await (await self.client.get(f"/token?mint={MINT}")).text()
             self.assertIn("Recorded ranges are fixed here", html)
-            self.assertIn('href="/login#waitlist"', html)
+            self.assertIn("data-wallet-signin", html)                          # the nudge points to Connect, not a password
             self.assertNotIn('id="add"', html)                                 # no new ranges on the demo
             self.assertNotIn('id="reset"', html)
             self.assertIsNone(CYRILLIC.search(html))
-            html = await (await self.client.get(f"/token?mint={OTHER_MINT}")).text()
+            r_in, pk, _, _ = await self._sign_in()
+            html = await (await self.client.get(f"/token?mint={OTHER_MINT}", headers=self._hdr(r_in))).text()
             self.assertIn('id="add"', html)                                    # a live token keeps the full editor
+            self.assertIn('data-max-rows="3"', html)
 
         async def test_assistant_daily_budget(self):
             seed_demo(self.tmp.name, self.app)

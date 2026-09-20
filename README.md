@@ -27,16 +27,17 @@ Built on Solana · AI-assisted · Colosseum Crypto World's Fair 2026
 - **Complete data by construction**: the range is always fetched in full (verified against the chain: 100% of the swaps in an audited range). For each wallet's history the app takes the cheaper of two complete paths — the whole token history or each wallet's own trades — and tells you the coverage above the table.
 - **Wallet story**: click a wallet to see every trade as a list and as markers on the chart.
 
-### Your account: a wallet, not a password
-Sign in with a Solana wallet (Phantom, Solflare, Backpack or any Wallet Standard wallet): the wallet signs a short
-message — no transaction, no fees — and that signature is the account. Tick wallets in a result and **+ Watchlist**;
-**Save analysis** keeps the whole result under **My analyses**. Both live at `/me`, with notes and CSV / TXT export.
-Signing in does not unlock live analyses of new tokens: that stays behind the beta password while the free API quota lasts.
-Saving from the demo result needs no password, so anyone can try the account.
+### Access: the demo for everyone, live mode for wallets
+No passwords. The demo token replays without a request and is open to anyone. Any other token is **live mode**:
+connect a Solana wallet (Phantom, MetaMask, Rabby) — the wallet signs a short message, no transaction, no fees — and
+that signature is the account. A wallet gets **one live analysis a day**, a token holds **three analyses** (delete yours
+to make room), one run may spend at most **2,000 requests**; results are public and an existing result opens for free.
+Wallets listed in `ADMIN_WALLETS` have no limits. All of it is in `config.yaml` (`runs_per_day`, `ranges_per_token`,
+`run_cap_requests`, `finder_pumps`).
 
-The owner sees who connected and what they did at `/admin`: set `ADMIN_WALLETS` to your own wallet address and connect it.
-Accounts are JSON files under `output/early/accounts/`, actions go to `_events.jsonl` next to them; nothing leaves the server.
-The waitlist (e-mails from the home and sign-in pages) is `output/early/waitlist.jsonl`, also visible at `/admin`.
+Tick wallets in a result and **+ Watchlist**; **Save analysis** keeps the whole result under **My analyses**. Both live at
+`/me`, with notes and CSV / TXT export. The owner sees who connected and what they ran at `/admin`. Accounts are JSON
+files under `output/early/accounts/`, actions go to `_events.jsonl` next to them; nothing leaves the server.
 
 ## Run it
 
@@ -45,7 +46,7 @@ cp .env.example .env            # SOLANATRACKER_API_KEY, plus WEB_SECRET (openss
 docker compose up -d --build    # http://127.0.0.1:8095
 ```
 
-On a server: see [deploy/README.md](deploy/README.md) (one container behind an existing Caddy, password on).
+On a server: see [deploy/README.md](deploy/README.md) (one container behind an existing Caddy).
 
 Tests:
 

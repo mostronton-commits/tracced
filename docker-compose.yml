@@ -7,7 +7,6 @@ services:
     env_file: .env
     environment:
       - WEB_PORT=8095
-      - WEB_PASSWORD=${WEB_PASSWORD:-}
     volumes:
       - ./output:/app/output
       - ./cache:/app/cache

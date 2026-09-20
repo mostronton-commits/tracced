@@ -9,7 +9,6 @@
     <div title="Signed in or saved something within the last 7 days"><b data-count="{{ totals.active_7d }}" data-fmt="int">0</b><span>Active · 7 d</span></div>
     <div title="Wallets saved to lists, all accounts"><b data-count="{{ totals.wallets }}" data-fmt="int">0</b><span>Saved wallets</span></div>
     <div title="Analyses saved, all accounts"><b data-count="{{ totals.analyses }}" data-fmt="int">0</b><span>Saved analyses</span></div>
-    <div title="E-mails on the waitlist"><b data-count="{{ waitlist_n }}" data-fmt="int">0</b><span>Waitlist</span></div>
   </div>
   {% if accounts %}
   <div class="tablewrap"><table class="facts melist"><thead><tr>
@@ -30,17 +29,6 @@
   {% else %}<p class="muted">Nobody has connected a wallet yet.</p>{% endif %}
 </section>
 
-<section class="card me" id="waitlist-admin">
-  <div class="row mehead"><h2>Waitlist</h2><span class="muted small">{{ waitlist_n }} e-mail{{ '' if waitlist_n == 1 else 's' }} · last {{ waitlist|length }} below</span></div>
-  {% if waitlist %}
-  <div class="tablewrap"><table class="facts melist"><thead><tr><th>E-mail</th><th>What they trade</th><th>Wallet</th><th>Joined</th></tr></thead><tbody>
-  {% for w in waitlist %}
-    <tr><td class="mono">{{ w.email }}</td><td>{{ w.note or '—' }}</td><td class="mono">{% if w.pubkey %}<span title="{{ w.pubkey }}">{{ w.pubkey[:6] }}…{{ w.pubkey[-4:] }}</span>{% else %}—{% endif %}</td><td class="muted small"><span class="dtc" data-ms="{{ w.ts_ms }}">{{ w.ts_ms|dt }}</span></td></tr>
-  {% endfor %}
-  </tbody></table></div>
-  {% else %}<p class="muted">Nobody yet.</p>{% endif %}
-</section>
-
 <section class="card me">
   <div class="row mehead"><h2>Recent actions</h2><span class="muted small">last {{ events|length }}</span></div>
   {% if events %}
@@ -55,7 +43,9 @@
         {% elif e.event == 'save_analysis' %}saved the analysis <a href="/job/{{ e.job }}">{{ e.symbol or e.job }}</a>
         {% elif e.event == 'remove_wallet' %}removed a wallet from the watchlist
         {% elif e.event == 'remove_analysis' %}removed an analysis
-        {% elif e.event == 'waitlist' %}{{ 'joined the waitlist' if e.added else 'tried the waitlist again' }}
+        {% elif e.event == 'analyze' %}ran an analysis: <a href="/job/{{ e.job }}">{{ e.symbol or e.job }}</a>
+        {% elif e.event == 'delete_analysis' %}deleted the analysis {{ e.symbol or e.job }}
+        {% elif e.event == 'assistant' %}asked the agent ({{ e.n }} picks) on <a href="/job/{{ e.job }}">{{ e.job }}</a>
         {% else %}{{ e.event }}{% endif %}
       </span>
     </div>

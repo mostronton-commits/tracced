@@ -61,5 +61,18 @@ class TestScope(unittest.TestCase):
         self.assertIsNone(scope.rows_for({"rows": [{"wallet": "W"}], "window": {}}, "all"))
 
 
+
+
+class TestEmptyRange(unittest.TestCase):
+    def test_a_range_nobody_bought_in_gives_no_rows_not_a_crash(self):
+        from tracced.early import scope
+        result = {"wallet_trades": {}, "window": {"from": 0, "to": 60_000, "end": 120_000},
+                  "info": {"supply": 1_000_000, "created_time": 0}}
+        rows, sm = scope.rows_for(result, "all", {})
+        self.assertEqual(rows, [])
+        self.assertEqual(sm["n"], 0)
+        self.assertIsNone(scope.rows_for({"window": {}}, "all", {}))      # старий формат — як і раніше, None
+
+
 if __name__ == "__main__":
     unittest.main()

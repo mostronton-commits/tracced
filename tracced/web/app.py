@@ -33,7 +33,7 @@ log = logging.getLogger("early.web")
 HERE = Path(__file__).resolve().parent
 HOUR = 3_600_000
 MINT_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
-ACCT_COOKIE = "early_acct"          # вхід гаманцем: окрема кука, незалежна від пароля бети
+ACCT_COOKIE = "early_acct"          # вхід гаманцем — єдиний вхід на сайті
 ACCT_DAYS = 30
 
 env = Environment(loader=FileSystemLoader(str(HERE / "templates")),

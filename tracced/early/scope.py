@@ -47,9 +47,11 @@ def price_at_end(result, t_end):
 
 
 def rows_for(result, scope, s=None):
-    """(rows, summary) для масштабу з `result["wallet_trades"]`; None, якщо результат старого формату."""
+    """(rows, summary) для масштабу з `result["wallet_trades"]`; None лише для результату старого формату (без угод).
+
+    Порожній словник — це не старий формат, а діапазон, у якому ніхто не купив: тоді рядків нема, і це нормально."""
     wt = result.get("wallet_trades")
-    if not wt:
+    if wt is None:
         return None
     w = result["window"]
     supply = (result.get("info") or {}).get("supply") or 0

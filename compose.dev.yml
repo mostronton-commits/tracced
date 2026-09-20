@@ -1,4 +1,4 @@
-# tracced — the draft site (dev.tracced.xyz). Same image, its own data, its own password and its own API
+# tracced — the draft site (dev.tracced.xyz). Same image, its own data and its own API
 # key, so experiments never touch production or its quota. Runs the `dev` branch from /opt/tracced-dev.
 #   docker compose -f compose.dev.yml up -d --build
 name: tracced-dev
