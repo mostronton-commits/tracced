@@ -27,10 +27,17 @@ Built on Solana · AI-assisted (coming next) · Colosseum Crypto World's Fair 20
 - **Complete data by construction**: the range is always fetched in full (verified against the chain: 100% of the swaps in an audited range). For each wallet's history the app takes the cheaper of two complete paths — the whole token history or each wallet's own trades — and tells you the coverage above the table.
 - **Wallet story**: click a wallet to see every trade as a list and as markers on the chart.
 
+### Your account: a wallet, not a password
+Sign in with a Solana wallet (Phantom, Solflare, Backpack or any Wallet Standard wallet): the wallet signs a short
+message — no transaction, no fees — and that signature is the account. Tick wallets in a result and **Save to my list**;
+**Save analysis** keeps the whole result under **My analyses**. Both live at `/me`, with notes and CSV / TXT export.
+Signing in does not unlock live analyses of new tokens: that stays behind the beta password while the free API quota lasts.
+Saving from the demo result needs no password, so anyone can try the account.
+
 ## Run it
 
 ```bash
-cp .env.example .env            # put your Solana Tracker key in SOLANATRACKER_API_KEY
+cp .env.example .env            # SOLANATRACKER_API_KEY, plus WEB_SECRET (openssl rand -hex 32) so sign-ins survive restarts
 docker compose up -d --build    # http://127.0.0.1:8095
 ```
 
@@ -55,9 +62,9 @@ single request to Solana Tracker. Good for showing the product around.
 - Nothing else. No third-party PnL, labels or scores.
 
 ## Roadmap
-- **Live** — analyze: range → wallets → whole story → export; bundle and fact tags.
-- **Next** — watchlist and Telegram alerts; the AI agent picks wallets by your method and suggests the range.
-- **Later** — non-custodial copy-trading on your watchlist, strategy in plain words.
+- **Live** — analyze: range → wallets → whole story → export; bundle and fact tags; sign in with a wallet, save wallets and analyses to your account.
+- **Next** — Telegram alerts when a saved wallet trades; the AI agent picks wallets by your method and suggests the range.
+- **Later** — non-custodial copy-trading on your list, strategy in plain words.
 
 See [docs/strategy.md](docs/strategy.md).
 
