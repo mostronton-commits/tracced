@@ -1,0 +1,21 @@
+# tracced — the draft site (dev.tracced.xyz). Same image, its own data, its own password and its own API
+# key, so experiments never touch production or its quota. Runs the `dev` branch from /opt/tracced-dev.
+#   docker compose -f compose.dev.yml up -d --build
+name: tracced-dev
+services:
+  web:
+    build: .
+    container_name: tracced-dev-web
+    env_file: .env
+    environment:
+      - WEB_PORT=8095
+    volumes:
+      - ./output:/app/output
+      - ./cache:/app/cache
+      - ./config.yaml:/app/config.yaml:ro
+    networks: [proxy]
+    restart: unless-stopped
+networks:
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:-proxy}
