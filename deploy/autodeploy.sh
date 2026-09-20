@@ -24,7 +24,7 @@ run() {
   git fetch -q origin
   BR=$(git rev-parse --abbrev-ref HEAD)
   LOCAL=$(git rev-parse HEAD); REMOTE=$(git rev-parse "origin/$BR")
-  [ "$LOCAL" = "$REMOTE" ] && exit 0
+  [ "$LOCAL" = "$REMOTE" ] && [ "${FORCE:-0}" != "1" ] && exit 0
   say "new commits on $BR: ${LOCAL:0:7} -> ${REMOTE:0:7}"
   git pull -q --ff-only origin "$BR"
   docker compose -f "$COMPOSE" up -d --build 2>&1 | tail -3
@@ -46,7 +46,7 @@ case "$MODE" in
     ( crontab -l 2>/dev/null | grep -v -F "$SELF" ; echo "$LINE" ) | crontab -
     touch "$LOG" 2>/dev/null || true
     echo "cron line installed:"; echo "  $LINE"
-    echo "deploying now…"; bash "$SELF" run "$DIR" "$COMPOSE" || true
+    echo "deploying now…"; FORCE=1 bash "$SELF" run "$DIR" "$COMPOSE" || true      # even if the pull already happened by hand
     echo "log: $LOG" ;;
   remove)
     ( crontab -l 2>/dev/null | grep -v -F "$SELF" ) | crontab -
