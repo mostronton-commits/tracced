@@ -5,7 +5,7 @@
 {% block body %}
 <section class="card token" id="token" data-mint="{{ mint }}" data-symbol="{{ info.symbol or '' }}"
          data-rows='{{ rows_json }}' data-jobs='{{ jobs_json }}' data-preset='{{ preset_json }}'
-         data-created="{{ created }}" data-now="{{ now }}">
+         data-created="{{ created }}" data-now="{{ now }}" data-demo="{{ 1 if is_demo else 0 }}">
   <div class="tokenhead">
     <div>
       <h1>{{ info.symbol or '?' }}{% if info.name and info.name != info.symbol %} <span class="muted">{{ info.name }}</span>{% endif %}</h1>
@@ -19,7 +19,7 @@
     </dl>
   </div>
 
-  {% if is_demo %}<div class="demo-note">{% if bounced %}<b>Only the {{ "ranges" if n_demo > 1 else "range" }} below {{ "are" if n_demo > 1 else "is" }} recorded.</b> Pick one and press Analyze.{% else %}<b>Demo token.</b> {{ "These ranges are" if n_demo > 1 else "The range below is" }} pre-recorded — {{ "they open" if n_demo > 1 else "it opens" }} with no requests.{% endif %}</div>{% endif %}
+  {% if is_demo %}<div class="demo-note">{% if bounced %}<b>Only the {{ "ranges" if n_demo > 1 else "range" }} below {{ "are" if n_demo > 1 else "is" }} recorded.</b> Pick one and press Analyze.{% else %}<b>Demo token.</b> {{ n_demo if n_demo > 1 else "One" }} recorded pump{{ "s" if n_demo > 1 else "" }} below: press <b>Analyze</b> on {{ "one" if n_demo > 1 else "it" }} to watch the run. No requests are spent.{% endif %}</div>{% endif %}
   <div class="stepbar">
     <span class="stepn">02</span>
     <div class="stepx"><b>Choose the range</b><span>Click the chart twice: where buying starts, where the pump takes off. <small>Drag to pan · scroll to zoom</small></span></div>
@@ -55,6 +55,8 @@
   const mint = root.dataset.mint, KEY = 'early:' + mint;
   const INITIAL = JSON.parse(root.dataset.rows), JOBS = new Set(JSON.parse(root.dataset.jobs)), PRESET = JSON.parse(root.dataset.preset);
   const JOBS_BY_WINDOW = new Map(); JOBS.forEach(id => JOBS_BY_WINDOW.set(id.split('_x')[0], id));   // older results still carry a horizon suffix
+  const DEMO = root.dataset.demo === '1', RAN = 'early:ran:';   // demo: the result opens only after this browser pressed Analyze on that range
+  const ran = id => { try { return !!localStorage.getItem(RAN + id); } catch (e) { return true; } };
   const rowsEl = document.getElementById('rows'), tpl = document.getElementById('row-tpl');
   const pad = n => String(n).padStart(2, '0');
   const fmt = ms => { const d = new Date(ms); return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()) + 'T' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); };
@@ -93,7 +95,9 @@
   });
   let step = 0;
 
-  function refreshLink(f, r) { const id = jobId(r), a = f.querySelector('.result'); const hit = id && (JOBS.has(id) ? id : JOBS_BY_WINDOW.get(id)); if (hit) { a.hidden = false; a.href = '/job/' + hit; } else a.hidden = true; }
+  function hitFor(r) { const id = jobId(r); return id && (JOBS.has(id) ? id : JOBS_BY_WINDOW.get(id)); }
+  function refreshLink(f, r) { const a = f.querySelector('.result'), hit = hitFor(r); if (hit && (!DEMO || ran(hit))) { a.hidden = false; a.href = '/job/' + hit; } else a.hidden = true; }
+  rowsEl.addEventListener('submit', e => { if (!DEMO) return; const f = e.target.closest('.wrow'), r = f && state.rows[+f.dataset.i], hit = r && hitFor(r); if (hit) { try { localStorage.setItem(RAN + hit, '1'); } catch (x) {} } });
   function render() {
     rowsEl.innerHTML = '';
     state.rows.forEach((r, i) => {

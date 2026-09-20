@@ -128,7 +128,7 @@ if AioHTTPTestCase:
             html = await (await self.client.get(f"/token?mint={MINT}")).text()
             self.assertIn("Pump 1", html)
             self.assertIn("Pump 2", html)
-            self.assertIn("These ranges are", html)                        # текст знає, що діапазонів кілька
+            self.assertIn("2 recorded pumps below", html)                  # текст знає, що діапазонів кілька
             for jid, a, b in (one, two):                                   # обидва програються
                 r = await self.client.post("/analyze", allow_redirects=False, data={
                     "mint": MINT, "from": chart.to_input(a), "to": chart.to_input(b)})
@@ -755,6 +755,7 @@ if AioHTTPTestCase:
 
         async def test_admin_sees_accounts_and_actions(self):
             seed_demo(self.tmp.name, self.app)
+            self.app["admins"] = set()                                           # a local .env may set ADMIN_WALLETS
             r_user, pk_user, _, _ = await self._sign_in()
             hu = self._hdr(r_user)
             await self.client.post("/me/wallets", json={"job": DEMO_JID, "wallets": [W1]}, headers=hu)
