@@ -1,0 +1,3 @@
+{% if acct %}<div class="menu acct"><button type="button" class="acct-pill" data-menu title="{{ acct }}"><i class="dot"></i><span class="mono">{{ acct_short }}</span></button>
+  <div class="menu-panel r" hidden><a href="/me#list">My list</a><a href="/me#analyses">My analyses</a><button type="button" data-wallet-signout>Sign out</button></div>
+</div>{% else %}<button type="button" class="ghost acct-in" data-wallet-signin>Sign in with wallet</button>{% endif %}

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}My list · tracced{% endblock %}
+{% block main_class %}{% if not acct %}center{% endif %}{% endblock %}
+{% block body %}
+{% if not acct %}
+<section class="card narrow">
+  <h2>Sign in with wallet</h2>
+  <p class="muted">Keep the wallets you pick from any result, and the analyses you want to come back to. Sign a message to prove the wallet is yours: no transaction, no fees.</p>
+  <p><button type="button" class="primary" data-wallet-signin>Sign in with wallet</button></p>
+  <p class="muted small">Running new analyses is in private beta.</p>
+</section>
+{% else %}
+<section class="card me" id="list">
+  <div class="row mehead">
+    <h2>My list</h2><span class="muted small">{{ wallets|length }} wallet{{ '' if wallets|length == 1 else 's' }}</span>
+    {% if wallets %}<div class="menu right"><button type="button" class="ghost" data-menu>↓ Export</button>
+      <div class="menu-panel r" hidden><a href="/me/wallets.csv">CSV <small>all columns</small></a><button type="button" id="xtxt">TXT <small>addresses only</small></button></div></div>{% endif %}
+  </div>
+  {% if wallets %}
+  <div class="tablewrap"><table class="facts melist"><thead><tr>
+    <th>Wallet</th><th>Token</th><th class="num">Entry cap</th><th class="num">Spent</th><th class="num" title="Average exit cap ÷ entry cap at the time of saving">×</th><th>Note</th><th>Added</th><th></th>
+  </tr></thead><tbody>
+  {% for w in wallets %}
+    <tr data-w="{{ w.wallet }}">
+      <td class="wcell"><span class="wid"><span class="mono" title="{{ w.wallet }}">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</span><button type="button" class="ghost copy" data-copy="{{ w.wallet }}" title="Copy address">⧉</button><a class="ext" href="https://solscan.io/account/{{ w.wallet }}" target="_blank" rel="noopener" title="Solscan">↗</a></span><span class="tags">{% for t in w.tags or [] %}<span class="tag t-{{ t }}">{{ t }}</span>{% endfor %}</span></td>
+      <td>{% if w.from_job %}<a href="/job/{{ w.from_job }}" title="The result it was saved from">{{ w.symbol or (w.mint or '')[:6] }}</a>{% else %}{{ w.symbol }}{% endif %}</td>
+      <td class="num mono">{{ w.entry_mcap|mcap }}</td>
+      <td class="num mono">{{ w.invested_usd|usd }}</td>
+      <td class="num mono">{% if w.multiple %}{{ w.multiple|round(1) }}×{% else %}—{% endif %}</td>
+      <td><span class="note" contenteditable="true" spellcheck="false" data-ph="add a note" data-note>{{ w.note }}</span></td>
+      <td class="muted small"><span class="dtc" data-ms="{{ w.added_ms }}">{{ w.added_ms|dt }}</span></td>
+      <td><button type="button" class="ghost x" data-rm-wallet title="Remove from my list">×</button></td>
+    </tr>
+  {% endfor %}
+  </tbody></table></div>
+  {% else %}
+  <p class="muted">Nothing here yet. Open a result, tick the wallets you want, then <b>Save to my list</b>.{% if demo_mint %} <a href="/token?mint={{ demo_mint }}">Try it on the demo</a>.{% endif %}</p>
+  {% endif %}
+</section>
+
+<section class="card me" id="analyses">
+  <div class="row mehead"><h2>My analyses</h2><span class="muted small">{{ analyses|length }}</span></div>
+  {% if analyses %}
+  <div class="recent">
+  {% for a in analyses %}
+    <div class="rrow" data-j="{{ a.job }}">
+      <span class="sym">{{ a.symbol }}</span>
+      <span class="mono muted win"><span class="dtc" data-ms="{{ a.t_from }}">{{ a.t_from|dt }}</span> → <span class="dtc" data-ms="{{ a.t_to }}">{{ a.t_to|dt }}</span></span>
+      <span class="mono n">{{ a.n|num }} wallet{{ '' if a.n == 1 else 's' }}</span>
+      <span class="mono n">{% if a.best %}best {{ a.best|round(1) }}×{% endif %}</span>
+      <a class="open" href="/job/{{ a.job }}">Open →</a>
+      <button type="button" class="ghost x" data-rm-job title="Remove from my analyses">×</button>
+    </div>
+  {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">Nothing here yet. On a result page, click <b>Save analysis</b>.</p>
+  {% endif %}
+</section>
+
+<script>
+(function () {
+  const post = (u, b) => EarlyWallet.post(u, b), oops = e => EarlyUI.toast(e.message || 'Something went wrong.');
+  document.addEventListener('click', async e => {
+    const rw = e.target.closest('[data-rm-wallet]');
+    if (rw) { const tr = rw.closest('tr'); try { await post('/me/wallets/remove', { wallet: tr.dataset.w }); tr.remove(); } catch (x) { oops(x); } return; }
+    const rj = e.target.closest('[data-rm-job]');
+    if (rj) { const row = rj.closest('.rrow'); try { await post('/me/analyses/remove', { job: row.dataset.j }); row.remove(); } catch (x) { oops(x); } }
+  });
+  document.querySelectorAll('[data-note]').forEach(n => {
+    n.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); n.blur(); } });
+    n.addEventListener('blur', async () => { const tr = n.closest('tr'); try { await post('/me/wallets/note', { wallet: tr.dataset.w, note: n.textContent }); } catch (x) { oops(x); } });
+  });
+  const tx = document.getElementById('xtxt');
+  if (tx) tx.addEventListener('click', () => {
+    const ws = [...document.querySelectorAll('tr[data-w]')].map(t => t.dataset.w);
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([ws.join('\n') + '\n'], { type: 'text/plain' })); a.download = 'my-list.txt'; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

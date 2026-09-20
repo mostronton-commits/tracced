@@ -24,6 +24,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from ..early import assistant as assistant_mod, pipeline, report, scope, tags, window
 from ..early.store import TradeStore
+from . import accounts as acct_mod
 from . import chart
 from .jobs import JobQueue
 
@@ -32,6 +33,8 @@ HERE = Path(__file__).resolve().parent
 HOUR = 3_600_000
 MINT_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 COOKIE = "early_web"
+ACCT_COOKIE = "early_acct"          # вхід гаманцем: окрема кука, незалежна від пароля бети
+ACCT_DAYS = 30
 
 env = Environment(loader=FileSystemLoader(str(HERE / "templates")),
                   autoescape=select_autoescape(["html"]))
@@ -158,6 +161,9 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["runs"] = Throttle(max_fails=int(s.get("runs_per_hour", 20)), window_s=3600, block_s=3600)
     app["st_lock"] = threading.Lock()
     app["overview_cache"] = {}
+    app["accounts"] = acct_mod.AccountStore(Path(out_dir).parent / "accounts")   # поруч з web/ і demo/ у output/early
+    app["nonces"] = acct_mod.NonceStore()
+    app["auth_throttle"] = Throttle(max_fails=10, window_s=300, block_s=600)
     _lock_st(st, app["st_lock"])
 
     def runner(job):
@@ -183,6 +189,17 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_get("/health", health)
     app.router.add_get("/login", login)
     app.router.add_post("/login", login)
+    app.router.add_post("/auth/nonce", auth_nonce)
+    app.router.add_post("/auth/verify", auth_verify)
+    app.router.add_post("/auth/logout", auth_logout)
+    app.router.add_get("/me", me_page)
+    app.router.add_get("/me.json", me_json)
+    app.router.add_get("/me/wallets.csv", me_wallets_csv)
+    app.router.add_post("/me/wallets", me_add_wallets)
+    app.router.add_post("/me/wallets/remove", me_remove_wallet)
+    app.router.add_post("/me/wallets/note", me_note)
+    app.router.add_post("/me/analyses", me_add_analysis)
+    app.router.add_post("/me/analyses/remove", me_remove_analysis)
     app.router.add_static("/static", str(HERE / "static"))
     return app
 
@@ -283,7 +300,7 @@ def _wait_text(s):
     return f"Too many attempts. Try again in {max(1, round(s / 60))} min." if s >= 60 else f"Too many attempts. Try again in {s} s."
 
 
-ALWAYS_OPEN = ("/login", "/health", "/static", "/project")
+ALWAYS_OPEN = ("/login", "/health", "/static", "/project", "/auth/", "/me")   # /me* — акаунт гаманця, грошей не витрачає
 
 
 async def _is_open(request):
@@ -322,6 +339,7 @@ async def _is_open(request):
 
 @web.middleware
 async def auth_mw(request, handler):
+    request["acct"] = _acct(request)                    # хто увійшов гаманцем (або None) — до перевірки пароля
     pw = request.app["password"]
     if not pw or await _is_open(request):
         return await handler(request)
@@ -350,10 +368,277 @@ async def login(request):
     return render("login.html", request, error=_wait_text(wait) if wait else None)
 
 
+# ───────────────────────── wallet sign-in and the account ─────────────────────────
+
+def _acct_secret():
+    return os.getenv("WEB_SECRET") or _RUNTIME_SECRET
+
+
+def _acct(request):
+    return acct_mod.read_acct(_acct_secret(), request.cookies.get(ACCT_COOKIE))
+
+
+def _short(pk):
+    return f"{pk[:4]}…{pk[-4:]}"
+
+
+def _expected_domain(request):
+    """Домен у тексті для підпису: Caddy передає Host як є, тож зазвичай це request.host."""
+    return os.getenv("WEB_DOMAIN") or request.host
+
+
+def _same_origin(request):
+    """POST з іншого сайту не приймаємо: кука йде з браузером, а чужа сторінка не має цієї перевірки."""
+    from urllib.parse import urlsplit
+    src = request.headers.get("Origin") or request.headers.get("Referer") or ""
+    return bool(src) and urlsplit(src).netloc == request.host
+
+
+def _jerr(message, status=400):
+    return web.json_response({"error": message}, status=status)
+
+
+async def _json_body(request, limit=16_384):
+    """Тіло як словник, або None (завелике, не JSON, не об'єкт)."""
+    raw = await request.read()
+    if len(raw) > limit:
+        return None
+    try:
+        body = json.loads(raw or b"{}")
+    except ValueError:
+        return None
+    return body if isinstance(body, dict) else None
+
+
+def _acct_route(fn):
+    """Маршрут акаунта: лише з цього сайту (для POST) і лише з кукою гаманця → fn(request, pubkey)."""
+    async def wrapped(request):
+        if request.method == "POST" and not _same_origin(request):
+            return _jerr("Requests must come from this site.", 403)
+        pk = request.get("acct")
+        if not pk:
+            return _jerr("Sign in with your wallet first.", 401)
+        return await fn(request, pk)
+    wrapped.__name__ = fn.__name__
+    return wrapped
+
+
+async def auth_nonce(request):
+    """Одноразовий код і поля, з яких браузер збирає текст для підпису."""
+    if not _same_origin(request):
+        return _jerr("Requests must come from this site.", 403)
+    now = time.time()
+    wait = request.app["auth_throttle"].wait_s(_client_ip(request), now)
+    if wait:
+        return _jerr(_wait_text(wait), 429)
+    return web.json_response({"nonce": request.app["nonces"].issue(now), "domain": _expected_domain(request),
+                              "issued_at": acct_mod.issued_at(now), "statement": acct_mod.STATEMENT},
+                             headers={"Cache-Control": "no-store"})
+
+
+def _signin_problem(app, request, pubkey, signature, message, now):
+    """Чому вхід не приймаємо, або None. Дешеві перевірки першими; nonce спалюється до перевірки підпису."""
+    try:
+        m = acct_mod.parse_message(message)
+    except ValueError:
+        return "The signed message has an unexpected format."
+    if m["domain"] != _expected_domain(request):
+        return "The message was made for another site."
+    if not acct_mod.valid_pubkey(pubkey) or m["pubkey"] != pubkey:
+        return "The wallet address does not match the message."
+    if not app["nonces"].consume(m["nonce"], now):
+        return "This sign-in request expired. Try again."
+    iat = acct_mod.parse_issued_at(m["issued_at"])
+    if iat is None or abs(now - iat) > 600:
+        return "This sign-in request expired. Try again."
+    if not acct_mod.verify_signature(pubkey, message, signature):
+        return "The signature does not match the wallet."
+    return None
+
+
+async def auth_verify(request):
+    """Підпис справжній → кука акаунта на ACCT_DAYS; перший вхід створює акаунт."""
+    app = request.app
+    if not _same_origin(request):
+        return _jerr("Requests must come from this site.", 403)
+    ip, now, th = _client_ip(request), time.time(), app["auth_throttle"]
+    wait = th.wait_s(ip, now)
+    if wait:
+        return _jerr(_wait_text(wait), 429)
+    body = await _json_body(request)
+    if body is None:
+        return _jerr("Bad request body.")
+    pubkey, sig, msg = str(body.get("pubkey") or ""), str(body.get("signature") or ""), str(body.get("message") or "")
+    why = _signin_problem(app, request, pubkey, sig, msg, now)
+    if why:
+        th.miss(ip, now)
+        return _jerr(why, 401)
+    th.hit(ip)
+    app["accounts"].touch(pubkey)
+    resp = web.json_response({"ok": True, "pubkey": pubkey, "short": _short(pubkey)})
+    resp.set_cookie(ACCT_COOKIE, acct_mod.sign_acct(_acct_secret(), pubkey, int(now) + ACCT_DAYS * 86400),
+                    httponly=True, samesite="Lax", secure=True, max_age=ACCT_DAYS * 86400)
+    return resp
+
+
+async def auth_logout(request):
+    if not _same_origin(request):
+        return _jerr("Requests must come from this site.", 403)
+    resp = web.json_response({"ok": True})
+    resp.del_cookie(ACCT_COOKIE)
+    return resp
+
+
+def _demo_job_ids(app):
+    demo = _demo(app)
+    return {r["job"] for r in demo["ranges"]} if demo else set()
+
+
+def _job_visible(request, job):
+    """Чи має цей запит право на результат: демо — усім, решта — за паролем бети (якщо він заданий)."""
+    if not job or job.status != "done" or not job.result:
+        return False
+    pw = request.app["password"]
+    return job.id in _demo_job_ids(request.app) or not pw or _valid(pw, request.cookies.get(COOKIE))
+
+
+def _wallet_snapshot(job, row):
+    """Що лягає в «мій список»: факти рядка на момент збереження + звідки він."""
+    return {"wallet": row["wallet"], "from_job": job.id, "mint": job.mint, "symbol": job.symbol,
+            "entry_mcap": row.get("entry_range_mcap") or row.get("entry_mcap_avg") or 0,
+            "invested_usd": row.get("invested_in_range_usd") or 0, "multiple": row.get("multiple") or 0,
+            "tags": list(row.get("tag_list") or [])}
+
+
+def _analysis_snapshot(job, rows, sm):
+    return {"mint": job.mint, "symbol": job.symbol, "t_from": job.t_from, "t_to": job.t_to,
+            "n": sm.get("n") or len(rows), "best": sm.get("best_multiple") or 0}
+
+
+async def _visible_job(request, body):
+    """Аналіз із тіла запиту, або відповідь-помилка."""
+    job = request.app["jobs"].get(str(body.get("job") or ""))
+    if not job or job.status != "done" or not job.result:
+        return None, _jerr("No result yet.", 404)
+    if not _job_visible(request, job):
+        return None, _jerr("This analysis is in private beta.", 403)
+    return job, None
+
+
+@_acct_route
+async def me_add_wallets(request, pk):
+    app = request.app
+    body = await _json_body(request)
+    if body is None:
+        return _jerr("Bad request body.")
+    job, err = await _visible_job(request, body)
+    if err:
+        return err
+    want = body.get("wallets")
+    if not isinstance(want, list) or not want:
+        return _jerr("Pick at least one wallet.")
+    if len(want) > acct_mod.MAX_WALLETS:
+        return _jerr(f"At most {acct_mod.MAX_WALLETS} wallets per request.")
+    rows, _ = _rows(job.result, "all", app["s"])
+    by = {r["wallet"]: r for r in rows}
+    items = [_wallet_snapshot(job, by[w]) for w in dict.fromkeys(str(w) for w in want) if w in by]
+    if not items:
+        return _jerr("Nothing to save from this analysis.")
+    try:
+        added, total = app["accounts"].add_wallets(pk, items)
+    except acct_mod.AccountError as e:
+        return _jerr(str(e))
+    return web.json_response({"ok": True, "added": added, "total": total, "skipped": len(want) - len(items),
+                              "wallets": [i["wallet"] for i in items]})
+
+
+@_acct_route
+async def me_remove_wallet(request, pk):
+    body = await _json_body(request)
+    if body is None:
+        return _jerr("Bad request body.")
+    return web.json_response({"ok": request.app["accounts"].remove_wallet(pk, str(body.get("wallet") or ""))})
+
+
+@_acct_route
+async def me_note(request, pk):
+    body = await _json_body(request)
+    if body is None:
+        return _jerr("Bad request body.")
+    ok = request.app["accounts"].set_note(pk, str(body.get("wallet") or ""), body.get("note"))
+    return web.json_response({"ok": ok}) if ok else _jerr("That wallet is not in your list.", 404)
+
+
+@_acct_route
+async def me_add_analysis(request, pk):
+    app = request.app
+    body = await _json_body(request)
+    if body is None:
+        return _jerr("Bad request body.")
+    job, err = await _visible_job(request, body)
+    if err:
+        return err
+    rows, sm = _rows(job.result, "all", app["s"])
+    try:
+        added, total = app["accounts"].add_analysis(pk, job.id, _analysis_snapshot(job, rows, sm))
+    except acct_mod.AccountError as e:
+        return _jerr(str(e))
+    return web.json_response({"ok": True, "added": added, "total": total})
+
+
+@_acct_route
+async def me_remove_analysis(request, pk):
+    body = await _json_body(request)
+    if body is None:
+        return _jerr("Bad request body.")
+    return web.json_response({"ok": request.app["accounts"].remove_analysis(pk, str(body.get("job") or ""))})
+
+
+def _account_view(app, pk):
+    a = app["accounts"].load(pk)
+    wallets = sorted((dict(v, wallet=w) for w, v in a["wallets"].items()), key=lambda v: v.get("added_ms") or 0, reverse=True)
+    analyses = sorted((dict(v, job=j) for j, v in a["analyses"].items()), key=lambda v: v.get("added_ms") or 0, reverse=True)
+    return a, wallets, analyses
+
+
+@_acct_route
+async def me_json(request, pk):
+    a = request.app["accounts"].load(pk)
+    return web.json_response({"pubkey": pk, "short": _short(pk), "wallets": a["wallets"], "analyses": a["analyses"]},
+                             headers={"Cache-Control": "no-store"})
+
+
+async def me_page(request):
+    pk, demo = request.get("acct"), _demo(request.app)
+    if not pk:
+        return render("me.html", request, wallets=[], analyses=[])
+    _, wallets, analyses = _account_view(request.app, pk)
+    return render("me.html", request, wallets=wallets, analyses=analyses, demo_mint=(demo or {}).get("mint"))
+
+
+ME_COLUMNS = ["wallet", "symbol", "mint", "from_job", "entry_mcap", "invested_usd", "multiple", "tags", "note", "added_utc"]
+
+
+@_acct_route
+async def me_wallets_csv(request, pk):
+    _, wallets, _ = _account_view(request.app, pk)
+    buf = io.StringIO()
+    w = csv.DictWriter(buf, fieldnames=ME_COLUMNS, extrasaction="ignore")
+    w.writeheader()
+    for r in wallets:
+        w.writerow({**{k: ("" if r.get(k) is None else r.get(k)) for k in ME_COLUMNS},
+                    "tags": "|".join(r.get("tags") or []), "added_utc": chart.fmt_dt(r.get("added_ms") or 0, year=True, utc=True)})
+    return web.Response(text=buf.getvalue(), content_type="text/csv",
+                        headers={"Content-Disposition": 'attachment; filename="my-list.csv"'})
+
+
 # ───────────────────────── helpers ─────────────────────────
 
 def render(name, request, status=200, **ctx):
     ctx.setdefault("request", request)
+    acct = request.get("acct") if request is not None else None
+    ctx.setdefault("acct", acct)
+    ctx.setdefault("acct_short", _short(acct) if acct else "")
     ctx.setdefault("umami_id", os.getenv("UMAMI_WEBSITE_ID", ""))   # аналітика вмикається лише там, де задано id
     html = env.get_template(name).render(**ctx)
     return web.Response(text=html, content_type="text/html", status=status)
@@ -533,8 +818,9 @@ async def index(request):
     if not example or example.status != "done":
         done = [j for j in jobs if j.status == "done" and j.result and j.result.get("rows")]
         example = min(done, key=lambda j: j.created_ms or 0) if done else None      # найстарший готовий = показовий
+    my_n = len(app["accounts"].load(request["acct"])["analyses"]) if request.get("acct") else 0
     return render("index.html", request, tokens=_by_token(jobs, example.id if example else None),
-                  totals=totals, sample=sample, bg_lines=lines)
+                  totals=totals, sample=sample, bg_lines=lines, my_n=my_n)
 
 
 async def how(request):

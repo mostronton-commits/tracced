@@ -76,13 +76,9 @@
         </div>
       </div>
       <div class="soonwrap" id="watch" hidden>
-        <button type="button" class="button holo" id="watchbtn"><span class="holo-in"><span class="holo-txt">Add to watchlist</span><span class="holo-n" id="watchn"></span></span></button>
-        <div class="soon-pop" id="soonpop" hidden>
-          <b>Coming next</b>
-          <span>Save the wallets you pick and get alerts when they trade.</span>
-          <span class="muted">Until then, use Export.</span>
-        </div>
+        <button type="button" class="button holo" id="watchbtn" title="Save the selected wallets to your list"><span class="holo-in"><span class="holo-txt">Save to my list</span><span class="holo-n" id="watchn"></span></span></button>
       </div>
+      <button type="button" class="ghost savejob" id="savejob" title="Keep this analysis under My analyses">☆ Save analysis</button>
       <div class="menu">
         <button type="button" class="ghost xbtn" data-menu>↓ Export</button>
         <div class="menu-panel r" hidden>
@@ -221,11 +217,44 @@
       tbody.addEventListener('change', e => { if (!e.target.classList.contains('pick')) return; const w = e.target.closest('tr').dataset.w; e.target.checked ? selected.add(w) : selected.delete(w); saveSel(); syncChecks(); });
       document.getElementById('pickall').addEventListener('change', e => { visible().forEach(r => e.target.checked ? selected.add(r.dataset.w) : selected.delete(r.dataset.w)); saveSel(); syncChecks(); });
 
-      // «Add to watchlist» — the next step, not built yet: an honest popover instead of a dead click
-      const pop = document.getElementById('soonpop'), wbtn = document.getElementById('watchbtn');
-      const showPop = v => { pop.hidden = !v; };
-      wbtn.addEventListener('click', () => showPop(pop.hidden)); wbtn.addEventListener('mouseenter', () => showPop(true));
-      watch.addEventListener('mouseleave', () => showPop(false));
+      // the account: selected wallets go to «My list», the whole analysis to «My analyses»; no wallet yet → sign in first, then continue
+      let acctOn = {{ 'true' if acct else 'false' }}, me = null;
+      const wbtn = document.getElementById('watchbtn'), sjob = document.getElementById('savejob');
+      function markSaved() {
+        const ws = (me && me.wallets) || {};
+        rows.forEach(r => {
+          const wid = r.querySelector('.wid'), has = wid.querySelector('.saved');
+          if (ws[r.dataset.w]) { if (!has) { const s = document.createElement('span'); s.className = 'saved'; s.title = 'In my list'; s.textContent = '★'; wid.appendChild(s); } }
+          else if (has) has.remove();
+        });
+        const saved = !!(me && me.analyses && me.analyses[jobId]);
+        sjob.textContent = saved ? '★ Saved' : '☆ Save analysis'; sjob.classList.toggle('on', saved); sjob.disabled = saved;
+      }
+      async function loadMe() {
+        if (!acctOn) return;
+        try { const r = await fetch('/me.json', { credentials: 'same-origin', cache: 'no-store' }); if (r.ok) me = await r.json(); } catch (e) {}
+        markSaved();
+      }
+      const withAcct = fn => acctOn ? fn() : EarlyWallet.open(() => { acctOn = true; loadMe().then(fn); });
+      const blank = () => { me = me || { wallets: {}, analyses: {} }; };
+      async function saveWallets() {
+        const ws = [...selected]; if (!ws.length) return;
+        try {
+          const d = await EarlyWallet.post('/me/wallets', { job: jobId, wallets: ws });
+          blank(); d.wallets.forEach(w => { me.wallets[w] = me.wallets[w] || {}; }); markSaved();
+          EarlyUI.toast((d.added ? d.added + (d.added === 1 ? ' wallet saved' : ' wallets saved') : 'Already in your list') + ' · <a href="/me#list">My list →</a>');
+        } catch (e) { EarlyUI.toast(e.message); }
+      }
+      async function saveJob() {
+        try {
+          const d = await EarlyWallet.post('/me/analyses', { job: jobId });
+          blank(); me.analyses[jobId] = true; markSaved();
+          EarlyUI.toast((d.added ? 'Analysis saved' : 'Already saved') + ' · <a href="/me#analyses">My analyses →</a>');
+        } catch (e) { EarlyUI.toast(e.message); }
+      }
+      wbtn.addEventListener('click', () => withAcct(saveWallets));
+      sjob.addEventListener('click', () => withAcct(saveJob));
+      loadMe();
 
       let sortKey = null, sortDir = -1;
       table.tHead.addEventListener('click', e => {

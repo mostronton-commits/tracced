@@ -42,7 +42,12 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => { document.querySelectorAll('[data-count]').forEach(countUp); menus(); });
-  window.EarlyUI = { countUp, fmtShort, FMT };
+  /* one toast at the bottom; html is ours (server messages and our own links), never user text */
+  function toast(html, ms) {
+    let t = document.querySelector('.toast'); if (!t) { t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
+    t.innerHTML = html; t.hidden = false; clearTimeout(t._h); t._h = setTimeout(() => { t.hidden = true; }, ms || 4000);
+  }
+  window.EarlyUI = { countUp, fmtShort, FMT, toast };
 })();
 
 /* home: the address field "types" a made-up base58 address until the user touches it */

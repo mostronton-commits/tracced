@@ -9,6 +9,7 @@
 {% if umami_id %}<script defer src="https://cloud.umami.is/script.js" data-website-id="{{ umami_id }}"></script>{% endif %}
 <link rel="stylesheet" href="/static/style.css?v={{ v }}">
 <script src="/static/ui.js?v={{ v }}"></script>
+<script src="/static/wallet.js?v={{ v }}" defer></script>
 <script>
 /* time zone preference: 'utc' (default) or 'local'; applied to every .dtc[data-ms] on the page and to the chart */
 window.EarlyTZ = (function () {
@@ -36,11 +37,13 @@ window.EarlyTZ = (function () {
   <form method="get" action="/token" class="topsearch">
     <input type="text" name="mint" placeholder="Token address" pattern="[1-9A-HJ-NP-Za-km-z]{32,44}" spellcheck="false" autocomplete="off" required>
   </form>
+  <div class="right acct-slot">{% include "_acct.html" %}</div>
 </div></header>{% endblock %}
 {% block full %}{% endblock %}
 <main class="{% block main_class %}{% endblock %}">
 {% block body %}{% endblock %}
 </main>
+{% include "_wallet.html" %}
 <footer class="foot"><div class="foot-in">
   <div class="foot-l"><b>tracced</b> <span class="muted mono">every wallet on the record</span></div>
   <div class="foot-c mono">◎ Built on Solana</div>
