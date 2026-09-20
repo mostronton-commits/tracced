@@ -1,0 +1,24 @@
+<form class="waitlist" id="waitlist" autocomplete="on">
+  <div class="wl-lead"><b>Analyze your own tokens.</b> <span class="muted">Live analyses are in private beta. Leave an e-mail and you're in line.</span></div>
+  <div class="row wl-row">
+    <input type="email" name="email" placeholder="you@example.com" required autocomplete="email" aria-label="E-mail">
+    <input type="text" name="note" placeholder="What do you trade? (optional)" maxlength="120" aria-label="What do you trade">
+    <button type="submit" class="primary">Join the waitlist</button>
+  </div>
+  <p class="muted small wl-state" hidden></p>
+</form>
+<script>
+(function () {
+  const f = document.getElementById('waitlist'); if (!f) return;
+  const st = f.querySelector('.wl-state');
+  f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const b = f.querySelector('button'); b.disabled = true;
+    try {
+      const d = await EarlyWallet.post('/waitlist', { email: f.email.value, note: f.note.value });
+      f.querySelector('.wl-row').hidden = true; st.hidden = false;
+      st.textContent = d.added ? "You're on the list. We'll write when your access is ready." : "This e-mail is already on the list.";
+    } catch (x) { st.hidden = false; st.textContent = x.message || 'Something went wrong.'; b.disabled = false; }
+  });
+})();
+</script>

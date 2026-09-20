@@ -767,6 +767,57 @@ if AioHTTPTestCase:
             self.assertIn("Sign out", html)
             self.assertNotIn("My analyses (", html)                                  # no recent analyses → no link to count
 
+        async def test_waitlist(self):
+            o = {"Origin": self.origin}
+            self.app["waitlist_throttle"] = Throttle(max_fails=5, window_s=86400, block_s=86400)
+            self.app["password"], self.app["throttle"] = "test-only-not-a-real-password", Throttle()
+            try:
+                r = await self.client.post("/waitlist", json={"email": " Ann@Example.com ", "note": "memecoins, 2 years"}, headers=o)
+                self.assertEqual(r.status, 200, await r.text())                # відкрито і за паролем
+                self.assertTrue((await r.json())["added"])
+            finally:
+                self.app["password"], self.app["throttle"] = "", Throttle()
+            r = await self.client.post("/waitlist", json={"email": "ann@example.com"}, headers=o)
+            self.assertFalse((await r.json())["added"])                        # та сама адреса — без дубля
+            r = await self.client.post("/waitlist", json={"email": "nope"}, headers=o)
+            self.assertEqual(r.status, 400)
+            r = await self.client.post("/waitlist", json={"email": "x@y.io"})
+            self.assertEqual(r.status, 403)                                    # без Origin
+            for i in range(3):
+                r = await self.client.post("/waitlist", json={"email": f"t{i}@example.com"}, headers=o)
+                self.assertEqual(r.status, 200)
+            r = await self.client.post("/waitlist", json={"email": "one-too-many@example.com"}, headers=o)
+            self.assertEqual(r.status, 429)                                    # 5 записів на добу з адреси
+            self.assertEqual(self.app["waitlist"].count(), 4)
+            with open(f"{self.tmp.name}/waitlist.jsonl") as f:
+                first = json.loads(f.readline())
+            self.assertEqual((first["email"], first["note"]), ("ann@example.com", "memecoins, 2 years"))
+            html = await (await self.client.get("/login")).text()
+            self.assertIn('id="waitlist"', html)
+            self.assertIn("Join the waitlist", html)
+            self.assertIsNone(CYRILLIC.search(html))
+            html = await (await self.client.get("/")).text()
+            self.assertIn('id="waitlist"', html)
+            r_admin, pk_admin, _, _ = await self._sign_in()
+            self.app["admins"] = {pk_admin}
+            html = await (await self.client.get("/admin", headers=self._hdr(r_admin))).text()
+            self.assertIn("ann@example.com", html)
+            self.assertIn("memecoins, 2 years", html)
+            self.assertIn("joined the waitlist", html)
+            self.assertIsNone(CYRILLIC.search(html))
+            self.app["admins"] = set()
+
+        async def test_demo_ranges_are_fixed(self):
+            seed_demo(self.tmp.name, self.app)
+            html = await (await self.client.get(f"/token?mint={MINT}")).text()
+            self.assertIn("Recorded ranges are fixed here", html)
+            self.assertIn('href="/login#waitlist"', html)
+            self.assertNotIn('id="add"', html)                                 # no new ranges on the demo
+            self.assertNotIn('id="reset"', html)
+            self.assertIsNone(CYRILLIC.search(html))
+            html = await (await self.client.get(f"/token?mint={OTHER_MINT}")).text()
+            self.assertIn('id="add"', html)                                    # a live token keeps the full editor
+
         async def test_admin_sees_accounts_and_actions(self):
             seed_demo(self.tmp.name, self.app)
             self.app["admins"] = set()                                           # a local .env may set ADMIN_WALLETS

@@ -27,6 +27,7 @@ from ..early.store import TradeStore
 from . import accounts as acct_mod
 from . import chart
 from . import replay
+from . import waitlist as waitlist_mod
 from .jobs import JobQueue
 
 log = logging.getLogger("early.web")
@@ -169,6 +170,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["events"] = acct_mod.EventLog(Path(out_dir).parent / "accounts" / "_events.jsonl")
     app["admins"] = {w.strip() for w in os.getenv("ADMIN_WALLETS", "").split(",") if w.strip()}   # чиї гаманці бачать /admin
     app["auth_throttle"] = Throttle(max_fails=10, window_s=300, block_s=600)
+    app["waitlist"] = waitlist_mod.Waitlist(Path(out_dir).parent / "waitlist.jsonl")
+    app["waitlist_throttle"] = Throttle(max_fails=5, window_s=86400, block_s=86400)    # 5 записів на добу з однієї адреси
     _lock_st(st, app["st_lock"])
 
     def runner(job):
@@ -206,6 +209,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_post("/me/analyses", me_add_analysis)
     app.router.add_post("/me/analyses/remove", me_remove_analysis)
     app.router.add_get("/admin", admin_page)
+    app.router.add_post("/waitlist", waitlist_add)
     app.router.add_static("/static", str(HERE / "static"))
     return app
 
@@ -306,7 +310,7 @@ def _wait_text(s):
     return f"Too many attempts. Try again in {max(1, round(s / 60))} min." if s >= 60 else f"Too many attempts. Try again in {s} s."
 
 
-ALWAYS_OPEN = ("/login", "/health", "/static", "/project", "/auth/", "/me")   # /me* — акаунт гаманця, грошей не витрачає
+ALWAYS_OPEN = ("/login", "/health", "/static", "/project", "/auth/", "/me", "/waitlist")   # /me*, /waitlist — акаунт і лист, грошей не витрачають
 
 
 async def _is_open(request):
@@ -636,6 +640,27 @@ async def me_page(request):
     return render("me.html", request, wallets=wallets, analyses=analyses, demo_mint=(demo or {}).get("mint"))
 
 
+async def waitlist_add(request):
+    """E-mail у лист очікування: лише з цього сайту, з добовим лімітом на адресу."""
+    app = request.app
+    if not _same_origin(request):
+        return _jerr("Requests must come from this site.", 403)
+    ip, now, th = _client_ip(request), time.time(), app["waitlist_throttle"]
+    if th.wait_s(ip, now):
+        return _jerr("Too many sign-ups from this address today.", 429)
+    body = await _json_body(request)
+    if body is None:
+        return _jerr("Bad request body.")
+    email = str(body.get("email") or "").strip()
+    if not waitlist_mod.EMAIL_RE.match(email.lower()):
+        return _jerr("That does not look like an e-mail.")
+    pk = request.get("acct") or ""
+    added = app["waitlist"].add(email, body.get("note"), pk)
+    th.miss(ip, now)
+    app["events"].add(pk or "guest", "waitlist", added=added)
+    return web.json_response({"ok": True, "added": added})
+
+
 async def admin_page(request):
     """Хто підключився і що робив. Лише для гаманців з ADMIN_WALLETS; без них сторінки не існує."""
     app = request.app
@@ -651,7 +676,8 @@ async def admin_page(request):
               "active_7d": sum(1 for a in accounts if (a.get("last_seen_ms") or 0) >= week),
               "wallets": sum(len(a.get("wallets") or {}) for a in accounts),
               "analyses": sum(len(a.get("analyses") or {}) for a in accounts)}
-    return render("admin.html", request, accounts=accounts, totals=totals, events=app["events"].tail(100), now=now)
+    return render("admin.html", request, accounts=accounts, totals=totals, events=app["events"].tail(100), now=now,
+                  waitlist=app["waitlist"].tail(50), waitlist_n=app["waitlist"].count())
 
 
 ME_COLUMNS = ["wallet", "symbol", "mint", "from_job", "entry_mcap", "invested_usd", "multiple", "tags", "note", "added_utc"]

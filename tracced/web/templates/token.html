@@ -41,10 +41,11 @@
     </form>
   </template>
   <div class="rows" id="rows"></div>
-  <div class="row rowsfoot">
+  <div class="row rowsfoot">{% if not is_demo %}
     <button type="button" class="ghost" id="add">+ Add range</button>
     <button type="button" class="ghost" id="reset" title="Back to the detected pumps">Reset</button>
-    <span class="muted small">Range up to {{ s.max_window_hours }} h</span>
+    <span class="muted small">Range up to {{ s.max_window_hours }} h</span>{% else %}
+    <span class="muted small">Recorded ranges are fixed here. Want your own token? <a href="/login#waitlist">Join the waitlist →</a></span>{% endif %}
   </div>
 </section>
 
@@ -56,6 +57,8 @@
   const JOBS_BY_WINDOW = new Map(); JOBS.forEach(id => JOBS_BY_WINDOW.set(id.split('_x')[0], id));   // older results still carry a horizon suffix
   const DEMO = root.dataset.demo === '1', RAN = 'early:ran:';   // demo: the result opens only after this browser pressed Analyze on that range
   if (root.dataset.bounced) EarlyUI.toast(root.dataset.bounced, 6000);
+  let nudged = 0;                                                // demo: bounds are fixed; one reminder per few seconds, never a dead click
+  function nudge() { const t = Date.now(); if (t - nudged < 4000) return; nudged = t; EarlyUI.toast('Demo ranges are fixed. Analyze any token in the private beta — <a href="/login#waitlist">join the waitlist →</a>', 6000); }
   const ran = id => { try { return !!localStorage.getItem(RAN + id); } catch (e) { return true; } };
   const rowsEl = document.getElementById('rows'), tpl = document.getElementById('row-tpl');
   const pad = n => String(n).padStart(2, '0');
@@ -86,6 +89,7 @@
     windows: winList(), selected: state.sel,
     onSelect: i => { state.sel = i; save(); render(); focusSel(); },
     onClick: ms => {
+      if (DEMO) { nudge(); return; }
       const r = state.rows[state.sel], f = rowsEl.querySelector('.wrow.sel');
       if (step === 0) { r.from = fmt(ms); r.to = ''; step = 1; ch.setMarker(ms); }
       else { r.to = fmt(ms); if (parse(r.to) <= parse(r.from)) { const t = r.from; r.from = r.to; r.to = t; } step = 0; ch.setMarker(null); }
@@ -108,6 +112,7 @@
       f.querySelector('[name=from]').value = r.from || '';
       f.querySelector('[name=to]').value = r.to || '';
       if (i === state.sel) f.classList.add('sel');
+      if (DEMO) { f.querySelectorAll('input[type=datetime-local]').forEach(x => { x.readOnly = true; x.tabIndex = -1; }); f.querySelector('.label').contentEditable = 'false'; f.querySelector('.del').hidden = true; }
       refreshLink(f, r);
       rowsEl.appendChild(f);
     });
@@ -128,9 +133,11 @@
     if (e.target.classList.contains('del')) { e.preventDefault(); state.rows.splice(i, 1); if (!state.rows.length) state.rows.push({ n: 1, label: 'Range 1', from: '', to: '' }); state.sel = Math.min(state.sel, state.rows.length - 1); save(); render(); focusSel(); return; }
     if (i !== state.sel && !e.target.matches('input, button, a, select, .label')) { state.sel = i; save(); render(); focusSel(); }
   });
+  rowsEl.addEventListener('mousedown', e => { if (DEMO && e.target.matches('input[type=datetime-local], .label')) { e.preventDefault(); nudge(); } });
   rowsEl.addEventListener('focusin', e => { const f = e.target.closest('.wrow'); if (f && +f.dataset.i !== state.sel) { const name = e.target.name; state.sel = +f.dataset.i; save(); render(); focusSel(); const nf = rowsEl.querySelector('.wrow.sel [name=' + name + ']'); if (nf) nf.focus(); } });
-  document.getElementById('add').addEventListener('click', () => { state.rows.push({ n: null, label: 'Range ' + (state.rows.length + 1), from: '', to: '' }); state.sel = state.rows.length - 1; save(); render(); });
-  document.getElementById('reset').addEventListener('click', () => { try { localStorage.removeItem(KEY); } catch (e) {} state = { rows: INITIAL.map(r => ({...r})), sel: 0 }; render(); focusSel(); });
+  const addBtn = document.getElementById('add'), resetBtn = document.getElementById('reset');
+  if (addBtn) addBtn.addEventListener('click', () => { state.rows.push({ n: null, label: 'Range ' + (state.rows.length + 1), from: '', to: '' }); state.sel = state.rows.length - 1; save(); render(); });
+  if (resetBtn) resetBtn.addEventListener('click', () => { try { localStorage.removeItem(KEY); } catch (e) {} state = { rows: INITIAL.map(r => ({...r})), sel: 0 }; render(); focusSel(); });
 
   render();
   ch.init().then(() => {

@@ -36,6 +36,7 @@ Saving from the demo result needs no password, so anyone can try the account.
 
 The owner sees who connected and what they did at `/admin`: set `ADMIN_WALLETS` to your own wallet address and connect it.
 Accounts are JSON files under `output/early/accounts/`, actions go to `_events.jsonl` next to them; nothing leaves the server.
+The waitlist (e-mails from the home and sign-in pages) is `output/early/waitlist.jsonl`, also visible at `/admin`.
 
 ## Run it
 
