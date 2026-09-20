@@ -152,11 +152,12 @@
       <div class="drawer-head"><div><b>AI agent</b> <span class="muted small">wallets to watch</span></div><button type="button" class="ghost x" id="aclose" title="Close">×</button></div>
       <div class="apanel-body">
         <label class="muted small" for="amethod">Your method</label>
+        <div class="row achips">{% for name, text in presets.items() %}<button type="button" class="chip apreset" data-method="{{ text }}" title="Use this method">{{ name }}</button>{% endfor %}</div>
         <textarea id="amethod" rows="5" spellcheck="false">{{ default_method }}</textarea>
         <div class="row"><button type="button" class="primary" id="arun">Ask</button><span class="muted small" id="astat"></span><button type="button" class="ghost" id="areset" title="Restore the default method">Reset</button></div>
         <ol class="apicks" id="apicks"></ol>
-        <div class="row" id="aact" hidden><button type="button" id="aselect">Select these</button><span class="muted small" id="anote"></span></div>
-        <p class="muted small">Reads only this table and your method. No predictions. Verify before acting.</p>
+        <div class="row" id="aact" hidden><button type="button" id="aselect">Select these</button><button type="button" id="awatch" title="Add every pick to your watchlist">+ Watchlist</button><span class="muted small" id="anote"></span></div>
+        <p class="muted small">Reads only this table and your method. No predictions. Verify before acting. <span id="aleft"></span></p>
       </div>
     </aside>
     <aside class="drawer" id="drawer" hidden>
@@ -409,6 +410,7 @@
           if (!r.ok) { astat.textContent = d.error || ('error ' + r.status); return; }
           lastPicks = d.picks || [];
           astat.textContent = lastPicks.length + ' picks' + (d.cached ? ' (cached)' : '') + ' · ' + (d.model || '');
+          if (d.left != null) document.getElementById('aleft').textContent = d.left + (d.left === 1 ? ' ask' : ' asks') + ' left today.';
           lastPicks.forEach(p => { const row = rows.find(x => x.dataset.w === p.wallet), li = document.createElement('li');
             li.innerHTML = '<button type="button" class="wname mono" data-w="' + p.wallet + '">' + short(p.wallet) + '</button>' + (row ? ' <span class="mono small">' + ch.fmtMcap(+row.dataset.entry) + ' → ' + (+row.dataset.exitcap ? ch.fmtMcap(+row.dataset.exitcap) : '—') + ' · ' + money(+row.dataset.real) + '</span>' : '') + '<div class="areason">' + p.reason.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])) + '</div>';
             apicks.appendChild(li); });
@@ -417,6 +419,8 @@
       });
       apicks.addEventListener('click', e => { const b = e.target.closest('.wname'); if (b) toggleWallet(b.dataset.w, true); });
       document.getElementById('aselect').addEventListener('click', () => { lastPicks.forEach(p => selected.add(p.wallet)); saveSel(); syncChecks(); });
+      document.getElementById('awatch').addEventListener('click', () => { lastPicks.forEach(p => selected.add(p.wallet)); saveSel(); syncChecks(); withAcct(saveWallets); });
+      apanel.querySelectorAll('.apreset').forEach(b => b.addEventListener('click', () => { amethod.value = b.dataset.method; try { localStorage.setItem(MKEY, amethod.value); } catch (e) {} apanel.querySelectorAll('.apreset').forEach(x => x.classList.toggle('on', x === b)); }));
 
       // background wallet-age check → `fresh` tags appear without a reload; filters re-apply each time
       const en = document.getElementById('enrich');

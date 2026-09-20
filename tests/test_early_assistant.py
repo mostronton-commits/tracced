@@ -70,6 +70,44 @@ class TestAssistant(unittest.TestCase):
     def test_defaults(self):
         a = Assistant("k")
         self.assertEqual((a.url, a.model), (assistant.DEFAULT_URL, assistant.DEFAULT_MODEL))
+        self.assertIn("openrouter.ai", a.url)
+
+    def test_payload_for_openrouter(self):
+        post = FakePost([json.dumps({"picks": [{"wallet": "W1", "reason": "ok"}]})])
+        a = Assistant("k", post=post, model="m", fallbacks="f1, f2, m")
+        a.ask(ROWS, "")
+        p = post.payloads[0]
+        self.assertEqual((p["max_tokens"], p["response_format"], p["models"]), (assistant.MAX_TOKENS, {"type": "json_object"}, ["m", "f1", "f2"]))
+        self.assertNotIn("reasoning", p)
+        self.assertEqual(a.calls, 1)
+
+    def test_empty_answer_retries_without_reasoning(self):
+        post = FakePost(["", json.dumps({"picks": [{"wallet": "W2", "reason": "bot"}]})])
+        a = Assistant("k", post=post)
+        out = a.ask(ROWS, "")
+        self.assertEqual(out["picks"][0]["wallet"], "W2")
+        self.assertEqual(post.payloads[1]["reasoning"], {"enabled": False})
+        self.assertEqual(a.calls, 2)
+
+    def test_http_400_retries_without_response_format(self):
+        err = urllib.error.HTTPError("u", 400, "x", {}, None)
+        post = FakePost([err, json.dumps({"picks": [{"wallet": "W1", "reason": "ok"}]})])
+        a = Assistant("k", post=post)
+        a.ask(ROWS, "")
+        self.assertIn("response_format", post.payloads[0])
+        self.assertNotIn("response_format", post.payloads[1])
+
+    def test_rate_limit_is_explained(self):
+        err = urllib.error.HTTPError("u", 429, "x", {}, None)
+        with self.assertRaises(AssistantError) as cm:
+            Assistant("k", post=FakePost([err])).ask(ROWS, "")
+        self.assertIn("rate-limited", str(cm.exception))
+
+    def test_at_most_three_calls(self):
+        post = FakePost(["", "nope", "still nope", "never asked"])
+        with self.assertRaises(AssistantError):
+            Assistant("k", post=post).ask(ROWS, "")
+        self.assertEqual(len(post.payloads), 3)
 
 
 if __name__ == "__main__":

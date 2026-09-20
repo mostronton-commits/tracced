@@ -31,7 +31,8 @@ def main():
                          pace_s=float(s.get("rpc_pace_s", 0.5)))
     assistant = None
     if os.getenv("ASSISTANT_KEY"):
-        assistant = Assistant(os.getenv("ASSISTANT_KEY"), url=os.getenv("ASSISTANT_URL"), model=os.getenv("ASSISTANT_MODEL"))
+        assistant = Assistant(os.getenv("ASSISTANT_KEY"), url=os.getenv("ASSISTANT_URL"), model=os.getenv("ASSISTANT_MODEL"),
+                              fallbacks=os.getenv("ASSISTANT_FALLBACKS"))
         logging.getLogger("early.web").info("assistant: %s @ %s", assistant.model, assistant.url)
     app = create_app(st, s, cfg, password=os.getenv("WEB_PASSWORD", ""), ages=ages, assistant=assistant)
     port = int(os.getenv("WEB_PORT", "8095"))

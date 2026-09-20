@@ -171,6 +171,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["events"] = acct_mod.EventLog(Path(out_dir).parent / "accounts" / "_events.jsonl")
     app["admins"] = {w.strip() for w in os.getenv("ADMIN_WALLETS", "").split(",") if w.strip()}   # чиї гаманці бачать /admin
     app["auth_throttle"] = Throttle(max_fails=10, window_s=300, block_s=600)
+    app["assistant_daily"] = DailyCount()
     app["waitlist"] = waitlist_mod.Waitlist(Path(out_dir).parent / "waitlist.jsonl")
     app["waitlist_throttle"] = Throttle(max_fails=5, window_s=86400, block_s=86400)    # 5 записів на добу з однієї адреси
     _lock_st(st, app["st_lock"])
@@ -301,6 +302,31 @@ class Throttle:
         self.fails.pop(key, None)
 
 
+class DailyCount:
+    """Скільки разів ключ (гаманець, IP або «global») щось зробив сьогодні; скидається опівночі UTC. У пам'яті."""
+
+    def __init__(self):
+        self.n = {}                           # key -> [day, count]
+
+    def take(self, key, cap, now=None):
+        """True і +1, якщо стеля ще не досягнута; False — коли досягнута."""
+        day = int((time.time() if now is None else now) // 86400)
+        rec = self.n.get(key)
+        if not rec or rec[0] != day:
+            rec = [day, 0]
+        if rec[1] >= int(cap):
+            self.n[key] = rec
+            return False
+        rec[1] += 1
+        self.n[key] = rec
+        return True
+
+    def left(self, key, cap, now=None):
+        day = int((time.time() if now is None else now) // 86400)
+        rec = self.n.get(key)
+        return int(cap) - (rec[1] if rec and rec[0] == day else 0)
+
+
 def _client_ip(request):
     """The address the request really came from. Behind our proxy that is the last hop it added."""
     xff = request.headers.get("X-Forwarded-For", "")
@@ -338,8 +364,8 @@ async def _is_open(request):
         return (await request.post()).get("mint") == mint     # тіло кешується, обробник прочитає його ще раз
     if request.path.startswith("/job/"):
         rest = request.path[len("/job/"):]
-        if "/" in rest:
-            return False                                       # /job/<id>/assistant і будь-що глибше — по паролю
+        if "/" in rest:                                        # /job/<id>/assistant відкритий лише для демо; глибше — по паролю
+            return request.method == "POST" and rest.endswith("/assistant") and rest[: -len("/assistant")] in jobs
         for suffix in (".state.json", ".enrich.json", ".csv", ".json"):
             if rest.endswith(suffix):
                 rest = rest[: -len(suffix)]
@@ -1000,7 +1026,7 @@ async def job_page(request):
         result = None
     return render("job.html", request, job=job, jstatus=status, result=result, s=app["s"], back=_back_link(job),
                   sm=sm, TAGS=tags.DEFS, created=created or (job.t_from - 24 * HOUR), now=int(time.time() * 1000),
-                  cov_text=report.coverage_text((result or {}).get("coverage")), default_method=assistant_mod.DEFAULT_METHOD,
+                  cov_text=report.coverage_text((result or {}).get("coverage")), default_method=assistant_mod.DEFAULT_METHOD, presets=assistant_mod.PRESETS,
                   assistant_on=app.get("assistant") is not None,
                   scope=sc, scopes=scope.scopes_for(app["s"]), has_scopes=bool((result or {}).get("wallet_trades")),
                   scope_end=(scope.end_for(sc, job.t_to, (result or {}).get("window", {}).get("end", 0)) if result else None))
@@ -1059,10 +1085,11 @@ async def job_assistant(request):
     if a is None:
         return web.json_response({"error": "The assistant is not configured on this server: set ASSISTANT_KEY "
                                            "(and optionally ASSISTANT_URL, ASSISTANT_MODEL) in .env."}, status=503)
-    try:
-        body = await request.json()
-    except Exception:  # noqa: BLE001
-        body = {}
+    if not _same_origin(request):
+        return _jerr("Requests must come from this site.", 403)
+    body = await _json_body(request)
+    if body is None:
+        return _jerr("Bad request body.")
     method = str(body.get("method") or "")[:2000]
     want = body.get("wallets")
     sc = body.get("scope") if body.get("scope") in scope.scopes_for(app["s"]) else "all"
@@ -1077,12 +1104,22 @@ async def job_assistant(request):
     cached = app["assistant_cache"].get(key)
     if cached:
         return web.json_response(dict(cached, cached=True))
+    # добові стелі: своя на гаманець або адресу, спільна на весь сайт (безкоштовний тариф моделі)
+    s, daily, pk = app["s"], app["assistant_daily"], request.get("acct")
+    who, cap = (f"acct:{pk}", s.get("assistant_per_day", 10)) if pk else (f"ip:{_client_ip(request)}", s.get("assistant_per_day_guest", 3))
+    if daily.left("global", s.get("assistant_global_per_day", 45)) <= 0:
+        return _jerr("The assistant's free daily budget is used up. Back tomorrow.", 429)
+    if not daily.take(who, cap):
+        return _jerr(f"You have used today's {int(cap)} assistant asks" + ("" if pk else " — connect a wallet for more") + ". More tomorrow.", 429)
+    daily.take("global", s.get("assistant_global_per_day", 45))
     try:
         out = await asyncio.get_running_loop().run_in_executor(None, a.ask, rows, method)
     except assistant_mod.AssistantError as e:
         return web.json_response({"error": str(e)}, status=502)
     out["n_rows"] = len(rows)
+    out["left"] = daily.left(who, cap)
     app["assistant_cache"][key] = out
+    app["events"].add(pk or "guest", "assistant", n=len(out.get("picks") or []), job=job.id)
     return web.json_response(out)
 
 

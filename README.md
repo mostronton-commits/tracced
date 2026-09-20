@@ -7,7 +7,7 @@ bought there — and everything it did with the token next. Entry and exit marke
 time, bundle funding. Every number is a raw on-chain swap you can open on Solscan. No scores, no black-box
 "smart money" labels: you decide who is worth following.
 
-Built on Solana · AI-assisted (coming next) · Colosseum Crypto World's Fair 2026
+Built on Solana · AI-assisted · Colosseum Crypto World's Fair 2026
 
 ![Home](docs/img/home.png)
 
@@ -63,13 +63,14 @@ Set `early.demo_job` in `config.yaml` to a finished analysis and put its snapsho
 single request to Solana Tracker. Good for showing the product around.
 
 ## Data
-- Raw swaps and candles: [Solana Tracker Data API](https://www.solanatracker.io/data-api). Free plan: 2,500 requests/month; a cached analysis costs 0.
+- Raw swaps and candles: [Solana Tracker Data API](https://www.solanatracker.io/data-api). Free plan: 10,000 requests/month; a cached analysis costs 0.
+- The AI agent: any OpenAI-compatible chat endpoint; by default OpenRouter and a free model (`ASSISTANT_*` in `.env`), with per-wallet, per-guest and site-wide daily limits in `config.yaml`.
 - Wallet age and funder: public Solana RPC (`api.mainnet-beta.solana.com`; set `SOLANA_RPC_URL` for your own node with full signature history).
 - Nothing else. No third-party PnL, labels or scores.
 
 ## Roadmap
-- **Live** — analyze: range → wallets → whole story → export; bundle and fact tags; sign in with a wallet, save wallets and analyses to your account.
-- **Next** — Telegram alerts when a saved wallet trades; the AI agent picks wallets by your method and suggests the range.
+- **Live** — analyze: range → wallets → whole story → export; bundle and fact tags; Find the pump; the AI agent picks wallets by your method; wallet accounts with a watchlist and saved analyses.
+- **Next** — Telegram alerts when a saved wallet trades; the agent explains a whole pump in plain words.
 - **Later** — non-custodial copy-trading on your list, strategy in plain words.
 
 See [docs/strategy.md](docs/strategy.md).

@@ -331,8 +331,11 @@ if AioHTTPTestCase:
                              f"/job/{jid}/assistant"):
                     r = await self.client.get(path, allow_redirects=False)
                     self.assertEqual(r.headers.get("Location"), "/login", path)
-                r = await self.client.post(f"/job/{jid}/assistant", json={"method": "x"}, allow_redirects=False)
-                self.assertEqual(r.headers.get("Location"), "/login")
+                r = await self.client.post(f"/job/{jid}/assistant", json={"method": "x"}, allow_redirects=False,
+                                           headers={"Origin": f"http://{self.client.host}:{self.client.port}"})
+                self.assertIn(r.status, (404, 503))                      # the demo's agent is open: an answer, not a redirect
+                r = await self.client.post(f"/job/{other_job}/assistant", json={"method": "x"}, allow_redirects=False)
+                self.assertEqual(r.headers.get("Location"), "/login")   # any other analysis stays behind the password
                 self.assertEqual(self.st.requests, before)              # жодного платного запиту
             finally:
                 self.app["password"], self.app["throttle"] = "", Throttle()
@@ -464,7 +467,8 @@ if AioHTTPTestCase:
             self.assertIn("← Adjust the range", page48)                 # in the header now
             r = await self.client.get("/wallet_trades.json?job=" + loc.split("/")[-1] + "&wallet=A")
             self.assertEqual(r.status, 400)                              # not a base58 wallet in tests → readable error
-            r = await self.client.post(loc + "/assistant", json={"method": "x"})   # assistant: not configured → 503 with a readable reason
+            o = {"Origin": f"http://{self.client.host}:{self.client.port}"}
+            r = await self.client.post(loc + "/assistant", json={"method": "x"}, headers=o)   # assistant: not configured → 503 with a readable reason
             self.assertEqual(r.status, 503)
             self.assertIn("ASSISTANT_KEY", (await r.json())["error"])
 
@@ -475,10 +479,13 @@ if AioHTTPTestCase:
                     return {"picks": [{"wallet": rows[0]["wallet"], "reason": "realized profit"}], "note": "", "model": "fake"}
             self.app["assistant"] = FakeAssistant()
             r = await self.client.post(loc + "/assistant", json={"method": "only profitable", "wallets": ["A"]})
+            self.assertEqual(r.status, 403)                              # JSON writes need the page's own origin
+            r = await self.client.post(loc + "/assistant", json={"method": "only profitable", "wallets": ["A"]}, headers=o)
             self.assertEqual(r.status, 200)
             aj = await r.json()
             self.assertEqual(aj["picks"][0]["wallet"], "A")
-            r = await self.client.post(loc + "/assistant", json={"method": "only profitable", "wallets": ["A"]})
+            self.assertEqual(aj["left"], 2)                               # guests get 3 a day
+            r = await self.client.post(loc + "/assistant", json={"method": "only profitable", "wallets": ["A"]}, headers=o)
             self.assertTrue((await r.json()).get("cached"))
             self.assertIn("AI agent", page48)
             self.assertEqual(page48.count("<b>Coming next</b>"), 1)         # only the AI agent is still announced
@@ -821,6 +828,36 @@ if AioHTTPTestCase:
             self.assertIsNone(CYRILLIC.search(html))
             html = await (await self.client.get(f"/token?mint={OTHER_MINT}")).text()
             self.assertIn('id="add"', html)                                    # a live token keeps the full editor
+
+        async def test_assistant_daily_budget(self):
+            seed_demo(self.tmp.name, self.app)
+
+            class FakeAssistant:
+                model = "fake"
+                def ask(self, rows, method):
+                    return {"picks": [{"wallet": rows[0]["wallet"], "reason": method}], "note": "", "model": "fake"}
+            self.app["assistant"] = FakeAssistant()
+            o = {"Origin": self.origin}
+            for i in range(3):                                             # three different questions a day for a guest
+                r = await self.client.post(f"/job/{DEMO_JID}/assistant", json={"method": f"m{i}"}, headers=o)
+                self.assertEqual(r.status, 200, await r.text())
+                self.assertEqual((await r.json())["left"], 2 - i)
+            r = await self.client.post(f"/job/{DEMO_JID}/assistant", json={"method": "m0"}, headers=o)
+            self.assertTrue((await r.json())["cached"])                    # a repeat is free
+            r = await self.client.post(f"/job/{DEMO_JID}/assistant", json={"method": "m9"}, headers=o)
+            self.assertEqual(r.status, 429)
+            self.assertIn("connect a wallet", (await r.json())["error"])
+            r_in, pk, _, _ = await self._sign_in()                          # a wallet has its own, bigger budget
+            r = await self.client.post(f"/job/{DEMO_JID}/assistant", json={"method": "m9"}, headers=self._hdr(r_in))
+            self.assertEqual(r.status, 200)
+            self.assertEqual((await r.json())["left"], 9)
+            self.app["s"]["assistant_global_per_day"] = 0
+            r = await self.client.post(f"/job/{DEMO_JID}/assistant", json={"method": "m10"}, headers=self._hdr(r_in))
+            self.assertEqual(r.status, 429)
+            self.assertIn("daily budget", (await r.json())["error"])
+            self.app["s"]["assistant_global_per_day"] = 45
+            self.assertEqual([e["event"] for e in self.app["events"].tail()][:1], ["assistant"])
+            self.app["assistant"] = None
 
         async def test_admin_sees_accounts_and_actions(self):
             seed_demo(self.tmp.name, self.app)
