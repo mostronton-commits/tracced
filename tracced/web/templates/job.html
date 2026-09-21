@@ -47,7 +47,7 @@
           {% set label = {'all': 'Whole history'}.get(sc, sc[:-1] ~ ' h after range') %}
           {% set hint = 'All trades up to the analysis time' if sc == 'all' else 'Trades up to ' ~ sc[:-1] ~ ' h after the range' %}
           {% if has_scopes %}<a role="tab" class="{{ 'on' if sc == scope else '' }}" href="?scope={{ sc }}" title="{{ hint }} · no new requests">{{ label }}</a>
-          {% else %}<span role="tab" class="{{ 'on' if sc == scope else 'off' }}" title="Run the analysis again to unlock scopes">{{ label }}</span>{% endif %}
+          {% else %}<span role="tab" class="{{ 'on' if sc == scope else 'off' }}" title="Not available for this older result">{{ label }}</span>{% endif %}
         {% endfor %}
       </div>
     </div>
@@ -68,11 +68,10 @@
       <label class="chk"><input type="checkbox" id="pickall"> Select all</label>
       <span class="muted small" id="selinfo" hidden><b id="nsel">0</b> selected · <button type="button" class="link" id="clearsel">Clear</button></span>
       <div class="soonwrap right" id="aiwrap">
-        <button type="button" class="button ai-btn" id="askbtn" title="{{ 'Pick wallets to watch by your method' if assistant_on else 'Coming next' }}">✦ AI agent</button>
+        <button type="button" class="button ai-btn" id="askbtn" title="{{ 'Pick wallets to watch by your method' if assistant_on else 'The AI agent is not enabled on this server' }}">✦ AI agent</button>
         <div class="soon-pop" id="aipop" hidden>
-          <b>Coming next</b>
-          <span>The agent will pick wallets to watch by your method and explain each pick.</span>
-          <span class="muted">First it will choose the range for you.</span>
+          <b>Not enabled here</b>
+          <span>The agent picks wallets to watch by your method and explains each pick. This server has no model key yet.</span>
         </div>
       </div>
       <div class="soonwrap" id="watch" hidden>
@@ -104,7 +103,7 @@
     </div>
 
     <div class="tablewrap">
-    <table class="facts" id="facts" data-id="{{ job.id }}">
+    <table class="facts" id="facts" data-id="{{ save_id }}">
       <thead>
       <tr class="grp"><th colspan="3"></th><th colspan="2" class="g">Entry (in range)</th><th colspan="2" class="g">Exit</th><th colspan="3" class="g">Result ({{ 'whole history' if scope == 'all' else scope[:-1] ~ ' h after range' }})</th></tr>
       <tr>
@@ -377,7 +376,12 @@
       async function toggleWallet(w, story) {
         const i = onChart.findIndex(o => o.wallet === w);
         if (i >= 0) { if (story) { openStory(onChart[i]); return; } onChart.splice(i, 1); if (drawer.dataset.w === w) drawer.hidden = true; renderOnChart(); return; }
-        const r = await fetch('/wallet_trades.json?' + new URLSearchParams({ job: jobId, wallet: w })); if (!r.ok) return;
+        const r = await fetch('/wallet_trades.json?' + new URLSearchParams({ job: jobId, wallet: w }));
+        if (!r.ok) {                                             // say why, never a dead click
+          let err = {}; try { err = await r.json(); } catch (e) {}
+          if (r.status === 401) EarlyWallet.open(null, err.error || 'Connect a wallet to load this wallet\'s trades.'); else EarlyUI.toast(err.error || 'Could not load this wallet.');
+          return;
+        }
         const d = await r.json();
         if (onChart.length >= 3) onChart.shift();
         const used = new Set(onChart.map(o => o.buy)), pair = PAL.find(p => !used.has(p[0])) || PAL[0];

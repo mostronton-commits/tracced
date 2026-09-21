@@ -4,6 +4,7 @@ __pycache__/
 cache/
 output/
 .DS_Store
+.autodeploy-rejected
 
 # внутрішні документи живуть поруч, у tracced-private/, і не публікуються
 docs/hackathon-*.md

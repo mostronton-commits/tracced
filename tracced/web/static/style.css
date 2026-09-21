@@ -221,7 +221,7 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .rrow { display: grid; grid-template-columns: 90px 1fr 110px 110px 80px 70px; gap: 12px; align-items: center; padding: 9px 6px; border: 0; border-top: 1px solid var(--line); font-size: 13px; }
 .rrow:first-child { border-top: 0; } .rrow:hover { background: #F8FAFC; }
 .rrow .sym { font-weight: 600; } .rrow .n { text-align: right; } .rrow .open { text-align: right; color: var(--muted); }
-@media (max-width: 720px) { .rrow { grid-template-columns: 80px 1fr 70px; } .rrow .n:nth-child(4), .rrow .chip { display: none; } }
+@media (max-width: 720px) { .rrow { grid-template-columns: 80px 1fr 60px auto; } .rrow .n:nth-child(4), .rrow .chip { display: none; } }
 
 .foot { border-top: 1px solid var(--line); font-size: 13px; }
 .foot-in { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: center; justify-content: space-between; width: 100%; max-width: var(--page); margin: 0 auto; padding: 18px 24px 40px; }
@@ -434,6 +434,7 @@ button.primary { transition: background .12s ease, border-color .12s ease, trans
 .tzseg { display: inline-flex; gap: 0; border: 1px solid #334155; border-radius: 6px; overflow: hidden; cursor: pointer; vertical-align: -2px; }
 .tzseg b { font: 500 11px/1 var(--mono); padding: 4px 7px; color: #94A3B8; }
 .tzseg b.on { background: var(--mint); color: var(--navy); }
+button.tzseg { background: transparent; padding: 0; height: auto; font: inherit; color: inherit; }
 .stepbar .stepx small { display: block; color: #94A3B8; font-size: 12px; margin-top: 1px; }
 #selinfo .link { border-bottom-color: var(--line); color: var(--ink); }
 
@@ -487,10 +488,11 @@ button.primary { transition: background .12s ease, border-color .12s ease, trans
 .wlist a.winstall { justify-content: space-between; color: var(--muted); border-style: dashed; }
 .wlist a.winstall span { font-weight: 600; } .wlist a.winstall small { font-weight: 400; }
 .wstate:empty { display: none; }
+.wnote { margin: 6px 0 2px; padding: 8px 10px; border-radius: 8px; background: var(--sage); color: var(--ink); font-size: 13px; }
 .saved { color: #B45309; margin-left: 5px; font-size: 12px; cursor: default; }
 button.saved { border: 0; background: transparent; padding: 0 2px; height: auto; cursor: pointer; } button.saved:hover { color: var(--red); background: transparent; }
 .savejob.on { color: #B45309; } .savejob:disabled { cursor: default; opacity: 1; }
-.toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 70; background: var(--navy); color: #F8FAFC; padding: 10px 16px; border-radius: 10px; font-size: 13px; white-space: nowrap; box-shadow: 0 12px 30px -10px rgba(0, 0, 0, .5); animation: toast-in .2s ease; }
+.toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 70; background: var(--navy); color: #F8FAFC; padding: 10px 16px; border-radius: 10px; font-size: 13px; white-space: normal; max-width: calc(100vw - 32px); text-align: center; box-shadow: 0 12px 30px -10px rgba(0, 0, 0, .5); animation: toast-in .2s ease; }
 .toast a { color: var(--mint); border-bottom-color: rgba(167, 243, 208, .4); }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
 .mehead { margin-bottom: 8px; } .mehead h2 { margin: 0; }
@@ -509,6 +511,6 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
 @keyframes wrow-pulse { 0%, 100% { box-shadow: none; } 50% { box-shadow: 0 0 0 4px var(--sage); border-color: #34D399; } }
 .wrow.pulse { animation: wrow-pulse .65s ease 2; }
 .wrow .del.armed { color: var(--red); font-size: 12px; width: auto; padding: 0 8px; }
-.wrow:has(.del.armed) { grid-template-columns: 26px minmax(120px, 1fr) auto auto auto auto auto; }
+@media (min-width: 1001px) { .wrow:has(.del.armed) { grid-template-columns: 26px minmax(120px, 1fr) auto auto auto auto auto; } }
 .chip.demo { vertical-align: 4px; margin-left: 6px; font-size: 11px; background: var(--sage); border-color: #A7F3D0; color: var(--ink); cursor: help; }
 .me .stats { margin: 4px 0 14px; }

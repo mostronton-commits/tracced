@@ -46,13 +46,14 @@
   <h2>Complete data, cheapest path</h2>
   <p>The range is always fetched in full. For each wallet's history the app takes the cheaper of two complete paths:
     the whole trade history of the token, or each wallet's own trades. Only when neither fits the budget
-    ({{ s.max_wallet_lookups }} wallets on the {{ s.plan }} plan) do some wallets stay without exits — they get the
+    ({{ s.max_wallet_lookups }} wallets per analysis) do some wallets stay without exits — they get the
     <i>no-exits</i> tag, and the line above the table says so.</p>
 
   <h2>Limits</h2>
   <ul>
     <li>Range up to {{ s.max_window_hours }} h.</li>
-    <li>One run may use at most {{ s.budget_guard_pct }}% of the requests left this month; the app stops before spending more.</li>
+    <li>{{ (s.runs_per_day|per_day)|capitalize }} per wallet; up to {{ s.ranges_per_token }} analyses per token (delete yours to make room).</li>
+    <li>One live run may spend at most {{ s.run_cap_requests|num }} requests to Solana Tracker; the app stops before spending more.</li>
     <li>Wallets that spent less than ${{ s.min_invested_usd }} in the range are left out.</li>
     <li>Wallet age is checked for up to {{ s.age_lookups_max }} wallets per analysis, in the background.</li>
     <li>Chart markers: up to 3 wallets at once, {{ s.markers_max }} trades each.</li>
@@ -69,9 +70,11 @@
 
   <h2>Your account</h2>
   <p>Connect a Solana wallet. The wallet signs a short message with a one-time code — no transaction, no fees —
-    and that signature is your account: no password, no e-mail. The demo token is open to everyone; any other token
-    is live mode, for connected wallets: <b>one analysis a day</b>, up to <b>three ranges per token</b> (delete yours to
-    make room), results public. Tick wallets in a result and <b>+ Watchlist</b>; <b>Save analysis</b> keeps the whole
-    result. Both live under <a href="/me">Watchlist</a>, with notes and export; a second click on ★ removes.</p>
+    and that signature is your account: no password, no e-mail. Anyone can open any token, see its chart, mark ranges
+    and open finished results; the demo replays for everyone. Running a new analysis is live mode, for connected
+    wallets: <b>{{ s.runs_per_day|per_day }}</b>, up to <b>{{ s.ranges_per_token }} ranges per token</b> (delete yours to make room), results
+    public. Charts of live tokens have a small daily budget per address; a wallet raises it. Tick wallets in a result
+    and <b>+ Watchlist</b>; <b>Save analysis</b> keeps the whole result. Both live under <a href="/me">Watchlist</a>,
+    with notes and export; a second click on ★ removes.</p>
 </section>
 {% endblock %}

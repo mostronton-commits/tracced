@@ -16,6 +16,9 @@ services:
       - ./config.yaml:/app/config.yaml:ro
     networks: [proxy]
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "5" }
 networks:
   proxy:
     external: true

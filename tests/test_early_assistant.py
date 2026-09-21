@@ -109,6 +109,14 @@ class TestAssistant(unittest.TestCase):
             Assistant("k", post=post).ask(ROWS, "")
         self.assertEqual(len(post.payloads), 3)
 
+    def test_retry_ladder_is_per_ask_not_per_process(self):
+        good = json.dumps({"picks": [{"wallet": ROWS[0]["wallet"], "reason": "r"}], "note": ""})
+        post = FakePost(["", good, "", good])                  # two asks on one instance, each needs the empty-reply retry
+        a = Assistant("k", post=post)
+        self.assertTrue(a.ask(ROWS, "")["picks"])
+        self.assertTrue(a.ask(ROWS, "")["picks"])
+        self.assertEqual(len(post.payloads), 4)
+
 
 if __name__ == "__main__":
     unittest.main()

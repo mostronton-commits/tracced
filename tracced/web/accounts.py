@@ -32,7 +32,7 @@ PUBKEY_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 JOB_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 NONCE_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 
-STATEMENT = "Sign in to save wallets and analyses. No transaction, no fees."
+STATEMENT = "Sign in to analyze tokens and save wallets. No transaction, no fees."
 _HEAD = " wants you to sign in with your Solana account:"
 MAX_MESSAGE = 2048
 
@@ -152,7 +152,7 @@ def verify_signature(pubkey, message, signature):
 class NonceStore:
     """Одноразові коди для входу: живуть ttl_s, спалюються при першому використанні."""
 
-    def __init__(self, ttl_s=300, cap=5000):
+    def __init__(self, ttl_s=120, cap=5000):
         self.ttl_s, self.cap = ttl_s, cap
         self.live = {}                    # nonce -> expires at (s)
         self.lock = threading.Lock()
@@ -296,6 +296,17 @@ class AccountStore:
                 a["runs"] = {"day": day, "n": n}
                 return False
             a["runs"] = {"day": day, "n": n + 1}
+            return True
+        return self._update(pubkey, fn)
+
+    def give_back_run(self, pubkey, day=None):
+        """Прогін упав без результату: повертаємо день (нижче нуля не йде)."""
+        day = int(time.time() // 86400) if day is None else int(day)
+
+        def fn(a):
+            r = a.get("runs") or {}
+            n = int(r.get("n") or 0) if r.get("day") == day else 0
+            a["runs"] = {"day": day, "n": max(0, n - 1)}
             return True
         return self._update(pubkey, fn)
 

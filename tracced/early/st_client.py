@@ -32,10 +32,21 @@ class EarlyST(SolanaTracker):
             "nextCursor": d.get("nextCursor"),
         }
 
+    @staticmethod
+    def _chart_key(mint, interval, t_from_ms, t_to_ms):
+        return f"{mint}:{interval}:{int(t_from_ms // 1000)}:{int(t_to_ms // 1000)}"
+
+    def chart_cached(self, mint, interval, t_from_ms, t_to_ms):
+        """Чи лежить цей шматок у кеші (тоді він нічого не коштує)."""
+        if self.chart_cache is None:
+            return False
+        with self._cache_lock:
+            return self.chart_cache.get(self._chart_key(mint, interval, t_from_ms, t_to_ms)) is not None
+
     def chart(self, mint, interval, t_from_ms, t_to_ms):
         """Свічки [{"time": ms, open, high, low, close, volume}] за відрізок (кешовано)."""
         a, b = int(t_from_ms // 1000), int(t_to_ms // 1000)
-        key = f"{mint}:{interval}:{a}:{b}"
+        key = self._chart_key(mint, interval, t_from_ms, t_to_ms)
         if self.chart_cache is not None:
             with self._cache_lock:
                 cached = self.chart_cache.get(key)

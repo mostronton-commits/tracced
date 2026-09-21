@@ -34,7 +34,8 @@
   /* <div class="menu"><button data-menu>…</button><div class="menu-panel" hidden>…</div></div> */
   function menus() {
     document.querySelectorAll('[data-menu]').forEach(btn => {
-      const panel = btn.parentElement.querySelector('.menu-panel'); if (!panel) return;
+      const panel = btn.parentElement.querySelector('.menu-panel'); if (!panel || btn.dataset.bound) return;
+      btn.dataset.bound = '1';                                   // safe to call again for menus added later (in-page sign-in)
       btn.addEventListener('click', e => { e.stopPropagation(); const open = !panel.hidden; document.querySelectorAll('.menu-panel').forEach(p => p.hidden = true); panel.hidden = open; });
       panel.addEventListener('click', () => { panel.hidden = true; });
     });
@@ -47,7 +48,7 @@
     let t = document.querySelector('.toast'); if (!t) { t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
     t.innerHTML = html; t.hidden = false; clearTimeout(t._h); t._h = setTimeout(() => { t.hidden = true; }, ms || 4000);
   }
-  window.EarlyUI = { countUp, fmtShort, FMT, toast };
+  window.EarlyUI = { countUp, fmtShort, FMT, toast, menus };
 })();
 
 /* home: the address field "types" a made-up base58 address until the user touches it */

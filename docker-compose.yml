@@ -12,3 +12,6 @@ services:
       - ./cache:/app/cache
       - ./config.yaml:/app/config.yaml:ro
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "5" }

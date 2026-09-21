@@ -1,9 +1,9 @@
 /* Sign in with a Solana wallet: connect → sign a server-issued message → the server sets a cookie.
-   No libraries, no transaction. Injected wallets (Phantom, Solflare, Backpack, window.solana) and
-   any Wallet Standard wallet that offers solana:signMessage. */
+   No libraries, no transaction. A fixed list — Phantom, MetaMask, Rabby — through Wallet Standard when the
+   wallet registers itself, or Phantom's injected provider; anything else is not offered. */
 (function () {
   const sheet = () => document.getElementById('wsheet'), list = () => document.getElementById('wlist'), st = () => document.getElementById('wstate');
-  let onDone = null, busy = false;
+  let onDone = null, busy = false, opener = null;
 
   function b64(bytes) { let s = ''; for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]); return btoa(s); }
   async function post(url, body) {
@@ -43,9 +43,11 @@
 
   function showPill(v) {
     const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    document.querySelectorAll('.acct-slot, .hero-acct').forEach(el => {
-      el.innerHTML = '<a class="acct-pill" href="/me" title="' + esc(v.pubkey) + '"><i class="dot"></i><span class="mono">' + esc(v.short) + '</span></a>';
+    document.querySelectorAll('.acct-slot, .hero-acct').forEach(el => {   // the same menu a server-rendered page shows
+      el.innerHTML = '<div class="menu acct"><button type="button" class="acct-pill" data-menu title="' + esc(v.pubkey) + '"><i class="dot"></i><span class="mono">' + esc(v.short) + '</span></button>'
+        + '<div class="menu-panel r" hidden><a href="/me">Watchlist</a><button type="button" data-wallet-signout>Sign out</button></div></div>';
     });
+    if (window.EarlyUI && EarlyUI.menus) EarlyUI.menus();
   }
   const rejected = e => e && (e.code === 4001 || /reject|denied|cancel|declin/i.test(e.message || ''));
   function state(t) { const s = st(); if (s) s.textContent = t || ''; }
@@ -60,7 +62,11 @@
       const sig = await a.sign(new TextEncoder().encode(msg));
       const v = await post('/auth/verify', { pubkey: pk, signature: b64(sig), message: msg, wallet: a.name });
       const f = onDone; close();                       // close() drops the callback: take it first
-      if (!f) { location.reload(); return; }
+      if (!f) {                                          // no callback: a page may leave a form to send once signed in (the 401 card), else reload
+        const after = document.querySelector('form[data-wallet-after]');
+        if (after) after.submit(); else location.reload();
+        return;
+      }
       showPill(v);                                       // the page stays: swap the top-bar button for the wallet pill
       f(v);
     } catch (e) {
@@ -68,9 +74,10 @@
     } finally { busy = false; }
   }
 
-  function open(cb) {
+  function open(cb, note) {
     const s = sheet(); if (!s) return;
-    onDone = cb || null; state('');
+    onDone = cb || null; state(); opener = document.activeElement;
+    const wn = document.getElementById('wnote'); if (wn) { wn.textContent = note || ''; wn.hidden = !note; }   // why we ask, in context
     const l = list(); l.innerHTML = '';
     const as = adapters();
     as.forEach(a => {
@@ -88,11 +95,12 @@
     s.hidden = false;
     const first = l.querySelector('button, a'); if (first) first.focus();
   }
-  function close() { const s = sheet(); if (s) s.hidden = true; onDone = null; }
+  function close() { const s = sheet(); if (s) s.hidden = true; onDone = null; if (opener && opener.focus && document.contains(opener)) { try { opener.focus(); } catch (e) {} } opener = null; }
   async function signOut() { try { await post('/auth/logout'); } catch (e) {} location.reload(); }
 
   document.addEventListener('click', e => {
-    if (e.target.closest('[data-wallet-signin]')) { e.preventDefault(); open(); return; }
+    const t = e.target.closest('[data-wallet-signin]');
+    if (t) { e.preventDefault(); open(null, t.dataset.walletNote); return; }   // data-wallet-note: why this page asks
     if (e.target.closest('[data-wallet-signout]')) { e.preventDefault(); signOut(); return; }
     if (e.target.closest('[data-wallet-close]') || (e.target.classList && e.target.classList.contains('sheet'))) close();
   });

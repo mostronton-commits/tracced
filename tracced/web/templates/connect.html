@@ -3,9 +3,10 @@
 {% block main_class %}center{% endblock %}
 {% block body %}
 <section class="card narrow">
-  <h2>Connect a wallet to analyze this token</h2>
-  <p class="muted">Live analyses are for connected wallets: one analysis a day, free, no transaction. Results are public and every wallet on them opens on Solscan.</p>
-  <p class="row"><button type="button" class="primary" data-wallet-signin>Connect</button>{% if demo_mint %}<a class="button" href="/token?mint={{ demo_mint }}">Open the demo</a>{% endif %}</p>
-  <p class="muted small">The demo token is open to everyone, no wallet needed.</p>
+  <h2>Connect a wallet to run this analysis</h2>
+  <p class="muted">Live analyses are for connected wallets: {{ s.runs_per_day|per_day }}, free, no transaction. Results are public and every wallet on them opens on Solscan.</p>
+  {% if mint and t_from and t_to %}<form id="again" method="post" action="/analyze" data-wallet-after hidden><input type="hidden" name="mint" value="{{ mint }}"><input type="hidden" name="from" value="{{ t_from }}"><input type="hidden" name="to" value="{{ t_to }}"></form>{% endif %}
+  <p class="row"><button type="button" class="primary" data-wallet-signin>Connect</button>{% if mint %}<a class="button" href="/token?mint={{ mint }}{% if t_from and t_to %}&amp;from={{ t_from|urlencode }}&amp;to={{ t_to|urlencode }}{% endif %}">← Back to the chart</a>{% endif %}</p>
+  <p class="muted small">The demo token is open to everyone, no wallet needed.{% if demo_mint %} <a href="/token?mint={{ demo_mint }}">Open the demo</a>{% endif %}</p>
 </section>
 {% endblock %}

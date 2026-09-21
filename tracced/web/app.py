@@ -6,7 +6,9 @@ one plain sentence for the user, details in the container log.
 """
 import asyncio
 import csv
+import copy
 import hashlib
+import ipaddress
 import os
 import secrets
 import io
@@ -72,6 +74,7 @@ env.filters["dtl"] = chart.to_input
 env.filters["mcap"] = chart.fmt_mcap
 env.filters["usd"] = _usd
 env.filters["num"] = _num
+env.filters["per_day"] = lambda n: "one live analysis a day" if int(n or 0) == 1 else f"{int(n or 0)} live analyses a day"
 env.filters["log10"] = lambda v: math.log10(v) if (v and float(v) > 0) else 0.0
 
 
@@ -165,13 +168,16 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["store_dir"] = store_dir
     app["runs"] = Throttle(max_fails=int(s.get("runs_per_hour", 20)), window_s=3600, block_s=3600)
     app["st_lock"] = threading.Lock()
-    app["overview_cache"] = {}
+    app["overview_cache"], app["overview_pending"] = {}, {}
     app["accounts"] = acct_mod.AccountStore(Path(out_dir).parent / "accounts")   # поруч з web/ і demo/ у output/early
     app["nonces"] = acct_mod.NonceStore()
     app["events"] = acct_mod.EventLog(Path(out_dir).parent / "accounts" / "_events.jsonl")
     app["admins"] = {w.strip() for w in os.getenv("ADMIN_WALLETS", "").split(",") if w.strip()}   # чиї гаманці бачать /admin
     app["auth_throttle"] = Throttle(max_fails=10, window_s=300, block_s=600)
-    app["assistant_daily"] = DailyCount()
+    daily_dir = Path(out_dir).parent / "daily"           # добові лічильники переживають деплой
+    app["assistant_daily"] = DailyCount(daily_dir / "assistant.json")
+    app["browse_daily"] = DailyCount(daily_dir / "browse.json")   # запити на графіки живих токенів: на адресу, на гаманець, на сайт
+    app["runs_daily"] = DailyCount(daily_dir / "runs.json")       # живі прогони на весь сайт за добу (будь-який ключ підписує безкоштовно)
     _lock_st(st, app["st_lock"])
 
     def runner(job):
@@ -180,7 +186,14 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
         return pipeline.run(st, job.mint, job.t_from, job.t_to, dict(s, **(job.s_over or {})),   # стелі прогону залежать від того, хто запустив
                             log=job.log.append, progress=job.set_progress, store_dir=store_dir)
 
-    app["jobs"] = JobQueue(runner, out_dir, enricher=make_enricher(ages, s) if ages else None)
+    def on_error(job):
+        """A live run that failed gives the wallet its day back and the site its slot."""
+        if job.owner and not job.replay:
+            app["accounts"].give_back_run(job.owner)
+            if job.owner not in app["admins"]:
+                app["runs_daily"].add("global", -1)
+
+    app["jobs"] = JobQueue(runner, out_dir, enricher=make_enricher(ages, s) if ages else None, on_error=on_error)
     app.router.add_get("/", index)
     app.router.add_get("/how", how)
     app.router.add_get("/project", project)
@@ -213,14 +226,22 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
 
 
 def _lock_st(st, lock):
-    """Every client request under one lock: the 3 req/s pace is shared across threads."""
+    """Every client request under one lock: the 3 req/s pace is shared across threads. Requests are also counted
+    per thread (st.requests_here()), so a page's charge and a run's cap see their own calls, not the worker's."""
     orig = getattr(st, "_get", None)
-    if orig is None:                      # fake client in tests
+    if orig is None:                      # fake client in tests: single-threaded, the global count is the thread's
+        st.requests_here = lambda: st.requests
         return
+    st.local = threading.local()
+    st.requests_here = lambda: getattr(st.local, "n", 0)
 
     def locked(path):
         with lock:
-            return orig(path)
+            before = st.requests
+            try:
+                return orig(path)
+            finally:
+                st.local.n = getattr(st.local, "n", 0) + (st.requests - before)
     st._get = locked
 
 
@@ -230,13 +251,20 @@ def _lock_st(st, lock):
 async def errors_mw(request, handler):
     try:
         return await handler(request)
+    except web.HTTPNotFound as e:
+        if request.path.endswith((".json", ".csv")):
+            raise
+        return render("error.html", request, message=e.text or "There is no such page.", status=404)
     except web.HTTPException:
         raise
     except ConnectRequired as e:
         if request.path.endswith(".json"):
             return _jerr(str(e), 401)
-        return render("connect.html", request, mint=e.mint, demo_mint=(_demo(request.app) or {}).get("mint"), status=401)
+        return render("connect.html", request, mint=e.mint, t_from=e.t_from, t_to=e.t_to,
+                      demo_mint=(_demo(request.app) or {}).get("mint"), status=401)
     except WebError as e:
+        if request.path.endswith(".json"):
+            return _jerr(str(e), e.status)                             # графік читає JSON і показує причину, а не порожнечу
         return render("error.html", request, message=str(e), status=e.status)
     except Exception:
         log.exception("page %s failed", request.path)
@@ -271,6 +299,8 @@ class Throttle:
         f[0] += 1
         if f[0] >= self.max_fails:
             f[2] = now + self.block_s * (1 + (f[0] - self.max_fails))   # кожна наступна спроба — довша пауза
+        if len(self.fails) > 10_000:                                    # адрес багато: чужі й прострочені записи прибираємо
+            self.fails = {k: v for k, v in self.fails.items() if now - v[1] <= self.window_s or v[2] > now}
         self.fails[key] = f
         return max(0, int(f[2] - now))
 
@@ -280,14 +310,37 @@ class Throttle:
 
 
 class DailyCount:
-    """Скільки разів ключ (гаманець, IP або «global») щось зробив сьогодні; скидається опівночі UTC. У пам'яті."""
+    """Скільки разів ключ (гаманець, IP або «global») щось зробив сьогодні; скидається опівночі UTC. З файлом —
+    переживає перезапуск і деплой (інакше кожен пуш дарував би сайту нову добу)."""
 
-    def __init__(self):
+    def __init__(self, path=None):
         self.n = {}                           # key -> [day, count]
+        self.path = Path(path) if path else None
+        if self.path and self.path.exists():
+            try:
+                self.n = {k: [int(v[0]), int(v[1])] for k, v in json.loads(self.path.read_text(encoding="utf-8")).items()}
+            except Exception:  # noqa: BLE001 — битий файл = чистий лічильник
+                self.n = {}
+
+    def _flush(self):
+        if not self.path:
+            return
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(self.n), encoding="utf-8")
+            os.replace(tmp, self.path)
+        except OSError:
+            pass
+
+    def _prune(self, day):
+        if len(self.n) > 10_000:                                        # записи минулих днів нікому не потрібні
+            self.n = {k: v for k, v in self.n.items() if v[0] == day}
 
     def take(self, key, cap, now=None):
         """True і +1, якщо стеля ще не досягнута; False — коли досягнута."""
         day = int((time.time() if now is None else now) // 86400)
+        self._prune(day)
         rec = self.n.get(key)
         if not rec or rec[0] != day:
             rec = [day, 0]
@@ -296,7 +349,19 @@ class DailyCount:
             return False
         rec[1] += 1
         self.n[key] = rec
+        self._flush()
         return True
+
+    def add(self, key, n, now=None):
+        """+n без стелі: коли ціна відома лише після дії (скільки запитів справді пішло в мережу)."""
+        day = int((time.time() if now is None else now) // 86400)
+        self._prune(day)
+        rec = self.n.get(key)
+        if not rec or rec[0] != day:
+            rec = [day, 0]
+        rec[1] += int(n)
+        self.n[key] = rec
+        self._flush()
 
     def left(self, key, cap, now=None):
         day = int((time.time() if now is None else now) // 86400)
@@ -305,9 +370,15 @@ class DailyCount:
 
 
 def _client_ip(request):
-    """The address the request really came from. Behind our proxy that is the last hop it added."""
+    """The address the request really came from: behind our proxy that is the last hop it added. An IPv6 host is
+    keyed by its /64, otherwise one machine would own 2^64 separate budgets."""
     xff = request.headers.get("X-Forwarded-For", "")
-    return (xff.split(",")[-1].strip() if xff else None) or request.remote or "?"
+    raw = (xff.split(",")[-1].strip() if xff else None) or request.remote or "?"
+    try:
+        ip = ipaddress.ip_address(raw)
+        return str(ipaddress.ip_network((ip, 64), strict=False)) if ip.version == 6 else str(ip)
+    except ValueError:
+        return raw
 
 
 def _wait_text(s):
@@ -315,11 +386,11 @@ def _wait_text(s):
 
 
 class ConnectRequired(Exception):
-    """Live mode is for connected wallets: the page says so and offers to connect (401)."""
+    """A new live run needs a connected wallet: the page says so, offers to connect and keeps the range (401)."""
 
-    def __init__(self, mint=None):
-        super().__init__("Connect a wallet to analyze this token.")
-        self.mint = mint
+    def __init__(self, mint=None, t_from=None, t_to=None, message=None):
+        super().__init__(message or "Connect a wallet to run this analysis.")
+        self.mint, self.t_from, self.t_to = mint, t_from, t_to
 
 
 def _is_demo_mint(app, mint):
@@ -327,14 +398,48 @@ def _is_demo_mint(app, mint):
     return bool(demo and demo["mint"] == mint)
 
 
-def _require_wallet(request, mint=None):
-    """Сторінки й прогони живого токена — лише з гаманцем; демо-токен відкритий усім. Повертає адресу."""
-    if mint is not None and _is_demo_mint(request.app, mint):
-        return None
-    pk = request.get("acct")
-    if not pk:
-        raise ConnectRequired(mint)
-    return pk
+OVERVIEW_TTL, OVERVIEW_FAIL_TTL, OVERVIEW_MAX = 600, 120, 200
+
+
+def _overview_cached(app, mint):
+    hit = app["overview_cache"].get(mint)
+    return bool(hit and time.time() - hit[0] < (OVERVIEW_TTL if hit[1] is not None else OVERVIEW_FAIL_TTL))
+
+
+def _prune_overview(cache):
+    now = time.time()
+    for k in [k for k, v in cache.items() if now - v[0] >= (OVERVIEW_TTL if v[1] is not None else OVERVIEW_FAIL_TTL)]:
+        cache.pop(k, None)
+    while len(cache) > OVERVIEW_MAX:                                    # пам'ять не росте з кожним новим токеном
+        cache.pop(min(cache, key=lambda k: cache[k][0]), None)
+
+
+def _browse_budget(request, est=1):
+    """Графік живого токена коштує запитів до Solana Tracker (огляд ≈2, кожен шматок свічок 1), а дивитись його може
+    будь-хто. Тому добова стеля: на адресу без гаманця, на гаманець, спільна на сайт; адміни поза нею. Кидає 429,
+    коли стелю вичерпано; інакше одразу резервує `est` (щоб пачка одночасних запитів не проскочила повз перевірку)
+    і повертає settle(actual) — виправити резерв на те, що справді пішло в мережу; кликати у finally, щоб і невдалі
+    запити були оплачені. Кеш нічого не коштує."""
+    app, s, pk = request.app, request.app["s"], request.get("acct")
+    if pk and pk in app["admins"]:
+        return lambda n: None
+    daily = app["browse_daily"]
+    who, cap = (f"acct:{pk}", s.get("browse_per_day", 150)) if pk else (f"ip:{_client_ip(request)}", s.get("browse_per_day_guest", 30))
+    gcap = s.get("browse_global_per_day", 300)
+    if daily.left("global", gcap) <= 0:
+        raise WebError("Today's chart budget for new tokens is used up. The demo is always open; more tomorrow.", 429)
+    if daily.left(who, cap) <= 0:
+        raise WebError("You have used today's chart budget from this address. Connect a wallet for more, or come back tomorrow."
+                       if not pk else "You have used today's chart budget for this wallet. The demo is always open; more tomorrow.", 429)
+    daily.add(who, est)
+    daily.add("global", est)
+
+    def settle(actual):
+        d = int(actual) - int(est)
+        if d:
+            daily.add(who, d)
+            daily.add("global", d)
+    return settle
 
 
 @web.middleware
@@ -627,8 +732,10 @@ async def me_wallets_csv(request, pk):
     buf = io.StringIO()
     w = csv.DictWriter(buf, fieldnames=ME_COLUMNS, extrasaction="ignore")
     w.writeheader()
+    def cell(v):                                                        # таблиці виконують клітинки з = + - @ як формули
+        return "'" + v if isinstance(v, str) and v[:1] in "=+-@\t\r" else ("" if v is None else v)
     for r in wallets:
-        w.writerow({**{k: ("" if r.get(k) is None else r.get(k)) for k in ME_COLUMNS},
+        w.writerow({**{k: cell(r.get(k)) for k in ME_COLUMNS},
                     "tags": "|".join(r.get("tags") or []), "added_utc": chart.fmt_dt(r.get("added_ms") or 0, year=True, utc=True)})
     return web.Response(text=buf.getvalue(), content_type="text/csv",
                         headers={"Content-Disposition": 'attachment; filename="watchlist.csv"'})
@@ -641,6 +748,8 @@ def render(name, request, status=200, **ctx):
     acct = request.get("acct") if request is not None else None
     ctx.setdefault("acct", acct)
     ctx.setdefault("acct_short", _short(acct) if acct else "")
+    if request is not None:
+        ctx.setdefault("s", request.app["s"])                   # квоти в текстах беруться з налаштувань, не з голови
     ctx.setdefault("umami_id", os.getenv("UMAMI_WEBSITE_ID", ""))   # аналітика вмикається лише там, де задано id
     html = env.get_template(name).render(**ctx)
     return web.Response(text=html, content_type="text/html", status=status)
@@ -653,28 +762,51 @@ def _mint(v):
     return v
 
 
-async def _overview(app, mint):
-    """token_info + lifetime candles + detector hints; cached in memory for 10 minutes."""
+async def _overview(app, mint, charge=None):
+    """token_info + detector hints, cached in memory for 10 minutes (a failure for 2, so a bad address is not bought
+    again on every hit). Concurrent viewers of one new token share a single load. `charge(n)` gets the number of
+    requests that really went out, success or failure."""
     cache = app["overview_cache"]
     hit = cache.get(mint)
-    if hit and time.time() - hit[0] < 600:
+    if hit and time.time() - hit[0] < (OVERVIEW_TTL if hit[1] is not None else OVERVIEW_FAIL_TTL):
+        if hit[1] is None:
+            raise WebError(hit[2])
         return hit[1], hit[2]
+    pending = app["overview_pending"]
+    fut = pending.get(mint)
+    if fut is not None:                                                 # хтось уже вантажить цей токен: чекаємо на нього
+        return await asyncio.shield(fut)
+    fut = pending[mint] = asyncio.get_running_loop().create_future()
     st, s = app["st"], app["s"]
 
     def load():
-        info = pipeline.token(st, mint)
-        ov = pipeline.overview(st, mint, info, s, app["cfg"])
-        st.flush()
-        return info, ov
+        req0 = st.requests_here()
+        try:
+            info = pipeline.token(st, mint)
+            ov = pipeline.overview(st, mint, info, s, app["cfg"])
+            st.flush()
+            return info, {"interval": ov["interval"], "hints": ov["hints"]}   # свічки не тримаємо: з кешу їх ніхто не читає
+        finally:
+            if charge:
+                charge(st.requests_here() - req0)
     try:
-        info, ov = await asyncio.to_thread(load)
-    except pipeline.EarlyError as e:
-        raise WebError(str(e))
-    except Exception as e:  # noqa: BLE001
-        log.warning("overview %s: %s", mint[:8], e)
-        raise WebError("Solana Tracker returned no data for this token. Check the address or try again later.")
-    cache[mint] = (time.time(), info, ov)
-    return info, ov
+        try:
+            info, ov = await asyncio.to_thread(load)
+        except pipeline.EarlyError as e:
+            raise WebError(str(e))
+        except Exception as e:  # noqa: BLE001
+            log.warning("overview %s: %s", mint[:8], e)
+            raise WebError("Solana Tracker returned no data for this token. Check the address or try again later.")
+    except WebError as e:
+        cache[mint] = (time.time(), None, str(e))
+        fut.set_exception(e)
+    else:
+        cache[mint] = (time.time(), info, ov)
+        fut.set_result((info, ov))
+    finally:
+        pending.pop(mint, None)
+        _prune_overview(cache)
+    return await fut
 
 
 # ───────────────────────── pages ─────────────────────────
@@ -698,7 +830,7 @@ def _home_data(jobs):
 
 def _replay(job, page_size=250, budget_s=12.0):
     """Demo: play a believable run built from the stored result's own numbers, then return that result (0 requests)."""
-    return replay.play(job, job.replay["result"], job.t_from, job.t_to, page_size=page_size, budget_s=budget_s)
+    return replay.play(job, copy.deepcopy(job.replay["result"]), job.t_from, job.t_to, page_size=page_size, budget_s=budget_s)
 
 
 def _demo_ranges(snap):
@@ -800,7 +932,7 @@ async def token_page(request):
     mint = _mint(request.query.get("mint"))
     s = app["s"]
     demo = _demo(app)
-    pk = _require_wallet(request, mint)                                 # живий токен — лише з гаманцем; демо — усім
+    pk = request.get("acct")                                            # гість бачить графік і ставить межі; гаманець потрібен для Analyze
     hints = []                                                          # для «Find the pump»: підказки детектора (демо — записані діапазони)
     if demo and demo["mint"] == mint:                                   # демо-токен: усе зі знімка, 0 запитів
         info = demo["info"]
@@ -808,7 +940,7 @@ async def token_page(request):
                  "from": chart.to_input(r["from"]), "to": chart.to_input(r["to"])}
                 for i, r in enumerate(demo["ranges"])]
     else:
-        info, ov = await _overview(app, mint)
+        info, ov = await _overview(app, mint, _browse_budget(request, 2) if not _overview_cached(app, mint) else None)   # огляд ≈2 запити, кеш — 0
         rows = []                                                       # голий графік: діапазони ставить людина або кнопка
         hints = [{"from": h["acc_start"], "to": h["pump_start"], "base": h["base_mcap"], "peak": h["peak_mcap"], "mag": h["magnitude"]}
                  for h in ov["hints"][: int(s.get("finder_pumps", 2))]]
@@ -839,15 +971,15 @@ async def token_page(request):
 
 
 async def candles_json(request):
-    """Market-cap candles for the browser chart: ?mint&tf&a&b (a, b in unix seconds)."""
+    """Market-cap candles for the browser chart: ?mint&tf&a&b (a, b in unix seconds). Open to everyone; a live token's
+    chunks cost a request each, so they count against the day's chart budget (cached chunks are free)."""
     app = request.app
     q = request.query
     mint = _mint(q.get("mint"))
-    _require_wallet(request, mint)
     tf = q.get("tf") if q.get("tf") in chart.TFS else "1h"
     try:
         a, b = int(float(q.get("a", 0))), int(float(q.get("b", 0)))
-    except ValueError:
+    except (ValueError, OverflowError):
         raise WebError("Bad time range.")
     if b <= a:
         return web.json_response([])
@@ -855,26 +987,32 @@ async def candles_json(request):
     if demo and demo["mint"] == mint:
         cs = [c for c in (demo.get("candles") or {}).get(tf) or [] if a * 1000 <= c["time"] <= b * 1000]
         return web.json_response(chart.candles_mcap(cs, demo["info"]["supply"]))
-    info, _ = await _overview(app, mint)
+    st = app["st"]
+    info, _ = await _overview(app, mint, _browse_budget(request, 2) if not _overview_cached(app, mint) else None)
     now = int(time.time())
     created = int((info.get("created_time") or 0) // 1000)
     a, b = chart.snap_range(max(a, created - 3600), min(b, now + 3600), tf)
     if b <= a:
         return web.json_response([])
-    st = app["st"]
+    settle = _browse_budget(request, 1) if not st.chart_cached(mint, tf, a * 1000, b * 1000) else None   # шматок = 1 запит
 
     def load():
-        c = st.chart(mint, tf, a * 1000, b * 1000)
-        st.flush()
-        return c
+        req0 = st.requests_here()
+        try:
+            c = st.chart(mint, tf, a * 1000, b * 1000)
+            st.flush()
+            return c
+        finally:
+            if settle:
+                settle(st.requests_here() - req0)
     candles = await asyncio.to_thread(load)
     return web.json_response(chart.candles_mcap(candles, info["supply"]))
 
 
 async def analyze(request):
-    """Demo ranges replay for everyone. A live run needs a connected wallet: an existing result opens for free,
-    a token holds at most `ranges_per_token` analyses, a wallet gets `runs_per_day` runs a day, and one run may
-    spend at most `run_cap_requests` — none of that applies to the admin wallets."""
+    """Demo ranges replay for everyone and an existing result opens for everyone. A new live run needs a connected
+    wallet: a token holds at most `ranges_per_token` analyses, a wallet gets `runs_per_day` runs a day, and one run
+    may spend at most `run_cap_requests` — none of that applies to the admin wallets."""
     app, s = request.app, request.app["s"]
     ip = _client_ip(request)
     form = await request.post()
@@ -888,29 +1026,40 @@ async def analyze(request):
                                          replay={"log": list(r.get("log") or []), "result": r["result"]})
                 raise web.HTTPFound(f"/job/{job.id}")
         raise web.HTTPFound(f"/token?mint={mint}&notice=demo")           # інший діапазон — без живого (платного) прогону
-    pk = _require_wallet(request, mint)
-    admin = pk in app["admins"]
     cur = app["jobs"].get(make_id(mint, t_from, t_to)) if (t_from and t_to) else None
+    if cur and cur.mint != mint:                                        # id збігся у двох токенів з однаковим початком адреси
+        raise WebError("Another token with a similar address already holds this exact range. Shift a bound by a minute.")
     if cur and (cur.status in ("queued", "running") or (cur.status == "done" and cur.result)):
-        raise web.HTTPFound(f"/job/{cur.id}")                           # той самий діапазон уже є: відкриваємо, нічого не витрачаємо
-    runs = app["runs"]                                                  # платний шлях: спершу гальмо по адресі
-    wait = runs.wait_s(ip, time.time())
-    if wait:
-        raise WebError(f"Too many analyses from this address. Try again in {max(1, round(wait / 60))} min.", 429)
-    cap_tok = int(s.get("ranges_per_token", 3))
-    others = [j for j in app["jobs"].jobs.values() if j.mint == mint and j.status != "error" and j is not cur]
+        raise web.HTTPFound(f"/job/{cur.id}")                           # той самий діапазон уже є: відкриваємо, без витрат і без гаманця
+    pk = request.get("acct")
+    admin = bool(pk) and pk in app["admins"]
+    cap_tok = int(s.get("ranges_per_token", 3))                         # усе, що можна перевірити до гаманця, — до гаманця
+    others = [j for j in app["jobs"].jobs.values() if j.mint == mint and j.status != "error" and not j.replay and j is not cur]
     if len(others) >= cap_tok:
-        raise WebError(f"This token already has {cap_tok} analyses. Delete one of yours to add another.")
-    info, _ = await _overview(app, mint)
+        mine = bool(pk) and any(j.owner == pk for j in others)
+        raise WebError(f"This token already has {cap_tok} analyses. Delete one of yours to add another." if mine or admin else
+                       f"This token already has {cap_tok} analyses by other wallets. Open one of them, or ask its owner to free a slot.")
+    info, _ = await _overview(app, mint, _browse_budget(request, 2) if not _overview_cached(app, mint) else None)
     errs = window.validate(t_from, t_to, info.get("created_time"), int(time.time() * 1000),
                            max_window_ms=int(s.get("max_window_hours", 0) * HOUR) or None)
     if errs:
         raise WebError(" ".join(errs))
+    if not pk:                                                          # гість дійшов до Analyze з чинними межами: просимо гаманець, межі не губимо
+        raise ConnectRequired(mint, chart.to_input(t_from), chart.to_input(t_to))
+    runs = app["runs"]                                                  # платний шлях: спершу гальмо по адресі
+    wait = runs.wait_s(ip, time.time())
+    if wait:
+        raise WebError(f"Too many analyses from this address. Try again in {max(1, round(wait / 60))} min.", 429)
+    gcap = int(s.get("runs_global_per_day", 10))
+    if not admin and app["runs_daily"].left("global", gcap) <= 0:
+        raise WebError("Today's live analyses are used up for the whole site. The demo is always open; more tomorrow.", 429)
     cap_day = int(s.get("runs_per_day", 1))
     if not admin and not app["accounts"].take_run(pk, cap_day):
         raise WebError(f"You have used today's {'analysis' if cap_day == 1 else str(cap_day) + ' analyses'}. "
                        "The demo is always open; more tomorrow.", 429)
     runs.miss(ip, time.time())                                          # звідси починаються витрати — рахуємо цей запуск
+    if not admin:
+        app["runs_daily"].add("global", 1)
     over = {"budget_guard_pct": 0, "run_cap_requests": 0 if admin else int(s.get("run_cap_requests", 2000))}
     job = app["jobs"].submit(mint, t_from, t_to, symbol=info.get("symbol"), owner=pk, s_over=over)
     app["events"].add(pk, "analyze", job=job.id, symbol=info.get("symbol") or mint[:6])
@@ -946,11 +1095,15 @@ def _back_link(job):
 
 async def job_page(request):
     app = request.app
-    job = app["jobs"].get(request.match_info["id"])
+    jid = request.match_info["id"]
+    job = app["jobs"].get(jid)
     if not job:
+        canon = app["jobs"].get(jid[:-8]) if re.search(r"_r[0-9a-f]{6}$", jid) else None
+        if canon:
+            raise web.HTTPFound(f"/job/{canon.id}")                     # програвання демо вже прибране: показуємо збережений аналіз
         raise web.HTTPNotFound(text="No such analysis.")
     created = ((job.result or {}).get("info") or {}).get("created_time") or 0
-    if not created and job.status == "done":
+    if not created and job.status == "done" and _overview_cached(app, job.mint):   # лише з кешу: сторінка результату нічого не купує
         try:
             info, _ = await _overview(app, job.mint)
             created = info.get("created_time") or 0
@@ -963,7 +1116,7 @@ async def job_page(request):
         result = dict(result, rows=rows)
     else:
         result = None
-    return render("job.html", request, job=job, jstatus=status, result=result, s=app["s"], back=_back_link(job),
+    return render("job.html", request, job=job, save_id=job.canon or job.id, jstatus=status, result=result, s=app["s"], back=_back_link(job),
                   sm=sm, TAGS=tags.DEFS, created=created or (job.t_from - 24 * HOUR), now=int(time.time() * 1000),
                   cov_text=report.coverage_text((result or {}).get("coverage")), default_method=assistant_mod.DEFAULT_METHOD, presets=assistant_mod.PRESETS,
                   assistant_on=app.get("assistant") is not None,
@@ -1054,6 +1207,8 @@ async def job_assistant(request):
     try:
         out = await asyncio.get_running_loop().run_in_executor(None, a.ask, rows, method)
     except assistant_mod.AssistantError as e:
+        daily.add(who, -1)                                              # відповіді нема — спроба не рахується
+        daily.add("global", -1)
         return web.json_response({"error": str(e)}, status=502)
     out["n_rows"] = len(rows)
     out["left"] = daily.left(who, cap)
@@ -1072,11 +1227,12 @@ async def job_state_json(request):
     except ValueError:
         since = 0
     status, error = job.status, job.error                 # знімок статусу ДО зрізу журналу
+    extra = {"open": f"/job/{job.canon}"} if job.canon and status == "done" else {}   # демо: результат живе під збереженим id
     if status == "done" and not job.result:
         status, error = "error", "The analysis finished without a result. Details are in the container log."
     n = len(job.log)
     return web.json_response(
-        {"id": job.id, "mint": job.mint, "symbol": job.symbol, "status": status, "error": error,
+        {**extra, "id": job.id, "mint": job.mint, "symbol": job.symbol, "status": status, "error": error,
          "started_ms": job.started_ms or job.created_ms, "finished_ms": job.finished_ms,
          "now_ms": int(time.time() * 1000), "since": min(since, n), "n_lines": n,
          "log": job.log[since:n] if since < n else [], "progress": job.progress},
@@ -1110,8 +1266,13 @@ async def wallet_trades_json(request):
     a, b = job.t_from, job.t_exit or int(time.time() * 1000)
     supply = (job.result.get("info") or {}).get("supply") or 0
     stored = (job.result.get("wallet_trades") or {}).get(wallet)
+    settle = None
     if stored is None and job.result.get("mode") != "trades" and job.id not in _demo_job_ids(app):
-        _require_wallet(request)                                       # цей шлях купує угоди гаманця в ST
+        if wallet not in {r.get("wallet") for r in job.result.get("rows") or []}:
+            raise web.HTTPNotFound(text="That wallet is not in this analysis.")   # чужі адреси в Solana Tracker не купуємо
+        if not request.get("acct"):
+            raise ConnectRequired(message="Connect a wallet to load this wallet's trades.")   # цей шлях купує угоди гаманця…
+        settle = _browse_budget(request, 1)                            # …і платить за них з добового бюджету
 
     def work():
         if stored is not None:                                        # уся історія гаманця вже в результаті
@@ -1119,8 +1280,13 @@ async def wallet_trades_json(request):
         if job.result.get("mode") == "trades":
             trs = TradeStore(app["store_dir"], mint).between(a, b)
             return [t for t in trs if t.get("wallet") == wallet]
-        return [t for t in st.wallet_token_trades(wallet, mint, s.get("max_wallet_trade_pages", 4))
-                if t["time"] is not None and a <= t["time"] <= b]
+        req0 = st.requests_here()
+        try:
+            return [t for t in st.wallet_token_trades(wallet, mint, s.get("max_wallet_trade_pages", 4))
+                    if t["time"] is not None and a <= t["time"] <= b]
+        finally:
+            if settle:
+                settle(st.requests_here() - req0)
     trs = await asyncio.get_running_loop().run_in_executor(None, work)
     trs.sort(key=lambda t: t["time"] or 0)
     cap = int(s.get("markers_max", 200))
@@ -1131,4 +1297,14 @@ async def wallet_trades_json(request):
 
 
 async def health(request):
-    return web.json_response({"ok": True, "jobs": len(request.app["jobs"].jobs)})
+    """For the proxy and the deploy script: 503 when results cannot be written (the one failure that looks fine and
+    loses every analysis); running/queued counts let a deploy wait for an analysis in flight."""
+    jobs = request.app["jobs"]
+    try:
+        (Path(jobs.dir) / ".health").write_text(str(int(time.time())), encoding="utf-8")
+        ok = True
+    except OSError:
+        ok = False
+    st = [j.status for j in jobs.jobs.values()]
+    return web.json_response({"ok": ok, "jobs": len(st), "running": st.count("running"), "queued": st.count("queued"),
+                              "demo": _demo(request.app) is not None}, status=200 if ok else 503)

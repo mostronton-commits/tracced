@@ -110,7 +110,8 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
     page_size = s.get("page_size", 250)
     guard_pct = int(s.get("budget_guard_pct", 0) or 0)
     run_cap = int(s.get("run_cap_requests", 0) or 0)      # стеля запитів на один прогін (0 = без стелі)
-    req0 = st.requests
+    here = getattr(st, "requests_here", None) or (lambda: st.requests)   # лише запити цього потоку: сторінки поруч не рахуються
+    req0 = here()
 
     progress("token")
     info = token(st, mint)
@@ -131,19 +132,19 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
     def credits_now():
         if credits["seen"] is None:
             return None
-        return credits["seen"] - (st.requests - credits["at"])
+        return credits["seen"] - (here() - credits["at"])
 
     def guard(planned):
         if planned <= 0:
             return
-        if run_cap and (st.requests - req0) + planned > run_cap:
-            raise EarlyError(f"This range would take about {(st.requests - req0) + planned:,} requests; one run may "
+        if run_cap and (here() - req0) + planned > run_cap:
+            raise EarlyError(f"This range would take about {(here() - req0) + planned:,} requests; one run may "
                              f"use at most {run_cap:,}. Shorten the range.")
         if not guard_pct:
             return
         if credits["seen"] is None:
             credits["seen"] = _credits(st, log)
-            credits["at"] = st.requests
+            credits["at"] = here()
         msg = budget.budget_message(planned, credits_now(), guard_pct)
         if msg:
             raise EarlyError(msg)
@@ -178,7 +179,7 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
         except PageBudget as e:
             raise EarlyError(
                 f"Reached the cap of {e.pages} pages for the entry range; trades up to {_iso(e.covered_to)} UTC "
-                f"are cached. Shorten the range or raise the cap and run again.") from e
+                f"are cached. Shorten the range and run again.") from e
     else:
         log("entry range is cached — no new requests for it")
 
@@ -192,7 +193,7 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
     early, counts = ledger.classify(wl, t_to, s["min_invested_usd"])
     early.sort(key=lambda l: -l.invested_in_window)
     early_set = {l.wallet for l in early}
-    log(f"entry range: {len(win):,} trades · {len(wl):,} buyers · {len(early):,} bought in the range")
+    log(f"entry range: {len(win):,} trades · {len(wl):,} wallets traded · {len(early):,} bought in the range")
 
     # ── 3. рішення: уся історія токена чи угоди кожного гаманця ──
     gaps = store.gaps(created, t_end)
@@ -253,6 +254,10 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
         n_ok, last_seen = 0, (0, None)
         progress("wallets", 0, len(lookups))
         for i, l in enumerate(lookups, 1):
+            if run_cap and here() - req0 >= run_cap:                  # стеля рахується по факту: гаманець може коштувати до 4 сторінок
+                log(f"request cap {run_cap:,} reached: {len(lookups) - i + 1} wallets stay entry-only")
+                rest = lookups[i - 1:] + rest
+                break
             try:
                 wt = [tr for tr in st.wallet_token_trades(l.wallet, mint, s.get("max_wallet_trade_pages", 4))
                       if tr["time"] is not None and tr["time"] <= t_end]
@@ -294,7 +299,7 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
         "price_at_end": price_end,
         "fresh_wallets": [],
         "scope": "all",
-        "requests": st.requests - req0,
+        "requests": here() - req0,
         "pages_fetched": pages,
         "generated_ms": now_ms,
     }

@@ -9,6 +9,7 @@ import json
 import os
 import queue
 import re
+import secrets
 import threading
 import time
 
@@ -27,6 +28,7 @@ class Job:
         self.symbol_hint = None
         self.replay = None                # {"log": [...], "result": {...}} — демо: програти без запитів
         self.owner = None                 # гаманець, який запустив аналіз (демо і старі — None)
+        self.canon = None                 # програвання демо: id збереженого аналізу, який воно показує
         self.s_over = None                # стелі саме цього прогону (адмін — без стель), не зберігаються
         self.progress = {"phase": "queued", "done": 0, "total": None}
 
@@ -68,16 +70,17 @@ def make_id(mint, t_from, t_to):
 
 
 class JobQueue:
-    def __init__(self, runner, persist_dir, enricher=None):
+    def __init__(self, runner, persist_dir, enricher=None, on_error=None):
         self.runner = runner
         self.enricher = enricher              # enricher(job, save) — повільне збагачення після done
+        self.on_error = on_error              # on_error(job) — прогін упав: повернути власнику день
         self.dir = persist_dir
         self.jobs = {}
         self.q = queue.Queue()
         self.eq = queue.Queue()
         self.lock = threading.Lock()
         os.makedirs(persist_dir, exist_ok=True)
-        self._load()
+        self._load()                          # прогони, перервані рестартом, стають помилкою і повертають день
         self.thread = threading.Thread(target=self._worker, name="early-worker", daemon=True)
         self.thread.start()
         if enricher:
@@ -96,7 +99,17 @@ class JobQueue:
                     with open(os.path.join(self.dir, name), encoding="utf-8") as f:
                         j = Job.from_dict(json.load(f))
                     if j.status in ("queued", "running"):
-                        j.status, j.error = "error", "interrupted by a restart"
+                        j.status, j.error = "error", "interrupted by a server restart — run it again, your day is not spent"
+                        j.finished_ms = int(time.time() * 1000)
+                        if self.on_error:
+                            try:
+                                self.on_error(j)
+                            except Exception:  # noqa: BLE001
+                                pass
+                        try:
+                            self._save(j)
+                        except OSError:
+                            pass
                     if j.result:
                         from ..early.report import upgrade_result
                         upgrade_result(j.result)              # файли до перейменування window → range
@@ -112,16 +125,29 @@ class JobQueue:
         os.replace(tmp, path)
 
     def submit(self, mint, t_from, t_to, symbol=None, replay=None, owner=None, s_over=None):
-        id = make_id(mint, t_from, t_to)
+        """Живий прогін живе під id діапазону. Програвання демо отримує свій id (…_r + 6 hex), щоб не витісняти
+        збережений аналіз, який у цей час читають інші; старі програвання прибираються з пам'яті."""
+        canon = make_id(mint, t_from, t_to)
+        id = f"{canon}_r{secrets.token_hex(3)}" if replay else canon
         with self.lock:
             cur = self.jobs.get(id)
             if cur and cur.status in ("queued", "running"):
                 return cur                            # той самий аналіз уже йде
+            if replay:
+                stale = int(time.time() * 1000) - 600_000
+                for k in [k for k, j in self.jobs.items() if j.replay and j.finished_ms and j.finished_ms < stale]:
+                    self.jobs.pop(k, None)
             job = Job(id, mint, t_from, t_to)
             job.symbol_hint = symbol
             job.replay = replay
+            job.canon = canon if replay else None
             job.owner, job.s_over = owner, s_over
             self.jobs[id] = job
+        if not replay:
+            try:
+                self._save(job)               # у черзі — уже на диску: рестарт побачить його і поверне день
+            except OSError:
+                pass
         self.q.put(job)
         return job
 
@@ -141,7 +167,7 @@ class JobQueue:
         return True
 
     def recent(self, n=30):
-        return sorted(self.jobs.values(), key=lambda j: j.created_ms or 0, reverse=True)[:n]
+        return sorted((j for j in self.jobs.values() if not j.replay), key=lambda j: j.created_ms or 0, reverse=True)[:n]
 
     def _worker(self):
         while True:
@@ -156,13 +182,18 @@ class JobQueue:
             except Exception as e:  # noqa: BLE001 — причина йде людині на сторінку
                 job.status, job.error = "error", str(e)
                 job.set_progress("error", 1, 1)
+                if self.on_error:
+                    try:
+                        self.on_error(job)
+                    except Exception as e2:  # noqa: BLE001
+                        job.log.append(f"could not give the run back: {e2}")
             job.finished_ms = int(time.time() * 1000)
             try:
                 if not job.replay:                # програвання демо не чіпає збережений аналіз на диску
                     self._save(job)
             except Exception as e:  # noqa: BLE001
                 job.log.append(f"could not save the result: {e}")
-            if self.enricher and job.status == "done" and job.result:
+            if self.enricher and job.status == "done" and job.result and not job.replay:   # демо вже збагачене
                 self.eq.put(job)
             self.q.task_done()
 

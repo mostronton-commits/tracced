@@ -7,7 +7,7 @@
   <h2>Connect a wallet</h2>
   <p class="muted">Keep the wallets you pick from any result, and the analyses you want to come back to. Sign a message to prove the wallet is yours: no transaction, no fees.</p>
   <p><button type="button" class="primary" data-wallet-signin>Connect</button></p>
-  <p class="muted small">Running new analyses is in private beta.</p>
+  <p class="muted small">Connected wallets also get {{ s.runs_per_day|per_day }}; the demo is always open.</p>
 </section>
 {% else %}
 <section class="card me" id="list">
@@ -49,7 +49,7 @@
       <span class="mono n">{{ a.n|num }} wallet{{ '' if a.n == 1 else 's' }}</span>
       <span class="mono n">{% if a.best %}best {{ a.best|round(1) }}×{% endif %}</span>
       <a class="open" href="/job/{{ a.job }}">Open →</a>
-      <button type="button" class="ghost x" data-rm-job title="Remove from my analyses">×</button>
+      <button type="button" class="ghost x" data-rm-job title="Remove from My analyses">×</button>
     </div>
   {% endfor %}
   </div>

@@ -1,0 +1,9 @@
+.env
+.git
+output/
+cache/
+tests/
+docs/
+__pycache__/
+*.pyc
+*.png

@@ -65,7 +65,7 @@ def replay_lines(result, t_from, t_to, page_size=250, budget_s=12.0, max_pages=1
         head = f"page {p_hi}" if p_hi <= p_lo else f"pages {p_lo}–{p_hi}"
         out.append((f"{head}: {new:,} trades (+{new:,} new), up to {_short(upto)}", "trades", p_hi, pages, 4.0 * u / k))
 
-    out.append((f"entry range: {n_trades:,} trades · {n_wallets:,} buyers · {n_early:,} bought in the range",
+    out.append((f"entry range: {n_trades:,} trades · {n_wallets:,} wallets traded · {n_early:,} bought in the range",
                 "trades", pages, pages, 0.5 * u))
     path = "whole token history" if mode == "trades" else "each wallet's own trades"
     cost = f"{int(requests):,} request{'s' if int(requests) != 1 else ''}" if requests else "cached"

@@ -69,7 +69,7 @@ def coverage_text(cov):
     if k >= n:
         return f"Exits known for all {n:,} wallets · each wallet's trades fetched"
     return (f"Exits known for {k:,} of {n:,} wallets · the rest tagged no-exits "
-            f"(cap {int(cov.get('lookup_cap') or 0):,} on the {cov.get('plan', 'free')} plan)")
+            f"(cap {int(cov.get('lookup_cap') or 0):,} wallets per analysis)")
 
 
 def summary(rows):

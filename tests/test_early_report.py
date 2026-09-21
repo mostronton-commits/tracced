@@ -76,5 +76,5 @@ class TestUpgrade(unittest.TestCase):
         self.assertEqual(report.coverage_text({"exits_known": 9, "total": 9, "mode": "wallet-trades", "cost_full": 50}),
                          "Exits known for all 9 wallets · each wallet's trades fetched")
         t = report.coverage_text({"exits_known": 250, "total": 1544, "mode": "wallet-trades", "cost_full": 243, "lookup_cap": 250, "plan": "free"})
-        self.assertEqual(t, "Exits known for 250 of 1,544 wallets · the rest tagged no-exits (cap 250 on the free plan)")
+        self.assertEqual(t, "Exits known for 250 of 1,544 wallets · the rest tagged no-exits (cap 250 wallets per analysis)")
         self.assertEqual(report.coverage_text(None), "")

@@ -36,7 +36,7 @@
   {% for e in events %}
     <div class="rrow evrow">
       <span class="muted small"><span class="dtc" data-ms="{{ e.ts_ms }}">{{ e.ts_ms|dt }}</span></span>
-      <span class="mono" title="{{ e.pubkey }}">{{ e.pubkey[:6] }}…{{ e.pubkey[-4:] }}</span>
+      {% if e.pubkey == 'guest' %}<span class="muted">guest</span>{% else %}<span class="mono" title="{{ e.pubkey }}">{{ e.pubkey[:6] }}…{{ e.pubkey[-4:] }}</span>{% endif %}
       <span>
         {% if e.event == 'signin' %}signed in{% if e.wallet %} · {{ e.wallet }}{% endif %}
         {% elif e.event == 'save_wallets' %}saved {{ e.n }} wallet{{ '' if e.n == 1 else 's' }} from <a href="/job/{{ e.job }}">{{ e.symbol or e.job }}</a>

@@ -5,7 +5,7 @@
 {% block body %}
 <section class="card token" id="token" data-mint="{{ mint }}" data-symbol="{{ info.symbol or '' }}"
          data-rows='{{ rows_json }}' data-jobs='{{ jobs_json }}' data-preset='{{ preset_json }}' data-hints='{{ hints_json }}' data-min-peak="{{ min_peak }}" data-max-rows="{{ s.ranges_per_token }}" data-finder-max="{{ s.finder_pumps }}"
-         data-created="{{ created }}" data-now="{{ now }}" data-demo="{{ 1 if is_demo else 0 }}"{% if bounced %} data-bounced="Only the {{ "ranges" if n_demo > 1 else "range" }} below {{ "are" if n_demo > 1 else "is" }} recorded. Pick one and press Analyze."{% endif %}>
+         data-created="{{ created }}" data-now="{{ now }}" data-demo="{{ 1 if is_demo else 0 }}" data-acct="{{ 1 if acct else 0 }}" data-runs="{{ s.runs_per_day|per_day }}"{% if bounced %} data-bounced="Only the {{ "ranges" if n_demo > 1 else "range" }} below {{ "are" if n_demo > 1 else "is" }} recorded. Pick one and press Analyze."{% endif %}>
   <div class="tokenhead">
     <div>
       <h1>{{ info.symbol or '?' }}{% if info.name and info.name != info.symbol %} <span class="muted">{{ info.name }}</span>{% endif %}{% if is_demo %} <span class="chip demo" title="Recorded token · {{ n_demo }} pump{{ 's' if n_demo != 1 else '' }} replayed without requests">Demo</span>{% endif %}</h1>
@@ -26,14 +26,14 @@
   </div>
   <div class="chartbox" id="chart"></div>
 
-  <div class="stepbar small"><span class="stepn">03</span><div class="stepx"><b>Check the bounds and analyze</b>{% if is_demo %}<span>Press Analyze on a pump to watch the run.</span>{% endif %}</div></div>
+  <div class="stepbar small"><span class="stepn">03</span><div class="stepx"><b>Check the bounds and analyze</b>{% if is_demo %}<span>Press Analyze on a pump to watch the run.</span>{% elif not acct %}<span>Analyze needs a connected wallet: free, no transaction, {{ s.runs_per_day|per_day }}.</span>{% endif %}</div></div>
   <template id="row-tpl">
     <form class="wrow" method="post" action="/analyze">
       <input type="hidden" name="mint" value="{{ mint }}">
       <span class="n"></span>
       <span class="label" contenteditable="true" spellcheck="false" title="Rename"></span>
-      <label class="fld"><span>From</span><input type="datetime-local" name="from" required></label>
-      <label class="fld"><span>To</span><input type="datetime-local" name="to" required></label>
+      <label class="fld"><span>From (UTC)</span><input type="datetime-local" name="from" required></label>
+      <label class="fld"><span>To (UTC)</span><input type="datetime-local" name="to" required></label>
       <button type="submit" class="primary">Analyze</button>
       <a class="result button ghost" hidden>Open result →</a>
       <button type="button" class="ghost del" title="Remove">×</button>
@@ -44,7 +44,7 @@
     <button type="button" class="ghost" id="add">+ Add range</button>
     <button type="button" class="ghost" id="reset" title="Back to the detected pumps">Reset</button>
     <span class="muted small">Range up to {{ s.max_window_hours }} h</span>{% else %}
-    <span class="muted small">Recorded ranges are fixed here. {% if acct %}Paste any token above to analyze your own — one live analysis a day.{% else %}<button type="button" class="link" data-wallet-signin>Connect a wallet</button> to analyze any token — one live analysis a day.{% endif %}</span>{% endif %}
+    <span class="muted small">Recorded ranges are fixed here. {% if acct %}Paste any token above to analyze your own — {{ s.runs_per_day|per_day }}.{% else %}<button type="button" class="link" data-wallet-signin>Connect a wallet</button> to analyze any token — {{ s.runs_per_day|per_day }}.{% endif %}</span>{% endif %}
   </div>
 </section>
 
@@ -55,11 +55,13 @@
   const INITIAL = JSON.parse(root.dataset.rows), JOBS = new Set(JSON.parse(root.dataset.jobs)), PRESET = JSON.parse(root.dataset.preset);
   const JOBS_BY_WINDOW = new Map(); JOBS.forEach(id => JOBS_BY_WINDOW.set(id.split('_x')[0], id));   // older results still carry a horizon suffix
   const DEMO = root.dataset.demo === '1', RAN = 'early:ran:';   // demo: the result opens only after this browser pressed Analyze on that range
+  let ACCT = root.dataset.acct === '1';                          // a new live run needs a wallet; the ask comes at Analyze, not before
   const MAX_ROWS = +root.dataset.maxRows || 3, FINDER_MAX = +root.dataset.finderMax || 2;
-  const LIMIT_MSG = MAX_ROWS + ' ranges per token is the limit here. Delete one to add another.';
+  const RUNS = root.dataset.runs || 'one live analysis a day';
+  const limitMsg = () => MAX_ROWS + ' ranges per token is the limit here. ' + (state.rows.some(r => r.deletable) ? 'Delete one of yours to add another.' : 'Open one of the analyzed ranges instead.');
   if (root.dataset.bounced) EarlyUI.toast(root.dataset.bounced, 6000);
   let nudged = 0;                                                // demo: bounds are fixed; one reminder per few seconds, never a dead click
-  function nudge() { const t = Date.now(); if (t - nudged < 4000) return; nudged = t; EarlyUI.toast('Demo ranges are fixed. Paste any other token to analyze it — one live analysis a day with a connected wallet.', 6000); }
+  function nudge() { const t = Date.now(); if (t - nudged < 4000) return; nudged = t; EarlyUI.toast('Demo ranges are fixed. Paste any other token to analyze it — ' + RUNS + ' with a connected wallet.', 6000); }
   const ran = id => { try { return !!localStorage.getItem(RAN + id); } catch (e) { return true; } };
   const rowsEl = document.getElementById('rows'), tpl = document.getElementById('row-tpl');
   const pad = n => String(n).padStart(2, '0');
@@ -107,7 +109,13 @@
 
   function hitFor(r) { const id = jobId(r); return id && (JOBS.has(id) ? id : JOBS_BY_WINDOW.get(id)); }
   function refreshLink(f, r) { const a = f.querySelector('.result'), hit = hitFor(r); if (hit && (!DEMO || ran(hit))) { a.hidden = false; a.href = '/job/' + hit; } else a.hidden = true; }
-  rowsEl.addEventListener('submit', e => { if (!DEMO) return; const f = e.target.closest('.wrow'), r = f && state.rows[+f.dataset.i], hit = r && hitFor(r); if (hit) { try { localStorage.setItem(RAN + hit, '1'); } catch (x) {} } });
+  rowsEl.addEventListener('submit', e => {
+    const f = e.target.closest('.wrow'), r = f && state.rows[+f.dataset.i], hit = r && hitFor(r);
+    if (DEMO) { if (hit) { try { localStorage.setItem(RAN + hit, '1'); } catch (x) {} } return; }
+    if (ACCT || hit) return;                                     // a finished result opens for anyone; a new live run needs a wallet
+    e.preventDefault();
+    EarlyWallet.open(() => { ACCT = true; f.submit(); }, 'A live analysis needs a connected wallet: ' + RUNS + ', free, no transaction. Connect, and this range runs right away.');
+  });
   function render() {
     rowsEl.innerHTML = '';
     state.rows.forEach((r, i) => {
@@ -123,7 +131,7 @@
       refreshLink(f, r);
       rowsEl.appendChild(f);
     });
-    if (addBtn) { addBtn.disabled = state.rows.length >= MAX_ROWS; addBtn.title = addBtn.disabled ? LIMIT_MSG : ''; }
+    if (addBtn) { addBtn.disabled = state.rows.length >= MAX_ROWS; addBtn.title = addBtn.disabled ? limitMsg() : ''; }
     ch.setWindows(winList(), state.sel);
   }
   function dropRow(i) { state.rows.splice(i, 1); if (!state.rows.length) state.rows.push({ n: 1, label: 'Range 1', from: '', to: '' }); state.sel = Math.min(state.sel, state.rows.length - 1); save(); render(); focusSel(); }
@@ -156,7 +164,7 @@
   rowsEl.addEventListener('mousedown', e => { if (DEMO && e.target.matches('input[type=datetime-local], .label')) { e.preventDefault(); nudge(); } });
   rowsEl.addEventListener('focusin', e => { const f = e.target.closest('.wrow'); if (f && +f.dataset.i !== state.sel) { const name = e.target.name; state.sel = +f.dataset.i; save(); render(); focusSel(); const nf = rowsEl.querySelector('.wrow.sel [name=' + name + ']'); if (nf) nf.focus(); } });
   const addBtn = document.getElementById('add'), resetBtn = document.getElementById('reset');
-  if (addBtn) addBtn.addEventListener('click', () => { if (state.rows.length >= MAX_ROWS) { EarlyUI.toast(LIMIT_MSG); return; } state.rows.push({ n: null, label: 'Range ' + (state.rows.length + 1), from: '', to: '' }); state.sel = state.rows.length - 1; save(); render(); });
+  if (addBtn) addBtn.addEventListener('click', () => { if (state.rows.length >= MAX_ROWS) { EarlyUI.toast(limitMsg()); return; } state.rows.push({ n: null, label: 'Range ' + (state.rows.length + 1), from: '', to: '' }); state.sel = state.rows.length - 1; save(); render(); });
   if (resetBtn) resetBtn.addEventListener('click', () => { try { localStorage.removeItem(KEY); } catch (e) {} state = { rows: INITIAL.map(r => ({...r})), sel: 0 }; render(); focusSel(); });
 
   // «Find the pump»: the recorded ranges on the demo, the detector's hints on a live token, else a look at the loaded candles
@@ -194,7 +202,7 @@
       const empty = state.rows.findIndex(r => !r.from && !r.to);        // an empty row is filled, not duplicated
       if (empty >= 0) { Object.assign(state.rows[empty], { label: c.label, from: c.from, to: c.to }); i = empty; }
       else if (state.rows.length < MAX_ROWS) { state.rows.push({ n: null, label: c.label, from: c.from, to: c.to }); i = state.rows.length - 1; }
-      else { EarlyUI.toast(LIMIT_MSG); return; }
+      else { EarlyUI.toast(limitMsg()); return; }
     }
     state.sel = i; save(); render(); focusSel();
     const f = rowsEl.querySelector('.wrow.sel'); if (f) { f.classList.remove('pulse'); void f.offsetWidth; f.classList.add('pulse'); }

@@ -33,7 +33,7 @@ class TestReplayLines(unittest.TestCase):
         order = [replay.PHASES.index(p) for p in self.phases(seq)]
         self.assertEqual(order, sorted(order))                           # token → trades → wallets → tags → done
         self.assertEqual(self.phases(seq)[-1], "done")
-        self.assertIn("entry range: 14,414 trades · 770 buyers · 765 bought in the range", lines)
+        self.assertIn("entry range: 14,414 trades · 770 wallets traded · 765 bought in the range", lines)
         self.assertIn("tags: sniper 2 · bundle 1", lines)
         self.assertTrue(lines[-1].startswith("done (trades): 765 wallets bought in the range; Exits known for all 765 wallets"))
         self.assertTrue(lines[-1].endswith("; cached"))                  # запитів у результаті нема → так і кажемо

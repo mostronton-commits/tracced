@@ -18,23 +18,39 @@ healthy() {                       # ask the container itself; python is always t
   docker compose -f "$COMPOSE" exec -T web python -c \
     "import urllib.request,os,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:'+os.getenv('WEB_PORT','8095')+'/health', timeout=5).status==200 else 1)" >/dev/null 2>&1
 }
+busy() {                          # an analysis in flight: a restart now would lose it
+  docker compose -f "$COMPOSE" exec -T web python -c \
+    "import urllib.request,os,sys,json; d=json.load(urllib.request.urlopen('http://127.0.0.1:'+os.getenv('WEB_PORT','8095')+'/health', timeout=5)); sys.exit(0 if d.get('running') or d.get('queued') else 1)" >/dev/null 2>&1
+}
 
 run() {
   cd "$DIR"
+  REJECTED="$DIR/.autodeploy-rejected"      # a commit that failed to deploy: not retried until a new push
+  if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+    say "local changes in the checkout, not deploying (commit them in the repository instead):"; git status --short | head -5; exit 1
+  fi
   git fetch -q origin
   BR=$(git rev-parse --abbrev-ref HEAD)
   LOCAL=$(git rev-parse HEAD); REMOTE=$(git rev-parse "origin/$BR")
+  if [ -f "$REJECTED" ] && [ "$(cat "$REJECTED")" = "$REMOTE" ] && [ "${FORCE:-0}" != "1" ]; then exit 0; fi
   [ "$LOCAL" = "$REMOTE" ] && [ "${FORCE:-0}" != "1" ] && exit 0
+  rm -f "$REJECTED"
+  for i in $(seq 1 20); do busy || break; [ "$i" = 1 ] && say "an analysis is running: waiting before deploying ${REMOTE:0:7}"; sleep 30; done
   say "new commits on $BR: ${LOCAL:0:7} -> ${REMOTE:0:7}"
   git pull -q --ff-only origin "$BR"
-  docker compose -f "$COMPOSE" up -d --build 2>&1 | tail -3
+  if ! docker compose -f "$COMPOSE" build 2>&1 | tail -5; then
+    say "BUILD FAILED for ${REMOTE:0:7}: the running container stays; back to ${LOCAL:0:7} until a new push"
+    git reset -q --hard "$LOCAL"; echo "$REMOTE" > "$REJECTED"; exit 1
+  fi
+  docker compose -f "$COMPOSE" up -d 2>&1 | tail -3
   sleep 8
   for i in 1 2 3 4 5; do healthy && { say "deployed $BR $(git rev-parse --short HEAD), /health ok"; exit 0; }; sleep 5; done
   say "new container does not answer /health: rolling back to ${LOCAL:0:7}"
+  echo "$REMOTE" > "$REJECTED"
   git reset -q --hard "$LOCAL"
   docker compose -f "$COMPOSE" up -d --build 2>&1 | tail -3
   sleep 8
-  healthy && say "rolled back to ${LOCAL:0:7}, /health ok" || say "ROLLBACK FAILED: the site may be down"
+  healthy && say "rolled back to ${LOCAL:0:7}, /health ok; ${REMOTE:0:7} stays rejected until a new push" || say "ROLLBACK FAILED: the site may be down"
   exit 1
 }
 

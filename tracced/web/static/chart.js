@@ -74,7 +74,8 @@
 
     async function fetchChunk(a, b) {
       const q = new URLSearchParams({ mint: opts.mint, tf, a: Math.floor(a), b: Math.ceil(b) });
-      const r = await fetch('/candles.json?' + q); if (!r.ok) return [];
+      const r = await fetch('/candles.json?' + q);
+      if (!r.ok) { try { const d = await r.json(); if (d && d.error && window.EarlyUI) EarlyUI.toast(d.error, 8000); } catch (e) {} return []; }   // say why the chart is empty
       return r.json();
     }
     async function load(a, b) {
@@ -170,7 +171,7 @@
         lbl.addEventListener('click', e => { e.stopPropagation(); if (opts.onSelect) opts.onSelect(i); else focus(w.from, w.to, null); });
         d.appendChild(lbl); layer.appendChild(d);
       });
-      if (exitSec && exitSec >= v.a && exitSec <= v.b) { const x = xOf(exitSec); if (x != null) { const d = document.createElement('div'); d.className = 'exitline'; d.style.left = x + 'px'; d.title = 'Sells until'; layer.appendChild(d); } }
+      if (exitSec && exitSec >= v.a && exitSec <= v.b) { const x = xOf(exitSec); if (x != null) { const d = document.createElement('div'); d.className = 'exitline'; d.style.left = x + 'px'; d.title = 'Trades up to'; layer.appendChild(d); } }
       if (marker && marker >= v.a && marker <= v.b) { const x = xOf(marker); if (x != null) { const d = document.createElement('div'); d.className = 'marker'; d.style.left = x + 'px'; layer.appendChild(d); } }
     }
     if (opts.interactive) chart.subscribeClick(p => { if (p.time && opts.onClick) opts.onClick(p.time * 1000); });

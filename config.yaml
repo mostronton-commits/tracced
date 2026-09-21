@@ -11,11 +11,11 @@ detect:                             # pump detector: suggested ranges on the cha
   merge_gap_min: 60                 # pumps closer than this are one pump
 
 early:
-  plan: free                        # free (2,500 requests/month, 3 req/s) | advanced (200,000/month)
+  plan: free                        # free (10,000 requests/month, 3 req/s) | advanced (200,000/month)
   example_job: 98kfF7_20260915-1930_1950   # a finished analysis pinned as the example on the home page (ignored if missing)
   demo_job: 98kfF7_20260915-1930_1950      # replays from output/early/demo/<mint>.json with zero requests (ignored if missing)
 
   # Wallet age and first funder (tags `fresh` and `bundle`) come from a Solana RPC, not from the Data API.
-  # With SOLANA_RPC_URL set to our own node these are cheap, so tag every wallet in the table, not the first 300.
+  # Tuned for a private node in SOLANA_RPC_URL: cheap, so tag every wallet in the table. With the public node keep 0.5 and 300.
   rpc_pace_s: 0.2               # 5 requests/s, the node's limit
   age_lookups_max: 2000

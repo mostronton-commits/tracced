@@ -15,7 +15,8 @@
     const stick = body.scrollHeight - body.scrollTop - body.clientHeight < 40;
     const row = document.createElement('div'); row.className = 'tl' + (cls ? ' ' + cls : '');
     row.style.setProperty('--i', reduced ? 0 : Math.min(i, 8));
-    const d = new Date(); row.innerHTML = '<span class="ts">' + p2(d.getHours()) + ':' + p2(d.getMinutes()) + ':' + p2(d.getSeconds()) + '</span><span class="tx">' + hi(text) + '</span>';
+    const d = new Date(); let u = true; try { u = localStorage.getItem('early:tz') !== 'local'; } catch (e) {}   // same clock as every date on the site
+    row.innerHTML = '<span class="ts">' + p2(u ? d.getUTCHours() : d.getHours()) + ':' + p2(u ? d.getUTCMinutes() : d.getMinutes()) + ':' + p2(d.getSeconds()) + '</span><span class="tx">' + hi(text) + '</span>';
     lines.appendChild(row); if (stick) body.scrollTop = body.scrollHeight;
   }
   function tickClock() { if (stopped) return; const s = Math.max(0, Math.floor((elapsed0 + Date.now() - tick0) / 1000)); clock.textContent = p2(Math.floor(s / 60)) + ':' + p2(s % 60); }
@@ -25,7 +26,10 @@
       const r = await fetch('/job/' + id + '.state.json?since=' + since, { cache: 'no-store', credentials: 'same-origin' });
       if (!r.ok || !(r.headers.get('content-type') || '').includes('json')) throw new Error(r.status);
       d = await r.json(); failures = 0;
-    } catch (e) { if (++failures === 1) add('… connection lost, retrying', 0, 'dim'); setTimeout(poll, 3000); return; }
+    } catch (e) {
+      if (String(e.message) === '404') { stopped = true; add('this analysis is gone: the server restarted while it ran. Go back and run it again; your day is not spent.', 0, 'dim'); return; }
+      if (++failures === 1) add('… connection lost, retrying', 0, 'dim'); setTimeout(poll, 3000); return;
+    }
     elapsed0 = Math.max(0, d.now_ms - d.started_ms); tick0 = Date.now(); tickClock();
     if (d.symbol) sym.textContent = d.symbol;
     d.log.forEach((l, i) => add(l, i, /warning|unavailable|failed/i.test(l) ? 'dim' : '')); since = d.n_lines;
@@ -33,7 +37,7 @@
     const pct = p.total ? Math.min(100, Math.round(100 * p.done / p.total)) : (d.status === 'done' ? 100 : 0);
     fill.style.width = pct + '%'; t.classList.toggle('indeterminate', !p.total && d.status === 'running');
     t.classList.remove('queued', 'running', 'done', 'error'); t.classList.add(d.status);
-    if (d.status === 'done') { stopped = true; add('done — opening the result', 0, 'dim'); setTimeout(() => location.reload(), reduced ? 0 : 500); return; }
+    if (d.status === 'done') { stopped = true; add('done — opening the result', 0, 'dim'); setTimeout(() => { if (d.open) location.replace(d.open); else location.reload(); }, reduced ? 0 : 500); return; }
     if (d.status === 'error') { stopped = true; errEl.textContent = d.error || 'The analysis failed.'; foot.hidden = false; return; }
     setTimeout(poll, document.hidden ? 3000 : 1000);
   }

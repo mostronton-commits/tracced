@@ -25,7 +25,7 @@
 {% endblock %}
 {% block body %}
 <section class="steps3" aria-label="How it works in three steps">
-  <div><i>01</i><b>Paste contract</b></div>
+  <div><i>01</i><b>Paste address</b></div>
   <em aria-hidden="true">→</em>
   <div><i>02</i><b>Choose range</b></div>
   <em aria-hidden="true">→</em>
@@ -57,7 +57,7 @@
         <span class="mono muted win"><span class="dtc" data-ms="{{ t.t_from }}">{{ t.t_from|dt }}</span> → <span class="dtc" data-ms="{{ t.t_to }}">{{ t.t_to|dt }}</span></span>
         <span class="mono n">{{ t.ranges }} range{{ '' if t.ranges == 1 else 's' }}</span>
         <span class="mono n">{% if t.best %}best {{ t.best|round(1) }}×{% endif %}</span>
-        {% if t.example %}<span class="chip ex" title="A finished analysis — open it, no waiting">Example</span>{% else %}<span class="chip st-{{ t.status }}">{{ {'running':'Running','done':'Done','error':'Error'}[t.status] }}</span>{% endif %}
+        {% if t.example %}<span class="chip ex" title="Recorded token — press Analyze on a pump to replay the run, no requests">Example</span>{% else %}<span class="chip st-{{ t.status }}">{{ {'running':'Running','done':'Done','error':'Error'}[t.status] }}</span>{% endif %}
         <span class="open">Open →</span>
       </a>
     {% endfor %}

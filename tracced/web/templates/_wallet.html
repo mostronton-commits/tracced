@@ -1,9 +1,10 @@
 <div class="sheet" id="wsheet" hidden>
   <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="wtitle">
     <div class="sheet-head"><b id="wtitle">Connect a wallet</b><button type="button" class="ghost x" data-wallet-close title="Close">×</button></div>
+    <p class="wnote" id="wnote" hidden></p>
     <p class="muted">Sign a message to prove you own the wallet. No transaction, no fees.</p>
     <div class="wlist" id="wlist"></div>
     <p class="muted small wstate" id="wstate"></p>
-    <p class="muted small">Your list and your analyses stay with the wallet. Running new analyses is in private beta.</p>
+    <p class="muted small">Your watchlist and analyses stay with the wallet. {{ (s.runs_per_day|per_day)|capitalize }}; the demo is always open.</p>
   </div>
 </div>

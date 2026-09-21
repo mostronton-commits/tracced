@@ -8,7 +8,7 @@ if grep -q "^${DOMAIN}" "$FILE"; then echo "already enabled: ${DOMAIN}"; exit 0;
 BAK="${FILE}.bak-$(date +%F-%H%M)"
 cp "$FILE" "$BAK"; echo "backup: ${BAK}"
 if [ "$UP" = "tracced-web" ]; then HOSTS="$DOMAIN, www.$DOMAIN"; else HOSTS="$DOMAIN"; fi
-printf '\n# tracced (added %s; upstream = container %s)\n%s {\n    encode zstd gzip\n    reverse_proxy %s:8095\n}\n' "$(date +%F)" "$UP" "$HOSTS" "$UP" >> "$FILE"
+printf '\n# tracced (added %s; upstream = container %s)\n%s {\n    encode zstd gzip\n    header {\n        Strict-Transport-Security "max-age=31536000"\n        X-Content-Type-Options nosniff\n        Referrer-Policy strict-origin-when-cross-origin\n        Content-Security-Policy "frame-ancestors '"'"'none'"'"'; object-src '"'"'none'"'"'; base-uri '"'"'self'"'"'"\n    }\n    reverse_proxy %s:8095\n}\n' "$(date +%F)" "$UP" "$HOSTS" "$UP" >> "$FILE"
 if docker exec "$CADDY" caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
   docker exec "$CADDY" caddy reload --config /etc/caddy/Caddyfile
   echo "done: ${DOMAIN} is served; the HTTPS certificate arrives by itself once DNS points at this server"

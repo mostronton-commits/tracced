@@ -141,21 +141,26 @@ class Assistant:
         system, user = build_prompt(rows, method)
         known = {r["wallet"] for r in rows}
         picks, note, json_mode = [], "", True
+        calls = [0]                                              # ліміт спроб — на одне запитання, не на життя процесу
+
+        def chat(u=None, **opts):
+            calls[0] += 1
+            return self._chat(system, u or user, **opts)
         try:
             try:
-                text, reasoned = self._chat(system, user)
+                text, reasoned = chat()
             except urllib.error.HTTPError as e:
                 if e.code != 400:
                     raise
                 json_mode = False                                # ця модель не знає response_format — без нього
-                text, reasoned = self._chat(system, user, json_mode=False)
+                text, reasoned = chat(json_mode=False)
             picks, note = parse_reply(text, known)
-            if not picks and not text.strip() and self.calls < MAX_CALLS:   # порожня відповідь: думки з'їли ліміт токенів
-                text, _ = self._chat(system, user, json_mode=json_mode, reasoning=False)
+            if not picks and not text.strip() and calls[0] < MAX_CALLS:   # порожня відповідь: думки з'їли ліміт токенів
+                text, _ = chat(json_mode=json_mode, reasoning=False)
                 picks, note = parse_reply(text, known)
-            if not picks and self.calls < MAX_CALLS:
-                text, _ = self._chat(system, user + "\nYour previous answer was not valid JSON. Return only the JSON object.",
-                                     json_mode=json_mode, reasoning=False)
+            if not picks and calls[0] < MAX_CALLS:
+                text, _ = chat(user + "\nYour previous answer was not valid JSON. Return only the JSON object.",
+                               json_mode=json_mode, reasoning=False)
                 picks, note = parse_reply(text, known)
         except urllib.error.HTTPError as e:
             if e.code == 429:
