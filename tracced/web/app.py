@@ -385,6 +385,9 @@ def _wait_text(s):
     return f"Too many attempts. Try again in {max(1, round(s / 60))} min." if s >= 60 else f"Too many attempts. Try again in {s} s."
 
 
+EARLY_NOTE = "tracced is early, so the limits are small while we watch the load; they will grow."
+
+
 class ConnectRequired(Exception):
     """A new live run needs a connected wallet: the page says so, offers to connect and keeps the range (401)."""
 
@@ -751,6 +754,7 @@ def render(name, request, status=200, **ctx):
     if request is not None:
         ctx.setdefault("s", request.app["s"])                   # квоти в текстах беруться з налаштувань, не з голови
         ctx.setdefault("assistant_on", request.app.get("assistant") is not None)   # без ключа сторінки не обіцяють агента
+        ctx.setdefault("early_note", EARLY_NOTE)
     ctx.setdefault("umami_id", os.getenv("UMAMI_WEBSITE_ID", ""))   # аналітика вмикається лише там, де задано id
     html = env.get_template(name).render(**ctx)
     return web.Response(text=html, content_type="text/html", status=status)
@@ -1053,11 +1057,12 @@ async def analyze(request):
         raise WebError(f"Too many analyses from this address. Try again in {max(1, round(wait / 60))} min.", 429)
     gcap = int(s.get("runs_global_per_day", 10))
     if not admin and app["runs_daily"].left("global", gcap) <= 0:
-        raise WebError("Today's live analyses are used up for the whole site. The demo is always open; more tomorrow.", 429)
+        raise WebError("Today's live analyses are used up for the whole site. " + EARLY_NOTE
+                       + " The demo is always open; more tomorrow.", 429)
     cap_day = int(s.get("runs_per_day", 1))
     if not admin and not app["accounts"].take_run(pk, cap_day):
         raise WebError(f"You have used today's {'analysis' if cap_day == 1 else str(cap_day) + ' analyses'}. "
-                       "The demo is always open; more tomorrow.", 429)
+                       + EARLY_NOTE + " The demo is always open; more tomorrow.", 429)
     runs.miss(ip, time.time())                                          # звідси починаються витрати — рахуємо цей запуск
     if not admin:
         app["runs_daily"].add("global", 1)

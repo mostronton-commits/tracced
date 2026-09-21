@@ -26,7 +26,8 @@
   </div>
   <div class="chartbox" id="chart"></div>
 
-  <div class="stepbar small"><span class="stepn">03</span><div class="stepx"><b>Check the bounds and analyze</b>{% if is_demo %}<span>Press Analyze on a pump to watch the run.</span>{% elif not acct %}<span>Analyze needs a connected wallet: free, no transaction, {{ s.runs_per_day|per_day }}.</span>{% endif %}</div></div>
+  <div class="stepbar small"><span class="stepn">03</span><div class="stepx"><b>Check the bounds and analyze</b>{% if is_demo %}<span>Press Analyze on a pump to watch the run.</span>{% elif not acct %}<span>Analyze needs a connected wallet: free, no transaction, {{ s.runs_per_day|per_day }}. {{ early_note }}</span>
+  {% else %}<span>{{ (s.runs_per_day|per_day)|capitalize }}, up to {{ s.ranges_per_token }} ranges per token. {{ early_note }}</span>{% endif %}</div></div>
   <template id="row-tpl">
     <form class="wrow" method="post" action="/analyze">
       <input type="hidden" name="mint" value="{{ mint }}">

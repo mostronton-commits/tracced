@@ -24,6 +24,8 @@ early:
   run_cap_requests: 1000        # hard ceiling for one run; reaching it leaves the remaining wallets entry-only
 
   # Wallet age and first funder (tags `fresh` and `bundle`) come from a Solana RPC, not from the Data API.
-  # Tuned for a private node in SOLANA_RPC_URL: cheap, so tag every wallet in the table. With the public node keep 0.5 and 300.
-  rpc_pace_s: 0.2               # 5 requests/s, the node's limit
-  age_lookups_max: 2000
+  # These need the wallet's FIRST transaction, so the node must keep the full signature index. api.mainnet-beta
+  # (the default when SOLANA_RPC_URL is empty) does; most fast commercial nodes keep only a day or two and would
+  # make every wallet look new. Values below are paced for the public node — raise them only for a verified archive.
+  rpc_pace_s: 0.5               # 2 requests/s: the public node cuts bursts
+  age_lookups_max: 300          # wallets checked per analysis, in the background

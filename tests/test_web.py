@@ -513,7 +513,9 @@ if AioHTTPTestCase:
             self.assertEqual(self.app["jobs"].get(jid1).s_over, {"budget_guard_pct": 0, "run_cap_requests": 2000})
             r = await self.client.post("/analyze", data=rng(2), allow_redirects=False, headers=me)
             self.assertEqual(r.status, 429)                              # друга за день — ні
-            self.assertIn("today", await r.text())
+            body = await r.text()
+            self.assertIn("today", body)
+            self.assertIn("limits are small", body)                      # і пояснення, що це рання стадія
             r = await self.client.post("/analyze", data=rng(1), allow_redirects=False, headers=me)
             self.assertEqual(r.headers["Location"], f"/job/{jid1}")     # готовий результат відкривається без витрат
             self.app["admins"] = {TEST_PK}                               # адмін: без квоти і без стелі запитів

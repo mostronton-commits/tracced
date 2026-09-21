@@ -54,6 +54,7 @@
     <li>Range up to {{ s.max_window_hours }} h.</li>
     <li>{{ (s.runs_per_day|per_day)|capitalize }} per wallet; up to {{ s.ranges_per_token }} analyses per token (delete yours to make room).</li>
     <li>One live run may spend at most {{ s.run_cap_requests|num }} requests to Solana Tracker; the app stops before spending more.</li>
+    <li>{{ early_note }}</li>
     <li>Wallets that spent less than ${{ s.min_invested_usd }} in the range are left out.</li>
     <li>Wallet age is checked for up to {{ s.age_lookups_max }} wallets per analysis, in the background.</li>
     <li>Chart markers: up to 3 wallets at once, {{ s.markers_max }} trades each.</li>
