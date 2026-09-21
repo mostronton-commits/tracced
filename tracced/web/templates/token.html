@@ -5,7 +5,7 @@
 {% block body %}
 <section class="card token" id="token" data-mint="{{ mint }}" data-symbol="{{ info.symbol or '' }}"
          data-rows='{{ rows_json }}' data-jobs='{{ jobs_json }}' data-preset='{{ preset_json }}' data-hints='{{ hints_json }}' data-min-peak="{{ min_peak }}" data-max-rows="{{ s.ranges_per_token }}" data-finder-max="{{ s.finder_pumps }}"
-         data-created="{{ created }}" data-now="{{ now }}" data-demo="{{ 1 if is_demo else 0 }}" data-acct="{{ 1 if acct else 0 }}" data-runs="{{ s.runs_per_day|per_day }}"{% if bounced %} data-bounced="Only the {{ "ranges" if n_demo > 1 else "range" }} below {{ "are" if n_demo > 1 else "is" }} recorded. Pick one and press Analyze."{% endif %}>
+         data-created="{{ created }}" data-now="{{ now }}" data-demo="{{ 1 if is_demo else 0 }}" data-acct="{{ 1 if acct else 0 }}" data-runs="{{ s.runs_per_day|per_day }}" data-max-hours="{{ s.max_window_hours }}"{% if bounced %} data-bounced="Only the {{ "ranges" if n_demo > 1 else "range" }} below {{ "are" if n_demo > 1 else "is" }} recorded. Pick one and press Analyze."{% endif %}>
   <div class="tokenhead">
     <div>
       <h1>{{ info.symbol or '?' }}{% if info.name and info.name != info.symbol %} <span class="muted">{{ info.name }}</span>{% endif %}{% if is_demo %} <span class="chip demo" title="Recorded token · {{ n_demo }} pump{{ 's' if n_demo != 1 else '' }} replayed without requests">Demo</span>{% endif %}</h1>
@@ -57,7 +57,7 @@
   const DEMO = root.dataset.demo === '1', RAN = 'early:ran:';   // demo: the result opens only after this browser pressed Analyze on that range
   let ACCT = root.dataset.acct === '1';                          // a new live run needs a wallet; the ask comes at Analyze, not before
   const MAX_ROWS = +root.dataset.maxRows || 3, FINDER_MAX = +root.dataset.finderMax || 2;
-  const RUNS = root.dataset.runs || 'one live analysis a day';
+  const RUNS = root.dataset.runs || 'one live analysis a day', MAX_HOURS = +root.dataset.maxHours || 24;
   const limitMsg = () => MAX_ROWS + ' ranges per token is the limit here. ' + (state.rows.some(r => r.deletable) ? 'Delete one of yours to add another.' : 'Open one of the analyzed ranges instead.');
   if (root.dataset.bounced) EarlyUI.toast(root.dataset.bounced, 6000);
   let nudged = 0;                                                // demo: bounds are fixed; one reminder per few seconds, never a dead click
@@ -112,7 +112,11 @@
   rowsEl.addEventListener('submit', e => {
     const f = e.target.closest('.wrow'), r = f && state.rows[+f.dataset.i], hit = r && hitFor(r);
     if (DEMO) { if (hit) { try { localStorage.setItem(RAN + hit, '1'); } catch (x) {} } return; }
-    if (ACCT || hit) return;                                     // a finished result opens for anyone; a new live run needs a wallet
+    if (hit) return;                                             // a finished result opens for anyone
+    const f0 = parse(r.from), t0 = parse(r.to);                  // say what is wrong with the range before asking for anything
+    if (!(f0 && t0 && f0 < t0)) { e.preventDefault(); EarlyUI.toast('From must be earlier than To.'); return; }
+    if (t0 - f0 > MAX_HOURS * 3600e3) { e.preventDefault(); EarlyUI.toast('Range up to ' + MAX_HOURS + ' h. Shorten it.'); return; }
+    if (ACCT) return;                                            // a new live run needs a wallet
     e.preventDefault();
     EarlyWallet.open(() => { ACCT = true; f.submit(); }, 'A live analysis needs a connected wallet: ' + RUNS + ', free, no transaction. Connect, and this range runs right away.');
   });
