@@ -32,7 +32,7 @@ No passwords. The demo token replays without a request and is open to anyone. An
 can open its chart, mark ranges and press **Find the pump**; pressing **Analyze** asks to connect a Solana wallet
 (Phantom, MetaMask, Rabby) — the wallet signs a short message, no transaction, no fees — and that signature is the
 account; the range survives and runs right after. A wallet gets **one live analysis a day**, a token holds **three
-analyses** (delete yours to make room), one run may spend at most **2,000 requests**; results are public and an
+analyses** (delete yours to make room), one run may spend at most **1,000 requests**; results are public and an
 existing result opens for everyone, wallet or not. Charts of live tokens cost requests too (≈2 per new token, 1 per
 chunk of candles), so browsing has a daily budget: 30 requests per address without a wallet, 150 per wallet, 300 for
 the whole site; cached charts are free. The whole site runs at most 10 live analyses a day and one address may start
@@ -41,6 +41,10 @@ the whole site; cached charts are free. The whole site runs at most 10 live anal
 override any of them under `early:` in `config.yaml` (`runs_per_day`, `runs_global_per_day`, `runs_per_hour`,
 `ranges_per_token`, `run_cap_requests`, `finder_pumps`, `browse_per_day_guest`, `browse_per_day`, `browse_global_per_day`).
 A run that fails gives the wallet its day back.
+
+The cost of one new token is set in `config.yaml`: a range is at most **6 h**, exits are fetched for the **250**
+largest buyers (the rest keep their entry and get the `no-exits` tag, unless the whole-history path was cheaper, in
+which case everyone has exits), buyers under **$95** in the range are left out, and a run stops at **1,000 requests**.
 
 Tick wallets in a result and **+ Watchlist**; **Save analysis** keeps the whole result under **My analyses**. Both live at
 `/me`, with notes and CSV / TXT export. The owner sees who connected and what they ran at `/admin`. Accounts are JSON

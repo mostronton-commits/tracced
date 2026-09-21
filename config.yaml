@@ -15,6 +15,14 @@ early:
   example_job: 98kfF7_20260915-1930_1950   # a finished analysis pinned as the example on the home page (ignored if missing)
   demo_job: 98kfF7_20260915-1930_1950      # replays from output/early/demo/<mint>.json with zero requests (ignored if missing)
 
+  # Cost of one new token. The entry range is always fetched in full (up to max_window_pages); exits come
+  # either from the token's whole history (capped at max_trade_pages) or from each wallet's own trades
+  # (1-4 requests per wallet) — the per-wallet path is where the credits go, so its cap is the main lever.
+  max_wallet_lookups: 250       # wallets that get exact exits; the rest keep their entry and get the no-exits tag
+  max_window_hours: 6           # a pump range is minutes to hours; a longer range is refused before anything is fetched
+  min_invested_usd: 95          # total bought inside the range, summed over all buys — smaller buyers stay out of the table
+  run_cap_requests: 1000        # hard ceiling for one run; reaching it leaves the remaining wallets entry-only
+
   # Wallet age and first funder (tags `fresh` and `bundle`) come from a Solana RPC, not from the Data API.
   # Tuned for a private node in SOLANA_RPC_URL: cheap, so tag every wallet in the table. With the public node keep 0.5 and 300.
   rpc_pace_s: 0.2               # 5 requests/s, the node's limit
