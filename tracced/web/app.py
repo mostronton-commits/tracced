@@ -750,6 +750,7 @@ def render(name, request, status=200, **ctx):
     ctx.setdefault("acct_short", _short(acct) if acct else "")
     if request is not None:
         ctx.setdefault("s", request.app["s"])                   # квоти в текстах беруться з налаштувань, не з голови
+        ctx.setdefault("assistant_on", request.app.get("assistant") is not None)   # без ключа сторінки не обіцяють агента
     ctx.setdefault("umami_id", os.getenv("UMAMI_WEBSITE_ID", ""))   # аналітика вмикається лише там, де задано id
     html = env.get_template(name).render(**ctx)
     return web.Response(text=html, content_type="text/html", status=status)

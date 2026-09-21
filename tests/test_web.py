@@ -701,7 +701,7 @@ if AioHTTPTestCase:
                 def ask(self, rows, method):
                     assert rows and method == "only profitable"
                     return {"picks": [{"wallet": rows[0]["wallet"], "reason": "realized profit"}], "note": "", "model": "fake"}
-            self.app["assistant"] = FakeAssistant()
+            self.app["assistant"] = a = FakeAssistant()
             r = await self.client.post(loc + "/assistant", json={"method": "only profitable", "wallets": ["A"]})
             self.assertEqual(r.status, 403)                              # JSON writes need the page's own origin
             r = await self.client.post(loc + "/assistant", json={"method": "only profitable", "wallets": ["A"]}, headers=o)
@@ -713,6 +713,14 @@ if AioHTTPTestCase:
             self.assertTrue((await r.json()).get("cached"))
             self.assertIn("AI agent", page48)
             self.assertEqual(page48.count("<b>Not enabled here</b>"), 1)     # no key on this server: the button says so
+            self.app["assistant"] = None                                 # …and then the home page must not promise it either
+            home_off = await (await self.client.get("/")).text()
+            self.assertIn("Coming next", home_off)
+            self.assertNotIn("Live on every result", home_off)
+            self.assertIn("this server has no model key", await (await self.client.get("/how")).text())
+            self.app["assistant"] = a
+            home_on = await (await self.client.get("/")).text()
+            self.assertIn("Live on every result", home_on)               # with a key the promise is true
             r = await self.client.get("/")                               # home with a finished analysis: counters, sample, bg lines
             self.assertEqual(r.status, 200)
             home = await r.text()
