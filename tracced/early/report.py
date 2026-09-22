@@ -80,8 +80,29 @@ def summary(rows):
     best = max((r.get("multiple") or 0) for r in rows) if rows else 0
     invested = sum((r.get("invested_in_range_usd") or 0) for r in rows)
     realized = sum((r.get("realized_usd") or 0) for r in rows)
-    return {"n": n, "exited": exited, "holding": holding, "best_multiple": best,
-            "invested_range": invested, "realized_total": realized}
+    out = {"n": n, "exited": exited, "holding": holding, "best_multiple": best,
+           "invested_range": invested, "realized_total": realized,
+           "max_in_range": max((r.get("invested_in_range_usd") or 0) for r in rows) if rows else 0,
+           "max_abs_realized": max(abs(r.get("realized_usd") or 0) for r in rows) if rows else 0}
+    out.update(outcomes(rows))
+    return out
+
+
+def outcomes(rows):
+    """Скільки з цих гаманців вийшли в плюс і наскільки — рахуємо з тих самих чисел, що в таблиці.
+
+    Гаманці з тегом `no-exits` не рахуються нікуди: їхніх продажів ми не бачили, і записати їх у збиток
+    означало б видати відсутність даних за факт. Вони йдуть окремим числом `unknown`.
+    """
+    b = {"x2": 0, "up": 0, "down": 0, "wipe": 0, "unknown": 0}
+    for r in rows:
+        inv = r.get("invested_usd") or r.get("invested_in_range_usd") or 0
+        if "no-exits" in (r.get("tag_list") or []) or inv <= 0:
+            b["unknown"] += 1
+            continue
+        k = ((r.get("realized_usd") or 0) + (r.get("unrealized_usd") or 0)) / inv
+        b["x2" if k >= 1 else "up" if k > 0 else "down" if k > -0.5 else "wipe"] += 1
+    return {"outcomes": b}
 
 
 def sort_rows(rows):

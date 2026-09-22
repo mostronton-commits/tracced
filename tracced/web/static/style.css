@@ -145,6 +145,19 @@ thead tr.grp th.g { border-bottom: 1px solid var(--line); text-align: center; }
 thead tr:not(.grp) th { top: 22px; }
 td.notes { font-size: 11.5px; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
 td.bar { background-image: linear-gradient(to right, var(--sage) var(--w, 0%), transparent var(--w, 0%)); background-size: 100% 100%; background-repeat: no-repeat; background-position: left center; background-origin: padding-box; }
+td.bar.neg { background-image: linear-gradient(to right, #FEE2E2 var(--w, 0%), transparent var(--w, 0%)); }
+/* how the wallets of this range ended up — one bar, counted from the table's own numbers */
+.dist { margin: 0 0 10px; }
+.dist .distbar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--line); margin: 0 0 6px; }
+.dist .distbar i { width: var(--w); display: block; }
+.dist .d-x2 { background: #047857; } .dist .d-up { background: var(--mint); }
+.dist .d-down { background: #FCA5A5; } .dist .d-wipe { background: #B91C1C; }
+.dist p { margin: 0; }
+/* who funded the wallet: filled in after the background check, click filters to that group */
+td.fund { white-space: nowrap; font-size: 12px; }
+td.fund .fundb { padding: 0; height: auto; font-size: 12px; }
+td.fund .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); display: inline-block; margin-right: 4px; vertical-align: 0; }
+th.fundh { font-weight: 500; }
 .pos { color: #059669; }
 
 /* result v5: compact two-line cells, tags, export menu, collapsible filters */

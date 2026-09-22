@@ -60,6 +60,20 @@
       <div title="Highest exit cap ÷ entry cap among these wallets"><b data-count="{{ sm.best_multiple or 0 }}" data-fmt="mult">0</b><span>Best multiple</span></div>
       <div title="USD these wallets spent inside the range"><b data-count="{{ (sm.invested_range or 0)|round(0)|int }}" data-fmt="usd">0</b><span>Spent in range</span></div>
     </div>
+    {% set o = sm.outcomes or {} %}{% set kn = (o.x2 or 0) + (o.up or 0) + (o.down or 0) + (o.wipe or 0) %}
+    {% if kn %}
+    <div class="dist" title="Counted from the same numbers as the table: realized plus unrealized against what the wallet put in">
+      <div class="distbar">
+        <i class="d-x2" style="--w: {{ (100 * (o.x2 or 0) / kn)|round(2) }}%" title="{{ o.x2 }} doubled their money or better"></i>
+        <i class="d-up" style="--w: {{ (100 * (o.up or 0) / kn)|round(2) }}%" title="{{ o.up }} came out ahead"></i>
+        <i class="d-down" style="--w: {{ (100 * (o.down or 0) / kn)|round(2) }}%" title="{{ o.down }} lost up to half"></i>
+        <i class="d-wipe" style="--w: {{ (100 * (o.wipe or 0) / kn)|round(2) }}%" title="{{ o.wipe }} lost more than half"></i>
+      </div>
+      <p class="muted small"><b class="pos">{{ o.x2|num }}</b> doubled or better · <b>{{ o.up|num }}</b> ended ahead ·
+        <b>{{ o.down|num }}</b> lost up to half · <b class="neg">{{ o.wipe|num }}</b> lost more{% if o.unknown %} ·
+        <b>{{ o.unknown|num }}</b> with exits we never fetched, counted nowhere{% endif %}</p>
+    </div>
+    {% endif %}
     <p class="muted small">{{ c.n_wallets|num }} traded in the range · {{ c.dust|num }} below ${{ s.min_invested_usd }} · {{ ((c.pre_range_only or 0) + (c.before_range_only or 0))|num }} sold only · {{ c.n_trades|num }} trades</p>
 
     <div class="row toolbar">
@@ -109,6 +123,7 @@
       <tr>
         <th></th><th>#</th><th class="sortable" data-key="w" data-type="text">Wallet</th>
         <th class="num sortable" data-key="entry" title="Market cap at the first buy inside the range · its time">Entry cap</th>
+        <th class="sortable fundh" data-key="funder" data-type="text" title="Who sent this wallet its first SOL — click a funder to see everyone it paid for">Funded by</th>
         <th class="num sortable" data-key="inv" title="Bought inside the range · total on this token in this scope">In range</th>
         <th class="num sortable" data-key="exitcap" title="Average exit market cap · first sell time">Exit cap</th>
         <th class="num sortable" data-key="got" title="Received from sells · share sold">Got</th>
@@ -130,10 +145,11 @@
           <td class="muted n">{{ loop.index }}</td>
           <td class="wcell"><span class="wid"><button type="button" class="mk" title="Show on the chart">◉</button><button type="button" class="wname mono" title="Open the story">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</button><a class="ext" href="{{ w.solscan_url }}" target="_blank" rel="noopener" title="Solscan">↗</a></span><span class="tags">{% for t in w.tag_list %}<span class="tag t-{{ t }}" title="{{ TAGS.get(t, t) }}">{{ t }}</span>{% endfor %}</span></td>
           <td class="num two"><b class="mono">{{ ecap|mcap }}</b><small class="dtc" data-ms="{{ etime or 0 }}">{{ etime|dt }}</small></td>
-          <td class="num two"><b class="mono">{{ w.invested_in_range_usd|usd }}</b><small>{% if diff %}of {{ w.invested_usd|usd }} total{% endif %}</small></td>
+          <td class="fund"></td>
+          <td class="num two bar" style="--w: {{ (100 * (w.invested_in_range_usd or 0) / sm.max_in_range)|round|int if sm.max_in_range else 0 }}%"><b class="mono">{{ w.invested_in_range_usd|usd }}</b><small>{% if diff %}of {{ w.invested_usd|usd }} total{% endif %}</small></td>
           <td class="num two"><b class="mono">{{ w.exit_mcap_avg|mcap }}</b><small class="dtc" data-ms="{{ w.first_sell_ms or 0 }}">{{ w.first_sell_ms|dt if w.first_sell_ms else '' }}</small></td>
           <td class="num two bar" style="--w: {{ (w.sold_share_pct or 0)|round|int }}%"><b class="mono">{{ w.proceeds_usd|usd }}</b><small>{{ (w.sold_share_pct|num ~ '% sold') if w.sold_share_pct is not none else '' }}</small></td>
-          <td class="num two"><b class="mono {{ 'pos' if (w.realized_usd or 0) > 0 else ('neg' if (w.realized_usd or 0) < 0 else '') }}">{{ w.realized_usd|usd }}</b><small class="{{ 'pos' if (w.unrealized_usd or 0) > 0 else ('neg' if (w.unrealized_usd or 0) < 0 else '') }}">{% if w.unrealized_usd %}{{ w.unrealized_usd|usd }} unrealized{% endif %}</small></td>
+          <td class="num two bar{{ ' neg' if (w.realized_usd or 0) < 0 else '' }}" style="--w: {{ (100 * (w.realized_usd or 0)|abs / sm.max_abs_realized)|round|int if sm.max_abs_realized else 0 }}%"><b class="mono {{ 'pos' if (w.realized_usd or 0) > 0 else ('neg' if (w.realized_usd or 0) < 0 else '') }}">{{ w.realized_usd|usd }}</b><small class="{{ 'pos' if (w.unrealized_usd or 0) > 0 else ('neg' if (w.unrealized_usd or 0) < 0 else '') }}">{% if w.unrealized_usd %}{{ w.unrealized_usd|usd }} unrealized{% endif %}</small></td>
           <td class="num bar" style="--w: {{ ((w.multiple or 1)|log10 / 1.7 * 100)|round|int if w.multiple else 0 }}%"><b class="mono">{{ (w.multiple ~ '×') if w.multiple else '—' }}</b></td>
           <td class="num two"><b class="mono">{{ (w.hold_minutes|num ~ ' min') if w.hold_minutes is not none else '—' }}</b><small>{{ w.buys }} / {{ w.sells if w.sells is not none else '—' }}</small></td>
         </tr>
@@ -177,7 +193,7 @@
       const SKEY = 'early:sel:' + jobId, FKEY = 'early:filters:' + jobId;
       try { JSON.parse(localStorage.getItem(SKEY) || '[]').forEach(w => selected.add(w)); } catch (e) {}
       const saveSel = () => { try { localStorage.setItem(SKEY, JSON.stringify([...selected])); } catch (e) {} };
-      const f = { inv: 0, mult: 0, sold: 0, buysMax: 0, hold: 0, exits: false, hide: [] };
+      const f = { inv: 0, mult: 0, sold: 0, buysMax: 0, hold: 0, exits: false, hide: [], funder: '' };
       try { Object.assign(f, JSON.parse(localStorage.getItem(FKEY) || '{}')); } catch (e) {}
       const saveF = () => { try { localStorage.setItem(FKEY, JSON.stringify(f)); } catch (e) {} };
       const panel = document.getElementById('filters'), ftoggle = document.getElementById('ftoggle'), clearsel = document.getElementById('clearsel');
@@ -186,7 +202,7 @@
         panel.querySelectorAll('[data-f]').forEach(i => { const k = i.dataset.f; if (i.type === 'checkbox') i.checked = !!f[k]; else i.value = f[k] ? f[k] : (k === 'buysMax' ? '' : '0'); });
         panel.querySelectorAll('[data-hide]').forEach(b => b.classList.toggle('off', f.hide.includes(b.dataset.hide)));
       }
-      function nActive() { return [f.inv, f.mult, f.sold, f.buysMax, f.hold, f.exits].filter(Boolean).length + f.hide.length; }
+      function nActive() { return [f.inv, f.mult, f.sold, f.buysMax, f.hold, f.exits, f.funder].filter(Boolean).length + f.hide.length; }
       // the page shows a window of the rows that pass the filters (LIMIT, then "Show more"); every action — Select all,
       // Export, the agent — works on all passing rows, shown or not
       const LIMIT = 100; let limit = LIMIT; const passing = new Set();
@@ -199,7 +215,7 @@
           const d = r.dataset, tg = d.tags ? d.tags.split(' ') : [];
           const ok = +d.inv >= f.inv && (!f.mult || +d.mult >= f.mult) && +d.sold >= f.sold &&
                      (!f.buysMax || +d.buys <= f.buysMax) && (!f.hold || +d.hold >= f.hold) && (!f.exits || d.exit === '1') &&
-                     !f.hide.some(t => tg.includes(t));
+                     (!f.funder || d.funder === f.funder) && !f.hide.some(t => tg.includes(t));
           if (ok || pinned.has(d.w)) { passing.add(d.w); n++; r.querySelector('.n').textContent = n; r.hidden = n > limit && !pinned.has(d.w); }
           else r.hidden = true;
         });
@@ -226,7 +242,7 @@
       ftoggle.addEventListener('click', () => { panel.hidden = !panel.hidden; ftoggle.setAttribute('aria-expanded', String(!panel.hidden)); });
       panel.addEventListener('input', e => { if (!e.target.dataset.f) return; const k = e.target.dataset.f; f[k] = e.target.type === 'checkbox' ? e.target.checked : (+e.target.value || 0); saveF(); apply(); });
       panel.addEventListener('click', e => { const b = e.target.closest('[data-hide]'); if (!b) return; const t = b.dataset.hide; f.hide = f.hide.includes(t) ? f.hide.filter(x => x !== t) : [...f.hide, t]; saveF(); syncInputs(); apply(); });
-      document.getElementById('fclear').addEventListener('click', () => { Object.assign(f, { inv: 0, mult: 0, sold: 0, buysMax: 0, hold: 0, exits: false, hide: [] }); saveF(); syncInputs(); apply(); });
+      document.getElementById('fclear').addEventListener('click', () => { Object.assign(f, { inv: 0, mult: 0, sold: 0, buysMax: 0, hold: 0, exits: false, hide: [], funder: '' }); saveF(); syncInputs(); apply(); });
       clearsel.addEventListener('click', () => { selected.clear(); saveSel(); syncChecks(); });
       tbody.addEventListener('change', e => { if (!e.target.classList.contains('pick')) return; const w = e.target.closest('tr').dataset.w; e.target.checked ? selected.add(w) : selected.delete(w); saveSel(); syncChecks(); });
       document.getElementById('pickall').addEventListener('change', e => { visible().forEach(r => e.target.checked ? selected.add(r.dataset.w) : selected.delete(r.dataset.w)); saveSel(); syncChecks(); });
@@ -341,6 +357,22 @@
       const money = v => (v == null || isNaN(v) ? '—' : (v < 0 ? '-' : '') + '$' + ch.fmtMcap(Math.abs(v)));
       const drawer = document.getElementById('drawer'), dtrades = document.getElementById('dtrades');
       let funders = {}, bundle = {};
+      function fillFunders() {
+        // who paid for the wallet: known only after the background check, so the cell is filled here, not by the server
+        rows.forEach(r => {
+          const fnd = funders[r.dataset.w], cell = r.querySelector('.fund');
+          if (!cell || !fnd) return;
+          r.dataset.funder = fnd;
+          const b = bundle[r.dataset.w], col = bundleColor(r.dataset.w);
+          cell.innerHTML = '<button type="button" class="link mono fundb" title="Show every wallet funded by this one">'
+            + (col ? '<i class="dot" style="--c:' + col + '"></i>' : '') + short(fnd) + '</button>'
+            + (b ? '<small class="muted"> ×' + b.n + '</small>' : '');
+          cell.querySelector('.fundb').addEventListener('click', () => {
+            f.funder = f.funder === fnd ? '' : fnd; saveF(); limit = LIMIT; apply();
+            EarlyUI.toast(f.funder ? 'Showing the ' + (b ? b.n : 1) + ' wallets funded by ' + short(fnd) + ' · click again to clear' : 'Funder filter cleared');
+          });
+        });
+      }
       function bundleColor(w) {                                  // one colour per funder, stable for this result
         const b = bundle[w]; if (!b) return null;
         const all = [...new Set(Object.values(bundle).map(x => x.funder))].sort();
@@ -448,6 +480,7 @@
             const t = document.createElement('span'); t.className = 'tag t-' + tag; t.title = title; t.textContent = text; r.querySelector('.tags').prepend(t); };
           d.fresh.forEach(w => addTag(w, 'fresh', 'fresh', defs.fresh));
           Object.keys(bundle).forEach(w => addTag(w, 'bundle', 'bundle ×' + bundle[w].n, defs.bundle + ' — funder ' + short(bundle[w].funder)));
+          fillFunders();                                          // funders arrive after the page, so the column fills here
           let rings = 0;                                          // bundles arrive after the page: ring the wallets already on the chart
           onChart.forEach(o => { const c = bundleColor(o.wallet); if (c !== o.bundleColor) { o.bundleColor = c; rings++; } });
           if (rings) renderOnChart();
