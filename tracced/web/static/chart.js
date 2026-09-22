@@ -192,8 +192,9 @@
     /* Wallet trade markers. Colour says only what the trade was: green bought, red sold. Trades of one wallet on
        one side inside one candle merge into a single marker carrying their total, so a busy wallet does not bury
        the chart (25 wallets of the demo are 7,547 trades, 1,818 markers at 5m). Size is the amount, in three steps.
-       A wallet funded together with others gets a coloured disc behind its arrow — the library draws markers on a
-       canvas and has no outline, so the ring is a second, larger marker underneath. */
+       A wallet funded together with others is drawn as a square instead of an arrow: the library stacks markers that
+       share a bar and a side rather than overlaying them, so a ring behind the arrow is not possible — the group's
+       own colour lives on its chip under the chart and on the row stripe in the table. */
     const BUY = '#34D399', SELL = '#F87171';
     let wallets = [], markersApi = null;
     const fmtUsd = v => (v == null ? '' : '$' + (v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'K' : v.toFixed(0)));
@@ -212,9 +213,9 @@
     function sizeSteps(inView) {
       // three steps by amount so a big buy reads as big; quantiles of what is on screen, not of all time
       const v = inView.map(m => m.usd).filter(x => x > 0).sort((x, y) => x - y);
-      if (v.length < 4) return () => 1.2;
+      if (v.length < 4) return () => 0.9;
       const mid = v[Math.floor(v.length * 0.5)], top = v[Math.floor(v.length * 0.85)];
-      return usd => (usd >= top ? 1.9 : usd >= mid ? 1.3 : 0.9);
+      return usd => (usd >= top ? 1.3 : usd >= mid ? 0.95 : 0.65);
     }
     function renderMarkers() {
       if (!LW.createSeriesMarkers || !tf) return;
@@ -226,10 +227,9 @@
       else labeled = new Set([...inView].sort((x, y) => y.usd - x.usd).slice(0, 12));
       const sizeOf = sizeSteps(inView), ms = [];
       all.forEach(m => {
-        const buy = m.side === 'buy', pos = buy ? 'belowBar' : 'aboveBar', size = sizeOf(m.usd);
-        if (m.w.bundleColor) ms.push({ time: m.t, position: pos, shape: 'circle', color: m.w.bundleColor, size: size + 0.7 });
-        ms.push({ time: m.t, position: pos, shape: buy ? 'arrowUp' : 'arrowDown', color: buy ? BUY : SELL, size,
-                  text: labeled.has(m) ? fmtUsd(m.usd) : undefined });
+        const buy = m.side === 'buy';
+        ms.push({ time: m.t, position: buy ? 'belowBar' : 'aboveBar', shape: m.w.bundleColor ? 'square' : (buy ? 'arrowUp' : 'arrowDown'),
+                  color: buy ? BUY : SELL, size: sizeOf(m.usd), text: labeled.has(m) ? fmtUsd(m.usd) : undefined });
       });
       ms.sort((x, y) => x.time - y.time);
       if (!markersApi) markersApi = LW.createSeriesMarkers(series, ms); else markersApi.setMarkers(ms);

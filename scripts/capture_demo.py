@@ -19,7 +19,8 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from tracced.early.st_client import EarlyST          # noqa: E402
+from tracced.early.st_client import EarlyST
+from tracced.web import chart as chart_mod          # noqa: E402
 from tracced.util import get_key                      # noqa: E402
 
 TFS = ("1m", "5m", "15m", "1h")
@@ -60,9 +61,27 @@ def main():
 
     st = EarlyST(get_key())
     candles = {}
+    # Solana Tracker answers at most 2000 candles and silently drops the oldest ones, and for the coarser
+    # timeframes it also stops a few days back. Measured 22.09.2026: one 1m call returns 2000 records (33 h),
+    # one 5m call reached 3.3 days. So each timeframe is walked backwards in windows it can actually answer —
+    # ask for the whole life at once and the snapshot starts hours after the token did.
+    STEP_H = {"1m": 24, "5m": 48, "15m": 24 * 10, "1h": 24 * 45}
     for tf in TFS:
-        candles[tf] = st.chart(mint, tf, created, end)
-        print(f"  {tf}: {len(candles[tf])} candles")
+        step = int(STEP_H[tf] * HOUR)
+        out, hi, calls = [], end, 0
+        while hi > created and calls < 30:
+            lo = max(created, hi - step)
+            out.extend(st.chart(mint, tf, lo, hi))
+            calls += 1
+            hi = lo
+        seen, merged = set(), []
+        for c in sorted(out, key=lambda c: c["time"]):
+            if c["time"] not in seen:
+                seen.add(c["time"])
+                merged.append(c)
+        candles[tf] = merged
+        first = time.strftime("%m-%d %H:%M", time.gmtime(merged[0]["time"] / 1000)) if merged else "—"
+        print(f"  {tf}: {len(merged)} candles from {first} ({calls} calls)")
 
     snap = {"mint": mint, "info": info, "created": created, "captured_ms": int(time.time() * 1000),
             "candles": candles, "hints": [], "ranges": ranges}
