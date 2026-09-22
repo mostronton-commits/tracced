@@ -85,7 +85,7 @@ docker compose run --rm --no-deps -v "$PWD/tests:/app/tests" web python -m unitt
 
 Settings live in `config.yaml` (`early.plan: free | advanced` sets the request caps for the Solana Tracker plan).
 
-Version: `__version__` in `tracced/__init__.py`, shown in the footer as `v0.2`; bumped on every release to `main`.
+Version: `__version__` in `tracced/__init__.py`, shown in the footer as `v0.3`; bumped on every release to `main`.
 
 ## Demo token
 Run a finished analysis through `scripts/capture_demo.py` (the docstring has the docker command; several analyses of
