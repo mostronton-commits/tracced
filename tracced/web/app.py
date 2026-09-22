@@ -767,6 +767,7 @@ def render(name, request, status=200, **ctx):
     ctx.setdefault("acct_short", _short(acct) if acct else "")
     if request is not None:
         ctx.setdefault("s", request.app["s"])                   # квоти в текстах беруться з налаштувань, не з голови
+        ctx.setdefault("demo_token", (_demo(request.app) or {}).get("mint", ""))   # підвал веде на демо, якщо воно є
         ctx.setdefault("assistant_on", request.app.get("assistant") is not None)   # без ключа сторінки не обіцяють агента
         ctx.setdefault("early_note", EARLY_NOTE)
     ctx.setdefault("umami_id", os.getenv("UMAMI_WEBSITE_ID", ""))   # аналітика вмикається лише там, де задано id

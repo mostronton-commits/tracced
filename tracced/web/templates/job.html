@@ -13,6 +13,7 @@
     </div>
     <div class="h-right">
       <span class="chip st-{{ jstatus }}">{{ {'queued':'Queued','running':'Running','done':'Done','error':'Error'}[jstatus] }}</span>
+      {% if jstatus == 'done' and result %}<button type="button" class="ghost savejob" id="savejob" title="Keep this analysis under My analyses">☆ Save analysis</button>{% endif %}
       <a class="button" href="{{ back }}">← Adjust the range</a>
     </div>
   </div>
@@ -79,7 +80,6 @@
       <div id="watch" hidden>
         <button type="button" class="button wl" id="watchbtn" title="Add the selected wallets to your watchlist"><span id="watchtxt">+ Watchlist</span><span class="wl-n" id="watchn"></span></button>
       </div>
-      <button type="button" class="ghost savejob" id="savejob" title="Keep this analysis under My analyses">☆ Save analysis</button>
       <div class="menu">
         <button type="button" class="ghost xbtn" data-menu>↓ Export</button>
         <div class="menu-panel r" hidden>
