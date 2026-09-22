@@ -222,7 +222,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_get("/me/wallets.csv", me_wallets_csv)
     app.router.add_post("/me/wallets", me_add_wallets)
     app.router.add_post("/me/wallets/remove", me_remove_wallet)
-    app.router.add_post("/me/wallets/note", me_note)
+    app.router.add_post("/me/wallets/tags", me_tags)
     app.router.add_post("/me/analyses", me_add_analysis)
     app.router.add_post("/me/analyses/remove", me_remove_analysis)
     app.router.add_get("/admin", admin_page)
@@ -655,12 +655,16 @@ async def me_remove_wallet(request, pk):
 
 
 @_acct_route
-async def me_note(request, pk):
+async def me_tags(request, pk):
+    """Власні мітки гаманця: коротке слово, за яким список можна відібрати, замість вільної нотатки."""
     body = await _json_body(request)
     if body is None:
         return _jerr("Bad request body.")
-    ok = request.app["accounts"].set_note(pk, str(body.get("wallet") or ""), body.get("note"))
-    return web.json_response({"ok": ok}) if ok else _jerr("That wallet is not in your list.", 404)
+    tags_in = body.get("tags")
+    if not isinstance(tags_in, list):
+        return _jerr("Tags must be a list.")
+    out = request.app["accounts"].set_my_tags(pk, str(body.get("wallet") or ""), tags_in)
+    return web.json_response({"ok": True, "tags": out}) if out is not False else _jerr("That wallet is not in your list.", 404)
 
 
 @_acct_route
@@ -733,7 +737,7 @@ async def admin_page(request):
     return render("admin.html", request, accounts=accounts, totals=totals, events=app["events"].tail(100), now=now)
 
 
-ME_COLUMNS = ["wallet", "symbol", "mint", "from_job", "entry_mcap", "invested_usd", "multiple", "tags", "note", "added_utc"]
+ME_COLUMNS = ["wallet", "symbol", "mint", "from_job", "entry_mcap", "invested_usd", "multiple", "tags", "my_tags", "added_utc"]
 
 
 @_acct_route
@@ -746,7 +750,8 @@ async def me_wallets_csv(request, pk):
         return "'" + v if isinstance(v, str) and v[:1] in "=+-@\t\r" else ("" if v is None else v)
     for r in wallets:
         w.writerow({**{k: cell(r.get(k)) for k in ME_COLUMNS},
-                    "tags": "|".join(r.get("tags") or []), "added_utc": chart.fmt_dt(r.get("added_ms") or 0, year=True, utc=True)})
+                    "tags": "|".join(r.get("tags") or []), "my_tags": "|".join(r.get("my_tags") or []),
+                    "added_utc": chart.fmt_dt(r.get("added_ms") or 0, year=True, utc=True)})
     return web.Response(text=buf.getvalue(), content_type="text/csv",
                         headers={"Content-Disposition": 'attachment; filename="watchlist.csv"'})
 

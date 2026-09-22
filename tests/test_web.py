@@ -1043,10 +1043,20 @@ if AioHTTPTestCase:
                 self.assertEqual(r.status, 401)
                 r = await self.client.post("/me/wallets", json={"job": DEMO_JID, "wallets": [W1]}, headers=dict(h, Origin="https://evil.example"))
                 self.assertEqual(r.status, 403)
-                # видалення, нотатка, стеля
-                r = await self.client.post("/me/wallets/note", json={"wallet": W1, "note": "watch"}, headers=h)
+                # видалення, власні теги, стеля
+                r = await self.client.post("/me/wallets/tags", json={"wallet": W1, "tags": [" Insider ", "insider", "Bundle Op"]}, headers=h)
                 self.assertEqual(r.status, 200)
-                self.assertEqual((await (await self.client.get("/me.json", headers=h)).json())["wallets"][W1]["note"], "watch")
+                self.assertEqual((await r.json())["tags"], ["insider", "bundle op"])        # нижній регістр, без дублів
+                self.assertEqual((await (await self.client.get("/me.json", headers=h)).json())["wallets"][W1]["my_tags"], ["insider", "bundle op"])
+                r = await self.client.post("/me/wallets/tags", json={"wallet": W1, "tags": ["<script>", "ok"]}, headers=h)
+                self.assertEqual((await r.json())["tags"], ["ok"])                           # розмітка тегом не стає
+                r = await self.client.post("/me/wallets/tags", json={"wallet": W1, "tags": "nope"}, headers=h)
+                self.assertEqual(r.status, 400)
+                r = await self.client.post("/me/wallets/tags", json={"wallet": "B" * 43, "tags": ["x"]}, headers=h)
+                self.assertEqual(r.status, 404)                                              # чужий гаманець не позначиш
+                csv_body = await (await self.client.get("/me/wallets.csv", headers=h)).text()
+                self.assertIn("my_tags", csv_body.splitlines()[0])
+                self.assertIn("ok", csv_body)
                 r = await self.client.post("/me/wallets/remove", json={"wallet": W1}, headers=h)
                 self.assertTrue((await r.json())["ok"])
                 r = await self.client.post("/me/wallets", json={"job": DEMO_JID, "wallets": [W1]}, headers=h)

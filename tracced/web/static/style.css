@@ -144,6 +144,12 @@ thead tr.grp th { border-bottom: 0; padding-bottom: 0; text-transform: none; let
 thead tr.grp th.g { border-bottom: 1px solid var(--line); text-align: center; }
 thead tr:not(.grp) th { top: 22px; }
 td.notes { font-size: 11.5px; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+/* your own labels on a watchlist wallet */
+td.mytags { white-space: normal; min-width: 170px; }
+.tag.mine { border-color: #C7D2FE; background: #EEF2FF; color: #3730A3; cursor: pointer; font: inherit; font-size: 11px; height: auto; padding: 1px 7px; margin: 1px 3px 1px 0; }
+.tag.mine:hover { border-color: #A5B4FC; background: #E0E7FF; }
+.tagin { width: 64px; height: 22px; padding: 0 6px; font-size: 11px; border: 1px dashed var(--line); border-radius: 999px; background: transparent; }
+.tagin:focus { width: 110px; border-style: solid; }
 td.bar { background-image: linear-gradient(to right, var(--sage) var(--w, 0%), transparent var(--w, 0%)); background-size: 100% 100%; background-repeat: no-repeat; background-position: left center; background-origin: padding-box; }
 td.bar.neg { background-image: linear-gradient(to right, #FEE2E2 var(--w, 0%), transparent var(--w, 0%)); }
 /* who funded the wallet: filled in after the background check, click filters to that group */

@@ -37,6 +37,8 @@ _HEAD = " wants you to sign in with your Solana account:"
 MAX_MESSAGE = 2048
 
 MAX_WALLETS, MAX_ANALYSES, MAX_NOTE = 500, 200, 200
+MAX_MY_TAGS, MAX_MY_TAG = 6, 24          # власні теги гаманця: коротка мітка, а не нотатка
+MY_TAG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 _-]{0,%d}$" % (MAX_MY_TAG - 1))
 WALLET_FIELDS = ("from_job", "mint", "symbol", "entry_mcap", "invested_usd", "multiple", "tags")
 ANALYSIS_FIELDS = ("mint", "symbol", "t_from", "t_to", "n", "best")
 
@@ -320,13 +322,37 @@ class AccountStore:
                     continue
                 if len(a["wallets"]) >= MAX_WALLETS:
                     raise AccountError(f"Your watchlist is full ({MAX_WALLETS} wallets). Remove some first.")
-                a["wallets"][w] = {"added_ms": _now_ms(), "note": "", **{k: it.get(k) for k in WALLET_FIELDS}}
+                a["wallets"][w] = {"added_ms": _now_ms(), "note": "", "my_tags": [], **{k: it.get(k) for k in WALLET_FIELDS}}
                 added += 1
             return added, len(a["wallets"])
         return self._update(pubkey, fn)
 
     def remove_wallet(self, pubkey, wallet):
         return self._update(pubkey, lambda a: a["wallets"].pop(wallet, None) is not None)
+
+    def set_my_tags(self, pubkey, wallet, tags):
+        """Власні теги гаманця у списку спостереження: короткі мітки замість вільної нотатки.
+
+        Мітка коротка навмисно: за нею можна відібрати список, а за абзацом тексту — ні. Нормалізуємо
+        регістр і пробіли, щоб «Insider» і «insider » не стали двома різними тегами.
+        """
+        clean, seen = [], set()
+        for t in (tags or [])[:MAX_MY_TAGS * 2]:
+            t = " ".join(str(t or "").split())[:MAX_MY_TAG].lower()
+            if not t or t in seen or not MY_TAG_RE.match(t):
+                continue
+            seen.add(t)
+            clean.append(t)
+            if len(clean) >= MAX_MY_TAGS:
+                break
+
+        def fn(a):
+            w = a["wallets"].get(wallet)
+            if w is None:
+                return False
+            w["my_tags"] = clean
+            return True
+        return self._update(pubkey, fn) and clean
 
     def set_note(self, pubkey, wallet, note):
         note = " ".join(str(note or "").split())[:MAX_NOTE]

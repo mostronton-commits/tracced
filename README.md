@@ -52,7 +52,7 @@ largest buyers (the rest keep their entry and get the `no-exits` tag, unless the
 which case everyone has exits), buyers under **$95** in the range are left out, and a run stops at **1,000 requests**.
 
 Tick wallets in a result and **+ Watchlist**; **Save analysis** keeps the whole result under **My analyses**. Both live at
-`/me`, with notes and CSV / TXT export. The owner sees who connected and what they ran at `/admin`. Accounts are JSON
+`/me`, with your own tags on each saved wallet and CSV / TXT export. The owner sees who connected and what they ran at `/admin`. Accounts are JSON
 files under `output/early/accounts/`, actions go to `_events.jsonl` next to them; nothing about accounts leaves the
 server. Page-view analytics (Umami Cloud) run only when `UMAMI_WEBSITE_ID` is set.
 

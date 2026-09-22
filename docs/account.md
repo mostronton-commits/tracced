@@ -9,9 +9,12 @@ Supported wallets: Phantom, MetaMask and Rabby.
 
 ## Watchlist and saved analyses
 
-Tick wallets in a result and press **+ Watchlist** to keep them, with a note on each. **Save analysis** keeps the
-whole result. Both live at `/me`, both export to CSV and TXT, and both are two-way: clicking the star again
-removes the item.
+Tick wallets in a result and press **+ Watchlist** to keep them. **Save analysis** keeps the whole result. Both
+live at `/me`, both export to CSV and TXT, and both are two-way: clicking the star again removes the item.
+
+Each saved wallet takes **your own tags**: type a short word and press Enter, click a tag to remove it. Up to six
+per wallet, lowercased so `Insider` and `insider ` do not become two different things. They are yours, they never
+mix with the tags the analysis computes, and they come out in the CSV.
 
 ## Repeats
 
