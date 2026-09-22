@@ -323,7 +323,7 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .foot-cols > div { display: grid; gap: 8px; align-content: start; }
 .foot-cols b { font: 600 11px/1 var(--sans); text-transform: uppercase; letter-spacing: .09em; color: #64748B; }
 .foot-cols a { display: inline-flex; align-items: center; gap: 7px; border: 0; font-size: 13px; }
-.foot-bot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 28px; padding-top: 16px; }
+.foot-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }   /* збірка і єдине налаштування живуть при назві, а не окремою смугою */
 .foot a { color: var(--muted); }
 
 .doc { max-width: 860px; } .doc h1 { font-size: 24px; margin-bottom: 8px; }
@@ -426,7 +426,7 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .stats div { cursor: help; } .stats span { border-bottom: 1px dotted #CBD5E1; }
 .soon-pop { width: 250px; } .soon-pop span { display: block; margin-top: 4px; }
 .nav a { font-size: 13.5px; }
-.foot-bot .mono { font-size: 12.5px; letter-spacing: .02em; }
+.foot-meta .mono { font-size: 12.5px; letter-spacing: .02em; }
 .foot .link, .link { border: 0; background: transparent; padding: 0; height: auto; font: inherit; color: var(--muted); cursor: pointer; border-bottom: 1px solid var(--line); }
 .link:hover { color: var(--ink); background: transparent; }
 .steps3 { display: flex; align-items: center; gap: 14px; margin: 4px 0 18px; flex-wrap: wrap; }
@@ -466,7 +466,7 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .topsearch input:focus { border-color: #34D399; box-shadow: 0 0 0 3px rgba(167, 243, 208, .18); }
 .foot { background: var(--navy); color: #CBD5E1; border-top: 1px solid #1E293B; margin-top: 24px; flex-shrink: 0; }
 .foot .foot-cols a { color: #CBD5E1; } .foot .foot-cols a:hover { color: #F8FAFC; }
-.foot .foot-brand b { font-size: 15px; } .foot .foot-bot { border-top: 1px solid #1E293B; }
+.foot .foot-brand b { font-size: 15px; }
 .foot-in { padding: 22px 24px 40px; }
 .foot .muted { color: #94A3B8; }
 .foot b { color: #F8FAFC; }

@@ -74,7 +74,9 @@ window.EarlyCur = (function () {
 {% include "_wallet.html" %}
 <footer class="foot"><div class="foot-in">
   <div class="foot-top">
-    <div class="foot-brand"><b>tracced</b><span class="muted mono">every wallet on the record</span></div>
+    <div class="foot-brand"><b>tracced</b><span class="muted mono">every wallet on the record</span>
+      <div class="foot-meta"><span class="mono muted">◎ Built on Solana · <span title="assets {{ v }}">v{{ version }}</span></span>
+        <button type="button" class="tzseg" id="tz" title="Time zone for all dates" aria-label="Time zone for all dates" onclick="EarlyTZ.toggle()"><b class="on">UTC</b><b>Local</b></button></div></div>
     <nav class="foot-cols" aria-label="Site">
       <div><b>Product</b>
         <a href="/">Home</a>
@@ -88,10 +90,6 @@ window.EarlyCur = (function () {
         <a href="https://github.com/mostronton-commits/tracced" target="_blank" rel="noopener">GitHub</a>
         <a href="https://x.com/tracced_xyz" target="_blank" rel="noopener">X</a></div>
     </nav>
-  </div>
-  <div class="foot-bot">
-    <span class="mono muted">◎ Built on Solana · <span title="assets {{ v }}">v{{ version }}</span></span>
-    <button type="button" class="tzseg" id="tz" title="Time zone for all dates" aria-label="Time zone for all dates" onclick="EarlyTZ.toggle()"><b class="on">UTC</b><b>Local</b></button>
   </div>
 </div></footer>
 </body>
