@@ -197,7 +197,8 @@ td.wcell .wid { white-space: nowrap; }       /* сам гаманець ніко
 .docs-body p, .docs-body li { line-height: 1.65; }
 .docs-body ul, .docs-body ol { padding-left: 20px; }
 .docs-body .dtw { overflow-x: auto; margin: 12px 0; }
-.docs-body table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.docs-body table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 14px; }
+.docs-body td:first-child, .docs-body th:first-child { width: 8.5em; }
 .docs-body th, .docs-body td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .docs-body th { font-weight: 600; background: var(--surface); }
 .docs-body code { font-family: var(--mono); font-size: 13px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
