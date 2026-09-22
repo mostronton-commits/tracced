@@ -362,22 +362,23 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .menu.right { margin-left: auto; }
 .menu-panel.r { left: auto; right: 0; }
 .soonwrap { position: relative; }
-/* «Add to watchlist» — holographic: an iridescent gradient border and sheen on our pastel palette, dark text */
+/* «AI agent» — holographic: an iridescent gradient border and sheen on our pastel palette, dark text.
+   Only this one button gets it. Everything else on the toolbar is quiet, or the accent stops meaning anything. */
 .button.holo { position: relative; padding: 0; border: 0; height: 36px; border-radius: 10px; overflow: visible;
   background: linear-gradient(115deg, #A7F3D0 0%, #BAE6FD 22%, #C4B5FD 45%, #FBCFE8 62%, #FDE68A 80%, #A7F3D0 100%);
   background-size: 260% 260%; animation: holo-shift 7s ease-in-out infinite; color: var(--ink); font-weight: 600;
-  box-shadow: 0 0 0 1px rgba(15, 23, 42, .06), 0 6px 18px -8px rgba(167, 243, 208, .9); }
-.button.holo .holo-in { display: inline-flex; align-items: center; gap: 8px; height: 32px; margin: 2px; padding: 0 12px 0 14px; border-radius: 8px;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, .06), 0 6px 18px -8px rgba(196, 181, 253, .9); }
+.button.holo .holo-in { display: inline-flex; align-items: center; gap: 8px; height: 32px; margin: 2px; padding: 0 13px; border-radius: 8px;
   background: linear-gradient(115deg, rgba(255,255,255,.86), rgba(255,255,255,.72)); backdrop-filter: blur(2px); }
-.button.holo .holo-n { font: 600 11px/1 var(--mono); padding: 3px 7px; border-radius: 999px; background: var(--navy); color: var(--mint); }
 .button.holo::after { content: ""; position: absolute; inset: 0; border-radius: 10px; pointer-events: none;
   background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.75) 50%, transparent 70%); background-size: 250% 100%; animation: holo-sheen 3.2s linear infinite; mix-blend-mode: soft-light; }
 .button.holo:hover { transform: translateY(-1px); box-shadow: 0 0 0 1px rgba(15, 23, 42, .1), 0 10px 22px -8px rgba(196, 181, 253, .9); }
 .button.holo:active { transform: translateY(0); }
 @keyframes holo-shift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
 @keyframes holo-sheen { from { background-position: 200% 0; } to { background-position: -50% 0; } }
-.soon-badge { position: absolute; top: -9px; right: -10px; z-index: 2; font: 700 9.5px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase;
-  padding: 4px 7px; border-radius: 999px; background: var(--navy); color: var(--mint); border: 1px solid var(--mint); transform: rotate(6deg); pointer-events: none; }
+/* «+ Watchlist» — звичайна кнопка з лічильником: дія часта, підсвічувати її нема чого */
+.button.wl { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.button.wl .wl-n { font: 600 11px/1 var(--mono); padding: 3px 7px; border-radius: 999px; background: var(--navy); color: var(--mint); }
 @media (prefers-reduced-motion: reduce) { .button.holo, .button.holo::after { animation: none; } }
 .mhint { margin: 4px 0 0; }
 .chartbox .tf.back { margin-left: 6px; color: var(--mint); border-color: #1E293B; }
@@ -460,8 +461,6 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .wrow label.fld { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 .wrow label.fld span { text-transform: none; }
 .wrow .result.ghost { color: var(--muted); }
-.ai-btn { border-color: #C4B5FD; background: linear-gradient(115deg, #F5F3FF, #ECFEFF); }
-.ai-btn:hover { border-color: #A78BFA; }
 .soonwrap.right { margin-left: auto; }
 .soonwrap.right .soon-pop, #watch .soon-pop { left: auto; right: 0; }
 

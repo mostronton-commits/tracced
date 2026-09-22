@@ -12,7 +12,7 @@
       <div class="contract mono"><span title="{{ mint }}">{{ mint[:6] }}…{{ mint[-5:] }}</span><button type="button" class="ghost copy" data-copy="{{ mint }}" title="Copy address">⧉</button><a class="ext" href="https://solscan.io/token/{{ mint }}" target="_blank" rel="noopener" title="Solscan">↗</a>{% if info.launchpad %}<span class="chip lp" title="Where the token was launched">{{ info.launchpad|replace('https://','')|replace('.com','')|replace('/','') }}</span>{% endif %}{% if info.twitter %}<a class="ext" href="{{ info.twitter }}" target="_blank" rel="noopener" title="The project's X">𝕏</a>{% endif %}</div>
     </div>
     <dl class="meta">
-      <div><dt>Created</dt><dd class="mono dtc" data-ms="{{ info.created_time or 0 }}" data-long="1">{{ info.created_time|dtu }}</dd></div>
+      <div><dt>Created</dt><dd class="mono dtc" data-ms="{{ info.created_time or 0 }}" data-long="1">{{ info.created_time|dty }}</dd></div>
       <div><dt>Supply</dt><dd class="mono">{{ info.supply|mcap }}</dd></div>
       <div><dt>Market cap</dt><dd class="mono">{{ info.mcap|mcap }}</dd></div>
       <div><dt>Liquidity</dt><dd class="mono">{{ info.liquidity_usd|mcap }}</dd></div>
@@ -35,8 +35,8 @@
       <input type="hidden" name="mint" value="{{ mint }}">
       <span class="n"></span>
       <span class="label" contenteditable="true" spellcheck="false" title="Rename"></span>
-      <label class="fld"><span>From (UTC)</span><input type="datetime-local" name="from" required></label>
-      <label class="fld"><span>To (UTC)</span><input type="datetime-local" name="to" required></label>
+      <label class="fld"><span>From</span><input type="datetime-local" name="from" required></label>
+      <label class="fld"><span>To</span><input type="datetime-local" name="to" required></label>
       <button type="submit" class="primary">Analyze</button>
       <a class="result button ghost" hidden>Open result →</a>
       <button type="button" class="ghost del" title="Remove">×</button>
@@ -70,6 +70,11 @@
   const pad = n => String(n).padStart(2, '0');
   const fmt = ms => { const d = new Date(ms); return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()) + 'T' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); };
   const parse = v => v ? Date.parse(v + ':00Z') : null;
+  /* State and server speak UTC only. The field shows whatever the footer switch selects, so it converts both ways. */
+  const inLocal = () => (window.EarlyTZ && EarlyTZ.get()) === 'local';
+  const fmtLoc = ms => { const d = new Date(ms); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+  const show = u => (u && inLocal() ? fmtLoc(parse(u)) : (u || ''));
+  const keep = v => (v && inLocal() ? fmt(Date.parse(v)) : v);        // a datetime-local with no zone parses as local time
   const jobId = r => { const f = parse(r.from), t = parse(r.to); if (!(f && t)) return null;
     const F = new Date(f), T = new Date(t);
     return mint.slice(0, 6) + '_' + F.getUTCFullYear() + pad(F.getUTCMonth() + 1) + pad(F.getUTCDate()) + '-' + pad(F.getUTCHours()) + pad(F.getUTCMinutes())
@@ -104,7 +109,7 @@
       const r = state.rows[state.sel], f = rowsEl.querySelector('.wrow.sel');
       if (step === 0) { r.from = fmt(ms); r.to = ''; step = 1; ch.setMarker(ms); }
       else { r.to = fmt(ms); if (parse(r.to) <= parse(r.from)) { const t = r.from; r.from = r.to; r.to = t; } step = 0; ch.setMarker(null); }
-      save(); f.querySelector('[name=from]').value = r.from; f.querySelector('[name=to]').value = r.to;
+      save(); f.querySelector('[name=from]').value = show(r.from); f.querySelector('[name=to]').value = show(r.to);
       refreshLink(f, r); ch.setWindows(winList(), state.sel);
     },
   });
@@ -121,6 +126,7 @@
   }
   rowsEl.addEventListener('submit', e => {
     const f = e.target.closest('.wrow'), r = f && state.rows[+f.dataset.i], hit = r && hitFor(r);
+    if (r) { f.querySelector('[name=from]').value = r.from || ''; f.querySelector('[name=to]').value = r.to || ''; }   // the server always receives UTC
     if (DEMO) { if (hit) { try { localStorage.setItem(RAN + hit, '1'); } catch (x) {} } return; }
     if (hit) return;                                             // a finished result opens for anyone
     const f0 = parse(r.from), t0 = parse(r.to);                  // say what is wrong with the range before asking for anything
@@ -137,8 +143,8 @@
       f.dataset.i = i;
       f.querySelector('.n').textContent = i + 1;
       f.querySelector('.label').textContent = r.label || 'Range';
-      f.querySelector('[name=from]').value = r.from || '';
-      f.querySelector('[name=to]').value = r.to || '';
+      f.querySelector('[name=from]').value = show(r.from);
+      f.querySelector('[name=to]').value = show(r.to);
       if (i === state.sel) f.classList.add('sel');
       if (DEMO) { f.querySelectorAll('input[type=datetime-local]').forEach(x => { x.readOnly = true; x.tabIndex = -1; }); f.querySelector('.label').contentEditable = 'false'; f.querySelector('.del').hidden = true; }
       else if (r.job) { const d = f.querySelector('.del'); d.hidden = !r.deletable; d.title = 'Delete this analysis — the slot is free again'; }
@@ -155,7 +161,7 @@
     const f = e.target.closest('.wrow'); if (!f) return;
     const i = +f.dataset.i, r = state.rows[i];
     if (e.target.classList.contains('label')) { r.label = e.target.textContent.trim().slice(0, 60); save(); ch.setWindows(winList(), state.sel); return; }
-    r[e.target.name] = e.target.value;
+    r[e.target.name] = keep(e.target.value);
     save(); refreshLink(f, r); ch.setWindows(winList(), state.sel);
   });
   rowsEl.addEventListener('click', e => {

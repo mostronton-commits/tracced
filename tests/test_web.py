@@ -246,7 +246,9 @@ if AioHTTPTestCase:
                 if "↓ Export" in html: break
                 await asyncio.sleep(0.1)
             self.assertIn("↓ Export", html)
-            self.assertIn('id="cur"', html)                                # перемикач USD | SOL у підвалі
+            self.assertIn('id="cur"', html)                                # перемикач USD | SOL над таблицею
+            self.assertIn('class="button holo" id="askbtn"', html)         # сяйво лишилось тільки на кнопці агента
+            self.assertIn('class="button wl" id="watchbtn"', html)
             self.assertIn("data-invsol=", html)                            # рядок таблиці несе суми в SOL
             self.assertIn("data-sol=", html)                               # і плитка «Spent in range» теж
             self.assertNotIn('class="muted small solnote"', html)          # свіжий результат не виправдовується
@@ -851,7 +853,7 @@ if AioHTTPTestCase:
             r = await self.client.post(loc + "/assistant", json={"method": "only profitable", "wallets": ["A"]}, headers=o)
             self.assertTrue((await r.json()).get("cached"))
             self.assertIn("AI agent", page48)
-            self.assertEqual(page48.count("<b>Not enabled here</b>"), 1)     # no key on this server: the button says so
+            self.assertEqual(page48.count("<b>Coming soon</b>"), 1)          # no key on this server: the button says so
             self.app["assistant"] = None                                 # …and then the home page must not promise it either
             home_off = await (await self.client.get("/")).text()
             self.assertIn("Coming next", home_off)

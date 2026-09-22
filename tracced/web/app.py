@@ -73,7 +73,8 @@ env.globals["v"] = _asset_version()
 from .. import __version__                                   # noqa: E402 — product version for the footer
 env.globals["version"] = ".".join(__version__.split(".")[:2])
 env.filters["dt"] = chart.fmt_dt
-env.filters["dtu"] = lambda ms: chart.fmt_dt(ms, year=True, utc=True)
+env.filters["dtu"] = lambda ms: chart.fmt_dt(ms, year=True, utc=True)   # експорт: у файлі колонка мусить назвати зону
+env.filters["dty"] = lambda ms: chart.fmt_dt(ms, year=True)            # на сторінці зону називає перемикач у підвалі
 env.filters["dtl"] = chart.to_input
 env.filters["mcap"] = chart.fmt_mcap
 env.filters["usd"] = _usd

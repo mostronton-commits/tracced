@@ -68,15 +68,16 @@
       <span class="muted small" id="shown"></span>
       <label class="chk"><input type="checkbox" id="pickall"> Select all</label>
       <span class="muted small" id="selinfo" hidden><b id="nsel">0</b> selected · <button type="button" class="link" id="clearsel">Clear</button></span>
+      <button type="button" class="tzseg" id="cur" title="Show every amount in dollars or in SOL" aria-label="Money unit" onclick="EarlyCur.toggle()"><b class="on">USD</b><b>SOL</b></button>
       <div class="soonwrap right" id="aiwrap">
-        <button type="button" class="button ai-btn" id="askbtn" title="{{ 'Pick wallets to watch by your method' if assistant_on else 'The AI agent is not enabled on this server' }}">✦ AI agent</button>
+        <button type="button" class="button holo" id="askbtn" title="{{ 'Pick wallets to watch by your method' if assistant_on else 'Coming soon' }}"><span class="holo-in">✦ AI agent</span></button>
         <div class="soon-pop" id="aipop" hidden>
-          <b>Not enabled here</b>
-          <span>The agent picks wallets to watch by your method and explains each pick. This server has no model key yet.</span>
+          <b>Coming soon</b>
+          <span>The agent will read this table and the method you describe, then return a short list with a reason for each pick. It is not connected to this server yet.</span>
         </div>
       </div>
-      <div class="soonwrap" id="watch" hidden>
-        <button type="button" class="button holo" id="watchbtn" title="Add the selected wallets to your watchlist"><span class="holo-in"><span class="holo-txt" id="watchtxt">+ Watchlist</span><span class="holo-n" id="watchn"></span></span></button>
+      <div id="watch" hidden>
+        <button type="button" class="button wl" id="watchbtn" title="Add the selected wallets to your watchlist"><span id="watchtxt">+ Watchlist</span><span class="wl-n" id="watchn"></span></button>
       </div>
       <button type="button" class="ghost savejob" id="savejob" title="Keep this analysis under My analyses">☆ Save analysis</button>
       <div class="menu">
