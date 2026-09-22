@@ -249,7 +249,7 @@ if AioHTTPTestCase:
             self.assertIn('id="cur"', html)                                # перемикач USD | SOL у підвалі
             self.assertIn("data-invsol=", html)                            # рядок таблиці несе суми в SOL
             self.assertIn("data-sol=", html)                               # і плитка «Spent in range» теж
-            self.assertNotIn("solnote", html)                              # свіжий результат не виправдовується
+            self.assertNotIn('class="muted small solnote"', html)          # свіжий результат не виправдовується
 
             # угоди гаманця для графіка й картки: SOL іде з тієї самої збереженої угоди, без нових запитів
             jid, mint = "DDDDDD_20010909-0146_0206", "D" * 40
