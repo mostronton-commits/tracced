@@ -70,6 +70,7 @@
     const sec = v => (v == null ? null : (v > 1e11 ? v / 1000 : v));   // accept ms or seconds
     const normWins = ws => (ws || []).map(w => ({ ...w, from: sec(w.from), to: sec(w.to) }));
     let tf = null, data = new Map(), times = [], loaded = { a: null, b: null }, busy = false, gen = 0;
+    let edge = { left: false, right: false };   // the feed has nothing further that way: stop asking for it
     let windows = normWins(opts.windows), selected = opts.selected || 0, exitSec = sec(opts.exit), marker = null;
 
     async function fetchChunk(a, b) {
@@ -78,14 +79,23 @@
       if (!r.ok) { try { const d = await r.json(); if (d && d.error && window.EarlyUI) EarlyUI.toast(d.error, 8000); } catch (e) {} return []; }   // say why the chart is empty
       return r.json();
     }
-    async function load(a, b) {
+    /* One request covers at most CHUNK[tf]: the feed silently truncates a larger one and returns only the newest
+       slice, which used to look like "the history got shorter" after a timeframe switch. */
+    function capSpan(a, b) { const s = CHUNK[tf]; if (b - a <= s) return [a, b]; const c = (a + b) / 2; return [c - s / 2, c + s / 2]; }
+    async function load(a, b, dir) {
       a = Math.max(created, a); b = Math.min(now, b); if (b <= a) return;
       const my = gen; busy = true; if (!data.size) el.classList.add('loading');
       try {
+        const had = data.size;
         const rows = await fetchChunk(a, b); if (my !== gen) return;
         const keep = data.size ? chart.timeScale().getVisibleRange() : null;   // chunks must not move the view
         rows.forEach(c => data.set(c.time, c));
-        loaded.a = loaded.a === null ? a : Math.min(loaded.a, a); loaded.b = loaded.b === null ? b : Math.max(loaded.b, b);
+        if (dir && data.size === had) edge[dir] = true;                        // asked that way, got nothing new: that edge is done
+        if (rows.length) {                                                     // trust the candles that came back, not the range we asked for
+          const first = rows[0].time, last = rows[rows.length - 1].time;
+          loaded.a = loaded.a === null ? first : Math.min(loaded.a, first);
+          loaded.b = loaded.b === null ? last : Math.max(loaded.b, last);
+        }
         const sorted = [...data.values()].sort((x, y) => x.time - y.time);
         times = sorted.map(c => c.time);
         series.setData(sorted);
@@ -99,13 +109,13 @@
 
     async function setTf(newTf, keepView) {
       const v = visible();
-      tf = newTf; gen++; data.clear(); times = []; loaded = { a: null, b: null };
+      tf = newTf; gen++; data.clear(); times = []; loaded = { a: null, b: null }; edge = { left: false, right: false };
       const span = CHUNK[tf];
       let a, b;
-      if (v && keepView) { const c = (v.a + v.b) / 2, w = Math.max(v.b - v.a, span / 4); a = c - Math.max(w, span / 2); b = c + Math.max(w, span / 2); }
-      else if (now - created <= span * 1.5) { a = created; b = now; }
+      if (v && keepView) { const c = (v.a + v.b) / 2, w = Math.min(Math.max((v.b - v.a) * 1.2, span / 2), span); a = c - w / 2; b = c + w / 2; }
+      else if (now - created <= span) { a = created; b = now; }
       else { const c = center(); a = c - span / 2; b = c + span / 2; }
-      await load(a, b);
+      await load(...capSpan(a, b));
       if (v && keepView) chart.timeScale().setVisibleRange({ from: Math.max(v.a, created), to: Math.min(v.b, now) });
       else chart.timeScale().fitContent();
       el.querySelectorAll('.tf').forEach(btn => btn.classList.toggle('on', btn.dataset.tf === tf));
@@ -117,11 +127,14 @@
       const a = Math.max(created, fromSec - padS), b = Math.min(now, (exitS && exitS < toSec + 8 * 3600 ? exitS : toSec) + padS);
       const want = autoTf(b - a);
       if (!tf || (b - a) / TF_SEC[tf] < 12) {                       // no timeframe yet, or the range would be a few bars
-        tf = want; gen++; data.clear(); times = []; loaded = { a: null, b: null };
-        await load(a - CHUNK[tf] / 4, b + CHUNK[tf] / 4);
+        tf = want; gen++; data.clear(); times = []; loaded = { a: null, b: null }; edge = { left: false, right: false };
+        await load(...capSpan(a - CHUNK[tf] / 4, b + CHUNK[tf] / 4));
       } else {
-        if (loaded.a === null) await load(a - CHUNK[tf] / 4, b + CHUNK[tf] / 4);
-        else { if (loaded.a > a) await load(a - CHUNK[tf] / 4, loaded.a); if (loaded.b < b) await load(loaded.b, b + CHUNK[tf] / 4); }
+        if (loaded.a === null) await load(...capSpan(a - CHUNK[tf] / 4, b + CHUNK[tf] / 4));
+        else {
+          if (loaded.a > a && !edge.left) await load(...capSpan(a - CHUNK[tf] / 4, loaded.a), 'left');
+          if (loaded.b < b && !edge.right) await load(...capSpan(loaded.b, b + CHUNK[tf] / 4), 'right');
+        }
       }
       const v = visible();
       if (!v || a < v.a || b > v.b) chart.timeScale().setVisibleRange({ from: a, to: b });   // already in view → leave it
@@ -132,8 +145,8 @@
     chart.timeScale().subscribeVisibleLogicalRangeChange(debounce(async range => {
       if (!range || busy || loaded.a === null) return;
       const info = series.barsInLogicalRange(range); if (!info) return;
-      if (info.barsBefore < 40 && loaded.a > created + 1) await load(loaded.a - CHUNK[tf], loaded.a);
-      else if (info.barsAfter < 40 && loaded.b < now - TF_SEC[tf]) await load(loaded.b, loaded.b + CHUNK[tf]);
+      if (info.barsBefore < 40 && !edge.left && loaded.a > created + 1) await load(loaded.a - CHUNK[tf], loaded.a, 'left');
+      else if (info.barsAfter < 40 && !edge.right && loaded.b < now - TF_SEC[tf]) await load(loaded.b, loaded.b + CHUNK[tf], 'right');
     }, 120));
     chart.timeScale().subscribeVisibleTimeRangeChange(() => place());
     new ResizeObserver(() => place()).observe(el);

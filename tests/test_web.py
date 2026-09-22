@@ -492,6 +492,29 @@ if AioHTTPTestCase:
             self.assertEqual(r.status, 400)                              # inf — помилка запиту, не 500
             self.assertIn("Bad time range", (await r.json())["error"])
 
+        async def test_candles_span_is_capped_per_timeframe(self):
+            # завеликий відрізок джерело мовчки обрізає і віддає лише свіже, тому звужуємо його самі
+            from tracced.web import chart as chart_mod
+            from tracced.web.app import MAX_CANDLES
+            mint, asked = "F" * 40, []
+            await self.client.get(f"/candles.json?mint={mint}&tf=5m&a=1&b=2")    # огляд токена в кеш, щоб не рахувати його свічку
+            real = self.st.chart
+
+            def spy(m, interval, t_from, t_to):
+                asked.append((interval, (t_to - t_from) // 1000))
+                return real(m, interval, t_from, t_to)
+            self.st.chart = spy
+            try:
+                for tf in ("1m", "1h"):
+                    r = await self.client.get(f"/candles.json?mint={mint}&tf={tf}&a=1&b=9999999999")
+                    self.assertEqual(r.status, 200, await r.text())
+            finally:
+                self.st.chart = real
+            self.assertEqual([t for t, _ in asked], ["1m", "1h"])
+            for tf, span in asked:
+                self.assertLessEqual(span / chart_mod.TF_SEC[tf], MAX_CANDLES + 1, tf)   # свічок за запит не більше стелі
+                self.assertGreater(span, 0, tf)
+
         async def test_live_mode_quota_cap_and_delete(self):
             # гаманець: 1 прогін на день; той самий діапазон удруге — безкоштовно; 3 діапазони на токен; видалити може автор або адмін
             import time as _time

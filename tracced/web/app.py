@@ -35,6 +35,7 @@ log = logging.getLogger("early.web")
 HERE = Path(__file__).resolve().parent
 HOUR = 3_600_000
 MINT_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
+MAX_CANDLES = 1500          # скільки свічок має сенс просити за раз: більше — і джерело мовчки обріже відповідь
 ACCT_COOKIE = "early_acct"          # вхід гаманцем — єдиний вхід на сайті
 ACCT_DAYS = 30
 
@@ -997,7 +998,8 @@ async def candles_json(request):
     now = int(time.time())
     created = int((info.get("created_time") or 0) // 1000)
     a, b = chart.snap_range(max(a, created - 3600), min(b, now + 3600), tf)
-    if b <= a:
+    a = max(a, b - chart.TF_SEC[tf] * MAX_CANDLES)      # Solana Tracker truncates a huge span without saying so and
+    if b <= a:                                          # returns only the newest slice; keep every request answerable
         return web.json_response([])
     settle = _browse_budget(request, 1) if not st.chart_cached(mint, tf, a * 1000, b * 1000) else None   # шматок = 1 запит
 
