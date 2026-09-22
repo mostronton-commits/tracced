@@ -66,6 +66,7 @@ class SolanaTracker(PumpDataSource):
         tok = d.get("token", {}) or {}
         pools = d.get("pools") or [{}]
         p = pools[0] or {}
+        # усе нижче приходить у тій самій відповіді, за яку ми вже заплатили — окремих запитів нема
         return {
             "mint": mint,
             "symbol": tok.get("symbol"),
@@ -75,6 +76,15 @@ class SolanaTracker(PumpDataSource):
             "price_usd": (p.get("price") or {}).get("usd"),
             "mcap": _usd(p.get("marketCap")),
             "liquidity_usd": (p.get("liquidity") or {}).get("usd"),
+            "deployer": p.get("deployer"),              # гаманець, який створив пул: тег `dev`, якщо він купував
+            "launchpad": tok.get("createdOn"),          # де запущено (pump.fun тощо)
+            "market": p.get("market"),                  # на якій біржі пул
+            "twitter": tok.get("twitter"),
+            "website": tok.get("website"),
+            "holders": d.get("holders"),
+            "txns": d.get("txns"),
+            "buys": d.get("buys"),
+            "sells": d.get("sells"),
         }
 
     def trades_iter(self, mint, max_pages=40):

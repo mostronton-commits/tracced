@@ -9,13 +9,15 @@
   <div class="tokenhead">
     <div>
       <h1>{{ info.symbol or '?' }}{% if info.name and info.name != info.symbol %} <span class="muted">{{ info.name }}</span>{% endif %}{% if is_demo %} <span class="chip demo" title="Recorded token · {{ n_demo }} pump{{ 's' if n_demo != 1 else '' }} replayed without requests">Demo</span>{% endif %}</h1>
-      <div class="contract mono"><span title="{{ mint }}">{{ mint[:6] }}…{{ mint[-5:] }}</span><button type="button" class="ghost copy" data-copy="{{ mint }}" title="Copy address">⧉</button><a class="ext" href="https://solscan.io/token/{{ mint }}" target="_blank" rel="noopener" title="Solscan">↗</a></div>
+      <div class="contract mono"><span title="{{ mint }}">{{ mint[:6] }}…{{ mint[-5:] }}</span><button type="button" class="ghost copy" data-copy="{{ mint }}" title="Copy address">⧉</button><a class="ext" href="https://solscan.io/token/{{ mint }}" target="_blank" rel="noopener" title="Solscan">↗</a>{% if info.launchpad %}<span class="chip lp" title="Where the token was launched">{{ info.launchpad|replace('https://','')|replace('.com','')|replace('/','') }}</span>{% endif %}{% if info.twitter %}<a class="ext" href="{{ info.twitter }}" target="_blank" rel="noopener" title="The project's X">𝕏</a>{% endif %}</div>
     </div>
     <dl class="meta">
       <div><dt>Created</dt><dd class="mono dtc" data-ms="{{ info.created_time or 0 }}" data-long="1">{{ info.created_time|dtu }}</dd></div>
       <div><dt>Supply</dt><dd class="mono">{{ info.supply|mcap }}</dd></div>
       <div><dt>Market cap</dt><dd class="mono">{{ info.mcap|mcap }}</dd></div>
       <div><dt>Liquidity</dt><dd class="mono">{{ info.liquidity_usd|mcap }}</dd></div>
+      {% if info.holders %}<div><dt>Holders</dt><dd class="mono">{{ info.holders|num }}</dd></div>{% endif %}
+      {% if info.txns %}<div title="Buys and sells over the token's whole life"><dt>Trades</dt><dd class="mono">{{ info.txns|num }}</dd></div>{% endif %}
     </dl>
   </div>
 

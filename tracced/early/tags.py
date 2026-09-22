@@ -10,6 +10,7 @@ MIN = 60_000
 HOUR = 3_600_000
 
 DEFS = {
+    "dev":        "The wallet that created the token's pool",
     "sniper":     "Bought within 60 s of token creation",
     "fresh":      "Wallet younger than 24 h at its first buy",
     "bot-like":   "30+ trades with a median hold under 2 min, or 5+ buy→sell pairs within 5 s",

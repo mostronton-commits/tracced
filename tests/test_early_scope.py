@@ -19,6 +19,21 @@ def result(trades, source="wallet-trades"):
             "price_at_end": 5.0, "fresh_wallets": ["W"], "bundle": {"W": {"funder": "F", "n": 3}}}
 
 
+class TestDevTag(unittest.TestCase):
+    def test_deployer_among_the_buyers_is_tagged(self):
+        # творець пулу приходить у тій самій відповіді про токен, окремих запитів нема
+        trades = [tr(5, "buy", 100, 2.0), tr(40, "sell", 100, 6.0)]
+        r = result(trades)
+        rows, _ = scope.rows_for(r, "all")
+        self.assertNotIn("dev", rows[0]["tag_list"])          # поле не заповнене — тега нема
+        r["info"]["deployer"] = "W"
+        rows, _ = scope.rows_for(r, "all")
+        self.assertIn("dev", rows[0]["tag_list"])
+        r["info"]["deployer"] = "SOMEONE-ELSE"
+        rows, _ = scope.rows_for(r, "all")
+        self.assertNotIn("dev", rows[0]["tag_list"])
+
+
 class TestScope(unittest.TestCase):
     def test_scopes_and_end(self):
         self.assertEqual(scope.scopes_for({"scopes": [24, 48]}), ["all", "24h", "48h"])

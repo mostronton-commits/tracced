@@ -60,6 +60,7 @@ def rows_for(result, scope, s=None):
     price = price_at_end(result, t_end) or 0
     fresh = set(result.get("fresh_wallets") or [])
     bundle = result.get("bundle") or {}
+    dev = ((result.get("info") or {}).get("deployer") or "").strip()   # творець пулу серед покупців — окремий факт
     facts = []
     for wallet, v in wt.items():
         trs = [tr for tr in unpack(wallet, v.get("trades") or []) if tr["time"] <= t_end]
@@ -75,6 +76,8 @@ def rows_for(result, scope, s=None):
             f["tags"] = tags.with_tag(f["tags"], "fresh")
         if wallet in bundle:
             f["tags"] = tags.with_tag(f["tags"], "bundle")
+        if dev and wallet == dev:
+            f["tags"] = tags.with_tag(f["tags"], "dev")
         facts.append(f)
     rows = report.sort_rows([report.to_row(f) for f in facts])
     return rows, report.summary(rows)
