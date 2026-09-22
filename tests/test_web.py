@@ -235,6 +235,54 @@ if AioHTTPTestCase:
             html = await (await self.client.get(r.headers["Location"])).text()
             self.assertIn('<main class="wide"', html)                      # таблиці потрібна ширина
 
+        async def test_amounts_are_kept_in_both_dollars_and_sol(self):
+            # кожна сума несе обидві одиниці з тієї самої угоди; перемикач у підвалі лише вибирає, яку показати
+            await self.client.get(f"/token?mint={MINT}")
+            r = await self.client.post("/analyze", data={"mint": MINT, "from": "2001-09-09T01:46", "to": "2001-09-09T02:06"},
+                                       allow_redirects=False)
+            loc, html = r.headers["Location"], ""
+            for _ in range(80):
+                html = await (await self.client.get(loc)).text()
+                if "↓ Export" in html: break
+                await asyncio.sleep(0.1)
+            self.assertIn("↓ Export", html)
+            self.assertIn('id="cur"', html)                                # перемикач USD | SOL у підвалі
+            self.assertIn("data-invsol=", html)                            # рядок таблиці несе суми в SOL
+            self.assertIn("data-sol=", html)                               # і плитка «Spent in range» теж
+            self.assertNotIn("solnote", html)                              # свіжий результат не виправдовується
+
+            # угоди гаманця для графіка й картки: SOL іде з тієї самої збереженої угоди, без нових запитів
+            jid, mint = "DDDDDD_20010909-0146_0206", "D" * 40
+            w = acct_mod.b58encode(b"\x03" * 32)
+            stored = {"id": jid, "mint": mint, "t_from": 999999960000, "t_to": 1000001160000, "t_exit": None, "status": "done",
+                      "error": None, "created_ms": 1, "started_ms": 1, "finished_ms": 2, "symbol_hint": "DDD",
+                      "progress": {"phase": "done", "done": 1, "total": 1}, "log": [],
+                      "result": {"info": {"mint": mint, "symbol": "DDD", "supply": 1000000, "created_time": 999996400000},
+                                 "window": {"from": 999999960000, "to": 1000001160000, "end": 1000003560000}, "mode": "wallet-trades",
+                                 "counts": {"n_wallets": 1, "n_trades": 1, "n_early": 1},
+                                 "coverage": {"exits_known": 1, "total": 1, "mode": "wallet-trades"},
+                                 "wallet_trades": {w: {"trades": [[1000000020000, "buy", 100.0, 200.0, 2.0, 1.25]],
+                                                       "source": "wallet-trades"}},
+                                 "rows": [{"wallet": w}], "scope": "all", "requests": 0}}
+            with open(f"{self.tmp.name}/web/{jid}.json", "w") as f:
+                json.dump(stored, f)
+            self.app["jobs"]._load()
+            before = self.st.requests
+            d = await (await self.client.get(f"/wallet_trades.json?job={jid}&wallet={w}")).json()
+            self.assertEqual(self.st.requests, before)                     # усе вже в результаті
+            self.assertEqual(d["trades"][0]["sol"], 1.25)
+            self.assertEqual(d["trades"][0]["usd"], 200.0)
+
+        async def test_a_result_saved_before_sol_says_so_instead_of_showing_dollars_as_sol(self):
+            # старий запис не має сум у SOL: сторінка каже це прямо, а не підсовує долари під значком ◎
+            from tracced.early import report
+            rows = [{"invested_in_range_usd": 10.0, "invested_in_range_sol": None, "proceeds_sol": None,
+                     "sold_share_pct": 0.0, "realized_usd": 0.0}]
+            sm = report.summary(rows)
+            self.assertFalse(sm["has_sol"])
+            self.assertIsNone(sm["invested_range_sol"])
+            self.assertIsNone(sm["realized_total_sol"])
+
         async def test_a_rerun_is_not_overwritten_by_the_old_enrichment(self):
             # той самий діапазон запустили вдруге: збагачення першого прогону не має перетерти новий результат
             q = self.app["jobs"]

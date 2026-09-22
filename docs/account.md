@@ -30,4 +30,4 @@ people are never part of it, nothing leaves the server, and no request is spent 
 ## What other people can see
 
 Finished analyses are public: the home page lists what everyone analysed, and any result opens for anyone. **Who
-ran an analysis is never shown.** Your watchlist, your notes and your saved list are yours alone.
+ran an analysis is never shown.** Your watchlist, your own tags and your saved list are yours alone.

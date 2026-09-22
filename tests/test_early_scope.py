@@ -89,5 +89,20 @@ class TestEmptyRange(unittest.TestCase):
         self.assertIsNone(scope.rows_for({"window": {}}, "all", {}))      # старий формат — як і раніше, None
 
 
+class TestPackedTrades(unittest.TestCase):
+    """Сума в SOL дописана шостим полем; результати, зняті до неї, мають читатись так само."""
+
+    def test_sol_survives_the_round_trip(self):
+        packed = scope.pack([{"time": T0, "type": "buy", "qty": 10.0, "usd": 20.0, "price": 2.0, "sol": 0.1}])
+        self.assertEqual(packed, [[T0, "buy", 10.0, 20.0, 2.0, 0.1]])
+        self.assertEqual(scope.unpack("W", packed)[0]["sol"], 0.1)
+
+    def test_an_older_result_reads_without_sol(self):
+        older = [[T0, "buy", 10.0, 20.0, 2.0]]                  # пʼять полів, як писалось до цього релізу
+        got = scope.unpack("W", older)[0]
+        self.assertIsNone(got["sol"])
+        self.assertEqual(got["usd"], 20.0)
+
+
 if __name__ == "__main__":
     unittest.main()

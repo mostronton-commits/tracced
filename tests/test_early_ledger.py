@@ -36,6 +36,45 @@ class TestUnbackedTokens(unittest.TestCase):
         self.assertTrue(f["partial_history"])
 
 
+class TestSolAmounts(unittest.TestCase):
+    """Кожна угода несе і долари, і SOL. Сайт показує те, що записав своп, а не сьогоднішній курс."""
+
+    def test_the_raw_swap_carries_the_sol_leg(self):
+        raw = {"wallet": "A", "type": "buy", "time": 1, "amount": 10, "volume": 20.0,
+               "volumeSol": 0.1, "priceUsd": 2.0, "tx": "t", "program": "p"}
+        self.assertEqual(ledger.normalize(raw)["sol"], 0.1)
+        self.assertIsNone(ledger.normalize({k: v for k, v in raw.items() if k != "volumeSol"})["sol"])
+
+    def facts_of(self, trades):
+        L, _ = ledger.build(trades, T0, T0 + 20 * MIN, T0 + 60 * MIN)
+        return ledger.facts(L["A"], SUPPLY, price_at_exit=2.0)
+
+    def with_sol(self, t, sol):
+        t["sol"] = sol
+        return t
+
+    def test_sums_follow_the_trades(self):
+        f = self.facts_of([self.with_sol(tr(1, "buy", "A", 100, 1.0), 0.5),
+                           self.with_sol(tr(30, "buy", "A", 100, 1.0), 0.4),    # за межами діапазону
+                           self.with_sol(tr(40, "sell", "A", 100, 3.0), 1.2)])
+        self.assertAlmostEqual(f["invested_sol"], 0.9)
+        self.assertAlmostEqual(f["invested_in_range_sol"], 0.5)
+        self.assertAlmostEqual(f["proceeds_sol"], 1.2)
+
+    def test_a_trade_feed_without_sol_says_so_instead_of_showing_zero(self):
+        f = self.facts_of([tr(1, "buy", "A", 100, 1.0), tr(10, "sell", "A", 50, 3.0)])
+        self.assertIsNone(f["invested_sol"])
+        self.assertIsNone(f["proceeds_sol"])
+        self.assertIsNone(f["invested_in_range_sol"])
+
+    def test_a_partial_sell_takes_its_share_of_the_sol_paid(self):
+        from tracced.early import report
+        f = self.facts_of([self.with_sol(tr(1, "buy", "A", 100, 1.0), 1.0),
+                           self.with_sol(tr(10, "sell", "A", 50, 3.0), 1.5)])
+        r = report.to_row(f)
+        self.assertAlmostEqual(r["realized_sol"], 1.0)          # 1.5 отримано − половина з 1.0 вкладених
+
+
 class TestLedger(unittest.TestCase):
     def setUp(self):
         self.t_from, self.t_to, self.t_exit = T0, T0 + 20 * MIN, T0 + 60 * MIN

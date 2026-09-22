@@ -485,6 +485,8 @@ button.primary { transition: background .12s ease, border-color .12s ease, trans
 .tzseg b { font: 500 11px/1 var(--mono); padding: 4px 7px; color: #94A3B8; }
 .tzseg b.on { background: var(--mint); color: var(--navy); }
 button.tzseg { background: transparent; padding: 0; height: auto; font: inherit; color: inherit; }
+/* An older result carries no SOL amounts; that figure stays in dollars and says so by looking faded. */
+.amt.nosol { opacity: .55; }
 .stepbar .stepx small { display: block; color: #94A3B8; font-size: 12px; margin-top: 1px; }
 #selinfo .link { border-bottom-color: var(--line); color: var(--ink); }
 

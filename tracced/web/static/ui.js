@@ -19,7 +19,10 @@
 
   /* Count from 0 to data-count; bigger numbers take longer (log scale), smaller ones stop earlier. */
   function countUp(el) {
-    const target = +el.dataset.count, fmt = FMT[el.dataset.fmt || 'int'] || FMT.int;
+    /* A money tile counts up in whatever unit the footer switch is set to, so the animation
+       does not land on the dollar figure while the page is showing SOL. */
+    const inSol = el.classList.contains('amt') && window.EarlyCur && EarlyCur.get() === 'sol' && el.dataset.sol !== undefined;
+    const target = +(inSol ? el.dataset.sol : el.dataset.count), fmt = inSol ? EarlyCur.sol : (FMT[el.dataset.fmt || 'int'] || FMT.int);
     if (isNaN(target)) return;
     if (reduced || target === 0) { el.textContent = fmt(target); return; }
     const dur = Math.min(1400, Math.max(300, 300 + 250 * Math.log10(Math.abs(target) + 1)));

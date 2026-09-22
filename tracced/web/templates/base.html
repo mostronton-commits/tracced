@@ -28,6 +28,34 @@ window.EarlyTZ = (function () {
   document.addEventListener('DOMContentLoaded', apply);
   return { get: () => tz, fmt, apply, toggle };
 })();
+/* money unit: 'usd' (default) or 'sol'. Every amount carries both, so switching is a rewrite, not a conversion:
+   the SOL figure is the one the swap actually moved. Results stored before the field existed have only dollars. */
+window.EarlyCur = (function () {
+  const KEY = 'early:cur'; let cur = 'usd';
+  try { cur = localStorage.getItem(KEY) === 'sol' ? 'sol' : 'usd'; } catch (e) {}
+  function sol(v) {
+    const n = Math.abs(+v), s = v < 0 ? '-' : '';
+    const d = n >= 100 ? 0 : n >= 10 ? 1 : n >= 1 ? 2 : 3;
+    return s + '\u25CE' + n.toFixed(d);
+  }
+  function apply() {
+    const on = cur === 'sol';
+    document.querySelectorAll('.amt[data-usd]').forEach(el => {
+      const v = el.dataset[on ? 'sol' : 'usd'];
+      if (on && v === undefined) { el.classList.add('nosol'); el.title = 'This result was saved before tracced recorded SOL amounts'; return; }
+      el.classList.remove('nosol'); el.removeAttribute('title');
+      el.textContent = v === '' || v === undefined ? '\u2014' : (on ? sol(v) : el.dataset.usdText || el.textContent);
+    });
+    const b = document.getElementById('cur');
+    if (b) b.querySelectorAll('b').forEach((x, i) => x.classList.toggle('on', i === (on ? 1 : 0)));
+  }
+  function toggle() { cur = cur === 'usd' ? 'sol' : 'usd'; try { localStorage.setItem(KEY, cur); } catch (e) {} location.reload(); }
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.amt[data-usd]').forEach(el => { el.dataset.usdText = el.textContent; });
+    apply();
+  });
+  return { get: () => cur, sol, apply, toggle };
+})();
 </script>
 {% block head %}{% endblock %}
 </head>
@@ -48,6 +76,7 @@ window.EarlyTZ = (function () {
   <div class="foot-l"><b>tracced</b> <span class="muted mono">every wallet on the record</span></div>
   <div class="foot-c mono">◎ Built on Solana</div>
   <div class="foot-r muted small"><a href="/docs">Docs</a> · <button type="button" class="tzseg" id="tz" title="Time zone for all dates" aria-label="Time zone for all dates" onclick="EarlyTZ.toggle()"><b class="on">UTC</b><b>Local</b></button> ·
+    <button type="button" class="tzseg" id="cur" title="Show amounts in dollars or in SOL" aria-label="Money unit" onclick="EarlyCur.toggle()"><b class="on">USD</b><b>SOL</b></button> ·
     <a class="ico" href="https://github.com/mostronton-commits/tracced" target="_blank" rel="noopener" aria-label="tracced on GitHub" title="GitHub"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 .2a8 8 0 0 0-2.5 15.6c.4 0 .5-.2.5-.4v-1.5c-2.2.5-2.7-1-2.7-1-.4-.9-.9-1.2-.9-1.2-.7-.5.1-.5.1-.5.8.1 1.2.8 1.2.8.7 1.3 1.9.9 2.4.7.1-.5.3-.9.5-1.1-1.8-.2-3.7-.9-3.7-4 0-.9.3-1.6.8-2.1-.1-.2-.4-1 .1-2.1 0 0 .7-.2 2.2.8a7.6 7.6 0 0 1 4 0c1.5-1 2.2-.8 2.2-.8.5 1.1.2 1.9.1 2.1.5.5.8 1.2.8 2.1 0 3.1-1.9 3.8-3.7 4 .3.3.6.8.6 1.5v2.2c0 .2.1.5.6.4A8 8 0 0 0 8 .2Z"/></svg></a>
     <a class="ico" href="https://x.com/tracced_xyz" target="_blank" rel="noopener" aria-label="tracced on X" title="X"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12.2 1.5h2.2L9.6 7l5.7 7.5h-4.5L7.3 9.9l-4 4.6H1.1l5.2-5.9L.8 1.5h4.6l3.2 4.2 3.6-4.2Zm-.8 11.7h1.2L4.7 2.7H3.4l8 10.5Z"/></svg></a>
     · <span class="mono" title="assets {{ v }}">v{{ version }}</span></div>

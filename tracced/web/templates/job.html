@@ -58,8 +58,9 @@
       <div title="Sold 99% or more of what they bought"><b data-count="{{ sm.exited }}" data-fmt="int">0</b><span>Sold out</span></div>
       <div title="Sold less than half of what they bought"><b data-count="{{ sm.holding }}" data-fmt="int">0</b><span>Still holding</span></div>
       <div title="Highest exit cap ÷ entry cap among these wallets"><b data-count="{{ sm.best_multiple or 0 }}" data-fmt="mult">0</b><span>Best multiple</span></div>
-      <div title="USD these wallets spent inside the range"><b data-count="{{ (sm.invested_range or 0)|round(0)|int }}" data-fmt="usd">0</b><span>Spent in range</span></div>
+      <div title="What these wallets spent inside the range"><b class="amt" data-usd="{{ (sm.invested_range or 0)|round(0)|int }}"{% if sm.invested_range_sol is not none %} data-sol="{{ sm.invested_range_sol|round(2) }}"{% endif %} data-count="{{ (sm.invested_range or 0)|round(0)|int }}" data-fmt="usd">0</b><span>Spent in range</span></div>
     </div>
+    {% if not sm.has_sol %}<p class="muted small solnote" hidden>This analysis was saved before tracced started recording SOL amounts, so its figures stay in dollars.</p>{% endif %}
     <p class="muted small">{{ c.n_wallets|num }} traded in the range · {{ c.dust|num }} below ${{ s.min_invested_usd }} · {{ ((c.pre_range_only or 0) + (c.before_range_only or 0))|num }} sold only · {{ c.n_trades|num }} trades</p>
 
     <div class="row toolbar">
@@ -91,7 +92,7 @@
     <div class="filters compact" id="filters" hidden>
       <label title="Spent inside the range, at least">In range ≥ $<input type="number" data-f="inv" value="0" min="0" step="10"></label>
       <label title="Exit cap ÷ entry cap, at least">Multiple ≥ <input type="number" data-f="mult" value="0" min="0" step="0.5"></label>
-      <label title="Share of bought tokens sold, at least">Sold ≥ <input type="number" data-f="sold" value="0" min="0" max="100" step="5">%</label>
+      <label title="Share of bought tokens sold, at least">Sold share ≥ <input type="number" data-f="sold" value="0" min="0" max="100" step="5">%</label>
       <label title="Buys on this token, at most">Buys ≤ <input type="number" data-f="buysMax" min="1" step="1" placeholder="any"></label>
       <label title="Minutes from entry to the first sell, at least">Held ≥ <input type="number" data-f="hold" value="0" min="0" step="5"> min</label>
       <label class="chk" title="Only wallets that have sold"><input type="checkbox" data-f="exits"> exits only</label>
@@ -113,7 +114,7 @@
         <th class="sortable fundh" data-key="funder" data-type="text" title="Who sent this wallet its first SOL — click a funder to see everyone it paid for">Funded by</th>
         <th class="num sortable" data-key="inv" title="Bought inside the range · total on this token in this scope">In range</th>
         <th class="num sortable" data-key="exitcap" title="Average exit market cap · first sell time">Exit cap</th>
-        <th class="num sortable" data-key="got" title="Everything the wallet received from selling, before costs · share of what it bought that is sold">Got</th>
+        <th class="num sortable" data-key="got" title="Everything the wallet received from selling, before costs · share of what it bought that is sold">Sold</th>
         <th class="num sortable" data-key="real" title="Profit on what was sold: received minus what those tokens cost · below it, the paper result on what is still held">Realized</th>
         <th class="num sortable" data-key="mult" title="Average exit cap ÷ average entry cap">×</th>
         <th class="num sortable" data-key="hold" title="From the entry to the first sell after it · buys / sells">Held</th>
@@ -127,16 +128,16 @@
             data-mult="{{ w.multiple or 0 }}" data-sold="{{ w.sold_share_pct or 0 }}" data-buys="{{ w.buys or 0 }}"
             data-hold="{{ w.hold_minutes or 0 }}" data-exit="{{ 1 if w.first_sell_ms else 0 }}" data-real="{{ w.realized_usd or 0 }}"
             data-entry="{{ ecap or 0 }}" data-exitcap="{{ w.exit_mcap_avg or 0 }}" data-got="{{ w.proceeds_usd or 0 }}"
-            data-tags="{{ w.tag_list|join(' ') }}"{% if loop.index0 < 40 %} style="--i: {{ loop.index0 }}"{% endif %}>
+            data-tags="{{ w.tag_list|join(' ') }}"{% if w.invested_in_range_sol is not none %} data-invsol="{{ w.invested_in_range_sol }}" data-gotsol="{{ w.proceeds_sol or 0 }}" data-realsol="{{ w.realized_sol or 0 }}" data-totsol="{{ w.invested_sol or 0 }}"{% endif %}{% if loop.index0 < 40 %} style="--i: {{ loop.index0 }}"{% endif %}>
           <td><input type="checkbox" class="pick"></td>
           <td class="muted n">{{ loop.index }}</td>
           <td class="wcell"><span class="wid"><button type="button" class="mk" title="Show on the chart">◉</button><button type="button" class="wname mono" title="Open the story">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</button><a class="ext" href="{{ w.solscan_url }}" target="_blank" rel="noopener" title="Solscan">↗</a></span><span class="tags">{% for t in w.tag_list %}<span class="tag t-{{ t }}" title="{{ TAGS.get(t, t) }}">{{ t }}</span>{% endfor %}</span></td>
           <td class="num two"><b class="mono">{{ ecap|mcap }}</b><small class="dtc" data-ms="{{ etime or 0 }}">{{ etime|dt }}</small></td>
           <td class="fund"></td>
-          <td class="num two bar" style="--w: {{ (100 * (w.invested_in_range_usd or 0) / sm.max_in_range)|round|int if sm.max_in_range else 0 }}%"><b class="mono">{{ w.invested_in_range_usd|usd }}</b><small>{% if diff %}of {{ w.invested_usd|usd }} total{% endif %}</small></td>
+          <td class="num two bar" style="--w: {{ (100 * (w.invested_in_range_usd or 0) / sm.max_in_range)|round|int if sm.max_in_range else 0 }}%"><b class="mono amt" data-usd="{{ w.invested_in_range_usd or 0 }}"{% if w.invested_in_range_sol is not none %} data-sol="{{ w.invested_in_range_sol }}"{% endif %}>{{ w.invested_in_range_usd|usd }}</b><small>{% if diff %}of {{ w.invested_usd|usd }} total{% endif %}</small></td>
           <td class="num two"><b class="mono">{{ w.exit_mcap_avg|mcap }}</b><small class="dtc" data-ms="{{ w.first_sell_ms or 0 }}">{{ w.first_sell_ms|dt if w.first_sell_ms else '' }}</small></td>
-          <td class="num two bar" style="--w: {{ (w.sold_share_pct or 0)|round|int }}%"><b class="mono">{{ w.proceeds_usd|usd }}</b><small>{{ (w.sold_share_pct|num ~ '% sold') if w.sold_share_pct is not none else '' }}</small></td>
-          <td class="num two bar{{ ' neg' if (w.realized_usd or 0) < 0 else '' }}" style="--w: {{ (100 * (w.realized_usd or 0)|abs / sm.max_abs_realized)|round|int if sm.max_abs_realized else 0 }}%"><b class="mono {{ 'pos' if (w.realized_usd or 0) > 0 else ('neg' if (w.realized_usd or 0) < 0 else '') }}">{{ w.realized_usd|usd }}</b><small class="{{ 'pos' if (w.unrealized_usd or 0) > 0 else ('neg' if (w.unrealized_usd or 0) < 0 else '') }}">{% if w.unrealized_usd %}{{ w.unrealized_usd|usd }} unrealized{% endif %}</small></td>
+          <td class="num two bar" style="--w: {{ (w.sold_share_pct or 0)|round|int }}%"><b class="mono amt" data-usd="{{ w.proceeds_usd or 0 }}"{% if w.proceeds_sol is not none %} data-sol="{{ w.proceeds_sol }}"{% endif %}>{{ w.proceeds_usd|usd }}</b><small>{{ (w.sold_share_pct|num ~ '% sold') if w.sold_share_pct is not none else '' }}</small></td>
+          <td class="num two bar{{ ' neg' if (w.realized_usd or 0) < 0 else '' }}" style="--w: {{ (100 * (w.realized_usd or 0)|abs / sm.max_abs_realized)|round|int if sm.max_abs_realized else 0 }}%"><b class="mono amt {{ 'pos' if (w.realized_usd or 0) > 0 else ('neg' if (w.realized_usd or 0) < 0 else '') }}" data-usd="{{ w.realized_usd or 0 }}"{% if w.realized_sol is not none %} data-sol="{{ w.realized_sol }}"{% endif %}>{{ w.realized_usd|usd }}</b><small class="{{ 'pos' if (w.unrealized_usd or 0) > 0 else ('neg' if (w.unrealized_usd or 0) < 0 else '') }}">{% if w.unrealized_usd %}{{ w.unrealized_usd|usd }} unrealized{% endif %}</small></td>
           <td class="num bar" style="--w: {{ ((w.multiple or 1)|log10 / 1.7 * 100)|round|int if w.multiple else 0 }}%"><b class="mono">{{ (w.multiple ~ '×') if w.multiple else '—' }}</b></td>
           <td class="num two"><b class="mono">{{ (w.hold_minutes|num ~ ' min') if w.hold_minutes is not none else '—' }}</b><small>{{ w.buys }} / {{ w.sells if w.sells is not none else '—' }}</small></td>
         </tr>
@@ -178,6 +179,8 @@
       const table = document.getElementById('facts'), tbody = table.tBodies[0], jobId = table.dataset.id;
       const rows = [...tbody.rows], shown = document.getElementById('shown'), nsel = document.getElementById('nsel');
       const selected = new Set(), pinned = new Set();                 // pinned = wallets shown on the chart: never hidden by filters
+      const solnote = document.querySelector('.solnote');             // an older result has no SOL amounts; say so instead of showing dollars silently
+      if (solnote && window.EarlyCur && EarlyCur.get() === 'sol') solnote.hidden = false;
       const SKEY = 'early:sel:' + jobId, FKEY = 'early:filters:' + jobId;
       try { JSON.parse(localStorage.getItem(SKEY) || '[]').forEach(w => selected.add(w)); } catch (e) {}
       const saveSel = () => { try { localStorage.setItem(SKEY, JSON.stringify([...selected])); } catch (e) {} };
@@ -416,11 +419,13 @@
         apply();
       }
       function openStory(o) {
+        const cur = (window.EarlyCur && EarlyCur.get()) === 'sol';
         const row = rows.find(r => r.dataset.w === o.wallet), d = row ? row.dataset : {};
         drawer.dataset.w = o.wallet; drawer.hidden = false;
         document.getElementById('dw').textContent = o.wallet; document.getElementById('dsol').href = 'https://solscan.io/account/' + o.wallet;
-        document.getElementById('dfacts').innerHTML = row ? '<div><b>' + ch.fmtMcap(+d.entry) + '</b><span>entry cap</span></div><div><b>' + (+d.exitcap ? ch.fmtMcap(+d.exitcap) : '—') + '</b><span>exit cap</span></div><div><b>' + money(+d.inv) + '</b><span>in range</span></div><div><b>' + money(+d.tot) + '</b><span>total</span></div><div><b>' + money(+d.got) + '</b><span>got</span></div><div><b class="' + (+d.real > 0 ? 'pos' : (+d.real < 0 ? 'neg' : '')) + '">' + money(+d.real) + '</b><span>realized</span></div>' : '';
-        dtrades.innerHTML = o.trades.map(t => '<tr class="' + t.side + '"><td class="mono dtc" data-ms="' + t.t + '">' + EarlyTZ.fmt(t.t, false) + '</td><td>' + (t.side === 'buy' ? '<b class="buy">▲ buy</b>' : '<b class="sell">▼ sell</b>') + '</td><td class="num mono">' + money(t.usd) + '</td><td class="num mono">' + (t.qty ? ch.fmtMcap(t.qty) : '—') + '</td><td class="num mono">' + ch.fmtMcap(t.mcap) + '</td></tr>').join('');
+        const amt = (usd, sol) => (cur && sol !== undefined ? EarlyCur.sol(+sol) : money(+usd));
+        document.getElementById('dfacts').innerHTML = row ? '<div><b>' + ch.fmtMcap(+d.entry) + '</b><span>entry cap</span></div><div><b>' + (+d.exitcap ? ch.fmtMcap(+d.exitcap) : '—') + '</b><span>exit cap</span></div><div><b>' + amt(d.inv, d.invsol) + '</b><span>in range</span></div><div><b>' + amt(d.tot, d.totsol) + '</b><span>total</span></div><div><b>' + amt(d.got, d.gotsol) + '</b><span>sold</span></div><div><b class="' + (+d.real > 0 ? 'pos' : (+d.real < 0 ? 'neg' : '')) + '">' + amt(d.real, d.realsol) + '</b><span>realized</span></div>' : '';
+        dtrades.innerHTML = o.trades.map(t => '<tr class="' + t.side + '"><td class="mono dtc" data-ms="' + t.t + '">' + EarlyTZ.fmt(t.t, false) + '</td><td>' + (t.side === 'buy' ? '<b class="buy">▲ buy</b>' : '<b class="sell">▼ sell</b>') + '</td><td class="num mono">' + (cur && t.sol != null ? EarlyCur.sol(t.sol) : money(t.usd)) + '</td><td class="num mono">' + (t.qty ? ch.fmtMcap(t.qty) : '—') + '</td><td class="num mono">' + ch.fmtMcap(t.mcap) + '</td></tr>').join('');
         const cx = crossings[o.wallet] || [];
         document.getElementById('dcross').innerHTML = cx.length
           ? '<b>⛓ Seen in ' + cx.length + ' of your other analyses</b><ul>' + cx.map(c =>

@@ -10,9 +10,13 @@ SUPPLY = 1_000_000
 MINT = "FAKEMINT"
 
 
+SOL_USD = 200.0     # фіктивний курс лише для фікстур: ST дає обидві суми в одній угоді, перетворення в коді нема
+
+
 def tr(minute, typ, wallet, qty, price):
     return {"wallet": wallet, "type": typ, "time": T0 + minute * MIN, "qty": qty,
-            "usd": qty * price, "price": price, "tx": f"tx-{wallet}-{minute}-{typ}", "program": "x"}
+            "usd": qty * price, "price": price, "sol": qty * price / SOL_USD,
+            "tx": f"tx-{wallet}-{minute}-{typ}", "program": "x"}
 
 
 class FakeST:

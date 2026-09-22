@@ -99,7 +99,7 @@ range, live terminal, result — without a single request to Solana Tracker. Goo
 - Nothing else. No third-party PnL, labels or scores.
 
 ## Roadmap
-- **Live** — analyze: range → wallets → whole story → export; bundle and fact tags; Find the pump; the AI agent picks wallets by your method; wallet accounts with a watchlist and saved analyses.
+- **Live** — analyze: range → wallets → whole story → export; bundle and fact tags; Find the pump; the AI agent picks wallets by your method; wallet accounts with a watchlist and saved analyses; amounts in dollars or in SOL.
 - **Next** — Telegram alerts when a saved wallet trades; the agent explains a whole pump in plain words.
 - **Later** — non-custodial copy-trading on your list, strategy in plain words.
 

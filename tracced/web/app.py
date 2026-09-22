@@ -1354,7 +1354,7 @@ async def wallet_trades_json(request):
     trs = await asyncio.get_running_loop().run_in_executor(None, work)
     trs.sort(key=lambda t: t["time"] or 0)
     cap = int(s.get("markers_max", 200))
-    out = [{"t": t["time"], "side": t["type"], "usd": t.get("usd"), "qty": t.get("qty"),
+    out = [{"t": t["time"], "side": t["type"], "usd": t.get("usd"), "qty": t.get("qty"), "sol": t.get("sol"),
             "mcap": (t.get("price") or 0) * supply} for t in trs[:cap] if t["type"] in ("buy", "sell")]
     return web.json_response({"wallet": wallet, "n": len(trs), "truncated": len(trs) > cap, "trades": out,
                               "complete": (stored or {}).get("source") != "entry-only" if stored is not None else True})

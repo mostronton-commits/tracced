@@ -10,6 +10,7 @@ COLUMNS = [
     "buys_in_range", "invested_in_range_usd", "bought_before_range", "invested_before_range_usd", "buys", "invested_usd",
     "first_sell_utc", "last_sell_utc", "exit_mcap_avg", "sells", "proceeds_usd",
     "sold_share_pct", "holding_share_pct", "realized_usd", "unrealized_usd", "multiple",
+    "invested_in_range_sol", "invested_sol", "proceeds_sol", "realized_sol",
     "hold_minutes", "bought_after_range", "partial_history", "source", "tags", "solscan_url",
 ]
 
@@ -23,10 +24,17 @@ def to_row(f):
     r["solscan_url"] = f"https://solscan.io/account/{f['wallet']}"
     r["tag_list"] = list(f.get("tags") or [])
     r["tags"] = "|".join(r["tag_list"])
+    # прибуток у SOL: виручка мінус вкладене у тій самій валюті, тільки коли обидва числа справді є
+    if f.get("proceeds_sol") is not None and f.get("invested_sol") is not None:
+        share = (f.get("sold_share_pct") or 0) / 100.0
+        r["realized_sol"] = f["proceeds_sol"] - f["invested_sol"] * share
     for k in ("entry_mcap_first", "entry_mcap_avg", "entry_range_mcap", "exit_mcap_avg", "invested_usd",
               "invested_in_range_usd", "invested_before_range_usd", "proceeds_usd", "realized_usd", "unrealized_usd"):
         if r.get(k) is not None:
             r[k] = round(r[k], 2)
+    for k in ("invested_in_range_sol", "invested_sol", "proceeds_sol", "realized_sol"):
+        if r.get(k) is not None:
+            r[k] = round(r[k], 4)
     for k in ("sold_share_pct", "holding_share_pct", "hold_minutes"):
         if r.get(k) is not None:
             r[k] = round(r[k], 1)
@@ -80,8 +88,12 @@ def summary(rows):
     best = max((r.get("multiple") or 0) for r in rows) if rows else 0
     invested = sum((r.get("invested_in_range_usd") or 0) for r in rows)
     realized = sum((r.get("realized_usd") or 0) for r in rows)
+    has_sol = any(r.get("invested_in_range_sol") is not None for r in rows)
     out = {"n": n, "exited": exited, "holding": holding, "best_multiple": best,
            "invested_range": invested, "realized_total": realized,
+           "has_sol": has_sol,
+           "invested_range_sol": sum((r.get("invested_in_range_sol") or 0) for r in rows) if has_sol else None,
+           "realized_total_sol": sum((r.get("realized_sol") or 0) for r in rows) if has_sol else None,
            "max_in_range": max((r.get("invested_in_range_usd") or 0) for r in rows) if rows else 0,
            "max_abs_realized": max(abs(r.get("realized_usd") or 0) for r in rows) if rows else 0}
     return out

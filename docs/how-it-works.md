@@ -23,6 +23,15 @@ swaps under naive pagination, which is fixed by overlapping the cursor and de-du
 one trade in a thousand arrives with a broken token amount, which is repriced from the median price of its minute;
 the USD amounts are never touched.
 
+## Dollars or SOL
+
+The `USD | SOL` switch in the footer changes the unit of every amount on the page: what a wallet spent, what it
+sold for, what it kept. Nothing is converted at today's rate — both figures were recorded by the same swap, so the
+SOL amount is what actually moved on chain at that moment and the dollar amount is what it was worth then.
+
+A result saved before tracced started recording SOL amounts has no SOL figures to show. Those cells stay in
+dollars and are dimmed, so the page never dresses a dollar number up as a SOL one.
+
 ## Wallet age and funding
 
 Two facts do not come from the trade feed at all, because they are not trades: when a wallet made its very first
