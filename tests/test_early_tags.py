@@ -47,8 +47,20 @@ class TestTags(unittest.TestCase):
         self.assertIsNone(tags.median_hold_minutes([], sells))
 
     def test_history_tags(self):
-        t = tags.compute(facts(partial_history=True, bought_after_range=True, source="entry-only"))
+        t = tags.compute(facts(bought_before_range=True, bought_after_range=True, source="entry-only"))
         self.assertEqual(t, ["pre-range", "re-bought", "no-exits"])
+        self.assertTrue(all(k in tags.DEFS for k in t))
+
+    def test_tokens_that_arrived_without_a_buy_are_not_called_a_purchase(self):
+        # продав більше, ніж купував: це переказ, а не покупка до діапазону — два різні факти, два різні теги
+        t = tags.compute(facts(partial_history=True))
+        self.assertEqual(t, ["transfer-in"])
+        self.assertNotIn("pre-range", t)
+        t = tags.compute(facts(bought_before_range=True))
+        self.assertEqual(t, ["pre-range"])
+        self.assertNotIn("transfer-in", t)
+        t = tags.compute(facts(bought_before_range=True, partial_history=True))
+        self.assertEqual(t, ["pre-range", "transfer-in"])                 # обидва можуть бути разом
         self.assertTrue(all(k in tags.DEFS for k in t))
 
 

@@ -12,6 +12,30 @@ def tr(minute, typ, wallet, qty, price):
             "usd": qty * price, "price": price, "tx": f"tx-{wallet}-{minute}-{typ}", "program": "x"}
 
 
+class TestUnbackedTokens(unittest.TestCase):
+    """Продано більше, ніж куплено: токени прийшли переказом, а не з біржі. Дрібна різниця — похибка."""
+
+    def facts_of(self, trades, wallet="W"):
+        L, _ = ledger.build(trades, T0, T0 + 20 * MIN, T0 + 60 * MIN)
+        return ledger.facts(L[wallet], SUPPLY, 1.0)
+
+    def test_selling_much_more_than_bought_is_flagged(self):
+        f = self.facts_of([tr(1, "buy", "W", 100, 1.0), tr(5, "sell", "W", 400, 2.0)])
+        self.assertTrue(f["partial_history"])
+
+    def test_rounding_on_a_full_exit_is_not(self):
+        # сотні угод накопичують похибку: продаж «усього» виходить на мікрон більшим за куплене
+        trades = [tr(i, "buy", "W", 0.1, 1.0) for i in range(1, 60)]
+        bought = sum(t["qty"] for t in trades)
+        trades.append(tr(61, "sell", "W", bought * (1 + 1e-12), 2.0))
+        f = self.facts_of(trades)
+        self.assertFalse(f["partial_history"])
+
+    def test_selling_without_ever_buying_is_flagged(self):
+        f = self.facts_of([tr(1, "sell", "W", 500, 2.0), tr(2, "buy", "W", 10, 1.0)])
+        self.assertTrue(f["partial_history"])
+
+
 class TestLedger(unittest.TestCase):
     def setUp(self):
         self.t_from, self.t_to, self.t_exit = T0, T0 + 20 * MIN, T0 + 60 * MIN

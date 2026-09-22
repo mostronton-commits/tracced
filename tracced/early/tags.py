@@ -15,9 +15,11 @@ DEFS = {
     "fresh":      "Wallet younger than 24 h at its first buy",
     "bot-like":   "30+ trades with a median hold under 2 min, or 5+ buy→sell pairs within 5 s",
     "pre-range":  "Also bought before the range",
+    "transfer-in": "Sold more than it was ever seen buying — the rest arrived another way, usually a transfer",
     "re-bought":  "Bought again after the range",
     "bundle":     "First SOL from the same wallet as 2+ others here — likely one operator",
     "no-exits":   "Exits not fetched (over the cap)",
+    "seen-before": "Also an early buyer in another analysis you saved — click the tag for the list",
 }
 BUNDLE_MIN = 3        # стільки гаманців списку з одним спонсором = бандл
 
@@ -81,8 +83,10 @@ def compute(f, created_ms=None, buy_times=(), sell_times=(), wallet_first_tx_ms=
               (quick_pairs(buy_times, sell_times) >= BOT_PAIRS)
     if botlike:
         out.append("bot-like")
-    if f.get("bought_before_range") or f.get("partial_history"):
+    if f.get("bought_before_range"):
         out.append("pre-range")
+    if f.get("partial_history"):
+        out.append("transfer-in")      # продав більше, ніж купував: решта прийшла переказом, а не з біржі
     if f.get("bought_after_range"):
         out.append("re-bought")
     if f.get("source") == "entry-only":

@@ -26,11 +26,16 @@ def normalize(raw):
     }
 
 
+# продано понад куплене більше ніж на стільки від купленого = токени прийшли не покупкою, а переказом;
+# менша різниця — накопичена похибка з плаваючою комою на сотнях угод, а не факт
+UNBACKED_SHARE = 0.01
+
+
 class Ledger:
     __slots__ = ("wallet", "buys", "sells", "qty", "cost", "invested", "proceeds", "realized",
                  "bought_qty", "sold_qty", "first_buy_t", "first_buy_price", "last_buy_t",
                  "first_sell_t", "last_sell_t", "buys_in_window", "invested_in_window",
-                 "buys_after_window", "sold_without_buy", "oversold", "buy_times", "sell_times",
+                 "buys_after_window", "sold_without_buy", "oversold", "unbacked_qty", "buy_times", "sell_times",
                  "first_range_buy_t", "first_range_buy_price", "buys_before_range", "invested_before_range")
 
     def __init__(self, wallet):
@@ -47,6 +52,7 @@ class Ledger:
         self.buys_after_window = 0
         self.sold_without_buy = 0             # продаж без позиції = купував до «від»
         self.oversold = 0                     # продав більше, ніж мав у відрізку
+        self.unbacked_qty = 0.0               # скільки токенів продано понад куплене: прийшли не покупкою
         self.buy_times = []                   # для тегів-фактів (утримання, швидкі пари)
         self.sell_times = []
         self.first_range_buy_t = None         # перша покупка САМЕ в діапазоні [range_from … t_to] — «ранній вхід»
@@ -154,6 +160,7 @@ def build(trades, t_from, t_to, t_exit, range_from=None):
         elif tr["type"] == "sell":
             if l.qty <= 0:
                 l.sold_without_buy += 1       # продаж без позиції у відрізку = купував до «від»
+                l.unbacked_qty += qty
                 continue                      # у «продав» не потрапляє: це не вихід з нашої покупки
             l.sells += 1
             if l.first_sell_t is None:
@@ -170,6 +177,7 @@ def build(trades, t_from, t_to, t_exit, range_from=None):
             l.cost -= avg * part
             if part < qty - 1e-9:
                 l.oversold += 1
+                l.unbacked_qty += qty - part
     return L, stats
 
 
@@ -269,7 +277,7 @@ def facts(l, supply, price_at_exit):
         "multiple": (exit_avg / entry_avg) if (exit_avg and entry_avg) else None,
         "hold_minutes": hold_min,
         "bought_after_range": l.buys_after_window > 0,
-        "partial_history": (l.sold_without_buy > 0 or l.oversold > 0),
+        "partial_history": l.unbacked_qty > UNBACKED_SHARE * max(l.bought_qty, 1e-9),
         "source": "trades",
     }
 

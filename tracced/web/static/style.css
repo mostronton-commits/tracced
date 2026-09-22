@@ -146,13 +146,6 @@ thead tr:not(.grp) th { top: 22px; }
 td.notes { font-size: 11.5px; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
 td.bar { background-image: linear-gradient(to right, var(--sage) var(--w, 0%), transparent var(--w, 0%)); background-size: 100% 100%; background-repeat: no-repeat; background-position: left center; background-origin: padding-box; }
 td.bar.neg { background-image: linear-gradient(to right, #FEE2E2 var(--w, 0%), transparent var(--w, 0%)); }
-/* how the wallets of this range ended up — one bar, counted from the table's own numbers */
-.dist { margin: 0 0 10px; }
-.dist .distbar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--line); margin: 0 0 6px; }
-.dist .distbar i { width: var(--w); display: block; }
-.dist .d-x2 { background: #047857; } .dist .d-up { background: var(--mint); }
-.dist .d-down { background: #FCA5A5; } .dist .d-wipe { background: #B91C1C; }
-.dist p { margin: 0; }
 /* who funded the wallet: filled in after the background check, click filters to that group */
 td.fund { white-space: nowrap; font-size: 12px; }
 td.fund .fundb { padding: 0; height: auto; font-size: 12px; }
@@ -170,11 +163,12 @@ td.wcell .wid { white-space: nowrap; }       /* сам гаманець ніко
 .tag.t-sniper, .tag.t-bot-like, .tag.t-fresh { color: #92400E; border-color: #FDE68A; background: #FFFBEB; }
 .tag.t-no-exits { color: var(--muted); border-style: dashed; }
 .tag.t-dev { color: #7F1D1D; border-color: #FCA5A5; background: #FEF2F2; font-weight: 600; }
-/* ⛓ this wallet was early in another analysis of yours too — ours, verifiable, not a bought label */
-.cross { border: 0; background: transparent; padding: 0 0 0 4px; font-size: 12px; line-height: 1; color: #7C3AED; cursor: pointer; }
-.cross:hover { color: #5B21B6; }
-.tagchip.t-cross { border-color: #DDD6FE; color: #5B21B6; }
-.tagchip.t-cross.on { background: #EDE9FE; border-color: #A78BFA; }
+/* seen-before: early in another analysis of YOURS — ours, verifiable, not a bought label */
+.tag.t-seen-before { color: #5B21B6; border-color: #C4B5FD; background: #F5F3FF; cursor: pointer; font: inherit; font-size: 11px; height: auto; padding: 1px 7px; }
+.tag.t-seen-before:hover { background: #EDE9FE; border-color: #A78BFA; }
+.tagchip.t-seen-before { border-color: #C4B5FD; color: #5B21B6; }
+.tag.t-transfer-in { color: #9A3412; border-color: #FDBA74; background: #FFF7ED; }
+.tagchip.t-transfer-in { border-color: #FDBA74; }
 .dcross:empty { display: none; }
 .dcross { margin: 0 0 10px; padding: 8px 10px; border: 1px solid #DDD6FE; border-radius: 8px; background: #F5F3FF; font-size: 12px; }
 .dcross b { color: #5B21B6; }

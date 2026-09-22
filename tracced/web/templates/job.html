@@ -60,26 +60,11 @@
       <div title="Highest exit cap ÷ entry cap among these wallets"><b data-count="{{ sm.best_multiple or 0 }}" data-fmt="mult">0</b><span>Best multiple</span></div>
       <div title="USD these wallets spent inside the range"><b data-count="{{ (sm.invested_range or 0)|round(0)|int }}" data-fmt="usd">0</b><span>Spent in range</span></div>
     </div>
-    {% set o = sm.outcomes or {} %}{% set kn = (o.x2 or 0) + (o.up or 0) + (o.down or 0) + (o.wipe or 0) %}
-    {% if kn %}
-    <div class="dist" title="Counted from the same numbers as the table: realized plus unrealized against what the wallet put in">
-      <div class="distbar">
-        <i class="d-x2" style="--w: {{ (100 * (o.x2 or 0) / kn)|round(2) }}%" title="{{ o.x2 }} doubled their money or better"></i>
-        <i class="d-up" style="--w: {{ (100 * (o.up or 0) / kn)|round(2) }}%" title="{{ o.up }} came out ahead"></i>
-        <i class="d-down" style="--w: {{ (100 * (o.down or 0) / kn)|round(2) }}%" title="{{ o.down }} lost up to half"></i>
-        <i class="d-wipe" style="--w: {{ (100 * (o.wipe or 0) / kn)|round(2) }}%" title="{{ o.wipe }} lost more than half"></i>
-      </div>
-      <p class="muted small"><b class="pos">{{ o.x2|num }}</b> doubled or better · <b>{{ o.up|num }}</b> ended ahead ·
-        <b>{{ o.down|num }}</b> lost up to half · <b class="neg">{{ o.wipe|num }}</b> lost more{% if o.unknown %} ·
-        <b>{{ o.unknown|num }}</b> with exits we never fetched, counted nowhere{% endif %}</p>
-    </div>
-    {% endif %}
     <p class="muted small">{{ c.n_wallets|num }} traded in the range · {{ c.dust|num }} below ${{ s.min_invested_usd }} · {{ ((c.pre_range_only or 0) + (c.before_range_only or 0))|num }} sold only · {{ c.n_trades|num }} trades</p>
 
     <div class="row toolbar">
       <button type="button" id="ftoggle" aria-expanded="false">Filters</button>
       <span class="muted small" id="shown"></span>
-      <button type="button" class="tagchip t-cross" id="frepeat" hidden title="Wallets that were early in your other saved analyses too">⛓ <b>0</b> repeat</button>
       <label class="chk"><input type="checkbox" id="pickall"> Select all</label>
       <span class="muted small" id="selinfo" hidden><b id="nsel">0</b> selected · <button type="button" class="link" id="clearsel">Clear</button></span>
       <div class="soonwrap right" id="aiwrap">
@@ -110,6 +95,7 @@
       <label title="Buys on this token, at most">Buys ≤ <input type="number" data-f="buysMax" min="1" step="1" placeholder="any"></label>
       <label title="Minutes from entry to the first sell, at least">Held ≥ <input type="number" data-f="hold" value="0" min="0" step="5"> min</label>
       <label class="chk" title="Only wallets that have sold"><input type="checkbox" data-f="exits"> exits only</label>
+      <label class="chk" id="fseenwrap" hidden title="Only wallets that were also early in another analysis you saved"><input type="checkbox" data-f="repeat"> seen before only</label>
       <span class="sep"></span>
       <span class="muted small">Hide tags:</span>
       {% for k, d in TAGS.items() %}<button type="button" class="tagchip t-{{ k }}" data-hide="{{ k }}" title="{{ d }}">{{ k }}</button>{% endfor %}
@@ -127,8 +113,8 @@
         <th class="sortable fundh" data-key="funder" data-type="text" title="Who sent this wallet its first SOL — click a funder to see everyone it paid for">Funded by</th>
         <th class="num sortable" data-key="inv" title="Bought inside the range · total on this token in this scope">In range</th>
         <th class="num sortable" data-key="exitcap" title="Average exit market cap · first sell time">Exit cap</th>
-        <th class="num sortable" data-key="got" title="Received from sells · share sold">Got</th>
-        <th class="num sortable" data-key="real" title="Realized · unrealized at the last price">Realized</th>
+        <th class="num sortable" data-key="got" title="Everything the wallet received from selling, before costs · share of what it bought that is sold">Got</th>
+        <th class="num sortable" data-key="real" title="Profit on what was sold: received minus what those tokens cost · below it, the paper result on what is still held">Realized</th>
         <th class="num sortable" data-key="mult" title="Average exit cap ÷ average entry cap">×</th>
         <th class="num sortable" data-key="hold" title="From the entry to the first sell after it · buys / sells">Held</th>
       </tr></thead>
@@ -227,7 +213,6 @@
         ftoggle.textContent = na ? 'Filters · ' + na : 'Filters'; ftoggle.classList.toggle('on', !!na);
         syncChecks();
       }
-      { const rp = document.getElementById('frepeat'); if (rp) rp.addEventListener('click', () => { f.repeat = !f.repeat; saveF(); rp.classList.toggle('on', f.repeat); limit = LIMIT; apply(); }); }
       document.getElementById('more100').addEventListener('click', () => { limit += LIMIT; apply(); });
       document.getElementById('moreall').addEventListener('click', () => { limit = Infinity; apply(); });
       function syncChecks() {
@@ -363,19 +348,22 @@
       const crossLine = c => (c.symbol || c.mint.slice(0, 6)) + ' · ' + EarlyTZ.fmt(c.from, false) + ' → ' + EarlyTZ.fmt(c.to, false)
         + (c.mult ? ' · ' + (+c.mult).toFixed(1) + '×' : '') + (c.real ? ' · ' + money(c.real) : '');
       function fillCrossings() {
-        // the chain says this wallet was early in that many of your own saved analyses; the card holds the detail
+        // a repeat is a fact about this wallet, so it belongs with the other tags; the card holds the detail
+        let n = 0;
         rows.forEach(r => {
           const c = crossings[r.dataset.w]; if (!c || !c.length) return;
-          const wid = r.querySelector('.wid'); if (!wid || wid.querySelector('.cross')) return;
-          const b = document.createElement('button');
-          b.type = 'button'; b.className = 'cross'; b.textContent = '⛓';
-          b.title = 'Also an early buyer in ' + c.length + ' of your saved analyses — open the wallet';
-          b.addEventListener('click', ev => { ev.stopPropagation(); toggleWallet(r.dataset.w, true); });
-          wid.appendChild(b);
+          n++;
+          const tg = r.querySelector('.tags'); if (!tg || tg.querySelector('.t-seen-before')) return;
+          r.dataset.tags = (r.dataset.tags ? r.dataset.tags + ' ' : '') + 'seen-before';
+          const t = document.createElement('button');
+          t.type = 'button'; t.className = 'tag t-seen-before';
+          t.textContent = 'seen-before ×' + c.length;
+          t.title = 'Also an early buyer in ' + c.length + ' of your saved analyses — click for the list';
+          t.addEventListener('click', ev => { ev.stopPropagation(); toggleWallet(r.dataset.w, true); });
+          tg.prepend(t);
         });
-        const n = rows.filter(r => crossings[r.dataset.w]).length;
-        const rp = document.getElementById('frepeat');
-        if (rp) { rp.hidden = !n; rp.querySelector('b').textContent = n; }
+        const wrap = document.getElementById('fseenwrap');
+        if (wrap) wrap.hidden = !n;
       }
       async function loadCrossings() {
         if (!acctOn) return;
@@ -416,12 +404,7 @@
           const l = document.createElement('span'); l.className = 'muted small'; l.textContent = 'On the chart:'; bar.appendChild(l);
           onChart.forEach(o => {
             const c = document.createElement('span'); c.className = 'chipw';
-            const nb = o.trades.filter(t => t.side === 'buy').length, ns = o.trades.length - nb;
-            const row = rows.find(r => r.dataset.w === o.wallet), d = row ? row.dataset : {};
-            const facts = row ? ' · ' + ch.fmtMcap(+d.entry) + ' → ' + (+d.exitcap ? ch.fmtMcap(+d.exitcap) : '—') + ' · ' + money(+d.real) + ' realized' : '';
-            c.innerHTML = '<i class="dot" style="--c:' + BUY_C + '" title="buys ▲"></i><i class="dot" style="--c:' + SELL_C + '" title="sells ▼"></i>'
-              + (o.bundleColor ? '<i class="ring" style="--c:' + o.bundleColor + '" title="funded with others here — ring on the chart"></i>' : '')
-              + '<span class="mono">' + short(o.wallet) + '</span> <small>▲' + nb + ' ▼' + ns + (o.truncated ? ' of ' + o.n : '') + facts + '</small> ';
+            c.innerHTML = '<span class="mono">' + short(o.wallet) + '</span> ';
             c.title = 'Stays visible when filtered · click for the story';
             c.addEventListener('click', ev => { if (!ev.target.closest('.x')) openStory(o); });
             const x = document.createElement('button'); x.type = 'button'; x.className = 'ghost x'; x.textContent = '×'; x.title = 'Remove from chart';
