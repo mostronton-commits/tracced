@@ -180,6 +180,28 @@ td.wcell .wid { white-space: nowrap; }       /* сам гаманець ніко
 .dcross b { color: #5B21B6; }
 .dcross ul { margin: 4px 0 0; padding-left: 16px; }
 .dcross li { margin: 2px 0; }
+
+/* documentation: a narrow menu and one column of text, same type scale as the rest of the site */
+.docs { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; align-items: start; }
+.docs-nav { position: sticky; top: 76px; }
+.docs-nav b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px; }
+.docs-nav ul { list-style: none; margin: 0 0 14px; padding: 0; }
+.docs-nav li { margin: 0; }
+.docs-nav a { display: block; padding: 6px 10px; border-radius: 8px; border: 0; color: var(--ink); font-size: 14px; }
+.docs-nav a:hover { background: var(--surface); }
+.docs-nav a.on { background: var(--sage); font-weight: 600; }
+.docs-body { max-width: 74ch; padding: 24px 28px; }
+.docs-body > :first-child { margin-top: 0; }
+.docs-body h1 { font-size: 26px; margin: 0 0 14px; }
+.docs-body h2 { font-size: 18px; margin: 26px 0 8px; }
+.docs-body p, .docs-body li { line-height: 1.65; }
+.docs-body ul, .docs-body ol { padding-left: 20px; }
+.docs-body table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+.docs-body th, .docs-body td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.docs-body th { font-weight: 600; background: var(--surface); }
+.docs-body code { font-family: var(--mono); font-size: 13px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+.docs-body td code { white-space: nowrap; }
+@media (max-width: 860px) { .docs { grid-template-columns: 1fr; } .docs-nav { position: static; } .docs-body { padding: 18px; } }
 .menu { position: relative; display: inline-block; }
 .menu-panel { position: absolute; top: 38px; left: 0; z-index: 20; min-width: 260px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 4px; }
 .menu-panel button { display: flex; width: 100%; justify-content: space-between; gap: 12px; border: 0; height: 34px; padding: 6px 10px; font-weight: 500; }

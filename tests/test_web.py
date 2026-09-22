@@ -492,6 +492,27 @@ if AioHTTPTestCase:
             self.assertEqual(r.status, 400)                              # inf — помилка запиту, не 500
             self.assertIn("Bad time range", (await r.json())["error"])
 
+        async def test_docs_pages(self):
+            # документація живе в репозиторії поруч з кодом і їде тим самим деплоєм
+            r = await self.client.get("/docs", headers=GUEST)
+            html = await r.text()
+            self.assertEqual(r.status, 200)
+            self.assertIn("What tracced does", html)
+            self.assertIn('class="docs-nav"', html)
+            self.assertIsNone(CYRILLIC.search(html))
+            for slug in ("tags", "limits", "account", "roadmap", "how-it-works"):
+                rr = await self.client.get(f"/docs/{slug}", headers=GUEST)
+                body = await rr.text()
+                self.assertEqual(rr.status, 200, slug)
+                self.assertIn(f'/docs/{slug}" class="on"', body)              # свій пункт меню підсвічений
+                self.assertIsNone(CYRILLIC.search(body), slug)
+            self.assertIn("no-exits", await (await self.client.get("/docs/tags", headers=GUEST)).text())
+            r = await self.client.get("/docs/../config", headers=GUEST, allow_redirects=False)
+            self.assertIn(r.status, (301, 404))                               # шлях не виводить за межі списку сторінок
+            r = await self.client.get("/docs/journal", headers=GUEST)
+            self.assertEqual(r.status, 404)                                   # приватних нотаток у меню нема і бути не може
+            self.assertIn('href="/docs"', await (await self.client.get("/", headers=GUEST)).text())
+
         async def test_crossings_only_count_my_own_saved_analyses(self):
             # ⛓ означає «цей гаманець був раннім ще в стількох аналізах, які зберіг САМЕ ти» — чужі не рахуються
             import os

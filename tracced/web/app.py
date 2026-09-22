@@ -27,15 +27,18 @@ from ..config import DEFAULTS as CFG_DEFAULTS
 from ..early import assistant as assistant_mod, pipeline, report, scope, tags, window
 from ..early.store import TradeStore
 from . import accounts as acct_mod
+from . import docs as docs_mod
 from . import chart
 from . import replay
 from .jobs import JobQueue, make_id
 
 log = logging.getLogger("early.web")
 HERE = Path(__file__).resolve().parent
+DOCS_DIR = HERE.parent.parent / "docs"      # сторінки документації лежать у репозиторії поруч із кодом
 HOUR = 3_600_000
 MINT_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 MAX_CANDLES = 1500          # скільки свічок має сенс просити за раз: більше — і джерело мовчки обріже відповідь
+          # скільки свічок має сенс просити за раз: більше — і джерело мовчки обріже відповідь
 ACCT_COOKIE = "early_acct"          # вхід гаманцем — єдиний вхід на сайті
 ACCT_DAYS = 30
 
@@ -197,6 +200,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["jobs"] = JobQueue(runner, out_dir, enricher=make_enricher(ages, s) if ages else None, on_error=on_error)
     app.router.add_get("/", index)
     app.router.add_get("/how", how)
+    app.router.add_get("/docs", docs_page)
+    app.router.add_get("/docs/{slug}", docs_page)
     app.router.add_get("/project", project)
     app.router.add_get("/token", token_page)
     app.router.add_get("/candles.json", candles_json)
@@ -923,6 +928,15 @@ async def index(request):
     my_n = len(app["accounts"].load(request["acct"])["analyses"]) if request.get("acct") else 0
     return render("index.html", request, tokens=_by_token(jobs, example.id if example else None),
                   totals=totals, sample=sample, bg_lines=lines, my_n=my_n)
+
+
+async def docs_page(request):
+    """Документація: markdown з docs/ поруч із кодом, той самий деплой, те саме оформлення сайту."""
+    slug = request.match_info.get("slug") or "index"
+    body, title = docs_mod.page(DOCS_DIR, slug)
+    if body is None:
+        raise web.HTTPNotFound(text="There is no such page in the documentation.")
+    return render("docs.html", request, body=body, title=title, nav=docs_mod.nav(DOCS_DIR, slug))
 
 
 async def how(request):

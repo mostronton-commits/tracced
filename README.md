@@ -56,6 +56,17 @@ Tick wallets in a result and **+ Watchlist**; **Save analysis** keeps the whole 
 files under `output/early/accounts/`, actions go to `_events.jsonl` next to them; nothing about accounts leaves the
 server. Page-view analytics (Umami Cloud) run only when `UMAMI_WEBSITE_ID` is set.
 
+## Documentation
+
+Pages live in `docs/` as markdown and are served by the app at `/docs`, so a page changes in the same commit as
+the thing it describes and ships with the same deploy. The order and the labels are the `PAGES` list in
+`tracced/web/docs.py`; a file that is not there is simply not published, which is how the private notes in the
+same folder stay private.
+
+To put it on its own domain, point one more Caddy block at the same container:
+`bash deploy/enable_domain.sh docs.tracced.xyz "<Caddyfile path>" <caddy container>` and add a
+`rewrite * /docs{uri}` line to the block it writes.
+
 ## Run it
 
 ```bash

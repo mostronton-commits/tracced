@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} · tracced docs{% endblock %}
+{% block crumb %}Docs{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block body %}
+<div class="docs">
+  <nav class="docs-nav" aria-label="Documentation">
+    <b>Documentation</b>
+    <ul>{% for p in nav %}
+      <li><a href="/docs/{{ p.slug }}"{% if p.on %} class="on" aria-current="page"{% endif %}>{{ p.label }}</a></li>
+    {% endfor %}</ul>
+    <p class="muted small">Everything here is in the repository next to the code, so a page changes in the same
+      commit as the thing it describes. <a href="https://github.com/mostronton-commits/tracced" target="_blank" rel="noopener">Source ↗</a></p>
+  </nav>
+  <article class="docs-body card">{{ body|safe }}</article>
+</div>
+{% endblock %}
