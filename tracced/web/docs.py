@@ -19,6 +19,7 @@ PAGES = [
     ("limits", "Limits", "⏳", "What is free, what needs a wallet, what it costs us"),
     ("account", "Your account", "🔑", "Sign-in, watchlist, your own tags, repeats"),
     ("roadmap", "Roadmap", "🗺️", "Shipped, next, and what we will not build"),
+    ("project", "The project", "📌", "Why it exists and what it refuses to do"),
 ]
 _MD = markdown.Markdown(extensions=["extra", "toc", "sane_lists", "admonition"])
 _lock = threading.Lock()

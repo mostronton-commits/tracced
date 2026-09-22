@@ -953,8 +953,7 @@ async def how(request):
 
 
 async def project(request):
-    """Статична сторінка проєкту: те, що подається на хакатон. Нічого не рахує і не ходить у мережу."""
-    return render("project.html", request)
+    raise web.HTTPFound("/docs/project")      # сторінка проєкту живе в документації, а не окремим островом
 
 
 async def token_page(request):
