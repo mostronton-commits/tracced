@@ -1,6 +1,6 @@
 # Overview
 
-tracced answers one question: **who bought this token inside the window you marked, and what did they do next.**
+tracced answers one question: **who bought this token inside the range you marked, and what did they do next.**
 
 Paste a Solana token. Mark the range on the chart. Get every wallet that bought there, with what it paid, what it
 took out, how long it held. No scores, no "smart money" labels. Raw swaps only, and every row opens on Solscan.
@@ -9,7 +9,7 @@ took out, how long it held. No scores, no "smart money" labels. Raw swaps only, 
 
 1. **Paste the address.** The chart loads with the token's whole life on it.
 2. **Mark the range.** Two clicks on the chart, or press **Find the pump**.
-3. **Press Analyze.** A terminal shows the run. The result is a table of everyone who bought in that window.
+3. **Press Analyze.** A terminal shows the run. The result is a table of everyone who bought in that range.
 
 !!! tip "🎬 Nothing to sign to look around"
     The demo token replays a real analysis for anyone, no account. A wallet is asked for only when you analyze

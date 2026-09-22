@@ -715,9 +715,10 @@ async def me_json(request, pk):
 async def me_page(request):
     pk, demo = request.get("acct"), _demo(request.app)
     if not pk:
-        return render("me.html", request, wallets=[], analyses=[])
+        return render("me.html", request, wallets=[], analyses=[], max_my_tags=acct_mod.MAX_MY_TAGS)
     _, wallets, analyses = _account_view(request.app, pk)
-    return render("me.html", request, wallets=wallets, analyses=analyses, demo_mint=(demo or {}).get("mint"))
+    return render("me.html", request, wallets=wallets, analyses=analyses, max_my_tags=acct_mod.MAX_MY_TAGS,
+                  demo_mint=(demo or {}).get("mint"))
 
 
 async def admin_page(request):

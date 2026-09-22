@@ -388,7 +388,8 @@
           if (!cell || !fnd) return;
           r.dataset.funder = fnd;
           const b = bundle[r.dataset.w], col = bundleColor(r.dataset.w);
-          cell.innerHTML = '<button type="button" class="link mono fundb" title="Show every wallet funded by this one">'
+          // full address in the tooltip: two shortened funders can look alike, and that is what decides the bundle tag
+          cell.innerHTML = '<button type="button" class="link mono fundb" title="' + fnd + ' · click to show every wallet it funded">'
             + (col ? '<i class="dot" style="--c:' + col + '"></i>' : '') + short(fnd) + '</button>'
             + (b ? '<small class="muted"> ×' + b.n + '</small>' : '');
           cell.querySelector('.fundb').addEventListener('click', () => {

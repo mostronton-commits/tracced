@@ -27,7 +27,7 @@
       <td class="num mono">{{ w.entry_mcap|mcap }}</td>
       <td class="num mono">{{ w.invested_usd|usd }}</td>
       <td class="num mono">{% if w.multiple %}{{ w.multiple|round(1) }}×{% else %}—{% endif %}</td>
-      <td class="mytags" data-tags="{{ (w.my_tags or [])|join(' ') }}">{% for t in w.my_tags or [] %}<button type="button" class="tag mine" title="Click to remove">{{ t }}</button>{% endfor %}<input type="text" class="tagin" maxlength="24" placeholder="+ tag" aria-label="Add your own tag"></td>
+      <td class="mytags" data-tags="{{ (w.my_tags or [])|join(' ') }}">{% for t in w.my_tags or [] %}<button type="button" class="tag mine" title="Click to remove">{{ t }}</button>{% endfor %}<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd" title="Add your own tag" aria-label="Add your own tag">+</button></td>
       <td class="muted small"><span class="dtc" data-ms="{{ w.added_ms }}">{{ w.added_ms|dt }}</span></td>
       <td><button type="button" class="ghost x" data-rm-wallet title="Remove from the watchlist">×</button></td>
     </tr>
@@ -68,7 +68,7 @@
     if (rj) { const row = rj.closest('.rrow'); try { await post('/me/analyses/remove', { job: row.dataset.j }); row.remove(); } catch (x) { oops(x); } }
   });
   // your own labels on a wallet: a word you can filter by, which a paragraph of notes never was
-  async function saveTags(td) {
+  async function saveTags(td) {          // returns a promise: the caller re-checks whether the + still fits
     const tr = td.closest('tr'), tags = [...td.querySelectorAll('.tag.mine')].map(b => b.textContent);
     try {
       const d = await post('/me/wallets/tags', { wallet: tr.dataset.w, tags });
@@ -78,16 +78,25 @@
       (d.tags || []).forEach(t => { const b = document.createElement('button'); b.type = 'button'; b.className = 'tag mine'; b.title = 'Click to remove'; b.textContent = t; td.insertBefore(b, inp); });
     } catch (x) { oops(x); }
   }
+  const MAX_TAGS = {{ max_my_tags }};
   document.querySelectorAll('td.mytags').forEach(td => {
-    td.addEventListener('click', e => { const b = e.target.closest('.tag.mine'); if (!b) return; b.remove(); saveTags(td); });
-    const inp = td.querySelector('.tagin');
+    const inp = td.querySelector('.tagin'), add = td.querySelector('.tagadd');
+    // the field appears only when it is wanted: a row of empty inputs is noise on every wallet at once
+    const close = () => { inp.hidden = true; inp.value = ''; room(); };
+    const room = () => { add.hidden = !inp.hidden || td.querySelectorAll('.tag.mine').length >= MAX_TAGS; };
+    td.addEventListener('click', e => { const b = e.target.closest('.tag.mine'); if (!b) return; b.remove(); saveTags(td).then(room); });
+    add.addEventListener('click', () => { inp.hidden = false; add.hidden = true; inp.focus(); });
     inp.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { close(); return; }
       if (e.key !== 'Enter') return;
       e.preventDefault();
-      const v = inp.value.trim(); if (!v) return;
+      const v = inp.value.trim(); if (!v) { close(); return; }
       const b = document.createElement('button'); b.type = 'button'; b.className = 'tag mine'; b.title = 'Click to remove'; b.textContent = v;
-      td.insertBefore(b, inp); inp.value = ''; saveTags(td);
+      td.insertBefore(b, inp); inp.value = '';
+      saveTags(td).then(() => { if (td.querySelectorAll('.tag.mine').length >= MAX_TAGS) close(); });
     });
+    inp.addEventListener('blur', () => { if (!inp.value.trim()) close(); });
+    room();
   });
   const tx = document.getElementById('xtxt');
   if (tx) tx.addEventListener('click', () => {

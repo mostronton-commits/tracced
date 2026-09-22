@@ -51,7 +51,7 @@ button.primary:hover, .button.primary:hover { background: #99EDC6; border-color:
 button.ghost { border-color: transparent; background: transparent; color: var(--muted); padding: 7px 8px; }
 button.ghost:hover { color: var(--ink); background: #F1F5F9; border-color: transparent; }
 
-.chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 500; border: 1px solid var(--line); background: var(--surface); color: var(--muted); }
+.chip { display: inline-flex; align-items: center; justify-content: center; padding: 3px 9px; line-height: 1; border-radius: 999px; font-size: 12px; font-weight: 500; border: 1px solid var(--line); background: var(--surface); color: var(--muted); }   /* текст по центру пігулки, а не по базовій лінії шрифту */
 .chip.st-running { background: var(--mint); border-color: #86efac; color: var(--ink); }
 .chip.st-done { background: var(--sage); border-color: #A7F3D0; color: var(--ink); }
 .chip.st-error { color: var(--red); border-color: #fecaca; }
@@ -148,8 +148,10 @@ td.notes { font-size: 11.5px; white-space: nowrap; max-width: 220px; overflow: h
 td.mytags { white-space: normal; min-width: 170px; }
 .tag.mine { border-color: #C7D2FE; background: #EEF2FF; color: #3730A3; cursor: pointer; font: inherit; font-size: 11px; height: auto; padding: 1px 7px; margin: 1px 3px 1px 0; }
 .tag.mine:hover { border-color: #A5B4FC; background: #E0E7FF; }
-.tagin { width: 64px; height: 22px; padding: 0 6px; font-size: 11px; border: 1px dashed var(--line); border-radius: 999px; background: transparent; }
-.tagin:focus { width: 110px; border-style: solid; }
+input.tagin { width: 104px; height: 22px; padding: 0 8px; font: 11px/1 var(--sans); border: 1px solid #A5B4FC; border-radius: 999px; background: var(--surface); }
+input.tagin:focus { box-shadow: 0 0 0 3px #EEF2FF; }
+.tagadd { width: 20px; height: 20px; padding: 0; border: 1px dashed #C7D2FE; border-radius: 999px; background: transparent; color: #6366F1; font: 13px/1 var(--sans); cursor: pointer; vertical-align: 1px; }
+.tagadd:hover { border-style: solid; background: #EEF2FF; }
 td.bar { background-image: linear-gradient(to right, var(--sage) var(--w, 0%), transparent var(--w, 0%)); background-size: 100% 100%; background-repeat: no-repeat; background-position: left center; background-origin: padding-box; }
 td.bar.neg { background-image: linear-gradient(to right, #FEE2E2 var(--w, 0%), transparent var(--w, 0%)); }
 /* who funded the wallet: filled in after the background check, click filters to that group */
@@ -524,6 +526,7 @@ button.primary { transition: background .12s ease, border-color .12s ease, trans
 .tzseg b { font: 500 11px/1 var(--mono); padding: 4px 7px; color: #94A3B8; }
 .tzseg b.on { background: var(--mint); color: var(--navy); }
 button.tzseg { background: transparent; padding: 0; height: auto; font: inherit; color: inherit; }
+.foot-l { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }   /* налаштування живе окремо від посилань */
 /* An older result carries no SOL amounts; that figure stays in dollars and says so by looking faded. */
 .amt.nosol { opacity: .55; }
 .stepbar .stepx small { display: block; color: #94A3B8; font-size: 12px; margin-top: 1px; }
