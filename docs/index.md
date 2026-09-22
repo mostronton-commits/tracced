@@ -27,6 +27,7 @@ profit ranking. In a list of everyone who was present, they are obvious.
 
 | Page | Read it when |
 |---|---|
+| [Compare](/docs/compare) | You already use Axiom or GMGN and wonder what this adds |
 | [How it works](/docs/how-it-works) | You want to know where a number came from |
 | [Tags](/docs/tags) | A row has a label and you want its exact rule |
 | [Limits](/docs/limits) | You hit a cap, or you want to know what is free |

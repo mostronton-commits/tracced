@@ -219,6 +219,15 @@ td.wcell .wid { white-space: nowrap; }       /* сам гаманець ніко
 .docs-body code { font-family: var(--mono); font-size: 12.5px; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
 .docs-body a { border-bottom-color: #CBD5E1; }
 
+/* Порівняння з іншими сервісами: наша колонка підсвічена, решта рівні між собою */
+.docs-body table.cmp { font-size: 13.5px; }
+.docs-body table.cmp th:first-child, .docs-body table.cmp td:first-child { width: 29%; color: var(--muted); }
+.docs-body table.cmp th.us, .docs-body table.cmp td.us { width: 22%; }
+.docs-body table.cmp th.us, .docs-body table.cmp td.us { background: #F2FDF7; }
+.docs-body table.cmp th.us { color: var(--ink); }
+.docs-body table.cmp td.us { font-weight: 600; }
+.docs-body table.cmp tbody tr:hover td.us { background: #EAFBF2; }
+
 /* Блок-виноска: !!! tip "Заголовок" у markdown. Колір несе сенс, не прикрасу. */
 .docs-body .admonition { display: block; min-width: 0; max-width: none; margin: 16px 0; padding: 13px 16px; border: 1px solid var(--line); border-left: 3px solid #94A3B8; border-radius: 8px; background: var(--bg); }
 .docs-body .admonition > :first-child { margin-top: 0; } .docs-body .admonition > :last-child { margin-bottom: 0; }

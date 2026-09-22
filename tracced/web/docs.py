@@ -13,6 +13,7 @@ import markdown
 # slug, назва в меню (1–3 слова), значок, рядок під назвою на сторінці «Overview»
 PAGES = [
     ("index", "Overview", "🧭", "What tracced answers and how to read it"),
+    ("compare", "Compare", "⚖️", "Why not just look at Axiom or GMGN"),
     ("how-it-works", "How it works", "⚙️", "Where every number on the page comes from"),
     ("tags", "Tags", "🏷️", "Ten rules, each one checkable on chain"),
     ("limits", "Limits", "⏳", "What is free, what needs a wallet, what it costs us"),
@@ -46,7 +47,8 @@ def page(docs_dir, slug, ctx=None):
     with _lock:
         _MD.reset()
         html = _MD.convert(text)
-    html = html.replace("<table>", '<div class="dtw"><table>').replace("</table>", "</table></div>")   # широка таблиця прокручується сама, а не розсуває сторінку
+    html = re.sub(r"<table(\s[^>]*)?>", lambda m: '<div class="dtw"><table%s>' % (m.group(1) or ""), html)
+    html = html.replace("</table>", "</table></div>")        # широка таблиця прокручується сама, а не розсуває сторінку
     m = re.search(r"^#\s+(.+)$", text, re.M)
     title = m.group(1).strip() if m else dict((p[0], p[1]) for p in PAGES)[slug]
     out = (html, title)

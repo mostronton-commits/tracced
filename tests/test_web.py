@@ -551,7 +551,7 @@ if AioHTTPTestCase:
             self.assertIn('class="docs-nav"', html)
             self.assertIn('class="docs-pager"', html)                         # читається підряд, як книжка
             self.assertIsNone(CYRILLIC.search(html))
-            for slug in ("tags", "limits", "account", "roadmap", "how-it-works"):
+            for slug in ("tags", "limits", "account", "roadmap", "how-it-works", "compare"):
                 rr = await self.client.get(f"/docs/{slug}", headers=GUEST)
                 body = await rr.text()
                 self.assertEqual(rr.status, 200, slug)
@@ -562,6 +562,9 @@ if AioHTTPTestCase:
             self.assertIn('href="/docs/index"', first)                        # кнопка «назад» на попередню сторінку
             self.assertIn('href="/docs/tags"', first)                         # і «далі» на наступну
             self.assertIn("no-exits", await (await self.client.get("/docs/tags", headers=GUEST)).text())
+            cmp_ = await (await self.client.get("/docs/compare", headers=GUEST)).text()
+            self.assertIn('<div class="dtw"><table class="cmp">', cmp_)      # таблиця з класом теж загорнута і прокручується
+            self.assertIn('<td class="us">', cmp_)
             r = await self.client.get("/docs/../config", headers=GUEST, allow_redirects=False)
             self.assertIn(r.status, (301, 404))                               # шлях не виводить за межі списку сторінок
             r = await self.client.get("/docs/journal", headers=GUEST)
