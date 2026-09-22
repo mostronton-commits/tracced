@@ -181,6 +181,7 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .chipw { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 4px 2px 8px; font-size: 12px; background: var(--surface); }
 .chipw .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); display: inline-block; margin-right: -3px; }
 .chipw .dot + .dot { margin-right: 0; }
+.chipw .ring { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--c); display: inline-block; margin-left: 2px; }
 .chipw small { color: var(--muted); }
 .chipw .x { height: 22px; width: 22px; padding: 0; border: 0; }
 

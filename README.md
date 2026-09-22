@@ -25,7 +25,9 @@ Built on Solana · AI-assisted · Colosseum Crypto World's Fair 2026
 - **Range** only selects wallets; the numbers come from **all** of a wallet's trades on the token (before, inside and after the range). A scope switch recounts the same trades up to 24 h / 48 h after the range.
 - **Tags are rules you can read**: `sniper`, `fresh`, `bot-like`, `pre-range`, `re-bought`, `bundle` (wallets funded from one source), `no-exits`. Hover a tag to see the rule.
 - **Complete data by construction**: the range is always fetched in full (verified against the chain: 100% of the swaps in an audited range). For each wallet's history the app takes the cheaper of two complete paths — the whole token history or each wallet's own trades — and tells you the coverage above the table.
-- **Wallet story**: click a wallet to see every trade as a list and as markers on the chart.
+- **Wallet story**: click a wallet to see every trade as a list and as markers on the chart — up to ten wallets at
+  once, green bought and red sold, marker size is the amount, trades inside one candle merged into one, and a ring
+  around the marker when the wallet was funded together with others in the list.
 
 ### Access: the demo for everyone, live mode for wallets
 No passwords. The demo token replays without a request and is open to anyone. Any other token is **live mode**: anyone

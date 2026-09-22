@@ -189,23 +189,47 @@
     }
     if (opts.interactive) chart.subscribeClick(p => { if (p.time && opts.onClick) opts.onClick(p.time * 1000); });
 
-    // wallet trade markers: buys = arrow up below the bar, sells = arrow down above it (each wallet a buy/sell colour pair)
+    /* Wallet trade markers. Colour says only what the trade was: green bought, red sold. Trades of one wallet on
+       one side inside one candle merge into a single marker carrying their total, so a busy wallet does not bury
+       the chart (25 wallets of the demo are 7,547 trades, 1,818 markers at 5m). Size is the amount, in three steps.
+       A wallet funded together with others gets a coloured disc behind its arrow — the library draws markers on a
+       canvas and has no outline, so the ring is a second, larger marker underneath. */
+    const BUY = '#34D399', SELL = '#F87171';
     let wallets = [], markersApi = null;
     const fmtUsd = v => (v == null ? '' : '$' + (v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'K' : v.toFixed(0)));
+    function groupTrades(list, step) {
+      // one marker per wallet × candle × side, with the summed amount and how many trades went into it
+      const by = new Map();
+      (list || []).forEach(w => (w.trades || []).forEach(tr => {
+        if (tr.side !== 'buy' && tr.side !== 'sell') return;
+        const t = Math.floor(tr.t / 1000 / step) * step, k = w.wallet + '|' + t + '|' + tr.side;
+        const g = by.get(k);
+        if (g) { g.usd += tr.usd || 0; g.qty += tr.qty || 0; g.n += 1; }
+        else by.set(k, { w, t, side: tr.side, usd: tr.usd || 0, qty: tr.qty || 0, n: 1 });
+      }));
+      return [...by.values()];
+    }
+    function sizeSteps(inView) {
+      // three steps by amount so a big buy reads as big; quantiles of what is on screen, not of all time
+      const v = inView.map(m => m.usd).filter(x => x > 0).sort((x, y) => x - y);
+      if (v.length < 4) return () => 1.2;
+      const mid = v[Math.floor(v.length * 0.5)], top = v[Math.floor(v.length * 0.85)];
+      return usd => (usd >= top ? 1.9 : usd >= mid ? 1.3 : 0.9);
+    }
     function renderMarkers() {
       if (!LW.createSeriesMarkers || !tf) return;
-      const step = TF_SEC[tf], v = visible(), all = [];
-      wallets.forEach(w => (w.trades || []).forEach(tr => all.push({ w, tr, t: Math.floor(tr.t / 1000 / step) * step })));
-      // labels: every trade when ≤ 40 markers are in view, otherwise only the 12 largest in view — zoom in for the rest
+      const v = visible(), all = groupTrades(wallets, TF_SEC[tf]);
+      // labels: every marker when ≤ 40 are in view, otherwise only the 12 largest in view — zoom in for the rest
       const inView = v ? all.filter(m => m.t >= v.a && m.t <= v.b) : all;
       let labeled;
       if (inView.length <= 40) labeled = new Set(inView);
-      else labeled = new Set([...inView].sort((x, y) => (y.tr.usd || 0) - (x.tr.usd || 0)).slice(0, 12));
-      const ms = all.map(m => {
-        const buy = m.tr.side === 'buy';
-        return { time: m.t, position: buy ? 'belowBar' : 'aboveBar', shape: buy ? 'arrowUp' : 'arrowDown',
-                 color: buy ? (m.w.buy || m.w.color) : (m.w.sell || m.w.color), size: 1,
-                 text: labeled.has(m) ? fmtUsd(m.tr.usd) : undefined };
+      else labeled = new Set([...inView].sort((x, y) => y.usd - x.usd).slice(0, 12));
+      const sizeOf = sizeSteps(inView), ms = [];
+      all.forEach(m => {
+        const buy = m.side === 'buy', pos = buy ? 'belowBar' : 'aboveBar', size = sizeOf(m.usd);
+        if (m.w.bundleColor) ms.push({ time: m.t, position: pos, shape: 'circle', color: m.w.bundleColor, size: size + 0.7 });
+        ms.push({ time: m.t, position: pos, shape: buy ? 'arrowUp' : 'arrowDown', color: buy ? BUY : SELL, size,
+                  text: labeled.has(m) ? fmtUsd(m.usd) : undefined });
       });
       ms.sort((x, y) => x.time - y.time);
       if (!markersApi) markersApi = LW.createSeriesMarkers(series, ms); else markersApi.setMarkers(ms);

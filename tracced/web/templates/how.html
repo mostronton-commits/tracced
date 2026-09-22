@@ -57,7 +57,9 @@
     <li>{{ early_note }}</li>
     <li>Wallets that spent less than ${{ s.min_invested_usd }} in the range are left out.</li>
     <li>Wallet age is checked for up to {{ s.age_lookups_max }} wallets per analysis, in the background.</li>
-    <li>Chart markers: up to 3 wallets at once, {{ s.markers_max }} trades each.</li>
+    <li>Chart markers: up to 10 wallets at once, {{ s.markers_max }} trades each. Green bought, red sold, the size is
+      the amount; trades of one wallet inside one candle merge into a single marker with their total, and a wallet
+      funded together with others carries a ring in its group's colour.</li>
   </ul>
 
   <h2>The AI agent</h2>

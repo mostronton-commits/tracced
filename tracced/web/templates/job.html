@@ -333,16 +333,23 @@
         onMarkers: m => { const h = document.getElementById('mhint'); h.hidden = !m.total; h.textContent = m.inView > m.labeled ? 'Amounts for the ' + m.labeled + ' largest of ' + m.inView + ' trades in view — zoom in for all' : ''; if (!h.textContent) h.hidden = true; } });
       ch.init().then(() => ch.focus(+el.dataset.from, +el.dataset.to, +el.dataset.exit || null));
 
-      // wallet story: markers on the chart (up to 3 wallets, a buy/sell colour pair each) + the drawer with every trade
-      const PAL = [['#A7F3D0', '#FCA5A5'], ['#FDE68A', '#FB923C'], ['#BAE6FD', '#C4B5FD']], onChart = [], bar = document.getElementById('onchart');
+      // wallet story: markers on the chart (green bought, red sold; a ring when the wallet shares a funder) + the drawer
+      const MAX_ON_CHART = 10, BUY_C = '#34D399', SELL_C = '#F87171';
+      const BUNDLE_PAL = ['#C4B5FD', '#FDBA74', '#7DD3FC', '#F9A8D4', '#FCD34D', '#A5B4FC', '#5EEAD4', '#FDA4AF', '#D8B4FE', '#BEF264'];
+      const onChart = [], bar = document.getElementById('onchart');
       const short = w => w.slice(0, 6) + '…' + w.slice(-4);
       const money = v => (v == null || isNaN(v) ? '—' : (v < 0 ? '-' : '') + '$' + ch.fmtMcap(Math.abs(v)));
       const drawer = document.getElementById('drawer'), dtrades = document.getElementById('dtrades');
       let funders = {}, bundle = {};
+      function bundleColor(w) {                                  // one colour per funder, stable for this result
+        const b = bundle[w]; if (!b) return null;
+        const all = [...new Set(Object.values(bundle).map(x => x.funder))].sort();
+        return BUNDLE_PAL[all.indexOf(b.funder) % BUNDLE_PAL.length];
+      }
       function renderOnChart() {
         bar.innerHTML = ''; bar.hidden = !onChart.length;
         pinned.clear(); onChart.forEach(o => pinned.add(o.wallet));
-        rows.forEach(r => { const x = onChart.find(o => o.wallet === r.dataset.w); r.classList.toggle('onchart', !!x); r.style.setProperty('--c', x ? x.buy : ''); });
+        rows.forEach(r => { const x = onChart.find(o => o.wallet === r.dataset.w); r.classList.toggle('onchart', !!x); r.style.setProperty('--c', x ? (x.bundleColor || BUY_C) : ''); });
         if (onChart.length) {
           const l = document.createElement('span'); l.className = 'muted small'; l.textContent = 'On the chart:'; bar.appendChild(l);
           onChart.forEach(o => {
@@ -350,7 +357,9 @@
             const nb = o.trades.filter(t => t.side === 'buy').length, ns = o.trades.length - nb;
             const row = rows.find(r => r.dataset.w === o.wallet), d = row ? row.dataset : {};
             const facts = row ? ' · ' + ch.fmtMcap(+d.entry) + ' → ' + (+d.exitcap ? ch.fmtMcap(+d.exitcap) : '—') + ' · ' + money(+d.real) + ' realized' : '';
-            c.innerHTML = '<i class="dot" style="--c:' + o.buy + '" title="buys ▲"></i><i class="dot" style="--c:' + o.sell + '" title="sells ▼"></i><span class="mono">' + short(o.wallet) + '</span> <small>▲' + nb + ' ▼' + ns + (o.truncated ? ' of ' + o.n : '') + facts + '</small> ';
+            c.innerHTML = '<i class="dot" style="--c:' + BUY_C + '" title="buys ▲"></i><i class="dot" style="--c:' + SELL_C + '" title="sells ▼"></i>'
+              + (o.bundleColor ? '<i class="ring" style="--c:' + o.bundleColor + '" title="funded with others here — ring on the chart"></i>' : '')
+              + '<span class="mono">' + short(o.wallet) + '</span> <small>▲' + nb + ' ▼' + ns + (o.truncated ? ' of ' + o.n : '') + facts + '</small> ';
             c.title = 'Stays visible when filtered · click for the story';
             c.addEventListener('click', ev => { if (!ev.target.closest('.x')) openStory(o); });
             const x = document.createElement('button'); x.type = 'button'; x.className = 'ghost x'; x.textContent = '×'; x.title = 'Remove from chart';
@@ -383,9 +392,8 @@
           return;
         }
         const d = await r.json();
-        if (onChart.length >= 3) onChart.shift();
-        const used = new Set(onChart.map(o => o.buy)), pair = PAL.find(p => !used.has(p[0])) || PAL[0];
-        const o = { wallet: w, buy: pair[0], sell: pair[1], trades: d.trades, n: d.n, truncated: d.truncated, complete: d.complete };
+        if (onChart.length >= MAX_ON_CHART) { EarlyUI.toast(MAX_ON_CHART + ' wallets on the chart is the limit — remove one to add another'); return; }
+        const o = { wallet: w, bundleColor: bundleColor(w), trades: d.trades, n: d.n, truncated: d.truncated, complete: d.complete };
         onChart.push(o); renderOnChart(); if (story) openStory(o);
       }
       tbody.addEventListener('click', e => {
@@ -440,6 +448,9 @@
             const t = document.createElement('span'); t.className = 'tag t-' + tag; t.title = title; t.textContent = text; r.querySelector('.tags').prepend(t); };
           d.fresh.forEach(w => addTag(w, 'fresh', 'fresh', defs.fresh));
           Object.keys(bundle).forEach(w => addTag(w, 'bundle', 'bundle ×' + bundle[w].n, defs.bundle + ' — funder ' + short(bundle[w].funder)));
+          let rings = 0;                                          // bundles arrive after the page: ring the wallets already on the chart
+          onChart.forEach(o => { const c = bundleColor(o.wallet); if (c !== o.bundleColor) { o.bundleColor = c; rings++; } });
+          if (rings) renderOnChart();
           if (added) apply();
           if (d.done < d.total) { en.textContent = 'wallet age ' + d.done + '/' + d.total + '…'; setTimeout(tick, 5000); }
           else { const nb = Object.keys(bundle).length; en.textContent = 'wallet age checked' + (d.fresh.length ? ' · ' + d.fresh.length + ' fresh' : '') + (nb ? ' · ' + nb + ' in bundles' : ''); }
