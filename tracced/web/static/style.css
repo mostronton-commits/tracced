@@ -196,11 +196,12 @@ td.wcell .wid { white-space: nowrap; }       /* сам гаманець ніко
 .docs-body h2 { font-size: 18px; margin: 26px 0 8px; }
 .docs-body p, .docs-body li { line-height: 1.65; }
 .docs-body ul, .docs-body ol { padding-left: 20px; }
-.docs-body table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+.docs-body .dtw { overflow-x: auto; margin: 12px 0; }
+.docs-body table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .docs-body th, .docs-body td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .docs-body th { font-weight: 600; background: var(--surface); }
 .docs-body code { font-family: var(--mono); font-size: 13px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
-.docs-body td code { white-space: nowrap; }
+.docs-body td:first-child { white-space: nowrap; }
 @media (max-width: 860px) { .docs { grid-template-columns: 1fr; } .docs-nav { position: static; } .docs-body { padding: 18px; } }
 .menu { position: relative; display: inline-block; }
 .menu-panel { position: absolute; top: 38px; left: 0; z-index: 20; min-width: 260px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 4px; }

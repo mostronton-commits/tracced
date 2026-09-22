@@ -40,6 +40,7 @@ def page(docs_dir, slug):
     with _lock:
         _MD.reset()
         html = _MD.convert(text)
+    html = html.replace("<table>", '<div class="dtw"><table>').replace("</table>", "</table></div>")   # широка таблиця прокручується сама, а не розсуває сторінку
     m = re.search(r"^#\s+(.+)$", text, re.M)
     title = m.group(1).strip() if m else dict(PAGES)[slug]
     out = (html, title)
