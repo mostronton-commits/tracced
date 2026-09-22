@@ -27,7 +27,7 @@
       <td class="num mono">{{ w.entry_mcap|mcap }}</td>
       <td class="num mono">{{ w.invested_usd|usd }}</td>
       <td class="num mono">{% if w.multiple %}{{ w.multiple|round(1) }}×{% else %}—{% endif %}</td>
-      <td class="mytags" data-tags="{{ (w.my_tags or [])|join(' ') }}">{% for t in w.my_tags or [] %}<button type="button" class="tag mine" title="Click to remove">{{ t }}</button>{% endfor %}<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd" title="Add your own tag" aria-label="Add your own tag">+</button></td>
+      <td class="mytags" data-tags="{{ (w.my_tags or [])|join(' ') }}">{% for t in w.my_tags or [] %}<button type="button" class="tag mine" title="Click to remove">{{ t }}</button>{% endfor %}<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd" title="Add your own tag" aria-label="Add your own tag"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg></button></td>
       <td class="muted small"><span class="dtc" data-ms="{{ w.added_ms }}">{{ w.added_ms|dt }}</span></td>
       <td><button type="button" class="ghost x" data-rm-wallet title="Remove from the watchlist">×</button></td>
     </tr>
