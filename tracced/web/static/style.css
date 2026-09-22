@@ -46,8 +46,8 @@ button, .button { background: var(--surface); color: var(--ink); border: 1px sol
   display: inline-flex; align-items: center; gap: 6px; transition: background .12s ease, border-color .12s ease; }
 button:hover, .button:hover { border-color: #CBD5E1; background: #F8FAFC; }
 button:active, .button:active { background: #F1F5F9; }
-button.primary { background: var(--mint); border-color: #86efac; color: var(--ink); font-weight: 600; }
-button.primary:hover { background: #99EDC6; border-color: #6ee7b7; }
+button.primary, .button.primary { background: var(--mint); border-color: #86efac; color: var(--ink); font-weight: 600; }
+button.primary:hover, .button.primary:hover { background: #99EDC6; border-color: #6ee7b7; }
 button.ghost { border-color: transparent; background: transparent; color: var(--muted); padding: 7px 8px; }
 button.ghost:hover { color: var(--ink); background: #F1F5F9; border-color: transparent; }
 

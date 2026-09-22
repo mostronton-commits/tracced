@@ -111,7 +111,14 @@
   let step = 0;
 
   function hitFor(r) { const id = jobId(r); return id && (JOBS.has(id) ? id : JOBS_BY_WINDOW.get(id)); }
-  function refreshLink(f, r) { const a = f.querySelector('.result'), hit = hitFor(r); if (hit && (!DEMO || ran(hit))) { a.hidden = false; a.href = '/job/' + hit; } else a.hidden = true; }
+  function refreshLink(f, r) {
+    // a range that already has a result offers to open it; Analyze comes back the moment the bounds change
+    const a = f.querySelector('.result'), go = f.querySelector('button[type=submit]'), hit = hitFor(r);
+    const done = !!hit && (!DEMO || ran(hit));
+    a.hidden = !done; go.hidden = done;
+    if (done) a.href = '/job/' + hit;
+    a.classList.toggle('primary', done); a.classList.toggle('ghost', !done);
+  }
   rowsEl.addEventListener('submit', e => {
     const f = e.target.closest('.wrow'), r = f && state.rows[+f.dataset.i], hit = r && hitFor(r);
     if (DEMO) { if (hit) { try { localStorage.setItem(RAN + hit, '1'); } catch (x) {} } return; }
