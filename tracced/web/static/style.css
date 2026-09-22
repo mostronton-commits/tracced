@@ -182,28 +182,56 @@ td.wcell .wid { white-space: nowrap; }       /* сам гаманець ніко
 .dcross li { margin: 2px 0; }
 
 /* documentation: a narrow menu and one column of text, same type scale as the rest of the site */
-.docs { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; align-items: start; }
+/* ── Documentation ───────────────────────────────────────────────────────────────────────────── */
+.docs { display: grid; grid-template-columns: 232px minmax(0, 74ch); gap: 40px; align-items: start; justify-content: center; }
 .docs-nav { position: sticky; top: 76px; }
-.docs-nav b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px; }
-.docs-nav ul { list-style: none; margin: 0 0 14px; padding: 0; }
+.docs-nav b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); margin: 2px 0 10px; }
+.docs-nav ul { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 2px; }
 .docs-nav li { margin: 0; }
-.docs-nav a { display: block; padding: 6px 10px; border-radius: 8px; border: 0; color: var(--ink); font-size: 14px; }
-.docs-nav a:hover { background: var(--surface); }
-.docs-nav a.on { background: var(--sage); font-weight: 600; }
-.docs-body { max-width: 74ch; padding: 24px 28px; }
+.docs-nav a { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 8px; border: 0; color: var(--muted); font-size: 14px; }
+.docs-nav a i { font-style: normal; font-size: 13px; width: 16px; text-align: center; opacity: .85; }
+.docs-nav a:hover { background: var(--surface); color: var(--ink); }
+.docs-nav a.on { background: var(--sage); color: var(--ink); font-weight: 600; }
+.docs-main { min-width: 0; }
+.docs-body { padding: 28px 32px 32px; }
 .docs-body > :first-child { margin-top: 0; }
-.docs-body h1 { font-size: 26px; margin: 0 0 14px; }
-.docs-body h2 { font-size: 18px; margin: 26px 0 8px; }
+.docs-body h1 { font-size: 27px; line-height: 1.2; margin: 0 0 10px; letter-spacing: -.02em; }
+.docs-body h1 + p { font-size: 16px; line-height: 1.6; color: var(--muted); margin: 0 0 4px; }   /* перший абзац = підзаголовок */
+.docs-body h1 + p strong { color: var(--ink); }
+.docs-body h2 { font-size: 17px; margin: 30px 0 10px; padding-top: 22px; border-top: 1px solid var(--line); letter-spacing: -.01em; }
+.docs-body h3 { font-size: 14px; margin: 20px 0 6px; }
 .docs-body p, .docs-body li { line-height: 1.65; }
-.docs-body ul, .docs-body ol { padding-left: 20px; }
-.docs-body .dtw { overflow-x: auto; margin: 12px 0; }
-.docs-body table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 14px; }
-.docs-body td:first-child, .docs-body th:first-child { width: 8.5em; }
-.docs-body th, .docs-body td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: normal; }   /* the global table rule is nowrap; prose must wrap */
-.docs-body th { font-weight: 600; background: var(--surface); }
-.docs-body code { font-family: var(--mono); font-size: 13px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
-.docs-body td:first-child { white-space: nowrap; }
-@media (max-width: 860px) { .docs { grid-template-columns: 1fr; } .docs-nav { position: static; } .docs-body { padding: 18px; } }
+.docs-body strong { font-weight: 600; }
+.docs-body ul, .docs-body ol { padding-left: 18px; display: grid; gap: 6px; }
+.docs-body li::marker { color: #94A3B8; }
+.docs-body hr { border: 0; border-top: 1px solid var(--line); margin: 26px 0; }
+.docs-body blockquote { margin: 14px 0; padding: 2px 0 2px 14px; border-left: 2px solid var(--mint); color: var(--muted); }
+.docs-body .dtw { overflow-x: auto; margin: 14px 0; border: 1px solid var(--line); border-radius: 10px; }
+.docs-body table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.docs-body th, .docs-body td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: normal; position: static; }   /* глобальне правило робить заголовок липким і nowrap — у тексті це ламає таблицю */
+.docs-body th { font: 600 11px/1.4 var(--sans); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); background: var(--bg); }
+.docs-body tbody tr:last-child td { border-bottom: 0; }
+.docs-body tbody tr:hover td { background: #FAFDFB; }
+.docs-body td code, .docs-body th code { white-space: nowrap; }
+.docs-body code { font-family: var(--mono); font-size: 12.5px; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+.docs-body a { border-bottom-color: #CBD5E1; }
+
+/* Блок-виноска: !!! tip "Заголовок" у markdown. Колір несе сенс, не прикрасу. */
+.docs-body .admonition { margin: 16px 0; padding: 13px 16px; border: 1px solid var(--line); border-left: 3px solid #94A3B8; border-radius: 8px; background: var(--bg); }
+.docs-body .admonition > :first-child { margin-top: 0; } .docs-body .admonition > :last-child { margin-bottom: 0; }
+.docs-body .admonition-title { font-weight: 600; margin: 0 0 4px; }
+.docs-body .admonition.tip { border-left-color: #34D399; background: #F2FDF7; }
+.docs-body .admonition.note { border-left-color: #60A5FA; background: #F5F9FF; }
+.docs-body .admonition.warning { border-left-color: #F59E0B; background: #FFFBF3; }
+
+.docs-pager { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.docs-pager .pg { display: grid; gap: 3px; padding: 13px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.docs-pager .pg span { font-size: 11.5px; color: var(--muted); }
+.docs-pager .pg b { font-weight: 600; font-size: 14px; }
+.docs-pager .pg:hover { border-color: #86EFAC; background: #FAFDFB; }
+.docs-pager .pg.next { text-align: right; grid-column: 2; }
+@media (max-width: 860px) { .docs { grid-template-columns: 1fr; } .docs-nav { position: static; } .docs-body { padding: 18px; }
+  .docs-nav ul { display: flex; flex-wrap: wrap; gap: 6px; } .docs-pager { grid-template-columns: 1fr; } .docs-pager .pg.next { grid-column: 1; } }
 .menu { position: relative; display: inline-block; }
 .menu-panel { position: absolute; top: 38px; left: 0; z-index: 20; min-width: 260px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 4px; }
 .menu-panel button { display: flex; width: 100%; justify-content: space-between; gap: 12px; border: 0; height: 34px; padding: 6px 10px; font-weight: 500; }

@@ -545,8 +545,9 @@ if AioHTTPTestCase:
             r = await self.client.get("/docs", headers=GUEST)
             html = await r.text()
             self.assertEqual(r.status, 200)
-            self.assertIn("What tracced does", html)
+            self.assertIn(">Overview</h1>", html)
             self.assertIn('class="docs-nav"', html)
+            self.assertIn('class="docs-pager"', html)                         # читається підряд, як книжка
             self.assertIsNone(CYRILLIC.search(html))
             for slug in ("tags", "limits", "account", "roadmap", "how-it-works"):
                 rr = await self.client.get(f"/docs/{slug}", headers=GUEST)
@@ -554,6 +555,10 @@ if AioHTTPTestCase:
                 self.assertEqual(rr.status, 200, slug)
                 self.assertIn(f'/docs/{slug}" class="on"', body)              # свій пункт меню підсвічений
                 self.assertIsNone(CYRILLIC.search(body), slug)
+                self.assertNotIn("<h1>Tags and what", body)                   # заголовки короткі, не речення
+            first = await (await self.client.get("/docs/how-it-works", headers=GUEST)).text()
+            self.assertIn('href="/docs/index"', first)                        # кнопка «назад» на попередню сторінку
+            self.assertIn('href="/docs/tags"', first)                         # і «далі» на наступну
             self.assertIn("no-exits", await (await self.client.get("/docs/tags", headers=GUEST)).text())
             r = await self.client.get("/docs/../config", headers=GUEST, allow_redirects=False)
             self.assertIn(r.status, (301, 404))                               # шлях не виводить за межі списку сторінок
@@ -851,7 +856,7 @@ if AioHTTPTestCase:
             home_off = await (await self.client.get("/")).text()
             self.assertIn("Coming next", home_off)
             self.assertNotIn("Live on every result", home_off)
-            self.assertIn("does not have it yet", await (await self.client.get("/docs/roadmap")).text())
+            self.assertIn("The agent is off on this server", await (await self.client.get("/docs/roadmap")).text())
             self.app["assistant"] = a
             home_on = await (await self.client.get("/")).text()
             self.assertIn("Live on every result", home_on)               # with a key the promise is true

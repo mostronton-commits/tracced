@@ -1,37 +1,42 @@
-# Limits and what they cost
+# Limits
 
-tracced is early, so the limits are small while the load is watched. They will grow.
+tracced is early, so the caps are small while the load is watched. They will grow.
 
-## What is open to everyone
+## Free for everyone
 
-The demo token, every finished result, every page, and the chart of any token. Opening a finished analysis is free
-for anyone — that is what makes a shared link work.
+The demo token, every finished result, every page, and the chart of any token. Opening a finished analysis costs
+nothing and needs no account — that is what makes a shared link work.
 
-## What needs a connected wallet
+## Needs a wallet
 
-Running a **new** analysis. The wallet signs a message, there is no transaction and no fee. You are asked for it
-at the moment you press Analyze, not before, and the range you marked survives the sign-in.
+Running a **new** analysis. The wallet signs a message: no transaction, no fee. You are asked at the moment you
+press Analyze, not before, and the range you marked survives the sign-in.
 
 | Limit | Value |
 |---|---|
-| New analyses per wallet per day | {{ s.runs_per_day }} |
-| Ranges, and analyses, per token | {{ s.ranges_per_token }} |
+| New analyses, per wallet, per day | {{ s.runs_per_day }} |
+| Ranges per token | {{ s.ranges_per_token }} |
 | Longest range | {{ s.max_window_hours }} hours |
 | Requests one run may spend | {{ '{:,}'.format(s.run_cap_requests) }} |
 | Wallets that get exact exits | {{ s.max_wallet_lookups }} |
-| Smallest position that makes the table | ${{ s.min_invested_usd }} bought inside the range |
+| Smallest position in the table | ${{ s.min_invested_usd }} bought inside the range |
 | Wallets whose age is checked | {{ s.age_lookups_max }} |
-| Chart requests a day, per address / per wallet / for the site | {{ s.browse_per_day_guest }} / {{ s.browse_per_day }} / {{ s.browse_global_per_day }} |
+| Chart requests a day: guest / wallet / site | {{ s.browse_per_day_guest }} / {{ s.browse_per_day }} / {{ s.browse_global_per_day }} |
 
-Every number in this table is read from the same settings the site runs on, so it cannot drift from what actually
-happens.
+!!! note "📐 These numbers are the live settings"
+    The table is rendered from the same configuration the site runs on, so it cannot drift from what actually
+    happens.
 
-## Why the limits exist
+## Why they exist
 
-Every new token costs real money. Reconstructing a token's history can take hundreds of requests to a paid API,
-and the first analysis of a busy token is the expensive one — every further range on the same token is nearly
-free, because its trades are already stored.
+A new token costs real money. Reconstructing its history can take hundreds of requests to a paid API.
 
-The wallets that get exact exits are the largest buyers of the range. The rest keep their entry and carry
-`no-exits`. When the whole-history path turns out cheaper, every wallet gets exact exits and the cap does not
-apply at all; the line above the table always says which happened.
+The first analysis of a busy token is the expensive one. Every further range on the same token is nearly free,
+because its trades are already stored.
+
+## Which wallets get exact exits
+
+The largest buyers of the range. The rest keep their entry and carry `no-exits`.
+
+When the whole-history path turns out cheaper, everyone gets exact exits and this cap does not apply at all. The
+line above the table always says which happened.

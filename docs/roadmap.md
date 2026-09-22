@@ -1,27 +1,34 @@
 # Roadmap
 
-## Now
+## Shipped
 
-Paste a token, mark a range, get every wallet that bought there with verifiable facts, tags that are rules, and
-export. Repeats across your own saved analyses. An AI agent that reads only the table in front of it and your own
-method, and returns a short list with a reason for each pick.{% if not assistant_on %} The agent needs a model
-key on the server, and this one does not have it yet, so its button explains itself instead of answering.{% endif %}
+Paste a token, mark a range, get every wallet that bought there with facts you can check. Tags that are rules.
+Export. Repeats across your own saved analyses. Amounts in dollars or in SOL.
+
+An AI agent that reads only the table in front of it and the method you describe, then returns a short list with
+a reason for each pick.{% if not assistant_on %}
+
+!!! warning "🤖 The agent is off on this server"
+    It needs a model key that this deployment does not have yet, so its button explains itself instead of
+    answering.
+{% endif %}
 
 ## Next
 
-**Alerts.** A wallet on your watchlist buys something, and you hear about it. This needs a live stream of the
-chain rather than history, which is a different kind of connection to the one an analysis uses.
+**Alerts.** A wallet on your watchlist buys something and you hear about it. This needs a live stream of the
+chain rather than history — a different kind of connection than an analysis uses.
 
-**Deeper wallet cards.** What a wallet did across the tokens you have analysed, not just this one.
+**Deeper wallet cards.** What a wallet did across every token you have analyzed, not only this one.
 
 ## Later
 
-**Copy-trading, non-custodial.** Follow the wallets you picked, with the keys staying yours.
+**Copy-trading, non-custodial.** Follow the wallets you picked, keys staying yours.
 
-**More chains.** The engine is built around one provider behind a thin adapter, so a second chain is a new
-adapter rather than a new product.
+**More chains.** One provider sits behind a thin adapter, so a second chain is a new adapter, not a new product.
 
-## What is deliberately not on this list
+## Not on this list, on purpose
 
-Wallet scores, "smart money" ratings and any number whose meaning only the vendor knows. If a claim cannot be
-checked against the chain, it does not belong in a product whose whole argument is that you can check it.
+Wallet scores. "Smart money" ratings. Any number whose meaning only the vendor knows.
+
+If a claim cannot be checked against the chain, it does not belong in a product whose whole argument is that you
+can check it.

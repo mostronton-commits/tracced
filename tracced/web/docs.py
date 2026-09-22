@@ -10,21 +10,22 @@ import threading
 import jinja2
 import markdown
 
+# slug, назва в меню (1–3 слова), значок, рядок під назвою на сторінці «Overview»
 PAGES = [
-    ("index", "What tracced does"),
-    ("how-it-works", "How an analysis works"),
-    ("tags", "Tags and what each one means"),
-    ("limits", "Limits and what they cost"),
-    ("account", "Your account, watchlist and repeats"),
-    ("roadmap", "Roadmap"),
+    ("index", "Overview", "🧭", "What tracced answers and how to read it"),
+    ("how-it-works", "How it works", "⚙️", "Where every number on the page comes from"),
+    ("tags", "Tags", "🏷️", "Ten rules, each one checkable on chain"),
+    ("limits", "Limits", "⏳", "What is free, what needs a wallet, what it costs us"),
+    ("account", "Your account", "🔑", "Sign-in, watchlist, your own tags, repeats"),
+    ("roadmap", "Roadmap", "🗺️", "Shipped, next, and what we will not build"),
 ]
-_MD = markdown.Markdown(extensions=["extra", "toc", "sane_lists"])
+_MD = markdown.Markdown(extensions=["extra", "toc", "sane_lists", "admonition"])
 _lock = threading.Lock()
 _cache = {}
 
 
 def _slugs():
-    return {s for s, _ in PAGES}
+    return {p[0] for p in PAGES}
 
 
 def page(docs_dir, slug, ctx=None):
@@ -47,13 +48,26 @@ def page(docs_dir, slug, ctx=None):
         html = _MD.convert(text)
     html = html.replace("<table>", '<div class="dtw"><table>').replace("</table>", "</table></div>")   # широка таблиця прокручується сама, а не розсуває сторінку
     m = re.search(r"^#\s+(.+)$", text, re.M)
-    title = m.group(1).strip() if m else dict(PAGES)[slug]
+    title = m.group(1).strip() if m else dict((p[0], p[1]) for p in PAGES)[slug]
     out = (html, title)
     _cache[slug] = out
     return out
 
 
+def _live(docs_dir):
+    """Лише ті сторінки, для яких файл справді є: меню не показує того, чого нема."""
+    return [{"slug": s, "label": label, "icon": icon, "blurb": blurb}
+            for s, label, icon, blurb in PAGES if (docs_dir / f"{s}.md").exists()]
+
+
 def nav(docs_dir, current):
-    """Пункти бічного меню: лише ті сторінки, для яких файл справді є."""
-    return [{"slug": s, "label": label, "on": s == current}
-            for s, label in PAGES if (docs_dir / f"{s}.md").exists()]
+    return [dict(p, on=p["slug"] == current) for p in _live(docs_dir)]
+
+
+def around(docs_dir, current):
+    """Сусіди сторінки для кнопок внизу: читати документацію підряд має бути так само легко, як книжку."""
+    live = _live(docs_dir)
+    i = next((n for n, p in enumerate(live) if p["slug"] == current), None)
+    if i is None:
+        return None, None
+    return (live[i - 1] if i > 0 else None), (live[i + 1] if i + 1 < len(live) else None)

@@ -941,7 +941,8 @@ async def docs_page(request):
     body, title = docs_mod.page(DOCS_DIR, slug, {"s": request.app["s"], "TAGS": tags.DEFS, "assistant_on": request.app.get("assistant") is not None})
     if body is None:
         raise web.HTTPNotFound(text="There is no such page in the documentation.")
-    return render("docs.html", request, body=body, title=title, nav=docs_mod.nav(DOCS_DIR, slug))
+    prev, nxt = docs_mod.around(DOCS_DIR, slug)
+    return render("docs.html", request, body=body, title=title, nav=docs_mod.nav(DOCS_DIR, slug), prev=prev, nxt=nxt)
 
 
 async def how(request):
