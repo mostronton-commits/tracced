@@ -14,12 +14,17 @@ at the moment you press Analyze, not before, and the range you marked survives t
 
 | Limit | Value |
 |---|---|
-| New analyses per wallet per day | 1 |
-| Ranges, and analyses, per token | 3 |
-| Longest range | 6 hours |
-| Requests one run may spend | 1,000 |
-| Wallets that get exact exits | 250 |
-| Smallest position that makes the table | $95 bought inside the range |
+| New analyses per wallet per day | {{ s.runs_per_day }} |
+| Ranges, and analyses, per token | {{ s.ranges_per_token }} |
+| Longest range | {{ s.max_window_hours }} hours |
+| Requests one run may spend | {{ '{:,}'.format(s.run_cap_requests) }} |
+| Wallets that get exact exits | {{ s.max_wallet_lookups }} |
+| Smallest position that makes the table | ${{ s.min_invested_usd }} bought inside the range |
+| Wallets whose age is checked | {{ s.age_lookups_max }} |
+| Chart requests a day, per address / per wallet / for the site | {{ s.browse_per_day_guest }} / {{ s.browse_per_day }} / {{ s.browse_global_per_day }} |
+
+Every number in this table is read from the same settings the site runs on, so it cannot drift from what actually
+happens.
 
 ## Why the limits exist
 

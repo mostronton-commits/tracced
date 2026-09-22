@@ -220,13 +220,13 @@ if AioHTTPTestCase:
 
         async def test_layout_containers(self):
             # верстка тримається на трьох речах: смуги шапки/підвалу з внутрішнім контейнером і широка сторінка результату
-            for path in ("/", "/how"):
+            for path in ("/", "/docs"):
                 html = await (await self.client.get(path)).text()
                 self.assertIn('<footer class="foot"><div class="foot-in">', html)
                 self.assertIn(">v0.2<", html)                                   # product version, not the asset hash
                 self.assertIn('href="https://github.com/mostronton-commits/tracced"', html)
                 self.assertIn('href="https://x.com/tracced_xyz"', html)
-            html = await (await self.client.get("/how")).text()
+            html = await (await self.client.get("/docs")).text()
             self.assertIn('<header class="top"><div class="top-in">', html)
             self.assertNotIn('<main class="wide"', html)
             await self.client.get(f"/token?mint={MINT}")
@@ -302,7 +302,7 @@ if AioHTTPTestCase:
             jid, a, b = self._seed_one_demo()
             other = "B" * 40
             before = self.st.requests
-            for path in ("/", "/how", "/project", f"/token?mint={MINT}", f"/job/{jid}", f"/job/{jid}.csv", "/me"):
+            for path in ("/", "/docs", "/project", f"/token?mint={MINT}", f"/job/{jid}", f"/job/{jid}.csv", "/me"):
                 r = await self.client.get(path, allow_redirects=False, headers=GUEST)
                 self.assertEqual(r.status, 200, path)
             self.assertEqual(self.st.requests, before)                  # сторінки й демо — без запитів
@@ -645,14 +645,18 @@ if AioHTTPTestCase:
                                        headers={"Origin": f"http://{self.client.host}:{self.client.port}", "Cookie": ""})
             self.assertIn(r.status, (404, 503))                          # the demo's agent answers guests too
 
-        async def test_how_page(self):
-            r = await self.client.get("/how")
-            self.assertEqual(r.status, 200)
-            html = await r.text()
-            self.assertIn("How it works", html)
-            self.assertIn("bot-like", html)                              # tag definitions listed
-            self.assertIn("Where the data comes from", html)
+        async def test_how_redirects_into_the_docs(self):
+            # один опис замість двох: /how вів своє життя і неминуче розійшовся б з документацією
+            r = await self.client.get("/how", allow_redirects=False)
+            self.assertEqual((r.status, r.headers["Location"]), (302, "/docs/how-it-works"))
+            html = await (await self.client.get("/docs/tags")).text()
+            self.assertIn("bot-like", html)                              # таблиця тегів будується з коду
+            self.assertIn("transfer-in", html)
+            self.assertIn("seen-before", html)
             self.assertIsNone(CYRILLIC.search(html))
+            lim = await (await self.client.get("/docs/limits")).text()
+            self.assertIn(f">{self.app['s']['max_window_hours']} hours<", lim)   # числа ті самі, що в налаштуваннях
+            self.assertIn(f">{self.app['s']['max_wallet_lookups']}<", lim)
 
         async def test_index_english(self):
             r = await self.client.get("/")
@@ -799,7 +803,7 @@ if AioHTTPTestCase:
             home_off = await (await self.client.get("/")).text()
             self.assertIn("Coming next", home_off)
             self.assertNotIn("Live on every result", home_off)
-            self.assertIn("this server has no model key", await (await self.client.get("/how")).text())
+            self.assertIn("does not have it yet", await (await self.client.get("/docs/roadmap")).text())
             self.app["assistant"] = a
             home_on = await (await self.client.get("/")).text()
             self.assertIn("Live on every result", home_on)               # with a key the promise is true

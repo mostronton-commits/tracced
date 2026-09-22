@@ -4,7 +4,8 @@
 
 Paste a token, mark a range, get every wallet that bought there with verifiable facts, tags that are rules, and
 export. Repeats across your own saved analyses. An AI agent that reads only the table in front of it and your own
-method, and returns a short list with a reason for each pick.
+method, and returns a short list with a reason for each pick.{% if not assistant_on %} The agent needs a model
+key on the server, and this one does not have it yet, so its button explains itself instead of answering.{% endif %}
 
 ## Next
 

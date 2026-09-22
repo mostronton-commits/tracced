@@ -7,6 +7,7 @@
 import re
 import threading
 
+import jinja2
 import markdown
 
 PAGES = [
@@ -26,8 +27,12 @@ def _slugs():
     return {s for s, _ in PAGES}
 
 
-def page(docs_dir, slug):
-    """(html, title) сторінки або (None, None), якщо такої нема. Кеш у памʼяті: файли міняються з деплоєм."""
+def page(docs_dir, slug, ctx=None):
+    """(html, title) сторінки або (None, None), якщо такої нема.
+
+    Текст спершу проходить через Jinja з тими самими налаштуваннями, що й сайт, тож число в документації
+    не може розійтися з реальним лімітом: воно те саме. Кеш у памʼяті — файли міняються лише з деплоєм.
+    """
     if slug not in _slugs():
         return None, None
     hit = _cache.get(slug)
@@ -36,7 +41,7 @@ def page(docs_dir, slug):
     path = docs_dir / f"{slug}.md"
     if not path.exists():
         return None, None
-    text = path.read_text(encoding="utf-8")
+    text = jinja2.Template(path.read_text(encoding="utf-8"), autoescape=False).render(**(ctx or {}))
     with _lock:
         _MD.reset()
         html = _MD.convert(text)

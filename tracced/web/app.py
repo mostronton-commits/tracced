@@ -933,14 +933,14 @@ async def index(request):
 async def docs_page(request):
     """Документація: markdown з docs/ поруч із кодом, той самий деплой, те саме оформлення сайту."""
     slug = request.match_info.get("slug") or "index"
-    body, title = docs_mod.page(DOCS_DIR, slug)
+    body, title = docs_mod.page(DOCS_DIR, slug, {"s": request.app["s"], "TAGS": tags.DEFS, "assistant_on": request.app.get("assistant") is not None})
     if body is None:
         raise web.HTTPNotFound(text="There is no such page in the documentation.")
     return render("docs.html", request, body=body, title=title, nav=docs_mod.nav(DOCS_DIR, slug))
 
 
 async def how(request):
-    return render("how.html", request, s=request.app["s"], TAGS=tags.DEFS)
+    raise web.HTTPFound("/docs/how-it-works")      # один опис, а не два, що розходяться
 
 
 async def project(request):
