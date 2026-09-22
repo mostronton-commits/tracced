@@ -492,6 +492,42 @@ if AioHTTPTestCase:
             self.assertEqual(r.status, 400)                              # inf — помилка запиту, не 500
             self.assertIn("Bad time range", (await r.json())["error"])
 
+        async def test_crossings_only_count_my_own_saved_analyses(self):
+            # ⛓ означає «цей гаманець був раннім ще в стількох аналізах, які зберіг САМЕ ти» — чужі не рахуються
+            import os
+            from tracced.web.jobs import Job
+            base = json.load(open(f"{self.tmp.name}/web/{DEMO_JID}.json")) if os.path.exists(f"{self.tmp.name}/web/{DEMO_JID}.json") else None
+            mk = lambda jid, mint, t_from, wallets: {  # noqa: E731
+                "id": jid, "mint": mint, "t_from": t_from, "t_to": t_from + 600000, "t_exit": None, "status": "done",
+                "error": None, "created_ms": 1, "started_ms": 1, "finished_ms": 2, "symbol_hint": "TST",
+                "progress": {"phase": "done", "done": 1, "total": 1}, "log": [],
+                "result": {"info": {"mint": mint, "symbol": "TST", "supply": 1000000}, "mode": "trades",
+                           "window": {"from": t_from, "to": t_from + 600000, "end": t_from + 999999},
+                           "counts": {}, "coverage": {}, "wallet_trades": {},
+                           "rows": [{"wallet": w, "multiple": 2.0, "realized_usd": 10.0} for w in wallets]}}
+            a = mk("AAAAAA_20010909-0100_0110", "A" * 40, 999999900000, ["w1", "w2", "w3"])
+            b = mk("BBBBBB_20010909-0200_0210", "B" * 40, 999999900000 + 3600000, ["w2", "w3", "w9"])
+            c = mk("CCCCCC_20010909-0300_0310", "C" * 40, 999999900000 + 7200000, ["w3", "w7"])
+            for j in (a, b, c):
+                self.app["jobs"].jobs[j["id"]] = Job.from_dict(j)
+            o = {"Origin": f"http://{self.client.host}:{self.client.port}"}
+            r = await self.client.get(f"/job/{a['id']}/crossings.json", headers=GUEST)
+            self.assertEqual(r.status, 401)                                  # без гаманця перетинати нічого
+            r = await self.client.get(f"/job/{a['id']}/crossings.json")
+            d = await r.json()
+            self.assertEqual((d["saved"], d["n"]), (0, 0))                   # нічого не збережено — порожньо
+            for jid in (b["id"], c["id"]):
+                rr = await self.client.post("/me/analyses", json={"job": jid}, headers=o)
+                self.assertEqual(rr.status, 200, await rr.text())
+            d = await (await self.client.get(f"/job/{a['id']}/crossings.json")).json()
+            self.assertEqual(d["saved"], 2)
+            self.assertEqual(sorted(d["wallets"]), ["w2", "w3"])             # w1 лише тут, w9 і w7 не в цьому аналізі
+            self.assertEqual(len(d["wallets"]["w3"]), 2)                     # w3 є в обох збережених
+            self.assertEqual(len(d["wallets"]["w2"]), 1)
+            self.assertEqual({x["symbol"] for x in d["wallets"]["w3"]}, {"TST"})
+            self.assertEqual({x["job"] for x in d["wallets"]["w3"]}, {b["id"], c["id"]})
+            self.assertAlmostEqual(d["wallets"]["w2"][0]["mult"], 2.0)
+
         async def test_candles_span_is_capped_per_timeframe(self):
             # завеликий відрізок джерело мовчки обрізає і віддає лише свіже, тому звужуємо його самі
             from tracced.web import chart as chart_mod

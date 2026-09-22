@@ -79,6 +79,7 @@
     <div class="row toolbar">
       <button type="button" id="ftoggle" aria-expanded="false">Filters</button>
       <span class="muted small" id="shown"></span>
+      <button type="button" class="tagchip t-cross" id="frepeat" hidden title="Wallets that were early in your other saved analyses too">⛓ <b>0</b> repeat</button>
       <label class="chk"><input type="checkbox" id="pickall"> Select all</label>
       <span class="muted small" id="selinfo" hidden><b id="nsel">0</b> selected · <button type="button" class="link" id="clearsel">Clear</button></span>
       <div class="soonwrap right" id="aiwrap">
@@ -181,6 +182,7 @@
         <button type="button" class="ghost x" id="dclose" title="Close">×</button>
       </div>
       <div class="drawer-facts" id="dfacts"></div>
+      <div class="dcross" id="dcross"></div>
       <div class="drawer-body"><table class="story"><thead><tr><th>Time</th><th></th><th class="num">USD</th><th class="num">Tokens</th><th class="num">Cap</th></tr></thead><tbody id="dtrades"></tbody></table></div>
       <p class="muted small" id="dnote"></p>
     </aside>
@@ -193,7 +195,7 @@
       const SKEY = 'early:sel:' + jobId, FKEY = 'early:filters:' + jobId;
       try { JSON.parse(localStorage.getItem(SKEY) || '[]').forEach(w => selected.add(w)); } catch (e) {}
       const saveSel = () => { try { localStorage.setItem(SKEY, JSON.stringify([...selected])); } catch (e) {} };
-      const f = { inv: 0, mult: 0, sold: 0, buysMax: 0, hold: 0, exits: false, hide: [], funder: '' };
+      const f = { inv: 0, mult: 0, sold: 0, buysMax: 0, hold: 0, exits: false, hide: [], funder: '', repeat: false };
       try { Object.assign(f, JSON.parse(localStorage.getItem(FKEY) || '{}')); } catch (e) {}
       const saveF = () => { try { localStorage.setItem(FKEY, JSON.stringify(f)); } catch (e) {} };
       const panel = document.getElementById('filters'), ftoggle = document.getElementById('ftoggle'), clearsel = document.getElementById('clearsel');
@@ -202,7 +204,7 @@
         panel.querySelectorAll('[data-f]').forEach(i => { const k = i.dataset.f; if (i.type === 'checkbox') i.checked = !!f[k]; else i.value = f[k] ? f[k] : (k === 'buysMax' ? '' : '0'); });
         panel.querySelectorAll('[data-hide]').forEach(b => b.classList.toggle('off', f.hide.includes(b.dataset.hide)));
       }
-      function nActive() { return [f.inv, f.mult, f.sold, f.buysMax, f.hold, f.exits, f.funder].filter(Boolean).length + f.hide.length; }
+      function nActive() { return [f.inv, f.mult, f.sold, f.buysMax, f.hold, f.exits, f.funder, f.repeat].filter(Boolean).length + f.hide.length; }
       // the page shows a window of the rows that pass the filters (LIMIT, then "Show more"); every action — Select all,
       // Export, the agent — works on all passing rows, shown or not
       const LIMIT = 100; let limit = LIMIT; const passing = new Set();
@@ -215,7 +217,7 @@
           const d = r.dataset, tg = d.tags ? d.tags.split(' ') : [];
           const ok = +d.inv >= f.inv && (!f.mult || +d.mult >= f.mult) && +d.sold >= f.sold &&
                      (!f.buysMax || +d.buys <= f.buysMax) && (!f.hold || +d.hold >= f.hold) && (!f.exits || d.exit === '1') &&
-                     (!f.funder || d.funder === f.funder) && !f.hide.some(t => tg.includes(t));
+                     (!f.funder || d.funder === f.funder) && (!f.repeat || !!crossings[d.w]) && !f.hide.some(t => tg.includes(t));
           if (ok || pinned.has(d.w)) { passing.add(d.w); n++; r.querySelector('.n').textContent = n; r.hidden = n > limit && !pinned.has(d.w); }
           else r.hidden = true;
         });
@@ -225,6 +227,7 @@
         ftoggle.textContent = na ? 'Filters · ' + na : 'Filters'; ftoggle.classList.toggle('on', !!na);
         syncChecks();
       }
+      { const rp = document.getElementById('frepeat'); if (rp) rp.addEventListener('click', () => { f.repeat = !f.repeat; saveF(); rp.classList.toggle('on', f.repeat); limit = LIMIT; apply(); }); }
       document.getElementById('more100').addEventListener('click', () => { limit += LIMIT; apply(); });
       document.getElementById('moreall').addEventListener('click', () => { limit = Infinity; apply(); });
       function syncChecks() {
@@ -242,7 +245,7 @@
       ftoggle.addEventListener('click', () => { panel.hidden = !panel.hidden; ftoggle.setAttribute('aria-expanded', String(!panel.hidden)); });
       panel.addEventListener('input', e => { if (!e.target.dataset.f) return; const k = e.target.dataset.f; f[k] = e.target.type === 'checkbox' ? e.target.checked : (+e.target.value || 0); saveF(); apply(); });
       panel.addEventListener('click', e => { const b = e.target.closest('[data-hide]'); if (!b) return; const t = b.dataset.hide; f.hide = f.hide.includes(t) ? f.hide.filter(x => x !== t) : [...f.hide, t]; saveF(); syncInputs(); apply(); });
-      document.getElementById('fclear').addEventListener('click', () => { Object.assign(f, { inv: 0, mult: 0, sold: 0, buysMax: 0, hold: 0, exits: false, hide: [], funder: '' }); saveF(); syncInputs(); apply(); });
+      document.getElementById('fclear').addEventListener('click', () => { Object.assign(f, { inv: 0, mult: 0, sold: 0, buysMax: 0, hold: 0, exits: false, hide: [], funder: '', repeat: false }); saveF(); syncInputs(); apply(); });
       clearsel.addEventListener('click', () => { selected.clear(); saveSel(); syncChecks(); });
       tbody.addEventListener('change', e => { if (!e.target.classList.contains('pick')) return; const w = e.target.closest('tr').dataset.w; e.target.checked ? selected.add(w) : selected.delete(w); saveSel(); syncChecks(); });
       document.getElementById('pickall').addEventListener('change', e => { visible().forEach(r => e.target.checked ? selected.add(r.dataset.w) : selected.delete(r.dataset.w)); saveSel(); syncChecks(); });
@@ -356,7 +359,34 @@
       const short = w => w.slice(0, 6) + '…' + w.slice(-4);
       const money = v => (v == null || isNaN(v) ? '—' : (v < 0 ? '-' : '') + '$' + ch.fmtMcap(Math.abs(v)));
       const drawer = document.getElementById('drawer'), dtrades = document.getElementById('dtrades');
-      let funders = {}, bundle = {};
+      let funders = {}, bundle = {}, crossings = {};       // crossings: wallets that were early in this person's other analyses
+      const crossLine = c => (c.symbol || c.mint.slice(0, 6)) + ' · ' + EarlyTZ.fmt(c.from, false) + ' → ' + EarlyTZ.fmt(c.to, false)
+        + (c.mult ? ' · ' + (+c.mult).toFixed(1) + '×' : '') + (c.real ? ' · ' + money(c.real) : '');
+      function fillCrossings() {
+        // the chain says this wallet was early in that many of your own saved analyses; the card holds the detail
+        rows.forEach(r => {
+          const c = crossings[r.dataset.w]; if (!c || !c.length) return;
+          const wid = r.querySelector('.wid'); if (!wid || wid.querySelector('.cross')) return;
+          const b = document.createElement('button');
+          b.type = 'button'; b.className = 'cross'; b.textContent = '⛓';
+          b.title = 'Also an early buyer in ' + c.length + ' of your saved analyses — open the wallet';
+          b.addEventListener('click', ev => { ev.stopPropagation(); toggleWallet(r.dataset.w, true); });
+          wid.appendChild(b);
+        });
+        const n = rows.filter(r => crossings[r.dataset.w]).length;
+        const rp = document.getElementById('frepeat');
+        if (rp) { rp.hidden = !n; rp.querySelector('b').textContent = n; }
+      }
+      async function loadCrossings() {
+        if (!acctOn) return;
+        try {
+          const r = await fetch('/job/' + jobId + '/crossings.json', { credentials: 'same-origin' });
+          if (!r.ok) return;
+          const d = await r.json();
+          crossings = d.wallets || {};
+          fillCrossings(); apply();
+        } catch (e) {}
+      }
       function fillFunders() {
         // who paid for the wallet: known only after the background check, so the cell is filled here, not by the server
         rows.forEach(r => {
@@ -408,6 +438,11 @@
         document.getElementById('dw').textContent = o.wallet; document.getElementById('dsol').href = 'https://solscan.io/account/' + o.wallet;
         document.getElementById('dfacts').innerHTML = row ? '<div><b>' + ch.fmtMcap(+d.entry) + '</b><span>entry cap</span></div><div><b>' + (+d.exitcap ? ch.fmtMcap(+d.exitcap) : '—') + '</b><span>exit cap</span></div><div><b>' + money(+d.inv) + '</b><span>in range</span></div><div><b>' + money(+d.tot) + '</b><span>total</span></div><div><b>' + money(+d.got) + '</b><span>got</span></div><div><b class="' + (+d.real > 0 ? 'pos' : (+d.real < 0 ? 'neg' : '')) + '">' + money(+d.real) + '</b><span>realized</span></div>' : '';
         dtrades.innerHTML = o.trades.map(t => '<tr class="' + t.side + '"><td class="mono dtc" data-ms="' + t.t + '">' + EarlyTZ.fmt(t.t, false) + '</td><td>' + (t.side === 'buy' ? '<b class="buy">▲ buy</b>' : '<b class="sell">▼ sell</b>') + '</td><td class="num mono">' + money(t.usd) + '</td><td class="num mono">' + (t.qty ? ch.fmtMcap(t.qty) : '—') + '</td><td class="num mono">' + ch.fmtMcap(t.mcap) + '</td></tr>').join('');
+        const cx = crossings[o.wallet] || [];
+        document.getElementById('dcross').innerHTML = cx.length
+          ? '<b>⛓ Seen in ' + cx.length + ' of your other analyses</b><ul>' + cx.map(c =>
+              '<li><a href="/job/' + c.job + '">' + crossLine(c) + '</a></li>').join('') + '</ul>'
+          : '';
         const fnd = funders[o.wallet], bn = bundle[o.wallet];
         document.getElementById('dnote').innerHTML = (fnd ? 'First SOL from <a class="mono" href="https://solscan.io/account/' + fnd + '" target="_blank" rel="noopener">' + short(fnd) + '</a>' + (bn ? ' · shared with ' + (bn.n - 1) + ' other wallets here (bundle)' : '') + '. ' : '') +
           (o.complete === false ? 'Exits not fetched (over the cap) — only trades inside the range are known.' : 'All trades of this wallet on the token.') + (o.truncated ? ' First ' + o.trades.length + ' of ' + o.n + '.' : '');
@@ -490,6 +525,7 @@
         };
         tick();
       }
+      loadCrossings();
     })();
     </script>
   {% endif %}

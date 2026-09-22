@@ -170,6 +170,16 @@ td.wcell .wid { white-space: nowrap; }       /* сам гаманець ніко
 .tag.t-sniper, .tag.t-bot-like, .tag.t-fresh { color: #92400E; border-color: #FDE68A; background: #FFFBEB; }
 .tag.t-no-exits { color: var(--muted); border-style: dashed; }
 .tag.t-dev { color: #7F1D1D; border-color: #FCA5A5; background: #FEF2F2; font-weight: 600; }
+/* ⛓ this wallet was early in another analysis of yours too — ours, verifiable, not a bought label */
+.cross { border: 0; background: transparent; padding: 0 0 0 4px; font-size: 12px; line-height: 1; color: #7C3AED; cursor: pointer; }
+.cross:hover { color: #5B21B6; }
+.tagchip.t-cross { border-color: #DDD6FE; color: #5B21B6; }
+.tagchip.t-cross.on { background: #EDE9FE; border-color: #A78BFA; }
+.dcross:empty { display: none; }
+.dcross { margin: 0 0 10px; padding: 8px 10px; border: 1px solid #DDD6FE; border-radius: 8px; background: #F5F3FF; font-size: 12px; }
+.dcross b { color: #5B21B6; }
+.dcross ul { margin: 4px 0 0; padding-left: 16px; }
+.dcross li { margin: 2px 0; }
 .menu { position: relative; display: inline-block; }
 .menu-panel { position: absolute; top: 38px; left: 0; z-index: 20; min-width: 260px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 4px; }
 .menu-panel button { display: flex; width: 100%; justify-content: space-between; gap: 12px; border: 0; height: 34px; padding: 6px 10px; font-weight: 500; }

@@ -221,6 +221,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_post("/me/analyses", me_add_analysis)
     app.router.add_post("/me/analyses/remove", me_remove_analysis)
     app.router.add_get("/admin", admin_page)
+    app.router.add_get("/job/{id}/crossings.json", job_crossings_json)
     app.router.add_post("/job/{id}/delete", job_delete)
     app.router.add_static("/static", str(HERE / "static"))
     return app
@@ -1072,6 +1073,42 @@ async def analyze(request):
     job = app["jobs"].submit(mint, t_from, t_to, symbol=info.get("symbol"), owner=pk, s_over=over)
     app["events"].add(pk, "analyze", job=job.id, symbol=info.get("symbol") or mint[:6])
     raise web.HTTPFound(f"/job/{job.id}")
+
+
+@_acct_route
+async def job_crossings_json(request, pk):
+    """Гаманці цього аналізу, які вже зустрічались у інших аналізах, збережених САМЕ цією людиною.
+
+    Це наш варіант «розумних грошей», і він відрізняється від чужих міток тим, що перевіряється: значок
+    означає рівно «цей гаманець був раннім покупцем у стількох вікнах, які ти сам розмітив і зберіг»,
+    з посиланням на кожне. Рахується з уже збережених результатів, жодного запиту до Solana Tracker.
+    """
+    app = request.app
+    job = app["jobs"].get(request.match_info["id"])
+    if not job or job.status != "done" or not job.result:
+        raise web.HTTPNotFound(text="No result yet.")
+    saved = list((app["accounts"].load(pk).get("analyses") or {}).keys())
+    here = {r["wallet"] for r in (job.result.get("rows") or [])}
+
+    def cross():
+        out = {}
+        for jid in saved:
+            other = app["jobs"].get(jid)
+            if jid == job.id or not other or other.status != "done" or not other.result:
+                continue
+            if other.mint == job.mint and other.t_from == job.t_from and other.t_to == job.t_to:
+                continue                                   # той самий діапазон під іншим id — не перетин
+            for r in other.result.get("rows") or []:
+                w = r.get("wallet")
+                if w in here:
+                    out.setdefault(w, []).append({"job": jid, "symbol": other.symbol, "mint": other.mint,
+                                                  "from": other.t_from, "to": other.t_to,
+                                                  "mult": r.get("multiple") or 0,
+                                                  "real": r.get("realized_usd") or 0})
+        return out
+    wallets = await asyncio.to_thread(cross)
+    return web.json_response({"saved": len(saved), "n": len(wallets), "wallets": wallets},
+                             headers={"Cache-Control": "no-store"})
 
 
 @_acct_route
