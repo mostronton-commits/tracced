@@ -24,10 +24,6 @@ def to_row(f):
     r["solscan_url"] = f"https://solscan.io/account/{f['wallet']}"
     r["tag_list"] = list(f.get("tags") or [])
     r["tags"] = "|".join(r["tag_list"])
-    # прибуток у SOL: виручка мінус вкладене у тій самій валюті, тільки коли обидва числа справді є
-    if f.get("proceeds_sol") is not None and f.get("invested_sol") is not None:
-        share = (f.get("sold_share_pct") or 0) / 100.0
-        r["realized_sol"] = f["proceeds_sol"] - f["invested_sol"] * share
     for k in ("entry_mcap_first", "entry_mcap_avg", "entry_range_mcap", "exit_mcap_avg", "invested_usd",
               "invested_in_range_usd", "invested_before_range_usd", "proceeds_usd", "realized_usd", "unrealized_usd"):
         if r.get(k) is not None:

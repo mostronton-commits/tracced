@@ -67,12 +67,22 @@ class TestSolAmounts(unittest.TestCase):
         self.assertIsNone(f["proceeds_sol"])
         self.assertIsNone(f["invested_in_range_sol"])
 
-    def test_a_partial_sell_takes_its_share_of_the_sol_paid(self):
-        from tracced.early import report
-        f = self.facts_of([self.with_sol(tr(1, "buy", "A", 100, 1.0), 1.0),
-                           self.with_sol(tr(10, "sell", "A", 50, 3.0), 1.5)])
-        r = report.to_row(f)
-        self.assertAlmostEqual(r["realized_sol"], 1.0)          # 1.5 отримано − половина з 1.0 вкладених
+    def test_profit_in_sol_is_counted_the_same_way_as_in_dollars(self):
+        # докупив ПІСЛЯ продажу: частка проданого падає, але собівартість проданого не змінюється.
+        # Якщо рахувати SOL через частку, та сама угода дає дві різні відповіді — тут вони мають збігтись.
+        rate = 200.0
+        f = self.facts_of([self.with_sol(tr(1, "buy", "A", 100, 1.0), 100 / rate),
+                           self.with_sol(tr(10, "sell", "A", 50, 3.0), 150 / rate),
+                           self.with_sol(tr(50, "buy", "A", 10, 4.0), 40 / rate)])
+        self.assertAlmostEqual(f["realized_usd"], 100)
+        self.assertAlmostEqual(f["realized_sol"], 100 / rate)
+
+    def test_a_wallet_with_sol_on_only_some_trades_keeps_dollars(self):
+        f = self.facts_of([self.with_sol(tr(1, "buy", "A", 100, 1.0), 0.5),
+                           tr(10, "sell", "A", 50, 3.0)])            # у цієї угоди SOL нема
+        self.assertIsNone(f["realized_sol"])
+        self.assertIsNone(f["invested_sol"])
+        self.assertAlmostEqual(f["realized_usd"], 100)
 
 
 class TestLedger(unittest.TestCase):

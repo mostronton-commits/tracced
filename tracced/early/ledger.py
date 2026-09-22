@@ -37,7 +37,8 @@ class Ledger:
                  "bought_qty", "sold_qty", "first_buy_t", "first_buy_price", "last_buy_t",
                  "first_sell_t", "last_sell_t", "buys_in_window", "invested_in_window",
                  "buys_after_window", "sold_without_buy", "oversold", "unbacked_qty", "buy_times", "sell_times",
-                 "invested_sol", "proceeds_sol", "invested_in_window_sol", "sol_seen",
+                 "invested_sol", "proceeds_sol", "invested_in_window_sol", "cost_sol", "realized_sol",
+                 "sol_seen", "sol_gap",
                  "first_range_buy_t", "first_range_buy_price", "buys_before_range", "invested_before_range")
 
     def __init__(self, wallet):
@@ -46,7 +47,9 @@ class Ledger:
         self.qty = self.cost = 0.0            # відкрита позиція і її собівартість
         self.invested = self.proceeds = self.realized = 0.0
         self.invested_sol = self.proceeds_sol = self.invested_in_window_sol = 0.0
+        self.cost_sol = self.realized_sol = 0.0   # та сама арифметика, що в доларах, але в SOL
         self.sol_seen = False                 # результати до появи поля SOL не мають його зовсім
+        self.sol_gap = False                  # хоч одна угода без SOL — сумам у SOL вірити не можна
         self.buys_in_window = 0               # покупки до «до» включно — «зайшов рано»
         self.invested_in_window = 0.0
         self.bought_qty = self.sold_qty = 0.0
@@ -150,7 +153,10 @@ def build(trades, t_from, t_to, t_exit, range_from=None):
             l.invested += usd
             if sol is not None:
                 l.invested_sol += sol
+                l.cost_sol += sol
                 l.sol_seen = True
+            else:
+                l.sol_gap = True
             l.bought_qty += qty
             if l.first_buy_t is None:
                 l.first_buy_t, l.first_buy_price = t, price
@@ -184,8 +190,14 @@ def build(trades, t_from, t_to, t_exit, range_from=None):
             l.realized += got - avg * part
             l.proceeds += got
             if sol is not None:
-                l.proceeds_sol += sol * (part / qty)
+                avg_sol = l.cost_sol / l.qty                 # собівартість проданого рахується так само, як у доларах,
+                got_sol = sol * (part / qty)                 # інакше та сама угода дає дві різні відповіді
+                l.realized_sol += got_sol - avg_sol * part
+                l.proceeds_sol += got_sol
+                l.cost_sol -= avg_sol * part
                 l.sol_seen = True
+            else:
+                l.sol_gap = True
             l.sold_qty += part
             l.qty -= part
             l.cost -= avg * part
@@ -261,6 +273,7 @@ def facts(l, supply, price_at_exit):
     exit_avg = (l.proceeds / l.sold_qty) * supply if l.sold_qty else None
     sold_share = (l.sold_qty / l.bought_qty * 100) if l.bought_qty else 0.0
     unrealized = (l.qty * price_at_exit - l.cost) if (l.qty > 0 and price_at_exit) else 0.0
+    sol_ok = l.sol_seen and not l.sol_gap    # половина сум у SOL гірша за жодної: тоді чесніше лишити долари
     hold_min = None
     entry_t = l.first_range_buy_t if l.first_range_buy_t is not None else l.first_buy_t
     first_sell_after = next((t for t in l.sell_times if entry_t is not None and t >= entry_t), None)
@@ -284,9 +297,10 @@ def facts(l, supply, price_at_exit):
         "exit_mcap_avg": exit_avg,
         "sells": l.sells,
         "proceeds_usd": l.proceeds,
-        "invested_sol": l.invested_sol if l.sol_seen else None,
-        "invested_in_range_sol": l.invested_in_window_sol if l.sol_seen else None,
-        "proceeds_sol": l.proceeds_sol if l.sol_seen else None,
+        "invested_sol": l.invested_sol if sol_ok else None,
+        "invested_in_range_sol": l.invested_in_window_sol if sol_ok else None,
+        "proceeds_sol": l.proceeds_sol if sol_ok else None,
+        "realized_sol": l.realized_sol if sol_ok else None,
         "sold_share_pct": sold_share,
         "holding_share_pct": max(0.0, 100.0 - sold_share),
         "realized_usd": l.realized,
