@@ -351,6 +351,7 @@
       let funders = {}, bundle = {}, crossings = {};       // crossings: wallets that were early in this person's other analyses
       const crossLine = c => (c.symbol || c.mint.slice(0, 6)) + ' · ' + EarlyTZ.fmt(c.from, false) + ' → ' + EarlyTZ.fmt(c.to, false)
         + (c.mult ? ' · ' + (+c.mult).toFixed(1) + '×' : '') + (c.real ? ' · ' + money(c.real) : '');
+      const CHAIN = '<svg class="lnk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" aria-hidden="true"><g transform="rotate(-45 12 12)"><rect x="1.2" y="7.4" width="12.4" height="9.2" rx="4.6"/><rect x="10.4" y="7.4" width="12.4" height="9.2" rx="4.6"/></g></svg>';   // two links: the repeat marker in the row and the heading of its block in the card
       function fillCrossings() {
         // a repeat is a fact about this wallet, so it belongs with the other tags; the card holds the detail
         let n = 0;
@@ -361,7 +362,7 @@
           r.dataset.tags = (r.dataset.tags ? r.dataset.tags + ' ' : '') + 'seen-before';
           const t = document.createElement('button');
           t.type = 'button'; t.className = 'tag t-seen-before seen';
-          t.textContent = '\u26D3';
+          t.innerHTML = CHAIN;
           t.title = 'Also an early buyer in ' + c.length + ' of your saved analyses — click for the list';
           t.setAttribute('aria-label', 'Seen in ' + c.length + ' of your other analyses');
           t.addEventListener('click', ev => { ev.stopPropagation(); toggleWallet(r.dataset.w, true); });
@@ -430,7 +431,7 @@
         dtrades.innerHTML = o.trades.map(t => '<tr class="' + t.side + '"><td class="mono dtc" data-ms="' + t.t + '">' + EarlyTZ.fmt(t.t, false) + '</td><td>' + (t.side === 'buy' ? '<b class="buy">▲ buy</b>' : '<b class="sell">▼ sell</b>') + '</td><td class="num mono">' + (cur && t.sol != null ? EarlyCur.sol(t.sol) : money(t.usd)) + '</td><td class="num mono">' + (t.qty ? ch.fmtMcap(t.qty) : '—') + '</td><td class="num mono">' + ch.fmtMcap(t.mcap) + '</td></tr>').join('');
         const cx = crossings[o.wallet] || [];
         document.getElementById('dcross').innerHTML = cx.length
-          ? '<b>⛓ Seen in ' + cx.length + ' of your other analyses</b><ul>' + cx.map(c =>
+          ? '<b>' + CHAIN + ' Seen in ' + cx.length + ' of your other analyses</b><ul>' + cx.map(c =>
               '<li><a href="/job/' + c.job + '">' + crossLine(c) + '</a></li>').join('') + '</ul>'
           : '';
         const fnd = funders[o.wallet], bn = bundle[o.wallet];

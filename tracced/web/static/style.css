@@ -172,7 +172,9 @@ td.wcell .wid { white-space: nowrap; }       /* сам гаманець ніко
 /* seen-before: early in another analysis of YOURS — ours, verifiable, not a bought label */
 .tag.t-seen-before { color: #5B21B6; border-color: #C4B5FD; background: #F5F3FF; cursor: pointer; font: inherit; font-size: 11px; height: auto; padding: 1px 7px; }
 .tag.t-seen-before:hover { background: #EDE9FE; border-color: #A78BFA; }
-.tag.t-seen-before.seen { padding: 1px 5px; font-size: 12px; line-height: 1.4; }   /* сам значок: рядок таблиці не місце для пояснень */
+.tag.t-seen-before.seen { display: inline-flex; align-items: center; padding: 2px 5px; }   /* сам значок: рядок таблиці не місце для пояснень */
+.tag.t-seen-before.seen .lnk { display: block; width: 12px; height: 12px; }
+#dcross .lnk { width: 13px; height: 13px; vertical-align: -2px; }
 .tagchip.t-seen-before { border-color: #C4B5FD; color: #5B21B6; }
 .tag.t-transfer-in { color: #9A3412; border-color: #FDBA74; background: #FFF7ED; }
 .tagchip.t-transfer-in { border-color: #FDBA74; }

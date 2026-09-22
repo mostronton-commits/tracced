@@ -20,12 +20,12 @@ with the tags an analysis computes, and they come out in the CSV.
 
 ## Repeats
 
-When a wallet in a result was **also** an early buyer in another analysis you saved, its row carries a **⛓**.
+When a wallet in a result was **also** an early buyer in another analysis you saved, its row carries a chain link.
 
 Click it and the wallet's card names those analyses — token, range, and what the wallet made there — as links.
 The chip above the table filters the list down to those wallets.
 
-!!! tip "⛓ Where a repeat comes from"
+!!! tip "🔗 Where a repeat comes from"
     It is the intersection of analyses saved to **your** account. Other people's saved analyses are never part of
     it, nothing leaves the server, and it costs no requests.
 

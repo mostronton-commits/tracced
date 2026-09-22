@@ -19,7 +19,7 @@ DEFS = {
     "re-bought":  "Bought again after the range",
     "bundle":     "First SOL from the same wallet as 2+ others here — likely one operator",
     "no-exits":   "Exits not fetched (over the cap)",
-    "seen-before": "Also an early buyer in another analysis you saved — shown as ⛓, click it for the list",
+    "seen-before": "Also an early buyer in another analysis you saved — shown as a chain link, click it for the list",
 }
 BUNDLE_MIN = 3        # стільки гаманців списку з одним спонсором = бандл
 
