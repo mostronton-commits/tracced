@@ -33,3 +33,4 @@ profit ranking. In a list of everyone who was present, they are obvious.
 | [Limits](/docs/limits) | You hit a cap, or you want to know what is free |
 | [Your account](/docs/account) | Watchlist, your own tags, repeats across analyses |
 | [Roadmap](/docs/roadmap) | You want to know what is coming, and what never will |
+| [The project](/docs/project) | You want the argument behind it, and what it refuses to do |

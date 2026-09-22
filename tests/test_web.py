@@ -352,9 +352,11 @@ if AioHTTPTestCase:
             jid, a, b = self._seed_one_demo()
             other = "B" * 40
             before = self.st.requests
-            for path in ("/", "/docs", "/project", f"/token?mint={MINT}", f"/job/{jid}", f"/job/{jid}.csv", "/me"):
+            for path in ("/", "/docs", "/docs/project", f"/token?mint={MINT}", f"/job/{jid}", f"/job/{jid}.csv", "/me"):
                 r = await self.client.get(path, allow_redirects=False, headers=GUEST)
                 self.assertEqual(r.status, 200, path)
+            r = await self.client.get("/project", allow_redirects=False, headers=GUEST)
+            self.assertEqual((r.status, r.headers["Location"]), (302, "/docs/project"))   # стара адреса сторінки проєкту жива
             self.assertEqual(self.st.requests, before)                  # сторінки й демо — без запитів
             r = await self.client.get(f"/token?mint={other}", headers=GUEST)
             html = await r.text()

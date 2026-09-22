@@ -1,11 +1,14 @@
 # tracced
 
-Live demo, no sign-up: https://tracced.xyz/project
+Live demo, no sign-up: https://tracced.xyz
 
-**Every wallet on the record.** Paste a Solana token, choose the pump range on the chart, and see every wallet that
-bought there — and everything it did with the token next. Entry and exit market cap, invested, realized, held
-time, bundle funding. Every number is a raw on-chain swap you can open on Solscan. No scores, no black-box
-"smart money" labels: you decide who is worth following.
+**Every wallet on the record.** Paste a Solana token, mark the pump range on the chart, and read every wallet that
+bought inside it, with everything it did with the token next. Entry and exit market cap, invested, realized, hold
+time, who funded it. Amounts in dollars or in SOL, both recorded by the same swap. Every number is a raw on-chain
+swap you can open on Solscan. No scores and no black-box "smart money" labels: you decide who is worth following.
+
+Documentation: [tracced.xyz/docs](https://tracced.xyz/docs) · Next to the terminals:
+[how this compares to Axiom and GMGN](https://tracced.xyz/docs/compare)
 
 Built on Solana · AI-assisted · Colosseum Crypto World's Fair 2026
 
@@ -25,9 +28,12 @@ Built on Solana · AI-assisted · Colosseum Crypto World's Fair 2026
 - **Range** only selects wallets; the numbers come from **all** of a wallet's trades on the token (before, inside and after the range). A scope switch recounts the same trades up to 24 h / 48 h after the range.
 - **Tags are rules you can read**: `sniper`, `fresh`, `bot-like`, `pre-range`, `re-bought`, `bundle` (wallets funded from one source), `no-exits`. Hover a tag to see the rule.
 - **Complete data by construction**: the range is always fetched in full (verified against the chain: 100% of the swaps in an audited range). For each wallet's history the app takes the cheaper of two complete paths — the whole token history or each wallet's own trades — and tells you the coverage above the table.
-- **Repeats**: a wallet that was an early buyer in another analysis you saved carries a `seen-before` tag; clicking
-  it opens the wallet's card with each of those analyses as a link, and a box in the filters narrows the table to
+- **Repeats**: a wallet that was an early buyer in another analysis you saved carries a chain icon; clicking it
+  opens the wallet's card with each of those analyses as a link, and a box in the filters narrows the table to
   them. Computed from your own saved results, no labels from anywhere else.
+- **Dollars or SOL**: Solana Tracker returns both legs of every swap, so the switch above the table rewrites the
+  unit rather than converting at a rate. Profit is counted from the cost basis of the tokens actually sold in both
+  units, so the two never disagree.
 - **Wallet story**: click a wallet to see every trade as a list and as markers on the chart — up to ten wallets at
   once, green bought and red sold, marker size is the amount, trades inside one candle merged into one, and a ring
   around the marker when the wallet was funded together with others in the list.
