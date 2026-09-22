@@ -59,7 +59,7 @@
         <span class="mono muted win"><span class="dtc" data-ms="{{ t.t_from }}">{{ t.t_from|dt }}</span> → <span class="dtc" data-ms="{{ t.t_to }}">{{ t.t_to|dt }}</span></span>
         <span class="mono n">{{ t.ranges }} range{{ '' if t.ranges == 1 else 's' }}</span>
         <span class="mono n">{% if t.best %}best {{ t.best|round(1) }}×{% endif %}</span>
-        {% if t.example %}<span class="chip ex" title="Recorded token — press Analyze on a pump to replay the run, no requests">Example</span>{% else %}<span class="chip st-{{ t.status }}">{{ {'running':'Running','done':'Done','error':'Error'}[t.status] }}</span>{% endif %}
+        {% if t.example %}<span class="chip ex" title="Recorded token — press Analyze on a pump to replay the run, no requests">Demo</span>{% else %}<span class="chip st-{{ t.status }}">{{ {'running':'Running','done':'Done','error':'Error'}[t.status] }}</span>{% endif %}
         <span class="open">Open →</span>
       </a>
     {% endfor %}

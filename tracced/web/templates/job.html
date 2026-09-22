@@ -360,9 +360,10 @@
           const tg = r.querySelector('.tags'); if (!tg || tg.querySelector('.t-seen-before')) return;
           r.dataset.tags = (r.dataset.tags ? r.dataset.tags + ' ' : '') + 'seen-before';
           const t = document.createElement('button');
-          t.type = 'button'; t.className = 'tag t-seen-before';
-          t.textContent = 'seen-before ×' + c.length;
+          t.type = 'button'; t.className = 'tag t-seen-before seen';
+          t.textContent = '\u26D3';
           t.title = 'Also an early buyer in ' + c.length + ' of your saved analyses — click for the list';
+          t.setAttribute('aria-label', 'Seen in ' + c.length + ' of your other analyses');
           t.addEventListener('click', ev => { ev.stopPropagation(); toggleWallet(r.dataset.w, true); });
           tg.prepend(t);
         });

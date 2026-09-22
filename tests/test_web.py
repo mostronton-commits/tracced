@@ -865,7 +865,8 @@ if AioHTTPTestCase:
             r = await self.client.get("/")                               # home with a finished analysis: counters, sample, bg lines
             self.assertEqual(r.status, 200)
             home = await r.text()
-            self.assertIn(">Example<", home)                             # the finished analysis is pinned as the example
+            self.assertIn(">Demo<", home)                                # the recorded token is called the same word everywhere
+            self.assertNotIn(">Example<", home)
             self.assertIn("TST", home)
             r = await self.client.get(loc + ".csv")
             self.assertEqual(r.status, 200)
