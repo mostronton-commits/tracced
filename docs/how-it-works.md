@@ -25,9 +25,13 @@ the USD amounts are never touched.
 
 ## Dollars or SOL
 
-The `USD | SOL` switch in the footer changes the unit of every amount on the page: what a wallet spent, what it
-sold for, what it kept. Nothing is converted at today's rate — both figures were recorded by the same swap, so the
-SOL amount is what actually moved on chain at that moment and the dollar amount is what it was worth then.
+The `USD | SOL` switch in the footer changes the unit of every amount that came from a swap: what a wallet spent,
+what it sold for, what it made. Nothing is converted at today's rate — both figures were recorded by the same swap,
+so the SOL amount is what actually moved on chain at that moment and the dollar amount is what it was worth then.
+Profit is counted the same way in both units, from the cost of the tokens actually sold, so the two never disagree.
+
+What a wallet still holds is the one figure that stays in dollars. It is a valuation at a later price, not a swap
+that happened, and there is no SOL amount on chain to show for it.
 
 A result saved before tracced started recording SOL amounts has no SOL figures to show. Those cells stay in
 dollars and are dimmed, so the page never dresses a dollar number up as a SOL one.
