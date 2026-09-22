@@ -23,7 +23,7 @@ press Analyze, not before, and the range you marked survives the sign-in.
 | Wallets whose age is checked | {{ s.age_lookups_max }} |
 | Chart requests a day: guest / wallet / site | {{ s.browse_per_day_guest }} / {{ s.browse_per_day }} / {{ s.browse_global_per_day }} |
 
-!!! note "📐 These numbers are the live settings"
+!!! info "📐 These numbers are the live settings"
     The table is rendered from the same configuration the site runs on, so it cannot drift from what actually
     happens.
 

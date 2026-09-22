@@ -217,11 +217,11 @@ td.wcell .wid { white-space: nowrap; }       /* сам гаманець ніко
 .docs-body a { border-bottom-color: #CBD5E1; }
 
 /* Блок-виноска: !!! tip "Заголовок" у markdown. Колір несе сенс, не прикрасу. */
-.docs-body .admonition { margin: 16px 0; padding: 13px 16px; border: 1px solid var(--line); border-left: 3px solid #94A3B8; border-radius: 8px; background: var(--bg); }
+.docs-body .admonition { display: block; min-width: 0; max-width: none; margin: 16px 0; padding: 13px 16px; border: 1px solid var(--line); border-left: 3px solid #94A3B8; border-radius: 8px; background: var(--bg); }
 .docs-body .admonition > :first-child { margin-top: 0; } .docs-body .admonition > :last-child { margin-bottom: 0; }
 .docs-body .admonition-title { font-weight: 600; margin: 0 0 4px; }
 .docs-body .admonition.tip { border-left-color: #34D399; background: #F2FDF7; }
-.docs-body .admonition.note { border-left-color: #60A5FA; background: #F5F9FF; }
+.docs-body .admonition.info { border-left-color: #60A5FA; background: #F5F9FF; }
 .docs-body .admonition.warning { border-left-color: #F59E0B; background: #FFFBF3; }
 
 .docs-pager { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
