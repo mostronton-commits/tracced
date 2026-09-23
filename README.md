@@ -73,7 +73,7 @@ chart and terminal and result, without a single request to the data provider.
 
 ## Data
 
-- Swaps and candles: [Solana Tracker Data API](https://www.solanatracker.io/data-api). Free plan: 10,000 requests a month; a cached analysis costs none.
+- Swaps and candles: [Solana Tracker Data API](https://www.solanatracker.io/data-api). Free plan: 2,500 requests a month at 3 per second; a cached analysis costs none.
 - Wallet age and funder: a Solana RPC node with the full signature index (`api.mainnet-beta.solana.com` by default; `SOLANA_RPC_URL` for your own).
 - The AI agent: any OpenAI-compatible endpoint (`ASSISTANT_*` in `.env`), with per-wallet, per-guest and site-wide daily limits.
 - Nothing else. No third-party PnL, labels or scores.
