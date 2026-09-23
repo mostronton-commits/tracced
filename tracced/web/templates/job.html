@@ -66,7 +66,7 @@
     <p class="muted small">{{ c.n_wallets|num }} traded in the range · {{ c.dust|num }} below ${{ s.min_invested_usd }} · {{ ((c.pre_range_only or 0) + (c.before_range_only or 0))|num }} sold only · {{ c.n_trades|num }} trades</p>
 
     <div class="row toolbar">
-      <button type="button" id="ftoggle" aria-expanded="false">Filters</button>
+      <button type="button" id="ftoggle" aria-expanded="true">Filters</button>
       <span class="muted small" id="shown"></span>
       <label class="chk"><input type="checkbox" id="pickall"> Select all</label>
       <span class="muted small" id="selinfo" hidden><b id="nsel">0</b> selected · <button type="button" class="link" id="clearsel">Clear</button></span>
@@ -91,7 +91,7 @@
       </div>
     </div>
 
-    <div class="filters compact" id="filters" hidden>
+    <div class="filters compact" id="filters">
       <label title="Spent inside the range, at least">In range ≥ $<input type="number" data-f="inv" value="0" min="0" step="10"></label>
       <label title="Exit cap ÷ entry cap, at least">Multiple ≥ <input type="number" data-f="mult" value="0" min="0" step="0.5"></label>
       <label title="Share of bought tokens sold, at least">Sold share ≥ <input type="number" data-f="sold" value="0" min="0" max="100" step="5">%</label>
@@ -116,8 +116,8 @@
         <th class="sortable fundh" data-key="funder" data-type="text" title="Who sent this wallet its first SOL — click a funder to see everyone it paid for">Funded by</th>
         <th class="num sortable" data-key="inv" title="Bought inside the range · total on this token in this scope">In range</th>
         <th class="num sortable" data-key="exitcap" title="Average exit market cap · first sell time">Exit cap</th>
+        <th class="num sortable" data-key="real" title="Profit on what was sold: received minus what those tokens cost · below it, the paper result on what is still held">PnL</th>
         <th class="num sortable" data-key="got" title="Everything the wallet received from selling, before costs · share of what it bought that is sold">Sold</th>
-        <th class="num sortable" data-key="real" title="Profit on what was sold: received minus what those tokens cost · below it, the paper result on what is still held">Realized</th>
         <th class="num sortable" data-key="mult" title="Average exit cap ÷ average entry cap">×</th>
         <th class="num sortable" data-key="hold" title="From the entry to the first sell after it · buys / sells">Held</th>
       </tr></thead>
@@ -138,8 +138,8 @@
           <td class="fund"></td>
           <td class="num two bar" style="--w: {{ (100 * (w.invested_in_range_usd or 0) / sm.max_in_range)|round|int if sm.max_in_range else 0 }}%"><b class="mono amt" data-usd="{{ w.invested_in_range_usd or 0 }}"{% if w.invested_in_range_sol is not none %} data-sol="{{ w.invested_in_range_sol }}"{% endif %}>{{ w.invested_in_range_usd|usd }}</b><small>{% if diff %}of <span class="amt" data-usd="{{ w.invested_usd or 0 }}"{% if w.invested_sol is not none %} data-sol="{{ w.invested_sol }}"{% endif %}>{{ w.invested_usd|usd }}</span> total{% endif %}</small></td>
           <td class="num two"><b class="mono">{{ w.exit_mcap_avg|mcap }}</b><small class="dtc" data-ms="{{ w.first_sell_ms or 0 }}">{{ w.first_sell_ms|dt if w.first_sell_ms else '' }}</small></td>
-          <td class="num two bar" style="--w: {{ (w.sold_share_pct or 0)|round|int }}%"><b class="mono amt" data-usd="{{ w.proceeds_usd or 0 }}"{% if w.proceeds_sol is not none %} data-sol="{{ w.proceeds_sol }}"{% endif %}>{{ w.proceeds_usd|usd }}</b><small>{{ (w.sold_share_pct|num ~ '% sold') if w.sold_share_pct is not none else '' }}</small></td>
           <td class="num two bar{{ ' neg' if (w.realized_usd or 0) < 0 else '' }}" style="--w: {{ (100 * (w.realized_usd or 0)|abs / sm.max_abs_realized)|round|int if sm.max_abs_realized else 0 }}%"><b class="mono amt {{ 'pos' if (w.realized_usd or 0) > 0 else ('neg' if (w.realized_usd or 0) < 0 else '') }}" data-usd="{{ w.realized_usd or 0 }}"{% if w.realized_sol is not none %} data-sol="{{ w.realized_sol }}"{% endif %}>{{ w.realized_usd|usd }}</b><small class="{{ 'pos' if (w.unrealized_usd or 0) > 0 else ('neg' if (w.unrealized_usd or 0) < 0 else '') }}">{% if w.unrealized_usd %}{{ w.unrealized_usd|usd }} unrealized{% endif %}</small></td>
+          <td class="num two bar" style="--w: {{ (w.sold_share_pct or 0)|round|int }}%"><b class="mono amt" data-usd="{{ w.proceeds_usd or 0 }}"{% if w.proceeds_sol is not none %} data-sol="{{ w.proceeds_sol }}"{% endif %}>{{ w.proceeds_usd|usd }}</b><small>{{ (w.sold_share_pct|num ~ '% sold') if w.sold_share_pct is not none else '' }}</small></td>
           <td class="num bar" style="--w: {{ ((w.multiple or 1)|log10 / 1.7 * 100)|round|int if w.multiple else 0 }}%"><b class="mono">{{ (w.multiple ~ '×') if w.multiple else '—' }}</b></td>
           <td class="num two"><b class="mono">{{ (w.hold_minutes|num ~ ' min') if w.hold_minutes is not none else '—' }}</b><small>{{ w.buys }} / {{ w.sells if w.sells is not none else '—' }}</small></td>
         </tr>

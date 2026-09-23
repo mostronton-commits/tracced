@@ -79,6 +79,12 @@ h2.sec .muted { font-weight: 400; margin-left: 8px; }
 .chartbox .overlay .marker { position: absolute; top: 0; bottom: 26px; width: 0; border-left: 1px solid var(--mint); }
 /* Події життя токена: переїзд з лаунчпада і оплати за видимість. Підпис унизу, щоб не лізти до міток угод. */
 .marksline { margin: 0 0 8px; }
+/* Підказка просто на графіку: текст збоку від нього на кастдеві не прочитали жодного разу. */
+.chartbox .charthint { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); z-index: 6; pointer-events: none;
+  font: 500 12.5px/1 var(--sans); color: var(--navy); background: var(--mint); border-radius: 999px; padding: 7px 14px;
+  box-shadow: 0 6px 18px -8px rgba(15, 23, 42, .6); animation: hintin .3s ease both; }
+@keyframes hintin { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.chartbox.pickable canvas { cursor: crosshair; }
 /* Події життя токена: значок у точці, де вони сталися, як у терміналів. Пояснення — у підказці на наведення. */
 .chartbox .overlay .evdot { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center; font: 700 10px/1 var(--mono); pointer-events: auto;
@@ -140,7 +146,11 @@ label.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5
 label.chk input { accent-color: #10b981; }
 th.sortable { cursor: pointer; user-select: none; }
 th.sortable:hover { color: var(--ink); }
-th.sortable.asc::after { content: " ↑"; } th.sortable.desc::after { content: " ↓"; }
+/* Колонка мовчить про те, що вона сортується, поки на неї не наведеш — трейдер на кастдеві цього не знайшов. */
+th.sortable::after { content: " ⇅"; font-size: 9px; color: #CBD5E1; }
+th.sortable:hover::after { color: var(--muted); }
+th.sortable.asc::after { content: " ↑"; color: var(--ink); font-size: 10px; }
+th.sortable.desc::after { content: " ↓"; color: var(--ink); font-size: 10px; }
 td .pick { accent-color: #10b981; }
 tr.picked td { background: #F6FEF9; }
 

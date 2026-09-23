@@ -27,7 +27,7 @@
     <button type="button" class="button right" id="findpump" title="Picks the first significant pump on the chart. You can still adjust it.">◎ Find the pump</button>
   </div>
   <p class="muted small marksline" id="marksline" hidden></p>
-  <div class="chartbox" id="chart"></div>
+  <div class="chartbox" id="chart"><div class="charthint" id="charthint" hidden></div></div>
 
   <div class="stepbar small"><span class="stepn">03</span><div class="stepx"><b>Check the bounds and analyze</b>{% if is_demo %}<span>Press Analyze on a pump to watch the run.</span>{% elif not acct %}<span>Analyze needs a connected wallet: free, no transaction, {{ s.runs_per_day|per_day }}. {{ early_note }}</span>
   {% else %}<span>{{ (s.runs_per_day|per_day)|capitalize }}, up to {{ s.ranges_per_token }} ranges per token. {{ early_note }}</span>{% endif %}</div></div>
@@ -109,12 +109,27 @@
       if (DEMO) { nudge(); return; }
       const r = state.rows[state.sel], f = rowsEl.querySelector('.wrow.sel');
       if (step === 0) { r.from = fmt(ms); r.to = ''; step = 1; ch.setMarker(ms); }
-      else { r.to = fmt(ms); if (parse(r.to) <= parse(r.from)) { const t = r.from; r.from = r.to; r.to = t; } step = 0; ch.setMarker(null); }
+      else { r.to = fmt(ms); if (parse(r.to) <= parse(r.from)) { const t = r.from; r.from = r.to; r.to = t; } step = 0; ch.setMarker(null);
+             try { localStorage.setItem('early:hinted', '1'); } catch (x) {} }
+      hint();
       save(); f.querySelector('[name=from]').value = show(r.from); f.querySelector('[name=to]').value = show(r.to);
       refreshLink(f, r); ch.setWindows(winList(), state.sel);
     },
   });
   let step = 0;
+  /* The one thing the first trader could not find: that the chart itself is the control. A line of text beside it
+     was not read, so the prompt sits on the canvas and answers the only question at that moment: click where? */
+  const hintEl = document.getElementById('charthint');
+  if (!DEMO) document.getElementById('chart').classList.add('pickable');   // a crosshair, because the canvas is the control
+  function hint() {
+    if (DEMO) { hintEl.hidden = true; return; }
+    const r = state.rows[state.sel] || {};
+    let done = false;
+    try { done = localStorage.getItem('early:hinted') === '1'; } catch (e) {}
+    if (step === 1) { hintEl.textContent = 'Now click where the pump takes off'; hintEl.hidden = false; return; }
+    hintEl.textContent = 'Click the chart where buying starts';
+    hintEl.hidden = done || !!(r.from && r.to);
+  }
   /* The token's own life on the chart: when trading left the launchpad, when someone paid DexScreener for
      visibility. Costs no Solana Tracker requests, and a failure just leaves the chart without them. */
   fetch('/marks.json?mint=' + encodeURIComponent(mint)).then(r => r.ok ? r.json() : null).then(d => {
@@ -167,6 +182,7 @@
     });
     if (addBtn) { addBtn.disabled = state.rows.length >= MAX_ROWS; addBtn.title = addBtn.disabled ? limitMsg() : ''; }
     ch.setWindows(winList(), state.sel);
+    hint();
   }
   function dropRow(i) { state.rows.splice(i, 1); if (!state.rows.length) state.rows.push({ n: 1, label: 'Range 1', from: '', to: '' }); state.sel = Math.min(state.sel, state.rows.length - 1); save(); render(); focusSel(); }
   function focusSel() { const r = state.rows[state.sel]; if (r && r.from && r.to) ch.focus(parse(r.from), parse(r.to), null); }
