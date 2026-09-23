@@ -171,6 +171,17 @@
       if (xb == null || b === a) return xa;
       return xa + (xb - xa) * ((s - a) / (b - a));
     }
+    /* Vertical position of an event: the close of the candle it falls into, so the badge sits on the price the
+       way it does on a terminal. No candle yet, no coordinate — the caller drops it near the bottom instead. */
+    function yOf(sec) {
+      if (!times.length) return null;
+      let lo = 0, hi = times.length - 1;
+      if (sec < times[0] || sec > times[hi] + 1e6) return null;
+      while (lo < hi) { const m = (lo + hi + 1) >> 1; if (times[m] <= sec) lo = m; else hi = m - 1; }
+      const c = data.get(times[lo]); if (!c) return null;
+      const y = series.priceToCoordinate(c.close);
+      return y == null ? null : y;
+    }
     function place() {
       layer.innerHTML = '';
       const v = visible(); if (!v) return;
@@ -186,13 +197,19 @@
       });
       // events of the token's own life: the move off the launchpad, the payments for visibility. Thin full-height
       // lines, because trade markers already live next to the candles and must not compete with these.
-      let lastLbl = -1e9;                       // події тісняться в перших хвилинах життя токена: підписуємо не всі
+      // A badge at the point where it happened, not a line through the whole chart: these events sit within a
+      // minute of each other in a token's first hour, and three full-height lines there are unreadable.
+      const drawn = {};                         // дві оплати за хвилину одна від одної — один значок, обидві в підказці
       events.forEach(e => {
         if (!e.sec || e.sec < v.a || e.sec > v.b) return;
         const x = xOf(e.sec); if (x == null || x > W) return;
-        const d = document.createElement('div'); d.className = 'evline ' + (e.kind || 'ev'); d.style.left = x + 'px'; d.title = e.title || '';
-        if (x - lastLbl > 74) { const l = document.createElement('span'); l.className = 'evlbl'; l.textContent = e.label || ''; d.appendChild(l); lastLbl = x; }
+        const kind = e.kind || 'ev', prev = drawn[kind];
+        if (prev && Math.abs(x - prev.x) < 16) { prev.n++; prev.el.title += '\n' + (e.title || ''); prev.el.dataset.n = prev.n; return; }
+        const d = document.createElement('div'); d.className = 'evdot ' + kind;
+        d.style.left = x + 'px'; d.style.top = (yOf(e.sec) ?? (box.clientHeight - 74)) + 'px';
+        d.textContent = e.badge || '•'; d.title = e.title || '';
         layer.appendChild(d);
+        drawn[kind] = { x, el: d, n: 1 };
       });
       if (exitSec && exitSec >= v.a && exitSec <= v.b) { const x = xOf(exitSec); if (x != null) { const d = document.createElement('div'); d.className = 'exitline'; d.style.left = x + 'px'; d.title = 'Trades up to'; layer.appendChild(d); } }
       if (marker && marker >= v.a && marker <= v.b) { const x = xOf(marker); if (x != null) { const d = document.createElement('div'); d.className = 'marker'; d.style.left = x + 'px'; layer.appendChild(d); } }

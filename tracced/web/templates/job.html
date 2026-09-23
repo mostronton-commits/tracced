@@ -344,9 +344,9 @@
           .then(r => r.ok ? r.json() : null).then(d => {
             if (!d) return;
             const ev = [];
-            if (d.migration && d.migration.ms) ev.push({ ms: d.migration.ms, kind: 'mig', label: 'migrated',
+            if (d.migration && d.migration.ms) ev.push({ ms: d.migration.ms, kind: 'mig', badge: 'M',
               title: 'Trading moved from ' + (d.migration.from || 'the launchpad') + ' to ' + (d.migration.market || 'a DEX') });
-            (d.paid || []).forEach(p => ev.push({ ms: p.ms, kind: 'paid', label: 'dexscreener',
+            (d.paid || []).forEach(p => ev.push({ ms: p.ms, kind: 'paid', badge: '$',
               title: 'DexScreener ' + p.kind + ' paid for at this moment (anyone can pay, not only the team)' }));
             chart.setEvents(ev);
             const line = document.getElementById('marksline'), txt = EarlyUI.marksText(d, +el.dataset.created);
