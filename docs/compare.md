@@ -3,8 +3,14 @@
 Why not just look at Axiom or GMGN? Because they are built to trade, and this is built to read.
 
 A terminal ranks the winners: top traders by profit, top holders by size. tracced lists **everyone who bought
-inside the range you marked**, winners and losers together. Eleven wallets sharing one funder are invisible in a
-ranking and obvious in a full list.
+inside the range you marked**, winners and losers together.
+
+Their labels decide what you are allowed to see. GMGN plots wallet trades on the chart **by category**, smart
+money, KOL, whales, snipers, so a wallet nobody has labelled never appears there, however much it made. You end
+up watching the same known wallets as everyone else.
+
+Most of the money in any range belongs to wallets nobody labelled. Those are the ones a full list gives you, and
+they are the reason nine wallets funded from one address are obvious here and invisible in a ranking.
 
 <table class="cmp">
 <thead><tr><th>What you want</th><th class="us">tracced</th><th>Axiom</th><th>GMGN</th></tr></thead>
