@@ -26,6 +26,7 @@
     <div class="stepx"><b>Choose the range</b><span>Click the chart twice: where buying starts, where the pump takes off. <small>Drag to pan · scroll to zoom</small></span></div>
     <button type="button" class="button right" id="findpump" title="Picks the first significant pump on the chart. You can still adjust it.">◎ Find the pump</button>
   </div>
+  <p class="muted small marksline" id="marksline" hidden></p>
   <div class="chartbox" id="chart"></div>
 
   <div class="stepbar small"><span class="stepn">03</span><div class="stepx"><b>Check the bounds and analyze</b>{% if is_demo %}<span>Press Analyze on a pump to watch the run.</span>{% elif not acct %}<span>Analyze needs a connected wallet: free, no transaction, {{ s.runs_per_day|per_day }}. {{ early_note }}</span>
@@ -114,6 +115,19 @@
     },
   });
   let step = 0;
+  /* The token's own life on the chart: when trading left the launchpad, when someone paid DexScreener for
+     visibility. Costs no Solana Tracker requests, and a failure just leaves the chart without them. */
+  fetch('/marks.json?mint=' + encodeURIComponent(mint)).then(r => r.ok ? r.json() : null).then(d => {
+    if (!d) return;
+    const ev = [];
+    if (d.migration && d.migration.ms) ev.push({ ms: d.migration.ms, kind: 'mig', label: 'migrated',
+      title: 'Trading moved from ' + (d.migration.from || 'the launchpad') + ' to ' + (d.migration.market || 'a DEX') });
+    (d.paid || []).forEach(p => ev.push({ ms: p.ms, kind: 'paid', label: 'dexscreener',
+      title: 'DexScreener ' + p.kind + ' paid for at this moment (anyone can pay, not only the team)' }));
+    ch.setEvents(ev);
+    const line = document.getElementById('marksline'), txt = EarlyUI.marksText(d, +root.dataset.created);
+    if (txt) { line.textContent = txt; line.hidden = false; }
+  }).catch(function () {});
 
   function hitFor(r) { const id = jobId(r); return id && (JOBS.has(id) ? id : JOBS_BY_WINDOW.get(id)); }
   function refreshLink(f, r) {

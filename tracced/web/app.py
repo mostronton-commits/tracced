@@ -23,9 +23,11 @@ from pathlib import Path
 from aiohttp import web
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from ..cache import JsonCache
 from ..config import DEFAULTS as CFG_DEFAULTS
 from ..early import assistant as assistant_mod, pipeline, report, scope, tags, window
 from ..early.store import TradeStore
+from ..providers import dexscreener
 from . import accounts as acct_mod
 from . import docs as docs_mod
 from . import chart
@@ -174,6 +176,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["runs"] = Throttle(max_fails=int(s.get("runs_per_hour", 20)), window_s=3600, block_s=3600)
     app["st_lock"] = threading.Lock()
     app["overview_cache"], app["overview_pending"] = {}, {}
+    app["dex_cache"] = JsonCache(str(Path(store_dir) / "dexscreener.json"), ttl_hours=24)   # чужий безкоштовний ендпоінт: добу тримаємо відповідь
     app["accounts"] = acct_mod.AccountStore(Path(out_dir).parent / "accounts")   # поруч з web/ і demo/ у output/early
     app["nonces"] = acct_mod.NonceStore()
     app["events"] = acct_mod.EventLog(Path(out_dir).parent / "accounts" / "_events.jsonl")
@@ -206,6 +209,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_get("/project", project)
     app.router.add_get("/token", token_page)
     app.router.add_get("/candles.json", candles_json)
+    app.router.add_get("/marks.json", marks_json)
     app.router.add_post("/analyze", analyze)
     app.router.add_get("/wallet_trades.json", wallet_trades_json)
     app.router.add_get("/job/{id}.state.json", job_state_json)     # before .json: {id} would swallow ".state"
@@ -997,6 +1001,30 @@ async def token_page(request):
                   n_demo=len(demo["ranges"]) if demo and demo["mint"] == mint else 0, bounced=q.get("notice") == "demo", created=info.get("created_time") or 0, now=int(time.time() * 1000),
                   rows_json=json.dumps(rows), jobs_json=json.dumps(jobs_done), preset_json=json.dumps(preset),
                   hints_json=json.dumps(hints), min_peak=int(detect_cfg.get("min_peak_mcap") or 1_000_000))
+
+
+async def marks_json(request):
+    """Події життя токена для графіка: коли торгівля переїхала з лаунчпада і коли платили DexScreener.
+
+    Міграція вже лежить у відповіді про токен, за яку заплачено при аналізі, тож нових запитів до Solana Tracker
+    нема. DexScreener — чужий публічний ендпоінт без ключа, відповідь кешується на добу; якщо він мовчить,
+    повертається порожній список і графік просто малюється без цих міток."""
+    app = request.app
+    mint = _mint(request.query.get("mint"))
+    out = {"migration": None, "paid": []}
+    job = app["jobs"].get(request.query.get("job", "")) if request.query.get("job") else None
+    info = ((job.result or {}).get("info") if job and job.result else None) or {}
+    if not info.get("migration"):
+        demo = _demo(app)                                     # демо живе зі знімка і не робить запитів
+        if demo and demo.get("mint") == mint:
+            info = demo.get("info") or {}
+    if not info.get("migration"):
+        hit = app["overview_cache"].get(mint)                 # огляд уже куплений кимось — беремо звідти
+        info = (hit[1] if hit and hit[1] is not None else None) or {}
+    if info.get("migration") and (info.get("mint") == mint or job):
+        out["migration"] = info["migration"]
+    out["paid"] = await asyncio.to_thread(dexscreener.orders, mint, app.get("dex_cache"))
+    return web.json_response(out, headers={"Cache-Control": "public, max-age=600"})
 
 
 async def candles_json(request):

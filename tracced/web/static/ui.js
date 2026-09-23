@@ -34,6 +34,17 @@
     })(t0);
   }
 
+  /* The token's own events in words. On the chart they sit in the first minutes of its life, and both pages
+     open on a later stretch, so the line under the header is where they are actually read. */
+  function marksText(d, created) {
+    const at = ms => { const m = Math.round((ms - created) / 60000); return m < 1 ? 'under a minute' : m + ' min'; };
+    const out = [];
+    if (d && d.migration && d.migration.ms) out.push('Migrated off ' + (d.migration.from || 'the launchpad') + ' ' + at(d.migration.ms) + ' after launch');
+    const paid = (d && d.paid) || [];
+    if (paid.length) out.push('DexScreener paid' + (paid.length > 1 ? ' ' + paid.length + '×, first' : '') + ' at ' + at(paid[0].ms));
+    return out.join(' · ');
+  }
+
   /* <div class="menu"><button data-menu>…</button><div class="menu-panel" hidden>…</div></div> */
   function menus() {
     document.querySelectorAll('[data-menu]').forEach(btn => {
@@ -51,7 +62,7 @@
     let t = document.querySelector('.toast'); if (!t) { t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
     t.innerHTML = html; t.hidden = false; clearTimeout(t._h); t._h = setTimeout(() => { t.hidden = true; }, ms || 4000);
   }
-  window.EarlyUI = { countUp, fmtShort, FMT, toast, menus };
+  window.EarlyUI = { countUp, fmtShort, FMT, toast, menus, marksText };
 })();
 
 /* home: the address field "types" a made-up base58 address until the user touches it */

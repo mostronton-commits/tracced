@@ -64,7 +64,8 @@ def rows_for(result, scope, s=None):
     price = price_at_end(result, t_end) or 0
     fresh = set(result.get("fresh_wallets") or [])
     bundle = result.get("bundle") or {}
-    dev = ((result.get("info") or {}).get("deployer") or "").strip()   # творець пулу серед покупців — окремий факт
+    info_ = result.get("info") or {}
+    dev = (info_.get("creator") or info_.get("deployer") or "").strip()   # творець токена серед покупців — окремий факт
     facts = []
     for wallet, v in wt.items():
         trs = [tr for tr in unpack(wallet, v.get("trades") or []) if tr["time"] <= t_end]

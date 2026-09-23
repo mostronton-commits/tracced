@@ -37,6 +37,18 @@ units, from the cost of the tokens actually sold, so the two never disagree.
 
 What a wallet still holds stays in dollars. It is a valuation at a later price, not a swap that happened.
 
+## What the token itself did
+
+Two events sit under the chart and as thin lines on it: when trading left the launchpad, and when someone paid
+DexScreener to show the token's profile. Together they often explain the timing of a run.
+
+The first comes from the token's own pools, which arrive in the response an analysis already pays for. The second
+comes from DexScreener's public order list, which is free and costs no requests at all.
+
+!!! warning "💸 Paid by someone, not necessarily the team"
+    Anyone can pay for a token's profile. The line says a payment happened and when, and nothing about who made
+    it.
+
 ## Age and funding
 
 Two facts are not trades, so they do not come from the trade feed: when a wallet made its first transaction ever,

@@ -16,6 +16,28 @@ def _usd(v):
     return v
 
 
+def _launch_pool(pools):
+    """Пул, з якого токен почався: у нього є крива. Токен, запущений одразу на біржі, кривої не має."""
+    with_curve = [x for x in pools if x.get("curve") or x.get("curvePercentage") is not None]
+    return min(with_curve, key=lambda x: x.get("createdAt") or 0) if with_curve else {}
+
+
+def _migration(pools):
+    """Коли торгівля переїхала з лаунчпада на біржу: створення першого пулу після того, як крива добігла.
+
+    Пізніші пули створюють сторонні люди (у нашого демо-токена їх шість), тож бере саме перший. Крива не
+    завершена або токен запущено одразу на біржі — міграції не було, і малювати на графіку нічого."""
+    launch = _launch_pool(pools)
+    if not launch or (launch.get("curvePercentage") or 0) < 100:
+        return None
+    born = launch.get("createdAt") or 0
+    later = [x for x in pools if x is not launch and (x.get("createdAt") or 0) > born]
+    if not later:
+        return None
+    first = min(later, key=lambda x: x["createdAt"])
+    return {"ms": first["createdAt"], "market": first.get("market"), "from": launch.get("market")}
+
+
 class SolanaTracker(PumpDataSource):
     def __init__(self, api_key, pause=0.35, retries=3, cache=None):
         self.h = {"x-api-key": api_key}
@@ -64,8 +86,9 @@ class SolanaTracker(PumpDataSource):
     def token_info(self, mint):
         d = self._get(f"/tokens/{mint}")
         tok = d.get("token", {}) or {}
-        pools = d.get("pools") or [{}]
+        pools = [x for x in (d.get("pools") or []) if x] or [{}]
         p = pools[0] or {}
+        creation = tok.get("creation") or {}
         # усе нижче приходить у тій самій відповіді, за яку ми вже заплатили — окремих запитів нема
         return {
             "mint": mint,
@@ -76,7 +99,9 @@ class SolanaTracker(PumpDataSource):
             "price_usd": (p.get("price") or {}).get("usd"),
             "mcap": _usd(p.get("marketCap")),
             "liquidity_usd": (p.get("liquidity") or {}).get("usd"),
-            "deployer": p.get("deployer"),              # гаманець, який створив пул: тег `dev`, якщо він купував
+            "creator": creation.get("creator") or _launch_pool(pools).get("deployer"),   # творець токена: тег `dev`
+            "deployer": p.get("deployer"),              # хто створив пул pools[0] — не обовʼязково творець токена
+            "migration": _migration(pools),             # коли крива добігла і торгівля переїхала на біржу
             "launchpad": tok.get("createdOn"),          # де запущено (pump.fun тощо)
             "market": p.get("market"),                  # на якій біржі пул
             "twitter": tok.get("twitter"),

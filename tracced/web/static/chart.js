@@ -71,7 +71,7 @@
     const normWins = ws => (ws || []).map(w => ({ ...w, from: sec(w.from), to: sec(w.to) }));
     let tf = null, data = new Map(), times = [], loaded = { a: null, b: null }, busy = false, gen = 0;
     let edge = { left: false, right: false };   // the feed has nothing further that way: stop asking for it
-    let windows = normWins(opts.windows), selected = opts.selected || 0, exitSec = sec(opts.exit), marker = null;
+    let windows = normWins(opts.windows), selected = opts.selected || 0, exitSec = sec(opts.exit), marker = null, events = [];
 
     async function fetchChunk(a, b) {
       const q = new URLSearchParams({ mint: opts.mint, tf, a: Math.floor(a), b: Math.ceil(b) });
@@ -184,6 +184,16 @@
         lbl.addEventListener('click', e => { e.stopPropagation(); if (opts.onSelect) opts.onSelect(i); else focus(w.from, w.to, null); });
         d.appendChild(lbl); layer.appendChild(d);
       });
+      // events of the token's own life: the move off the launchpad, the payments for visibility. Thin full-height
+      // lines, because trade markers already live next to the candles and must not compete with these.
+      let lastLbl = -1e9;                       // події тісняться в перших хвилинах життя токена: підписуємо не всі
+      events.forEach(e => {
+        if (!e.sec || e.sec < v.a || e.sec > v.b) return;
+        const x = xOf(e.sec); if (x == null || x > W) return;
+        const d = document.createElement('div'); d.className = 'evline ' + (e.kind || 'ev'); d.style.left = x + 'px'; d.title = e.title || '';
+        if (x - lastLbl > 74) { const l = document.createElement('span'); l.className = 'evlbl'; l.textContent = e.label || ''; d.appendChild(l); lastLbl = x; }
+        layer.appendChild(d);
+      });
       if (exitSec && exitSec >= v.a && exitSec <= v.b) { const x = xOf(exitSec); if (x != null) { const d = document.createElement('div'); d.className = 'exitline'; d.style.left = x + 'px'; d.title = 'Trades up to'; layer.appendChild(d); } }
       if (marker && marker >= v.a && marker <= v.b) { const x = xOf(marker); if (x != null) { const d = document.createElement('div'); d.className = 'marker'; d.style.left = x + 'px'; layer.appendChild(d); } }
     }
@@ -247,6 +257,7 @@
 
     return {
       setWindows(ws, sel) { windows = normWins(ws); selected = sel; place(); },
+      setEvents(list) { events = (list || []).map(e => ({ ...e, sec: sec(e.ms) })).filter(e => e.sec); place(); },
       setExit(v) { exitSec = sec(v); place(); },
       setMarker(v) { marker = sec(v); place(); },
       setWalletMarkers(list) { wallets = list || []; renderMarkers(); },

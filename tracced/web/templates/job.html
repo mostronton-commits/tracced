@@ -36,6 +36,7 @@
     </div>
   {% else %}
     {% set r = result %}{% set c = r.counts %}
+    <p class="muted small marksline" id="marksline" hidden></p>
     <div class="chartbox" id="chart" data-mint="{{ job.mint }}" data-created="{{ created }}" data-now="{{ now }}"
          data-from="{{ job.t_from }}" data-to="{{ job.t_to }}" data-exit="{{ scope_end or 0 }}" data-symbol="{{ job.symbol }}"></div>
     <div class="onchart-bar" id="onchart" hidden></div>
@@ -336,10 +337,26 @@
 
       syncInputs(); apply();
       const el = document.getElementById('chart');
+      /* The token's own life on the chart: when trading left the launchpad, when someone paid DexScreener for
+         visibility. Free of Solana Tracker requests, and a failure just leaves the chart without them. */
+      function loadMarks(chart, mint, job) {
+        fetch('/marks.json?mint=' + encodeURIComponent(mint) + (job ? '&job=' + encodeURIComponent(job) : ''))
+          .then(r => r.ok ? r.json() : null).then(d => {
+            if (!d) return;
+            const ev = [];
+            if (d.migration && d.migration.ms) ev.push({ ms: d.migration.ms, kind: 'mig', label: 'migrated',
+              title: 'Trading moved from ' + (d.migration.from || 'the launchpad') + ' to ' + (d.migration.market || 'a DEX') });
+            (d.paid || []).forEach(p => ev.push({ ms: p.ms, kind: 'paid', label: 'dexscreener',
+              title: 'DexScreener ' + p.kind + ' paid for at this moment (anyone can pay, not only the team)' }));
+            chart.setEvents(ev);
+            const line = document.getElementById('marksline'), txt = EarlyUI.marksText(d, +el.dataset.created);
+            if (txt) { line.textContent = txt; line.hidden = false; }
+          }).catch(function () {});
+      }
       const ch = EarlyChart(el, { mint: el.dataset.mint, created: +el.dataset.created, now: +el.dataset.now, interactive: false, symbol: el.dataset.symbol,
         windows: [{ n: '', label: 'Entry range', from: +el.dataset.from / 1000, to: +el.dataset.to / 1000 }], selected: 0, exit: +el.dataset.exit || null,
         onMarkers: m => { const h = document.getElementById('mhint'); h.hidden = !m.total; h.textContent = m.inView > m.labeled ? 'Amounts for the ' + m.labeled + ' largest of ' + m.inView + ' trades in view — zoom in for all' : ''; if (!h.textContent) h.hidden = true; } });
-      ch.init().then(() => ch.focus(+el.dataset.from, +el.dataset.to, +el.dataset.exit || null));
+      ch.init().then(() => { ch.focus(+el.dataset.from, +el.dataset.to, +el.dataset.exit || null); loadMarks(ch, el.dataset.mint, jobId); });
 
       // wallet story: markers on the chart (green bought, red sold; a ring when the wallet shares a funder) + the drawer
       const MAX_ON_CHART = 10, BUY_C = '#34D399', SELL_C = '#F87171';
