@@ -122,5 +122,81 @@ class TestTradeStore(unittest.TestCase):
             self.assertEqual(len(st.trades), 150)
 
 
+def uneven_feed(delay=0.0):
+    """Памп і тиша: 1 800 угод за перші пів години (по три в секунду, щоб межі шматків різали секунди),
+    потім 300 угод на три доби. Той самий виключний курсор, що в ST; рахує одночасні виклики."""
+    import threading
+    import time as _t
+    trades = []
+    for i in range(1800):
+        trades.append({"wallet": f"p{i % 50}", "type": "buy", "time": T0 + (i // 3) * 1000, "qty": 1.0, "usd": 1.0,
+                       "price": 1.0, "tx": f"p{i}", "program": "p"})
+    for i in range(300):
+        trades.append({"wallet": f"q{i % 9}", "type": "sell", "time": T0 + 1_800_000 + i * 864_000, "qty": 1.0,
+                       "usd": 1.0, "price": 1.0, "tx": f"q{i}", "program": "p"})
+    lock, state = threading.Lock(), {"now": 0, "max": 0, "calls": 0}
+
+    def fetch(cursor, page=50):
+        with lock:
+            state["now"] += 1; state["calls"] += 1
+            state["max"] = max(state["max"], state["now"])
+        try:
+            if delay:
+                _t.sleep(delay)
+            chunk = [t for t in trades if t["time"] > cursor][:page]
+            has_next = bool(chunk) and chunk[-1]["time"] < trades[-1]["time"]
+            return {"trades": chunk, "hasNextPage": has_next, "nextCursor": chunk[-1]["time"] if chunk else None}
+        finally:
+            with lock:
+                state["now"] -= 1
+    return fetch, trades, state
+
+
+class TestParallelEnsure(unittest.TestCase):
+    """Курсор — час, тож історію ріжемо на шматки і тягнемо одночасно; жодна угода не має загубитись."""
+
+    END = T0 + 1_800_000 + 300 * 864_000
+
+    def test_every_trade_arrives_once_whatever_the_split(self):
+        for workers in (2, 4, 8):
+            with self.subTest(workers=workers), tempfile.TemporaryDirectory() as d:
+                fetch, trades, state = uneven_feed(delay=0.005)
+                store = TradeStore(d, MINT)
+                pages = store.ensure(T0, self.END, fetch, max_pages=500, workers=workers)
+                self.assertEqual(sorted(t["tx"] for t in store.trades), sorted(t["tx"] for t in trades))
+                self.assertEqual(store.gaps(T0, self.END), [])
+                self.assertEqual(pages, state["calls"])
+                self.assertLessEqual(state["max"], workers)
+                self.assertGreaterEqual(state["max"], 2)                 # справді одночасно
+                seq_pages = -(-len(trades) // 50)
+                self.assertLess(pages, seq_pages * 2)                     # перекриття на межах — кілька сторінок, не вдвічі
+
+    def test_the_result_matches_the_sequential_path(self):
+        with tempfile.TemporaryDirectory() as d1, tempfile.TemporaryDirectory() as d2:
+            fetch, _, _ = uneven_feed()
+            one, many = TradeStore(d1, MINT), TradeStore(d2, MINT)
+            one.ensure(T0, self.END, fetch, max_pages=500)
+            many.ensure(T0, self.END, fetch, max_pages=500, workers=6)
+            self.assertEqual([t["tx"] for t in one.trades], [t["tx"] for t in many.trades])   # і порядок за часом
+
+    def test_the_page_cap_holds_with_pages_in_flight(self):
+        with tempfile.TemporaryDirectory() as d:
+            fetch, _, state = uneven_feed(delay=0.002)
+            store = TradeStore(d, MINT)
+            with self.assertRaises(PageBudget) as cm:
+                store.ensure(T0, self.END, fetch, max_pages=12, workers=8)
+            self.assertLessEqual(state["calls"], 12)
+            self.assertEqual(cm.exception.pages, state["calls"])
+            again = TradeStore(d, MINT)                                   # усе завантажене лишилось на диску
+            self.assertGreater(len(again.trades), 0)
+
+    def test_a_short_gap_is_not_split(self):
+        with tempfile.TemporaryDirectory() as d:
+            fetch, _, state = uneven_feed()
+            store = TradeStore(d, MINT)
+            store.ensure(T0, T0 + 5_000, fetch, max_pages=50, workers=8)
+            self.assertEqual(state["calls"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()

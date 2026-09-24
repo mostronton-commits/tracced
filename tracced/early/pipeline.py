@@ -67,20 +67,24 @@ def gap_moment(gaps, frac):
     return int(gaps[-1][1])
 
 
-def probe_rates(fetch, gaps, points):
-    """Виміряний темп (угод/с) у кількох точках дірки: по одній сторінці на точку."""
-    out = []
-    for f in points:
+def probe_rates(fetch, gaps, points, workers=1):
+    """Виміряний темп (угод/с) у кількох точках дірки: по одній сторінці на точку, точки — одночасно."""
+    def one(f):
         try:
             ts = (fetch(gap_moment(gaps, f) - 1) or {}).get("trades") or []
         except Exception:  # noqa: BLE001 — проба не має валити прогін
-            continue
+            return None
         if len(ts) < 2:
-            continue
+            return None
         span = (ts[-1]["time"] - ts[0]["time"]) / 1000
-        if span > 0:
-            out.append((f, len(ts) / span))
-    return out
+        return (f, len(ts) / span) if span > 0 else None
+    if workers > 1 and len(points) > 1:
+        with ThreadPoolExecutor(max_workers=min(workers, len(points)), thread_name_prefix="early-probe") as pool:
+            futs = [pool.submit(contextvars.copy_context().run, one, f) for f in points]   # копія контексту — тут, не в потоці
+            got = [f.result() for f in futs]
+    else:
+        got = [one(f) for f in points]
+    return [x for x in got if x]
 
 
 def price_at(st, mint, t_ms):
@@ -113,8 +117,9 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
     page_size = s.get("page_size", 250)
     guard_pct = int(s.get("budget_guard_pct", 0) or 0)
     run_cap = int(s.get("run_cap_requests", 0) or 0)      # стеля запитів на один прогін (0 = без стелі)
-    here = getattr(st, "requests_here", None) or (lambda: st.requests)   # лише запити цього потоку: сторінки поруч не рахуються
+    here = getattr(st, "requests_here", None) or (lambda: st.requests)   # лише запити цього прогону: сторінки поруч не рахуються
     req0 = here()
+    workers = max(1, int(s.get("st_concurrency", 1) or 1))   # курсор — час: і гаманці, і шматки історії тягнуться одночасно
 
     progress("token")
     info = token(st, mint)
@@ -178,7 +183,7 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
         progress("trades", pages, est_win + pages)
         try:
             pages = store.ensure(t_from, t_to, fetch, s["max_window_pages"], log=log, pages_done=pages,
-                                 on_page=lambda n, t: progress("trades", n, max(n, est_win + 1)))
+                                 on_page=lambda n, t: progress("trades", n, max(n, est_win + 1)), workers=workers)
         except PageBudget as e:
             raise EarlyError(
                 f"Reached the cap of {e.pages} pages for the entry range; trades up to {_iso(e.covered_to)} UTC "
@@ -206,7 +211,7 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
     n_probe = int(s.get("probe_pages", 0) or 0)
     if gaps and n_probe and cost_full >= int(s.get("probe_min_pages", 200)):
         # темп пампу не тримається наступні години: міряємо дірку, інакше повний шлях виглядає дорожчим, ніж є
-        rates = probe_rates(fetch, gaps, budget.probe_points(gap_ms, n_probe))
+        rates = probe_rates(fetch, gaps, budget.probe_points(gap_ms, n_probe), workers=workers)
         measured = budget.pages_from_rates(rates, gap_ms, page_size, margin)
         if measured:
             log(f"measured the rest of the history with {len(rates)} probes: ≈{measured:,} pages "
@@ -227,7 +232,7 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
         pages_before = pages
         try:
             pages = store.ensure(created, t_end, fetch, max_pages, log=log, pages_done=pages,
-                                 on_page=lambda n, t: progress("trades", n, max(n, pages_before + cost_full)))
+                                 on_page=lambda n, t: progress("trades", n, max(n, pages_before + cost_full)), workers=workers)
         except PageBudget as e:
             log(f"the history is denser than estimated: cap {e.pages} pages reached at {_iso(e.covered_to)} UTC — "
                 f"switching to per-wallet trades (fetched pages stay cached)")

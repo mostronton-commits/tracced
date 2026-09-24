@@ -78,8 +78,8 @@ chart and terminal and result, without a single request to the data provider.
 ## Data
 
 - Swaps and candles: [Solana Tracker Data API](https://www.solanatracker.io/data-api). Free plan: 2,500 requests a
-  month at 3 per second; Pro: 1,000,000 a month, no rate limit, and wallet histories are fetched eight at a time
-  (`st_concurrency`). A cached analysis costs none. The balance is checked at most every 10 minutes and new runs
+  month at 3 per second; Pro: 1,000,000 a month, no rate limit, and both the token's history (cut into time
+  pieces, since the cursor is a time) and the wallets' own trades are fetched eight at a time (`st_concurrency`). A cached analysis costs none. The balance is checked at most every 10 minutes and new runs
   wait when the month gets close to its end.
 - The wallet card: the wallet's swaps on every token (`/wallet/{owner}/trades`), run through the same ledger as the
   table. Who a wallet is comes from `enrich=identity` on trade pages the analysis already fetches.

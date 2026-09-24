@@ -24,12 +24,12 @@ above the table says which path ran and for how many wallets exits are known.
 
 ## How long it takes
 
-The range is read page by page, because each page starts where the previous one ended. After that the wallets are
-independent of each other, so their histories are fetched eight at a time. A thousand wallets take seconds rather
-than minutes.
+A page of trades starts at a moment in time, so a long stretch of history can be cut into pieces and read eight
+pieces at a time. A piece that turns out dense is split again while it is being read. Each wallet's own trades are
+independent too, and eight wallets are fetched at once.
 
-One run never spends more than its cap. A wallet starts only when the most it could cost still fits, so fetching
-in parallel cannot push a run past its limit.
+One run never spends more than its cap. A page or a wallet starts only when the most it could cost still fits, so
+reading in parallel cannot push a run past its limit.
 
 !!! warning "🔧 Two defects in the source, fixed on the way in"
     The trade feed silently drops about 1% of swaps under naive pagination. We overlap the cursor and
