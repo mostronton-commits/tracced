@@ -160,7 +160,8 @@ def make_enricher(ages, s):
                 e["fresh"] += 1
             e["done"] = i
             if i % 25 == 0:
-                save(job)
+                if save(job) is False:
+                    return                                 # аналіз видалили: кредити RPC на нього більше не йдуть
                 ages.flush()
         # другий прохід: хто дав перший SOL (вік уже в кеші → 1 запит getTransaction на гаманець)
         funders, checked = r.setdefault("funders", {}), set(r.get("funder_checked") or [])
@@ -191,7 +192,8 @@ def make_enricher(ages, s):
             if i % 25 == 0:
                 r["funder_checked"] = sorted(checked)
                 _bundles(r, rows)
-                save(job)
+                if save(job) is False:
+                    return
                 ages.flush()
         r["funder_checked"] = sorted(checked)
         e["funders_done"] = n

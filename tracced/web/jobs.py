@@ -130,12 +130,13 @@ class JobQueue:
         замком, що й запис, інакше старий результат міг би лягти поверх нового."""
         with self._save_lock:
             if only_current and not self._current(job):
-                return
+                return False                  # аналіз видалили або перезапустили: хто зберігав, хай зупиниться
             path = os.path.join(self.dir, job.id + ".json")
             tmp = path + ".tmp"
             with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(job.to_dict(), f, ensure_ascii=False, default=str)
             os.replace(tmp, path)
+            return True
 
     def submit(self, mint, t_from, t_to, symbol=None, replay=None, owner=None, s_over=None):
         """Живий прогін живе під id діапазону. Програвання демо отримує свій id (…_r + 6 hex), щоб не витісняти

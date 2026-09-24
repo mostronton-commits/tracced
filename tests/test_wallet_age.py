@@ -167,5 +167,18 @@ class TestRpcBudget(unittest.TestCase):
         self.assertTrue(saved)
 
 
+    def test_enrichment_stops_when_the_analysis_is_deleted(self):
+        from types import SimpleNamespace
+        from tracced.web.app import make_enricher
+        answers = [sigs(3), []] * 60
+        post = FakePost(answers)
+        wa = WalletAge(post=post, sleep=lambda s: None, pace_s=0)
+        rows = [{"wallet": f"W{i}", "first_buy_ms": 2000, "tag_list": []} for i in range(60)]
+        job = SimpleNamespace(result={"rows": rows}, log=[])
+        make_enricher(wa, {"age_lookups_max": 100})(job, lambda j: False)   # save() каже: аналізу вже нема
+        self.assertEqual(job.result["enrich"]["done"], 25)                    # зупинилось на першому збереженні
+        self.assertEqual(len(post.calls), 50)
+
+
 if __name__ == "__main__":
     unittest.main()
