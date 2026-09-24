@@ -111,6 +111,7 @@ class SolanaTracker(PumpDataSource):
             "creator": creation.get("creator") or _launch_pool(pools).get("deployer"),   # творець токена: тег `dev`
             "deployer": p.get("deployer"),              # хто створив пул pools[0] — не обовʼязково творець токена
             "migration": _migration(pools),             # коли крива добігла і торгівля переїхала на біржу
+            "launch_pool": _launch_pool(pools).get("poolId"),   # пул кривої: свічки до міграції живуть тільки в ньому
             "launchpad": tok.get("createdOn"),          # де запущено (pump.fun тощо)
             "market": p.get("market"),                  # на якій біржі пул
             "twitter": tok.get("twitter"),

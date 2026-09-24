@@ -78,7 +78,7 @@ def overview(st, mint, info, s, cfg=None, now_ms=None):
     now_ms = now_ms or int(time.time() * 1000)
     created = info.get("created_time") or (now_ms - 48 * HOUR)
     itv = chart_interval(now_ms - created, s)
-    candles = st.chart(mint, itv, created, now_ms)
+    candles = _chart(st, mint, itv, created, now_ms, info)
     detect_cfg = {"detect": dict((cfg or {}).get("detect") or DEFAULTS["detect"])}
     hints = window.suggest(candles, info["supply"], detect_cfg, s.get("suggest_peak_hours", 6))
     return {"interval": itv, "candles": candles, "hints": hints}
@@ -121,6 +121,17 @@ def probe_rates(fetch, gaps, points, workers=1):
     else:
         got = [one(f) for f in points]
     return [x for x in got if x]
+
+
+def _chart(st, mint, interval, a, b, info):
+    """Свічки з урахуванням пулу кривої, якщо клієнт це вміє (у фейків тестів його нема)."""
+    mig = (info or {}).get("migration") or {}
+    if info and info.get("launch_pool") and mig.get("ms"):
+        try:
+            return st.chart(mint, interval, a, b, launch_pool=info["launch_pool"], migrated_ms=mig["ms"])
+        except TypeError:
+            pass
+    return st.chart(mint, interval, a, b)
 
 
 def price_at(st, mint, t_ms):

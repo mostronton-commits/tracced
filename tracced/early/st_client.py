@@ -78,8 +78,8 @@ class EarlyST(SolanaTracker):
 
     @staticmethod
     def _chart_key(mint, interval, t_from_ms, t_to_ms):
-        # v2: свічки з dynamicPools. Старі записи кешу — лише пул після міграції, тому не читаються
-        return f"v2:{mint}:{interval}:{int(t_from_ms // 1000)}:{int(t_to_ms // 1000)}"
+        # v3: свічки до міграції з пулу кривої. Старі записи кешу — лише пул після міграції, тому не читаються
+        return f"v3:{mint}:{interval}:{int(t_from_ms // 1000)}:{int(t_to_ms // 1000)}"
 
     def chart_cached(self, mint, interval, t_from_ms, t_to_ms):
         """Чи лежить цей шматок у кеші (тоді він нічого не коштує)."""
@@ -88,8 +88,25 @@ class EarlyST(SolanaTracker):
         with self._cache_lock:
             return self.chart_cache.get(self._chart_key(mint, interval, t_from_ms, t_to_ms)) is not None
 
-    def chart(self, mint, interval, t_from_ms, t_to_ms):
-        """Свічки [{"time": ms, open, high, low, close, volume}] за відрізок (кешовано)."""
+    def _candles(self, path, interval, a, b):
+        q = urllib.parse.urlencode({"type": interval, "time_from": a, "time_to": b, "dynamicPools": "true"})
+        d = self._get(f"{path}?{q}")
+        out = []
+        for c in (d.get("oclhv") or d.get("data") or []):
+            t = to_ms(c.get("time"))
+            if t is None:
+                continue
+            out.append({"time": t, "open": c.get("open"), "high": c.get("high"),
+                        "low": c.get("low"), "close": c.get("close"), "volume": c.get("volume")})
+        return out
+
+    def chart(self, mint, interval, t_from_ms, t_to_ms, launch_pool=None, migrated_ms=None):
+        """Свічки [{"time": ms, open, high, low, close, volume}] за відрізок (кешовано).
+
+        Джерело будує графік токена з пулу, що головний зараз. У токена, який переїхав з pump.fun на біржу, це пул
+        біржі, і торгівля на кривій, де стається більшість пампів, приходила кількома свічками (SI 24.09: 13 з 90
+        хвилин діапазону). Тому все, що до міграції, береться з пулу кривої (`/chart/{mint}/{pool}`), решта — як
+        було, а на межі дві відповіді зшиваються: до моменту міграції свічки кривої, після нього — біржі."""
         a, b = int(t_from_ms // 1000), int(t_to_ms // 1000)
         key = self._chart_key(mint, interval, t_from_ms, t_to_ms)
         if self.chart_cache is not None:
@@ -98,17 +115,13 @@ class EarlyST(SolanaTracker):
             if cached is not None:
                 self.chart_cache_hits += 1
                 return cached
-        # dynamicPools: у кожен момент головний пул того часу. Без нього джерело бере пул, що головний зараз, і в токена
-        # після міграції зникають свічки кривої pump.fun — тобто сам памп, який людина має позначити на графіку
-        q = urllib.parse.urlencode({"type": interval, "time_from": a, "time_to": b, "dynamicPools": "true"})
-        d = self._get(f"/chart/{mint}?{q}")
-        out = []
-        for c in (d.get("oclhv") or d.get("data") or []):
-            t = to_ms(c.get("time"))
-            if t is None:
-                continue
-            out.append({"time": t, "open": c.get("open"), "high": c.get("high"),
-                        "low": c.get("low"), "close": c.get("close"), "volume": c.get("volume")})
+        mig = int(migrated_ms // 1000) if (launch_pool and migrated_ms) else None
+        if mig and a < mig:
+            out = [c for c in self._candles(f"/chart/{mint}/{launch_pool}", interval, a, min(b, mig)) if c["time"] < mig * 1000]
+            if b > mig:
+                out += [c for c in self._candles(f"/chart/{mint}", interval, mig, b) if c["time"] >= mig * 1000]
+        else:
+            out = self._candles(f"/chart/{mint}", interval, a, b)
         out.sort(key=lambda c: c["time"])
         if self.chart_cache is not None:
             with self._cache_lock:

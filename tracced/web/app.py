@@ -1169,7 +1169,7 @@ async def candles_json(request):
         with st.meter():
             req0 = st.requests_here()
             try:
-                c = st.chart(mint, tf, a * 1000, b * 1000)
+                c = pipeline._chart(st, mint, tf, a * 1000, b * 1000, info)
                 st.flush()
                 return c
             finally:
