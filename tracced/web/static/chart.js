@@ -24,6 +24,19 @@
   }
   function autoTf(spanSec) { const h = spanSec / 3600; return h <= 24 ? '1m' : h <= 24 * 7 ? '5m' : h <= 24 * 30 ? '15m' : '1h'; }
   const TF_ORDER = ['1m', '5m', '15m', '1h'];
+  /* Where a badge goes when another one already sits there: a few steps up while the chart has room, then a few
+     below, else on top of the other. A bounded list of places, never a loop that waits for a free one: at the top
+     edge "up" stops moving, and an open-ended loop there froze the page (JEANPHIL, migration and DexScreener
+     in the same minute with the price at the top of the chart). */
+  function stackY(x, y0, placed, bottom) {
+    const free = y => !placed.some(q => Math.abs(q.x - x) < 30 && Math.abs(q.y - y) < 30);
+    if (free(y0)) return y0;
+    const tries = [];
+    for (let k = 1; k <= 4; k++) if (y0 - 32 * k >= 18) tries.push(y0 - 32 * k);
+    for (let k = 1; k <= 4; k++) if (y0 + 32 * k <= Math.max(bottom, y0 + 32)) tries.push(y0 + 32 * k);
+    const y = tries.find(free);
+    return y === undefined ? y0 : y;
+  }
   const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 
   window.EarlyChart = function (el, opts) {
@@ -243,9 +256,7 @@
         const x = xOf(e.sec); if (x == null || x > W) return;
         const kind = e.kind || 'ev', prev = drawn[kind];
         if (prev && Math.abs(x - prev.x) < 16) { prev.n++; prev.el.title += '\n' + (e.title || ''); prev.el.dataset.n = prev.n; return; }
-        let y = Math.max(18, yOf(e.sec) ?? 40);
-        while (placed.some(q => Math.abs(q.x - x) < 30 && Math.abs(q.y - y) < 30)) y = Math.max(18, y - 32);   // two kinds side by side stack up
-        if (placed.some(q => Math.abs(q.x - x) < 30 && Math.abs(q.y - y) < 30)) y += 64;                           // no room above: go below
+        const y = stackY(x, Math.max(18, yOf(e.sec) ?? 40), placed, box.clientHeight - 30);
         placed.push({ x, y });
         const d = document.createElement('div'); d.className = 'evdot ' + kind;
         d.style.left = x + 'px'; d.style.top = y + 'px';
