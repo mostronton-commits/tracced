@@ -282,13 +282,39 @@ def _after_buy(age, row):
                 and age["oldest_ms"] > row["first_buy_ms"] + 60_000)
 
 
+def _burst(wallets, born):
+    """Гаманці, народжені пачкою: у кожного за ±BURST_MS є ще щонайменше BUNDLE_MIN − 1 гаманців того самого спонсора."""
+    t = sorted((born[w], w) for w in wallets if born.get(w))
+    out, lo, hi = [], 0, 0
+    for i in range(len(t)):
+        while t[i][0] - t[lo][0] > tags.BURST_MS:
+            lo += 1
+        hi = max(hi, i)
+        while hi + 1 < len(t) and t[hi + 1][0] - t[i][0] <= tags.BURST_MS:
+            hi += 1
+        if hi - lo + 1 >= tags.BUNDLE_MIN:
+            out.append(t[i][1])
+    return out
+
+
 def _bundles(r, rows):
-    """Гаманці зі спільним спонсором (≥ BUNDLE_MIN у цьому списку) → тег bundle. Спонсор-біржа чи застосунок
-    (r["services"], див. WalletAge.is_service) бандла не робить: гаманці, які він поповнив, не знайомі між собою."""
-    from collections import Counter
+    """Гаманці зі спільним спонсором (≥ BUNDLE_MIN у цьому списку) → тег bundle.
+
+    Спонсор-біржа чи застосунок (r["services"], див. WalletAge.is_service) роздає SOL випадковим людям у випадковий
+    час, тож від нього бандл — лише гаманці, народжені пачкою (tags.BURST_MS). Інакше правило сховало б найважливіший
+    випадок: 24.09 на 52qkNp один гаманець за 41 хвилину створив 200 гаманців, і сам через це мав тисячі транзакцій
+    на добу, як біржа."""
+    from collections import defaultdict
     funders, services = r.get("funders") or {}, set(r.get("services") or [])
-    cnt = Counter(f for f in funders.values() if f not in services)
-    r["bundle"] = {w: {"funder": f, "n": cnt[f]} for w, f in funders.items() if cnt[f] >= tags.BUNDLE_MIN}
+    born = {w: a["ms"] for w, a in (r.get("ages") or {}).items() if a and a.get("exact") and a.get("ms")}
+    groups = defaultdict(list)
+    for w, f in funders.items():
+        groups[f].append(w)
+    r["bundle"] = {}
+    for f, ws in groups.items():
+        keep = _burst(ws, born) if f in services else ws
+        if len(keep) >= tags.BUNDLE_MIN:
+            r["bundle"].update({w: {"funder": f, "n": len(keep)} for w in keep})
     for row in rows:                                    # старі результати без угод: теги прямо в рядках
         tl = row.get("tag_list") or []
         if row["wallet"] in r["bundle"] and "bundle" not in tl:
@@ -1824,7 +1850,7 @@ async def job_page(request):
     else:
         result = None
     return render("job.html", request, job=job, save_id=job.canon or job.id, jstatus=status, result=result, s=app["s"], back=_back_link(job),
-                  rows_json=_json_script(_table(result["rows"])) if result else "", bundle_min=tags.BUNDLE_MIN,
+                  rows_json=_json_script(_table(result["rows"])) if result else "", bundle_min=tags.BUNDLE_MIN, burst_ms=tags.BURST_MS,
                   max_my_tags=acct_mod.MAX_MY_TAGS, is_admin=bool(request.get("acct")) and request.get("acct") in app["admins"],
                   age_read=wallet_age_mod.MAX_PAGES * wallet_age_mod.LIMIT,   # скільки транзакцій гаманця читає перевірка віку
                   is_demo=job.id in _demo_job_ids(app) or (job.canon or "") in _demo_job_ids(app),

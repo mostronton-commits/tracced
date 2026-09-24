@@ -17,11 +17,12 @@ DEFS = {
     "pre-range":  "Also bought before the range",
     "transfer-in": "Sold more than it was ever seen buying — the rest arrived another way, usually a transfer",
     "re-bought":  "Bought again after the range",
-    "bundle":     "First SOL from the same wallet as 2+ others here — likely one operator. An exchange or an app (1,000+ transactions a day) does not count",
+    "bundle":     "First SOL from the same wallet as 2+ others here — likely one operator. From an exchange or an app (1,000+ transactions a day) only for wallets created within 30 min of each other",
     "no-exits":   "Exits not fetched (over the cap)",
     "seen-before": "Also an early buyer in another analysis you saved — shown as a chain link, click it for the list",
 }
 BUNDLE_MIN = 3        # стільки гаманців списку з одним спонсором = бандл
+BURST_MS = 30 * 60_000   # від біржі чи застосунку — лише гаманці, народжені за пів години один від одного
 
 SNIPER_MS = 60 * SEC
 FRESH_MS = 24 * HOUR

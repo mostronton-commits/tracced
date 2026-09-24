@@ -90,9 +90,12 @@ wallet gets the same the moment its card is opened, and the answer stays in the 
 SOL came later than the first hundred transactions, the funder stays empty instead of guessed.
 
 A `bundle` is three or more wallets here whose first SOL came from the same wallet. An exchange or an app funds
-thousands of wallets that have nothing to do with each other, so a funder whose latest 1,000 transactions fit into a
-single day does not make a bundle. Its address stays in "Funded by", greyed out. In the PAID demo this was most of
-what looked like bundles: one app's service wallet had funded 154 of the buyers, Coinbase 33.
+thousands of wallets that have nothing to do with each other, at any time. So when a funder's latest 1,000
+transactions fit into a single day, only the wallets it funded within half an hour of each other form a bundle:
+that is how one operator creates wallets for a launch. The rest stay in "Funded by", greyed out. In the PAID demo
+most of what looked like bundles was one app's service wallet (154 of the buyers) and Coinbase (33). On another
+token, one wallet created 200 wallets in 41 minutes, and all of them bought within minutes of the launch: that is
+still a bundle, however busy its funder.
 
 Until the check reaches a wallet, `fresh`, `bundle` and the filters that hide them do not know about it yet. Results
 made before this check existed had only their first {{ s.age_full_top }} checked; their other wallets are checked

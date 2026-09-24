@@ -224,7 +224,7 @@
       let services = new Set();                                  // funders that are exchanges or apps: they make no bundle
       const onChart = [], MAX_ON_CHART = 10, BUY_C = '#34D399', SELL_C = '#F87171';
       const BUNDLE_PAL = ['#C4B5FD', '#FDBA74', '#7DD3FC', '#F9A8D4', '#FCD34D', '#A5B4FC', '#5EEAD4', '#FDA4AF', '#D8B4FE', '#BEF264'];
-      const BUNDLE_MIN = {{ bundle_min }}, TAGDEF = {{ TAGS|tojson }};
+      const BUNDLE_MIN = {{ bundle_min }}, BURST_MS = {{ burst_ms }}, TAGDEF = {{ TAGS|tojson }};
       const CHAIN = '<svg class="lnk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" aria-hidden="true"><g transform="rotate(-45 12 12)"><rect x="1.2" y="7.4" width="12.4" height="9.2" rx="4.6"/><rect x="10.4" y="7.4" width="12.4" height="9.2" rx="4.6"/></g></svg>';   // two links: the repeat marker in the row and the heading of its block in the card
       const COPY = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.8"/><path d="M10.5 5.5V4.3A1.8 1.8 0 0 0 8.7 2.5H4.3a1.8 1.8 0 0 0-1.8 1.8v4.4a1.8 1.8 0 0 0 1.8 1.8h1.2"/></svg>';
       const short = w => w.slice(0, 6) + '…' + w.slice(-4), esc = EarlyTags.esc, fm = EarlyUI.fmtShort;
@@ -236,13 +236,28 @@
       const roiPct = m => { const v = Math.round((m - 1) * 100); return (v > 0 ? '+' : '') + v.toLocaleString('en-US') + '%'; };
       const SOLON = !!(window.EarlyCur && EarlyCur.get() === 'sol');
       const MAXR = all.reduce((m, o) => Math.max(m, Math.abs(o.real || 0)), 0);     // the PnL bar is scaled to the largest one
+      function burst(ws) {
+        // the wallets with at least BUNDLE_MIN - 1 more of the same funder born within BURST_MS of them, as on the server
+        const t = ws.filter(w => ages[w] && ages[w].exact && ages[w].ms).map(w => [ages[w].ms, w]).sort((a, b) => a[0] - b[0]);
+        const out = []; let lo = 0, hi = 0;
+        for (let i = 0; i < t.length; i++) {
+          while (t[i][0] - t[lo][0] > BURST_MS) lo++;
+          hi = Math.max(hi, i);
+          while (hi + 1 < t.length && t[hi + 1][0] - t[i][0] <= BURST_MS) hi++;
+          if (hi - lo + 1 >= BUNDLE_MIN) out.push(t[i][1]);
+        }
+        return out;
+      }
       function rebundle() {
         // wallets whose first SOL came from one funder shared by BUNDLE_MIN or more wallets here; one colour per funder.
-        // An exchange or an app funds thousands of strangers, so its wallets are not a bundle
-        const cnt = {};
-        Object.values(funders).forEach(x => { if (!services.has(x)) cnt[x] = (cnt[x] || 0) + 1; });
+        // An exchange or an app funds strangers at random times, so from one of them only the wallets born together count
+        const groups = {};
+        Object.entries(funders).forEach(([w, x]) => { (groups[x] = groups[x] || []).push(w); });
         bundle = {};
-        Object.entries(funders).forEach(([w, x]) => { if (cnt[x] >= BUNDLE_MIN) bundle[w] = { funder: x, n: cnt[x] }; });
+        Object.entries(groups).forEach(([x, ws]) => {
+          const keep = services.has(x) ? burst(ws) : ws;
+          if (keep.length >= BUNDLE_MIN) keep.forEach(w => { bundle[w] = { funder: x, n: keep.length }; });
+        });
         palette = new Map([...new Set(Object.values(bundle).map(b => b.funder))].sort().map((x, i) => [x, BUNDLE_PAL[i % BUNDLE_PAL.length]]));
       }
       const bundleColor = w => bundle[w] ? palette.get(bundle[w].funder) : null;

@@ -1806,7 +1806,8 @@ class TestJobQueue(unittest.TestCase):
                 return False
 
             def oldest_tx(self, w, refresh=False, full=True, before=None):
-                return {"oldest_ms": 1000, "exact": True, "n": 2, "oldest_sig": "s-" + w}
+                born = {"A1": 1, "A2": 40, "A3": 90}.get(w, 3) * 86_400_000             # біржа поповнювала їх у різні дні
+                return {"oldest_ms": born, "exact": True, "n": 2, "oldest_sig": "s-" + w}
 
             def funder(self, w, sig, scan=True):
                 return funder_of[w]
@@ -1817,7 +1818,7 @@ class TestJobQueue(unittest.TestCase):
 
             def flush(self):
                 pass
-        rows = [{"wallet": w, "first_buy_ms": 5000, "tag_list": []} for w in funder_of]
+        rows = [{"wallet": w, "first_buy_ms": 100 * 86_400_000, "tag_list": []} for w in funder_of]
         job = SimpleNamespace(result={"rows": rows}, log=[])
         ages = Ages()
         make_enricher(ages, {"age_lookups_max": 10})(job, lambda j: True)
@@ -1829,6 +1830,16 @@ class TestJobQueue(unittest.TestCase):
         old["services"] = ["EXCH"]
         _bundles(old, old["rows"])
         self.assertEqual([row["wallet"] for row in old["rows"] if "bundle" in row["tag_list"]], ["B1", "B2", "B3"])
+        # той, хто створив гаманці пачкою під запуск, лишається бандлом, хоч і робить тисячі транзакцій на добу
+        launch = {f"L{i}": "BUNDLER" for i in range(5)}
+        launch.update({"C1": "BUNDLER", "C2": "BUNDLER"})
+        t0 = 1_790_000_000_000
+        ages = {f"L{i}": {"ms": t0 + i * 5 * 60_000, "exact": True} for i in range(5)}        # п'ять за 20 хвилин
+        ages.update({"C1": {"ms": t0 - 30 * 86_400_000, "exact": True}, "C2": {"ms": t0 - 60 * 86_400_000, "exact": True}})
+        res = {"funders": launch, "services": ["BUNDLER"], "ages": ages}
+        _bundles(res, [])
+        self.assertEqual(sorted(res["bundle"]), [f"L{i}" for i in range(5)])      # давні гаманці того ж спонсора — ні
+        self.assertEqual(res["bundle"]["L0"]["n"], 5)
         with tempfile.TemporaryDirectory() as d:
             done = {"done": 1, "total": 1, "funders_done": 1}
             self._file(d, "unchecked", created_ms=1, result={"rows": [{"wallet": "w"}], "enrich": dict(done), "funders": {"w": "F"}})
