@@ -9,6 +9,9 @@ from ..util import http_get_json, to_ms
 BASE = "https://data.solanatracker.io"
 
 
+PAGE = 500          # стеля сторінки /trades; за замовчуванням вони дають 250, тобто вдвічі більше запитів
+
+
 def _usd(v):
     """Поля ST вида {usd, quote} → берём usd; если уже число — как есть."""
     if isinstance(v, dict):
@@ -116,7 +119,7 @@ class SolanaTracker(PumpDataSource):
         cursor = None
         pages = 0
         while pages < max_pages:
-            path = f"/trades/{mint}?sortDirection=ASC"
+            path = f"/trades/{mint}?sortDirection=ASC&limit={PAGE}"
             if cursor:
                 path += f"&cursor={cursor}"
             d = self._get(path)
@@ -140,7 +143,7 @@ class SolanaTracker(PumpDataSource):
         cursor = int(t_from)
         pages = 0
         while pages < max_pages:
-            path = f"/trades/{mint}?sortDirection=ASC&cursor={cursor}"
+            path = f"/trades/{mint}?sortDirection=ASC&limit={PAGE}&cursor={cursor}"
             d = self._get(path)
             pages += 1
             for tr in d.get("trades", []) or []:

@@ -70,7 +70,7 @@ class EarlyST(SolanaTracker):
 
     def wallet_token_trades(self, wallet, mint, max_pages=4):
         """All trades of one wallet on one token (ST `/trades/{mint}/by-wallet/{owner}`, ASC, cursor
-        pages of 250; 1 request per page, cached). Same raw swaps as the token feed, filtered by
+        pages of 500; 1 request per page, cached). Same raw swaps as the token feed, filtered by
         wallet on their side. Cursor is exclusive (time > cursor), so pages restart one ms before the last
         time and duplicates are dropped by tx — otherwise trades sharing the boundary second are lost."""
         key = f"trades:{mint}:{wallet}"
@@ -82,7 +82,7 @@ class EarlyST(SolanaTracker):
                 return cached
         out, seen, cursor = [], set(), None
         for _ in range(max_pages):
-            q = f"/trades/{mint}/by-wallet/{wallet}?sortDirection=ASC" + (f"&cursor={int(cursor)}" if cursor else "")
+            q = f"/trades/{mint}/by-wallet/{wallet}?sortDirection=ASC&limit=500" + (f"&cursor={int(cursor)}" if cursor else "")
             d = self._get(q)
             page = [normalize(tr) for tr in (d.get("trades") or [])]
             fresh = [tr for tr in page if tr["tx"] not in seen]
