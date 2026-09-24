@@ -295,6 +295,9 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
     }
     rows, sm = scope.rows_for(result, "all", s)
     result["rows"], result["summary"] = rows, sm
+    who = getattr(st, "identity", None)                  # хто стоїть за гаманцем: зібрано з тих самих сторінок угод
+    if who:
+        result["identities"] = {r["wallet"]: idn for r in rows if (idn := who(r["wallet"]))}
     counts.update(n_trades=lstats["n_trades"], n_early=len(rows), n_wallets=len(wl), **counts_extra)
     log(f"done ({mode}): {len(rows)} wallets bought in the range; {report.coverage_text(coverage)}; "
         f"requests {result['requests']}")

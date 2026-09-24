@@ -40,6 +40,16 @@ class FakeWebST(FakeST):
             raise RuntimeError("feed down")
         return super().trades_page(mint, cursor)
 
+    def wallet_swaps(self, owner, since_ms, max_pages=5):
+        """Обміни гаманця по всіх токенах: одна купівля і один продаж з прибутком $50."""
+        self.requests += 1
+        sol = "So11111111111111111111111111111111111111112"
+        t = since_ms + 86_400_000
+        return [{"tx": "p1", "wallet": owner, "time": t, "from": {"address": sol, "amount": 1.0},
+                 "to": {"address": "TOKA", "amount": 1000, "token": {"symbol": "TOKA"}}, "volume": {"usd": 100.0, "sol": 1.0}},
+                {"tx": "p2", "wallet": owner, "time": t + 3_600_000, "from": {"address": "TOKA", "amount": 1000},
+                 "to": {"address": sol, "amount": 1.5}, "volume": {"usd": 150.0, "sol": 1.5}}], False
+
     def chart(self, mint, interval, t_from, t_to):
         self.requests += 1
         # ×10 vs trades: with supply 1e6 the cap goes 1M→6M, above min_peak_mcap, so the detector hints
@@ -453,6 +463,57 @@ if AioHTTPTestCase:
             self.assertGreater(spent, 0)
             self.assertEqual(self.app["browse_daily"].left("global", 300), 300 - spent)   # оплачено з бюджету
             self.app["admins"] = {TEST_PK}
+
+        async def test_wallet_profile_is_gated_charged_and_cached(self):
+            # картка гаманця: лише гаманці аналізу; новий профіль — з гаманцем і з бюджету; з кешу — будь-кому і безкоштовно
+            jid, mint = "EEEEEE_20010909-0146_0206", "E" * 40
+            listed, unlisted = acct_mod.b58encode(b"\x05" * 32), acct_mod.b58encode(b"\x06" * 32)
+            stored = {"id": jid, "mint": mint, "t_from": 999999960000, "t_to": 1000001160000, "t_exit": None, "status": "done", "error": None,
+                      "created_ms": 1, "started_ms": 1, "finished_ms": 2, "symbol_hint": "EEE", "progress": {"phase": "done", "done": 1, "total": 1}, "log": [],
+                      "result": {"info": {"mint": mint, "symbol": "EEE", "supply": 1000000, "created_time": 999996400000},
+                                 "window": {"from": 999999960000, "to": 1000001160000, "end": 1000003560000}, "mode": "wallet-trades",
+                                 "counts": {"n_wallets": 1, "n_trades": 3, "n_early": 1}, "coverage": {"exits_known": 0, "total": 1, "mode": "wallet-trades"},
+                                 "wallet_trades": {}, "rows": [{"wallet": listed}], "scope": "all", "requests": 0}}
+            with open(f"{self.tmp.name}/web/{jid}.json", "w") as f:
+                json.dump(stored, f)
+            self.app["jobs"]._load()
+            before = self.st.requests
+            r = await self.client.get(f"/wallet_profile.json?job={jid}&wallet={unlisted}")
+            self.assertEqual(r.status, 404)                             # чужа адреса — жодного запиту
+            r = await self.client.get(f"/wallet_profile.json?job={jid}&wallet={listed}", headers=GUEST)
+            self.assertEqual(r.status, 401)                             # гість не купує профіль
+            self.assertIn("last 30 days", (await r.json())["error"])
+            self.assertEqual(self.st.requests, before)
+            self.app["admins"] = set()
+            left0 = self.app["browse_daily"].left("global", 300)
+            r = await self.client.get(f"/wallet_profile.json?job={jid}&wallet={listed}")
+            self.assertEqual(r.status, 200, await r.text())
+            d = await r.json()
+            self.assertAlmostEqual(d["pnl_usd"], 50.0)
+            self.assertEqual((d["closed"], d["wins"], d["tokens"]), (1, 1, 1))
+            self.assertEqual(self.st.requests - before, 1)
+            self.assertEqual(self.app["browse_daily"].left("global", 300), left0 - 1)   # оплачено з бюджету, резерв повернуто
+            r = await self.client.get(f"/wallet_profile.json?job={jid}&wallet={listed}", headers=GUEST)
+            self.assertEqual(r.status, 200)                             # з кешу — навіть гостю
+            self.assertEqual(self.st.requests - before, 1)              # і без другого запиту
+            self.app["admins"] = {TEST_PK}
+
+        async def test_enrich_json_carries_ages_and_identities(self):
+            jid, mint = "FFFFFF_20010909-0146_0206", "F" * 40
+            w = acct_mod.b58encode(b"\x04" * 32)
+            stored = {"id": jid, "mint": mint, "t_from": 999999960000, "t_to": 1000001160000, "t_exit": None, "status": "done", "error": None,
+                      "created_ms": 1, "started_ms": 1, "finished_ms": 2, "symbol_hint": "FFF", "progress": {"phase": "done", "done": 1, "total": 1}, "log": [],
+                      "result": {"info": {"mint": mint, "symbol": "FFF", "supply": 1000000, "created_time": 999996400000},
+                                 "window": {"from": 999999960000, "to": 1000001160000, "end": 1000003560000}, "mode": "wallet-trades",
+                                 "counts": {}, "coverage": {}, "wallet_trades": {}, "rows": [{"wallet": w}], "scope": "all", "requests": 0,
+                                 "ages": {w: {"ms": 999000000000, "exact": True}},
+                                 "identities": {w: {"name": "Cented", "twitter": "@Cented7", "type": "kol"}}}}
+            with open(f"{self.tmp.name}/web/{jid}.json", "w") as f:
+                json.dump(stored, f)
+            self.app["jobs"]._load()
+            d = await (await self.client.get(f"/job/{jid}.enrich.json")).json()
+            self.assertEqual(d["ages"][w]["ms"], 999000000000)
+            self.assertEqual(d["identities"][w]["twitter"], "@Cented7")
 
         async def test_analyze_charges_the_overview_and_validates_before_asking_for_a_wallet(self):
             # гість з хибними межами дізнається про це до підключення; огляд токена оплачений; кешований огляд безкоштовний

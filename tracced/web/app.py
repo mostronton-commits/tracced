@@ -28,7 +28,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from ..cache import JsonCache
 from ..config import DEFAULTS as CFG_DEFAULTS
-from ..early import assistant as assistant_mod, pipeline, report, scope, tags, window
+from ..early import assistant as assistant_mod, pipeline, profile, report, scope, tags, window
 from ..early.store import TradeStore
 from ..providers import dexscreener
 from . import accounts as acct_mod
@@ -115,6 +115,8 @@ def make_enricher(ages, s):
                 if e["failed"] <= 3:
                     job.log.append(f"age lookup failed for {row['wallet'][:8]}…: {str(ex)[:60]}")
                 age = None
+            if age and age.get("oldest_ms"):                # картка показує перший підпис гаманця
+                r.setdefault("ages", {})[row["wallet"]] = {"ms": age["oldest_ms"], "exact": bool(age.get("exact"))}
             if age and tags.is_fresh(row.get("first_buy_ms"), age) and "fresh" not in (row.get("tag_list") or []):
                 row["tag_list"] = tags.with_tag(row.get("tag_list"), "fresh")
                 row["tags"] = "|".join(row["tag_list"])
@@ -179,6 +181,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["st_slots"] = threading.BoundedSemaphore(max(1, int(s.get("st_concurrency", 1) or 1)) + 1)   # +1: сторінка не чекає за прогоном
     app["overview_cache"], app["overview_pending"] = {}, {}
     app["dex_cache"] = JsonCache(str(Path(store_dir) / "dexscreener.json"), ttl_hours=24)   # чужий безкоштовний ендпоінт: добу тримаємо відповідь
+    app["profile_cache"] = JsonCache(str(Path(store_dir) / "wallet_profile.json"),             # картка гаманця: 1-5 запитів, добу з кешу
+                                     ttl_hours=float(s.get("wallet_profile_ttl_hours", 24)), flush_every=1)
     app["accounts"] = acct_mod.AccountStore(Path(out_dir).parent / "accounts")   # поруч з web/ і demo/ у output/early
     app["nonces"] = acct_mod.NonceStore()
     app["events"] = acct_mod.EventLog(Path(out_dir).parent / "accounts" / "_events.jsonl")
@@ -215,6 +219,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_get("/marks.json", marks_json)
     app.router.add_post("/analyze", analyze)
     app.router.add_get("/wallet_trades.json", wallet_trades_json)
+    app.router.add_get("/wallet_profile.json", wallet_profile_json)
     app.router.add_get("/job/{id}.state.json", job_state_json)     # before .json: {id} would swallow ".state"
     app.router.add_get("/job/{id}.enrich.json", job_enrich_json)   # before .json: {id} would swallow ".enrich"
     app.router.add_get("/job/{id}.csv", job_csv)     # before /job/{id}: {id} would swallow the dot
@@ -1374,7 +1379,56 @@ async def job_enrich_json(request):
     e = job.result.get("enrich") or {"done": 0, "total": 0, "fresh": 0}
     fresh = [r["wallet"] for r in job.result.get("rows") or [] if "fresh" in (r.get("tag_list") or [])]
     return web.json_response({"done": e.get("done", 0), "total": e.get("total", 0), "fresh": fresh,
-                              "funders": job.result.get("funders") or {}, "bundle": job.result.get("bundle") or {}})
+                              "funders": job.result.get("funders") or {}, "bundle": job.result.get("bundle") or {},
+                              "ages": job.result.get("ages") or {}, "identities": job.result.get("identities") or {}})
+
+
+async def wallet_profile_json(request):
+    """The wallet's last days on every token, counted by our own ledger from its raw swaps: PnL, win rate, holds.
+
+    1-5 requests, cached for a day. Only wallets that appear in this analysis are looked up (the site does not
+    resell Solana Tracker for arbitrary addresses). A cached profile is free for anyone; a new one needs a
+    connected wallet and is paid from the same daily budget as charts."""
+    app = request.app
+    job = app["jobs"].get(request.query.get("job", ""))
+    if not job or job.status != "done" or not job.result:
+        raise web.HTTPNotFound(text="No result yet.")
+    wallet = request.query.get("wallet", "")
+    if not MINT_RE.match(wallet):
+        raise WebError("That does not look like a wallet address.")
+    if wallet not in {r.get("wallet") for r in job.result.get("rows") or []}:
+        raise web.HTTPNotFound(text="That wallet is not in this analysis.")
+    cache = app["profile_cache"]
+    hit = cache.get(wallet)
+    if hit is not None:
+        return web.json_response(hit)
+    if not request.get("acct"):
+        raise ConnectRequired(message="Connect a wallet to load this wallet's last 30 days.")
+    st, s = app["st"], app["s"]
+    if not hasattr(st, "wallet_swaps"):
+        raise WebError("This data source cannot list a wallet's trades.", 501)
+    days, pages = int(s.get("profile_days", 30)), int(s.get("profile_max_pages", 5))
+    settle = _browse_budget(request, 3)
+
+    def work():
+        with st.meter():
+            req0 = st.requests_here()
+            try:
+                now = int(time.time() * 1000)
+                raw, partial = st.wallet_swaps(wallet, now - days * 86_400_000, pages)
+                evs = [ev for r in raw for ev in profile.normalize_wallet_swap(r, wallet)]
+                out = profile.summary(evs, wallet, now, days, partial)
+                out["computed_ms"] = now
+                cache.put(wallet, out)
+                return out
+            finally:
+                settle(st.requests_here() - req0)
+    try:
+        out = await asyncio.to_thread(work)
+    except Exception as e:  # noqa: BLE001
+        log.warning("wallet profile %s: %s", wallet[:8], e)
+        raise WebError("Solana Tracker did not answer for this wallet. Try again in a minute.", 502)
+    return web.json_response(out)
 
 
 async def wallet_trades_json(request):

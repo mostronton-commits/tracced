@@ -11,22 +11,52 @@ import urllib.parse
 from ..providers.solana_tracker import PAGE, SolanaTracker
 from ..util import to_ms
 from .ledger import normalize
+from .profile import compact_identity
 
 
 class EarlyST(SolanaTracker):
-    def __init__(self, api_key, chart_cache=None, stats_cache=None, **kw):
+    def __init__(self, api_key, chart_cache=None, stats_cache=None, identity_cache=None, **kw):
         super().__init__(api_key, **kw)
         self.chart_cache = chart_cache
         self.stats_cache = stats_cache
+        # хто стоїть за гаманцем (KOL, Twitter, платформа) приходить у тих самих сторінках угод з enrich=identity:
+        # збираємо по дорозі, окремих запитів нема. Без цього кешу параметр не додається зовсім
+        self.identity_cache = identity_cache
         self.chart_cache_hits = 0
         self.stats_cache_hits = 0
         # кеш свічок читають/пишуть кілька потоків (сторінка + робочий потік): без замка два
         # одночасні flush() ламались об os.replace того самого тимчасового файлу
         self._cache_lock = threading.Lock()
 
+    def _enrich(self):
+        return "&enrich=identity" if self.identity_cache is not None else ""
+
+    def _harvest(self, raws):
+        """Ідентичність з сирих угод → кеш (лише відомі гаманці; невідомі приходять з identity: null)."""
+        if self.identity_cache is None:
+            return
+        found = {}
+        for tr in raws:
+            idn = compact_identity(tr.get("identity"))
+            if idn and tr.get("wallet"):
+                found[tr["wallet"]] = idn
+        if found:
+            with self._cache_lock:
+                for w, idn in found.items():
+                    if self.identity_cache.get(w) != idn:
+                        self.identity_cache.put(w, idn)
+
+    def identity(self, wallet):
+        """Ідентичність гаманця, якщо Solana Tracker її колись повертав; None — невідомий або ще не бачили."""
+        if self.identity_cache is None:
+            return None
+        with self._cache_lock:
+            return self.identity_cache.get(wallet)
+
     def trades_page(self, mint, cursor_ms):
         """Одна сторінка угод від cursor_ms (ASC). Повертає нормалізовані угоди + курсор далі."""
-        d = self._get(f"/trades/{mint}?sortDirection=ASC&limit={PAGE}&cursor={int(cursor_ms)}")
+        d = self._get(f"/trades/{mint}?sortDirection=ASC&limit={PAGE}&cursor={int(cursor_ms)}{self._enrich()}")
+        self._harvest(d.get("trades") or [])
         return {
             "trades": [normalize(tr) for tr in (d.get("trades") or [])],
             "hasNextPage": bool(d.get("hasNextPage")),
@@ -83,8 +113,10 @@ class EarlyST(SolanaTracker):
                 return cached
         out, seen, cursor = [], set(), None
         for _ in range(max_pages):
-            q = f"/trades/{mint}/by-wallet/{wallet}?sortDirection=ASC&limit={PAGE}" + (f"&cursor={int(cursor)}" if cursor else "")
+            q = (f"/trades/{mint}/by-wallet/{wallet}?sortDirection=ASC&limit={PAGE}{self._enrich()}"
+                 + (f"&cursor={int(cursor)}" if cursor else ""))
             d = self._get(q)
+            self._harvest(d.get("trades") or [])
             page = [normalize(tr) for tr in (d.get("trades") or [])]
             fresh = [tr for tr in page if tr["tx"] not in seen]
             seen.update(tr["tx"] for tr in fresh)
@@ -102,9 +134,34 @@ class EarlyST(SolanaTracker):
                 self.stats_cache.put(key, out)
         return out
 
+    def wallet_swaps(self, owner, since_ms, max_pages=5):
+        """Обміни гаманця по всіх токенах (`/wallet/{owner}/trades`, від нових до старих, до 1000 на сторінку),
+        доки не дійдемо до since_ms або до max_pages сторінок. 1 запит на сторінку, без кешу: підсумок кешує той,
+        хто кличе. Повертає (сирі обміни, partial): partial — сторінки скінчились раніше, ніж потрібна дата.
+
+        Курсор — час, і межова секунда може прийти на обох сторінках: дублікати відкидаємо за транзакцією і ногами."""
+        out, seen, cursor, partial = [], set(), None, False
+        for page in range(max_pages):
+            d = self._get(f"/wallet/{owner}/trades" + (f"?cursor={urllib.parse.quote(str(cursor))}" if cursor is not None else ""))
+            trs = d.get("trades") or []
+            for tr in trs:
+                key = (tr.get("tx"), (tr.get("from") or {}).get("address"), (tr.get("to") or {}).get("address"),
+                       (tr.get("from") or {}).get("amount"))
+                if tr.get("tx") and key in seen:
+                    continue
+                seen.add(key)
+                out.append(tr)
+            times = [t for t in (to_ms(tr.get("time")) for tr in trs) if t is not None]
+            if not trs or not d.get("hasNextPage") or d.get("nextCursor") is None or (times and min(times) < since_ms):
+                break
+            cursor = d.get("nextCursor")
+            if page == max_pages - 1:
+                partial = True                          # сторінки скінчились, а до потрібної дати ще не дійшли
+        return out, partial
+
     def flush(self):
         with self._cache_lock:
             super().flush()
-            for c in (self.chart_cache, self.stats_cache):
+            for c in (self.chart_cache, self.stats_cache, self.identity_cache):
                 if c is not None:
                     c.flush()
