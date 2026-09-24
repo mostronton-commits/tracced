@@ -271,6 +271,7 @@ def make_enricher(ages, s):
         e["funders_done"] = n
         services()
         _bundles(r, rows)
+        r["bundle_rev"] = tags.BUNDLE_REV                   # бандли пораховані чинним правилом
         save(job)
         ages.flush()
     return enrich

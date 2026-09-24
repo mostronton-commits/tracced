@@ -1823,7 +1823,7 @@ class TestJobQueue(unittest.TestCase):
         ages = Ages()
         make_enricher(ages, {"age_lookups_max": 10})(job, lambda j: True)
         r = job.result
-        self.assertEqual((r["services"], sorted(r["bundle"])), (["EXCH"], ["B1", "B2", "B3"]))
+        self.assertEqual((r["services"], sorted(r["bundle"]), r["bundle_rev"]), (["EXCH"], ["B1", "B2", "B3"], 2))
         self.assertEqual(sorted(ages.checked), ["EXCH", "PERSON"])                 # по разу на спонсора бандла
         self.assertEqual([row["wallet"] for row in rows if "bundle" in row["tag_list"]], ["B1", "B2", "B3"])
         old = {"funders": dict(funder_of), "rows": [dict(row, tag_list=["bundle"], tags="bundle") for row in rows]}
@@ -1843,7 +1843,8 @@ class TestJobQueue(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             done = {"done": 1, "total": 1, "funders_done": 1}
             self._file(d, "unchecked", created_ms=1, result={"rows": [{"wallet": "w"}], "enrich": dict(done), "funders": {"w": "F"}})
-            self._file(d, "checked", created_ms=2, result={"rows": [{"wallet": "w"}], "enrich": dict(done), "funders": {"w": "F"}, "services": []})
+            self._file(d, "checked", created_ms=2, result={"rows": [{"wallet": "w"}], "enrich": dict(done), "funders": {"w": "F"},
+                                                         "services": [], "bundle_rev": 2})
             seen = []
             q = JobQueue(lambda j: None, d, enricher=lambda job, save: seen.append(job.id), enrich_upto=1)
             q.eq.join()
