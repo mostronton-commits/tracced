@@ -18,6 +18,10 @@ nothing: the trades are already here.
 Raw swaps from the [Solana Tracker Data API](https://www.solanatracker.io/data-api). Market cap is the swap price
 times the token supply, so an entry cap is the cap at that exact trade.
 
+The chart is Solana Tracker's candles. Some tokens trade for hours in a pool the source does not chart, often right
+after they leave pump.fun, and that is usually the pump itself. Once a range is analyzed, the chart fills those
+stretches with candles built from the trades the analysis already holds, so they cost nothing.
+
 The range is always fetched in full. For each wallet's history the app then takes the cheaper of two **complete**
 paths: the token's whole trade history, or each wallet's own trades. Completeness decides, not price. The line
 above the table says which path ran and for how many wallets exits are known.
