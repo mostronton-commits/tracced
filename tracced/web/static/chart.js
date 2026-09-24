@@ -103,7 +103,10 @@
       try {
         const had = data.size;
         const rows = await fetchChunk(a, b); if (my !== gen) return;
-        const keep = data.size ? chart.timeScale().getVisibleRange() : null;   // chunks must not move the view
+        // chunks must not move the view. The logical range, not the time range: the time range covers only bars
+        // that exist, so a view panned into the empty space before the first candle snapped back towards the
+        // range every time older candles arrived, and the start of an old token could never be reached
+        const keepL = data.size ? chart.timeScale().getVisibleLogicalRange() : null, firstBefore = times[0];
         rows.forEach(c => data.set(c.time, c));
         if (dir && data.size === had) edge[dir] = true;                        // asked that way, got nothing new: that edge is done
         if (rows.length) {                                                     // trust the candles that came back, not the range we asked for
@@ -116,7 +119,10 @@
         series.setData(sorted);
         if (vol) vol.setData(sorted.map(c => ({ time: c.time, value: c.volume || 0, color: c.close >= c.open ? 'rgba(167, 243, 208, 0.28)' : 'rgba(148, 163, 184, 0.22)' })));
         renderMarkers();
-        if (keep) chart.timeScale().setVisibleRange(keep);
+        if (keepL) {
+          const shift = firstBefore == null ? 0 : Math.max(0, times.indexOf(firstBefore));   // bars that arrived on the left
+          chart.timeScale().setVisibleLogicalRange({ from: keepL.from + shift, to: keepL.to + shift });
+        }
       } finally { busy = false; el.classList.remove('loading'); place(); }
     }
     function visible() { const r = chart.timeScale().getVisibleRange(); return r ? { a: r.from, b: r.to } : null; }
@@ -238,7 +244,8 @@
         if (prev && Math.abs(x - prev.x) < 16) { prev.n++; prev.el.title += '\n' + (e.title || ''); prev.el.dataset.n = prev.n; return; }
         const d = document.createElement('div'); d.className = 'evdot ' + kind;
         d.style.left = x + 'px'; d.style.top = (yOf(e.sec) ?? (box.clientHeight - 74)) + 'px';
-        d.textContent = e.badge || '•'; d.title = e.title || '';
+        if (e.html) d.innerHTML = e.html; else d.textContent = e.badge || '•';
+        d.title = e.title || '';
         layer.appendChild(d);
         drawn[kind] = { x, el: d, n: 1 };
       });
@@ -301,6 +308,10 @@
     const back = document.createElement('button'); back.type = 'button'; back.className = 'tf back'; back.textContent = '⌖ Range'; back.title = 'Bring the selected range back into view';
     back.addEventListener('click', () => { const w = windows[selected] || windows[0]; if (w && w.from && w.to) focus(w.from, w.to, null); });
     tfs.appendChild(back);
+    const launch = document.createElement('button'); launch.type = 'button'; launch.className = 'tf back'; launch.textContent = '⇤ Launch';
+    launch.title = 'The first hours of trading';
+    launch.addEventListener('click', () => focus(created, created + 3 * 3600, null));
+    tfs.appendChild(launch);
     el.appendChild(tfs);
 
     return {

@@ -11,7 +11,6 @@
 Усе тут чисте: без мережі, тестується на фікстурах.
 """
 from ..util import to_ms
-from . import ledger
 
 DAY = 86_400_000
 WSOL = "So11111111111111111111111111111111111111112"
@@ -31,7 +30,7 @@ CASH = {
     "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1",          # bSOL
 }
 CLOSED_SHARE = 99.0          # позиція закрита, коли продано стільки відсотків купленого
-VERSION = 2                  # змінився порахунок — нова версія, і картки з кешу рахуються заново
+VERSION = 3                  # змінився порахунок — нова версія, і картки з кешу рахуються заново
 
 
 def _num(v):
@@ -90,49 +89,157 @@ def normalize_wallet_swap(raw, wallet=None, cash=CASH):
     return out
 
 
+class _Book:
+    """Одна позиція гаманця в одному токені: середня собівартість, та сама арифметика, що в ledger.build."""
+    __slots__ = ("mint", "symbol", "qty", "cost", "cost_sol", "invested", "realized", "realized_sol", "bought", "sold",
+                 "buys", "sells", "orphan_sells", "sol_seen", "sol_gap", "first_buy_t", "last_sell_t", "last_t")
+
+    def __init__(self, mint, symbol):
+        self.mint, self.symbol = mint, symbol
+        self.qty = self.cost = self.cost_sol = self.invested = self.realized = self.realized_sol = 0.0
+        self.bought = self.sold = 0.0
+        self.buys = self.sells = self.orphan_sells = 0
+        self.sol_seen = self.sol_gap = False
+        self.first_buy_t = self.last_sell_t = self.last_t = None
+
+    @property
+    def share(self):
+        return self.sold / self.bought * 100 if self.bought else 0.0
+
+
+def _replay(evs):
+    """Події → позиції по токенах і реалізоване кожного продажу в часі [(ms, $)].
+
+    Правила ті самі, що в ledger.build, щоб картка і таблиця ніколи не рахували по-різному: продаж без позиції —
+    не вихід і не прибуток; продаж понад куплене рахується лише на куплену частину."""
+    books, deltas = {}, []
+    for e in sorted(evs, key=lambda x: x["time"]):
+        qty, usd = float(e.get("qty") or 0), float(e.get("usd") or 0)
+        if qty <= 0:
+            continue
+        sol = e.get("sol")
+        sol = float(sol) if sol is not None else None
+        b = books.get(e["mint"])
+        if b is None:
+            b = books[e["mint"]] = _Book(e["mint"], e.get("symbol"))
+        b.symbol = b.symbol or e.get("symbol")
+        b.last_t = e["time"]
+        if e["type"] == "buy":
+            b.buys += 1
+            b.qty += qty
+            b.cost += usd
+            b.invested += usd
+            b.bought += qty
+            if sol is not None:
+                b.cost_sol += sol
+                b.sol_seen = True
+            else:
+                b.sol_gap = True
+            if b.first_buy_t is None:
+                b.first_buy_t = e["time"]
+        elif e["type"] == "sell":
+            if b.qty <= 0:
+                b.orphan_sells += 1                  # купив раніше або отримав переказом
+                continue
+            b.sells += 1
+            part = min(qty, b.qty)
+            avg = b.cost / b.qty
+            got = usd * (part / qty)
+            d = got - avg * part
+            b.realized += d
+            deltas.append((e["time"], d))
+            if sol is not None:
+                avg_sol = b.cost_sol / b.qty
+                b.realized_sol += sol * (part / qty) - avg_sol * part
+                b.cost_sol -= avg_sol * part
+                b.sol_seen = True
+            else:
+                b.sol_gap = True
+            b.sold += part
+            b.qty -= part
+            b.cost -= avg * part
+            b.last_sell_t = e["time"]
+    return books, deltas
+
+
+DIST = ((">500", 500, None), ("200-500", 200, 500), ("50-200", 50, 200), ("0-50", 0, 50), ("-50-0", -50, 0), ("<-50", None, -50))
+
+
+def _bucket(roi):
+    for name, lo, hi in DIST:
+        if (lo is None or roi >= lo) and (hi is None or roi < hi):
+            return name
+    return "<-50"
+
+
+def _days(deltas):
+    """Реалізоване по днях (UTC): [(початок дня, $)] за зростанням, лише дні з продажами."""
+    by = {}
+    for t, d in deltas:
+        day = t - t % DAY
+        by[day] = by.get(day, 0.0) + d
+    return sorted(by.items())
+
+
+def _streaks(daily):
+    best = worst = cur_w = cur_l = 0
+    for _, v in daily:
+        cur_w, cur_l = (cur_w + 1, 0) if v > 0 else (0, cur_l + 1) if v < 0 else (0, 0)
+        best, worst = max(best, cur_w), max(worst, cur_l)
+    return best, worst
+
+
+def _drawdown(daily):
+    """Найбільше падіння накопиченого реалізованого від піку, у доларах."""
+    peak = cum = dd = 0.0
+    for _, v in daily:
+        cum += v
+        peak = max(peak, cum)
+        dd = max(dd, peak - cum)
+    return dd
+
+
 def summary(events, wallet, now_ms, days=30, partial=False):
     """Підсумок гаманця за останні `days` днів з подій (normalize_wallet_swap).
 
     PnL — сума реалізованого по токенах, куплених і проданих у вікні (середня собівартість, як у таблиці).
     Win rate — частка прибуткових серед закритих позицій (продано ≥ 99 % купленого). Утримання — від першої
     купівлі до останнього продажу закритої позиції. `unbacked_tokens` — токени, які гаманець продавав у вікні,
-    не купивши в ньому: їхній прибуток невідомий і в PnL не входить."""
+    не купивши в ньому: їхній прибуток невідомий і в PnL не входить. Розподіл — закриті позиції за ROI у %,
+    дні — реалізоване по днях UTC, з них найкращий і найгірший день, серії і найбільше просідання."""
     since = now_ms - days * DAY
     evs = [e for e in events if e.get("time") is not None and since <= e["time"] <= now_ms]
-    by_mint, symbols = {}, {}
-    for e in evs:
-        by_mint.setdefault(e["mint"], []).append(e)
-        if e.get("symbol"):
-            symbols[e["mint"]] = e["symbol"]
+    books, deltas = _replay(evs)
     pnl = pnl_sol = invested = 0.0
     sol_ok = True
     closed = wins = open_ = unbacked = 0
     holds, per_token = [], []
-    for mint, es in by_mint.items():
-        book, _ = ledger.build(es, 0, now_ms, now_ms)
-        l = book.get(wallet)
-        if l is None:
-            continue
-        if l.buys == 0:
+    dist = {name: 0 for name, _, _ in DIST}
+    for b in books.values():
+        if b.buys == 0:
             unbacked += 1                           # лише продажі: купив раніше або отримав переказом
             continue
-        pnl += l.realized
-        invested += l.invested
-        if l.sol_seen and not l.sol_gap:
-            pnl_sol += l.realized_sol
+        pnl += b.realized
+        invested += b.invested
+        if b.sol_seen and not b.sol_gap:
+            pnl_sol += b.realized_sol
         else:
             sol_ok = False
-        share = l.sold_qty / l.bought_qty * 100 if l.bought_qty else 0.0
-        if share >= CLOSED_SHARE:
+        if b.share >= CLOSED_SHARE:
             closed += 1
-            wins += l.realized > 0
-            if l.first_buy_t is not None and l.last_sell_t is not None:
-                holds.append((l.last_sell_t - l.first_buy_t) / 60_000)
+            wins += b.realized > 0
+            if b.invested > 0:
+                dist[_bucket(b.realized / b.invested * 100)] += 1
+            if b.first_buy_t is not None and b.last_sell_t is not None:
+                holds.append((b.last_sell_t - b.first_buy_t) / 60_000)
         else:
             open_ += 1
-        per_token.append({"mint": mint, "symbol": symbols.get(mint), "realized_usd": l.realized,
-                          "closed": share >= CLOSED_SHARE})
+        per_token.append({"mint": b.mint, "symbol": b.symbol, "realized_usd": b.realized, "closed": b.share >= CLOSED_SHARE})
     per_token.sort(key=lambda x: -x["realized_usd"])
+    daily = _days(deltas)
+    best_w, best_l = _streaks(daily)
+    hi = max(daily, key=lambda x: x[1], default=None)
+    lo = min(daily, key=lambda x: x[1], default=None)
     oldest = min((e["time"] for e in evs), default=None)
     return {
         "wallet": wallet,
@@ -140,19 +247,66 @@ def summary(events, wallet, now_ms, days=30, partial=False):
         "since_ms": since,
         "oldest_ms": oldest,
         "swaps": len({e.get("tx") or id(e) for e in evs}),   # обмін токена на токен — дві події, але один обмін
+        "buys": sum(1 for e in evs if e["type"] == "buy"),
+        "sells": sum(1 for e in evs if e["type"] == "sell"),
+        "volume_usd": sum(float(e.get("usd") or 0) for e in evs),
         "tokens": closed + open_,
         "pnl_usd": pnl,
         "pnl_sol": pnl_sol if (sol_ok and (closed + open_)) else None,
         "invested_usd": invested,
         "closed": closed,
         "wins": wins,
+        "losses": closed - wins,
         "open": open_,
         "win_rate": (wins / closed) if closed else None,
         "avg_hold_min": (sum(holds) / len(holds)) if holds else None,
         "unbacked_tokens": unbacked,
         "best": [t for t in per_token if t["realized_usd"] > 0][:3],
+        "dist": dist,
+        "daily": [[d, round(v, 2)] for d, v in daily],
+        "best_day": {"ms": hi[0], "usd": hi[1]} if hi else None,
+        "worst_day": {"ms": lo[0], "usd": lo[1]} if lo else None,
+        "win_streak": best_w,
+        "loss_streak": best_l,
+        "max_drawdown_usd": _drawdown(daily),
         "partial": bool(partial),
     }
+
+
+def heatmap(events, now_ms, days=30):
+    """Коли гаманець торгує: обміни за днем тижня (пн = 0) і годиною, UTC. Браузер зсуває на свій пояс."""
+    since = now_ms - days * DAY
+    grid, seen = [[0] * 24 for _ in range(7)], set()
+    for e in events:
+        t = e.get("time")
+        if t is None or not since <= t <= now_ms or (e.get("tx") and e["tx"] in seen):
+            continue
+        seen.add(e.get("tx"))
+        s = t // 1000
+        grid[(s // 86400 + 3) % 7][(s // 3600) % 24] += 1      # 1 січня 1970 — четвер
+    return grid
+
+
+def recent_tokens(events, now_ms, days=30, n=12):
+    """Останні токени гаманця з результатом кожного: що купив, що продав, скільки заробив, закрито чи ні."""
+    since = now_ms - days * DAY
+    books, _ = _replay([e for e in events if e.get("time") is not None and since <= e["time"] <= now_ms])
+    out = []
+    for b in sorted(books.values(), key=lambda x: -(x.last_t or 0))[:n]:
+        state = "sold only" if b.buys == 0 else ("closed" if b.share >= CLOSED_SHARE else "open")
+        out.append({"mint": b.mint, "symbol": b.symbol, "state": state, "last_ms": b.last_t, "buys": b.buys,
+                    "sells": b.sells + b.orphan_sells, "invested_usd": b.invested,
+                    "realized_usd": b.realized if b.buys else None,
+                    "roi": (b.realized / b.invested * 100) if (state == "closed" and b.invested > 0) else None})
+    return out
+
+
+def card(events, wallet, now_ms, partial=False):
+    """Усе для картки гаманця одним словником: 30 днів на верхньому рівні, 7 і 30 днів у `periods`, мапа
+    активності і останні токени. Жодного запиту понад ті, що вже принесли обміни."""
+    d30 = summary(events, wallet, now_ms, 30, partial)
+    return dict(d30, periods={"7": summary(events, wallet, now_ms, 7, partial), "30": d30},
+                heat=heatmap(events, now_ms), recent=recent_tokens(events, now_ms))
 
 
 def compact_identity(raw):
@@ -175,4 +329,7 @@ def compact_identity(raw):
     sns = raw.get("sns")
     if isinstance(sns, dict) and isinstance(sns.get("domain"), str):
         out["sns"] = sns["domain"][:80]
+    av = raw.get("avatar")
+    if isinstance(av, str) and av.startswith("https://") and len(av) < 300 and '"' not in av and "<" not in av:
+        out["avatar"] = av                          # лише у KOL: їхні аватари Solana Tracker тримає на своєму CDN
     return out or None

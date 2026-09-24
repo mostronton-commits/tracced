@@ -36,7 +36,7 @@
     </div>
   {% else %}
     {% set r = result %}{% set c = r.counts %}
-    <p class="muted small marksline" id="marksline" hidden></p>
+    <div class="marksline" id="marksline" hidden></div>
     <div class="chartbox" id="chart" data-mint="{{ job.mint }}" data-created="{{ created }}" data-now="{{ now }}"
          data-from="{{ job.t_from }}" data-to="{{ job.t_to }}" data-exit="{{ scope_end or 0 }}" data-symbol="{{ job.symbol }}"></div>
     <div class="onchart-bar" id="onchart" hidden></div>
@@ -137,14 +137,14 @@
             data-tags="{{ w.tag_list|join(' ') }}"{% if w.invested_in_range_sol is not none %} data-invsol="{{ w.invested_in_range_sol }}" data-gotsol="{{ w.proceeds_sol or 0 }}" data-realsol="{{ w.realized_sol or 0 }}" data-totsol="{{ w.invested_sol or 0 }}"{% endif %}{% if loop.index0 < 40 %} style="--i: {{ loop.index0 }}"{% endif %}>
           <td class="pk"><input type="checkbox" class="pick" aria-label="Select this wallet"></td>
           <td class="muted n">{{ loop.index }}</td>
-          <td class="wcell"><span class="wid"><button type="button" class="mk" title="Show on the chart">◉</button><button type="button" class="wname mono" title="Open the story">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</button><a class="ext" href="{{ w.solscan_url }}" target="_blank" rel="noopener" title="Solscan">↗</a></span><span class="tags">{% for t in w.tag_list %}<span class="tag t-{{ t }}" title="{{ TAGS.get(t, t) }}">{{ t }}</span>{% endfor %}</span></td>
+          <td class="wcell"><span class="wid"><button type="button" class="mk" title="Show on the chart">◉</button><button type="button" class="wname mono" title="Open the story">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</button><button type="button" class="ghost wcopy" data-copy="{{ w.wallet }}" title="Copy the address" aria-label="Copy the address"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.8"/><path d="M10.5 5.5V4.3A1.8 1.8 0 0 0 8.7 2.5H4.3a1.8 1.8 0 0 0-1.8 1.8v4.4a1.8 1.8 0 0 0 1.8 1.8h1.2"/></svg></button></span><span class="tags">{% for t in w.tag_list %}<span class="tag t-{{ t }}" data-tag="{{ t }}" title="{{ TAGS.get(t, t) }}">{{ t }}</span>{% endfor %}</span></td>
           <td class="num two c-entry" data-h="Entry cap"><b class="mono">{{ ecap|mcap }}</b><small class="dtc" data-ms="{{ etime or 0 }}">{{ etime|dt }}</small></td>
           <td class="fund" data-h="Funded by"></td>
-          <td class="num two bar c-inv" data-h="In range" style="--w: {{ (100 * (w.invested_in_range_usd or 0) / sm.max_in_range)|round|int if sm.max_in_range else 0 }}%"><b class="mono amt" data-usd="{{ w.invested_in_range_usd or 0 }}"{% if w.invested_in_range_sol is not none %} data-sol="{{ w.invested_in_range_sol }}"{% endif %}>{{ w.invested_in_range_usd|usd }}</b><small>{% if diff %}of <span class="amt" data-usd="{{ w.invested_usd or 0 }}"{% if w.invested_sol is not none %} data-sol="{{ w.invested_sol }}"{% endif %}>{{ w.invested_usd|usd }}</span> total{% endif %}</small></td>
+          <td class="num two c-inv" data-h="In range"><b class="mono amt" data-usd="{{ w.invested_in_range_usd or 0 }}"{% if w.invested_in_range_sol is not none %} data-sol="{{ w.invested_in_range_sol }}"{% endif %}>{{ w.invested_in_range_usd|usd }}</b><small>{% if diff %}of <span class="amt" data-usd="{{ w.invested_usd or 0 }}"{% if w.invested_sol is not none %} data-sol="{{ w.invested_sol }}"{% endif %}>{{ w.invested_usd|usd }}</span> total{% endif %}</small></td>
           <td class="num two c-exit" data-h="Exit cap"><b class="mono">{{ w.exit_mcap_avg|mcap }}</b><small class="dtc" data-ms="{{ w.first_sell_ms or 0 }}">{{ w.first_sell_ms|dt if w.first_sell_ms else '' }}</small></td>
           <td class="num two bar c-pnl{{ ' neg' if (w.realized_usd or 0) < 0 else '' }}" data-h="PnL" style="--w: {{ (100 * (w.realized_usd or 0)|abs / sm.max_abs_realized)|round|int if sm.max_abs_realized else 0 }}%"><b class="mono amt {{ 'pos' if (w.realized_usd or 0) > 0 else ('neg' if (w.realized_usd or 0) < 0 else '') }}" data-usd="{{ w.realized_usd or 0 }}"{% if w.realized_sol is not none %} data-sol="{{ w.realized_sol }}"{% endif %}>{{ w.realized_usd|usd }}</b><small class="{{ 'pos' if (w.unrealized_usd or 0) > 0 else ('neg' if (w.unrealized_usd or 0) < 0 else '') }}">{% if w.unrealized_usd %}{{ w.unrealized_usd|usd }} unrealized{% endif %}</small></td>
-          <td class="num two bar c-sold" data-h="Sold" style="--w: {{ (w.sold_share_pct or 0)|round|int }}%"><b class="mono amt" data-usd="{{ w.proceeds_usd or 0 }}"{% if w.proceeds_sol is not none %} data-sol="{{ w.proceeds_sol }}"{% endif %}>{{ w.proceeds_usd|usd }}</b><small>{{ (w.sold_share_pct|num ~ '% sold') if w.sold_share_pct is not none else '' }}</small></td>
-          <td class="num bar c-mult" data-h="Multiple" style="--w: {{ ((w.multiple or 1)|log10 / 1.7 * 100)|round|int if w.multiple else 0 }}%"><b class="mono">{{ (w.multiple ~ '×') if w.multiple else '—' }}</b></td>
+          <td class="num two c-sold" data-h="Sold"><b class="mono amt" data-usd="{{ w.proceeds_usd or 0 }}"{% if w.proceeds_sol is not none %} data-sol="{{ w.proceeds_sol }}"{% endif %}>{{ w.proceeds_usd|usd }}</b><small>{{ (w.sold_share_pct|num ~ '% sold') if w.sold_share_pct is not none else '' }}</small></td>
+          <td class="num c-mult" data-h="Multiple"><b class="mono">{{ (w.multiple ~ '×') if w.multiple else '—' }}</b></td>
           <td class="num two c-held" data-h="Held"><b class="mono">{{ (w.hold_minutes|num ~ ' min') if w.hold_minutes is not none else '—' }}</b><small>{{ w.buys }} / {{ w.sells if w.sells is not none else '—' }}</small></td>
         </tr>
       {% endfor %}
@@ -173,9 +173,11 @@
       <div class="drawer-scroll">
         <div class="drawer-head">
           <div class="dh-id">
-            <b class="mono" id="dw"></b>
-            <button type="button" class="ghost copy" id="dcopy" data-copy="" title="Copy the address" aria-label="Copy the address">⧉</button>
-            <a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan">Solscan ↗</a>
+            <span class="wav" id="dav" aria-hidden="true"></span>
+            <div class="dh-names">
+              <div class="dh-top"><b id="dname">Wallet</b><span class="ids" id="dids"></span></div>
+              <div class="dh-addr"><span class="mono" id="dw"></span><button type="button" class="ghost wcopy" id="dcopy" data-copy="" title="Copy the address" aria-label="Copy the address"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.8"/><path d="M10.5 5.5V4.3A1.8 1.8 0 0 0 8.7 2.5H4.3a1.8 1.8 0 0 0-1.8 1.8v4.4a1.8 1.8 0 0 0 1.8 1.8h1.2"/></svg></button><a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan">Solscan ↗</a></div>
+            </div>
           </div>
           <div class="dh-act">
             <button type="button" class="ghost dstar" id="dstar" title="Add to your watchlist" aria-label="Add to your watchlist">☆</button>
@@ -184,13 +186,14 @@
         </div>
         <div class="dtags" id="dtags"></div>
         <p class="dident" id="dident" hidden></p>
-        <section class="dsec">
-          <h4>On {{ job.symbol }}</h4>
-          <div class="drawer-facts" id="dfacts"></div>
+        <section class="dsec dperf">
+          <div class="dsec-h"><h4>Trading, every token</h4>
+            <div class="seg" id="dper" role="tablist" aria-label="Period"><button type="button" data-p="7">7D</button><button type="button" data-p="30" class="on">30D</button></div></div>
+          <div id="dprof"></div>
         </section>
         <section class="dsec">
-          <h4>Last {{ s.profile_days or 30 }} days, every token</h4>
-          <div id="dprof"></div>
+          <h4>Position in {{ job.symbol }}</h4>
+          <div id="dfacts"></div>
         </section>
         <section class="dsec" id="dwsec">
           <h4>Wallet</h4>
@@ -209,6 +212,10 @@
     (function () {
       const table = document.getElementById('facts'), tbody = table.tBodies[0], jobId = table.dataset.id;
       const rows = [...tbody.rows], shown = document.getElementById('shown'), nsel = document.getElementById('nsel');
+      rows.forEach(r => r.querySelectorAll('.tags .tag[data-tag]').forEach(EarlyTags.iconify));   // tags as pictures, the rule in the tooltip
+      document.querySelectorAll('#filters [data-hide]').forEach(b => {                         // the filter chips double as the legend
+        const ic = EarlyTags.ICON[b.dataset.hide]; if (ic) b.insertAdjacentHTML('afterbegin', ic);
+      });
       const selected = new Set(), pinned = new Set();                 // pinned = wallets shown on the chart: never hidden by filters
       const solnote = document.querySelector('.solnote');             // an older result has no SOL amounts; say so instead of showing dollars silently
       if (solnote && window.EarlyCur && EarlyCur.get() === 'sol') solnote.hidden = false;
@@ -381,14 +388,8 @@
         fetch('/marks.json?mint=' + encodeURIComponent(mint) + (job ? '&job=' + encodeURIComponent(job) : ''))
           .then(r => r.ok ? r.json() : null).then(d => {
             if (!d) return;
-            const ev = [];
-            if (d.migration && d.migration.ms) ev.push({ ms: d.migration.ms, kind: 'mig', badge: 'M',
-              title: 'Trading moved from ' + (d.migration.from || 'the launchpad') + ' to ' + (d.migration.market || 'a DEX') });
-            (d.paid || []).forEach(p => ev.push({ ms: p.ms, kind: 'paid', badge: '$',
-              title: 'DexScreener ' + p.kind + ' paid for at this moment (anyone can pay, not only the team)' }));
-            chart.setEvents(ev);
-            const line = document.getElementById('marksline'), txt = EarlyUI.marksText(d, +el.dataset.created);
-            if (txt) { line.textContent = txt; line.hidden = false; }
+            chart.setEvents(EarlyUI.marks(d));
+            EarlyUI.marksLegend(document.getElementById('marksline'), d, ms => chart.focus(ms - 20 * 60000, ms + 40 * 60000, null));
           }).catch(function () {});
       }
       const ch = EarlyChart(el, { mint: el.dataset.mint, created: +el.dataset.created, now: +el.dataset.now, interactive: false, symbol: el.dataset.symbol,
@@ -416,7 +417,7 @@
           const tg = r.querySelector('.tags'); if (!tg || tg.querySelector('.t-seen-before')) return;
           r.dataset.tags = (r.dataset.tags ? r.dataset.tags + ' ' : '') + 'seen-before';
           const t = document.createElement('button');
-          t.type = 'button'; t.className = 'tag t-seen-before seen';
+          t.type = 'button'; t.className = 'tag ico t-seen-before seen';
           t.innerHTML = CHAIN;
           t.title = 'Also an early buyer in ' + c.length + ' of your saved analyses — click for the list';
           t.setAttribute('aria-label', 'Seen in ' + c.length + ' of your other analyses');
@@ -492,26 +493,46 @@
         dstar.textContent = on ? '★' : '☆'; dstar.classList.toggle('on', on);
         dstar.title = on ? 'In your watchlist · click to remove' : 'Add to your watchlist'; dstar.setAttribute('aria-label', dstar.title);
       }
+      const TAGDEF = {{ TAGS|tojson }};
       function renderTags(w) {
+        // our tags as picture and word, then the person's own; seen-before has its own block further down
         const row = rowOf(w), mine = myTags(w);
-        const ours = row ? [...row.querySelectorAll('.tags .tag:not(.t-seen-before):not(.t-known)')].map(t => t.outerHTML).join('') : '';
+        const ours = row ? (row.dataset.tags || '').split(' ').filter(t => t && t !== 'seen-before')
+          .map(t => EarlyTags.chip(t === 'bundle' && bundle[w] ? 'bundle ×' + bundle[w].n : t, TAGDEF[t], { text: true })).join('') : '';
         dtags.innerHTML = ours + mine.map(t => '<button type="button" class="tag mine" title="Your tag · click to remove">' + esc(t) + '</button>').join('')
           + (mine.length < MAX_TAGS ? '<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd wide" title="Your own tag for this wallet" aria-label="Add your own tag">' + PLUS + '<span>tag</span></button>' : '');
+      }
+      function identicon(w) {
+        // a picture made from the address, so wallets without a name are still told apart at a glance
+        let h = 2166136261;
+        for (let i = 0; i < w.length; i++) h = Math.imul(h ^ w.charCodeAt(i), 16777619) >>> 0;
+        const hue = h % 360, cells = [];
+        for (let y = 0; y < 5; y++) for (let x = 0; x < 3; x++) {
+          h = Math.imul(h ^ (x * 7 + y), 16777619) >>> 0;
+          if (h & 4) { cells.push([x, y]); if (x < 2) cells.push([4 - x, y]); }
+        }
+        return '<svg viewBox="0 0 5 5" shape-rendering="crispEdges"><rect width="5" height="5" fill="hsl(' + hue + ' 70% 95%)"/>'
+          + cells.map(c => '<rect x="' + c[0] + '" y="' + c[1] + '" width="1" height="1" fill="hsl(' + hue + ' 55% 46%)"/>').join('') + '</svg>';
+      }
+      function renderHead(w) {
+        const idn = idents[w];
+        document.getElementById('dav').innerHTML = idn && idn.avatar
+          ? '<img src="' + esc(idn.avatar) + '" alt="" referrerpolicy="no-referrer">' : identicon(w);
+        document.getElementById('dname').textContent = (idn && idn.name) || 'Wallet';
+        document.getElementById('dids').innerHTML = EarlyTags.idMarks(idn);
       }
       function renderIdent(w) {
         // who the wallet is, when Solana Tracker knows: an identification with its source, never a score
         const el = document.getElementById('dident'), idn = idents[w];
+        renderHead(w);
         if (!idn) { el.hidden = true; el.innerHTML = ''; return; }
+        const h = EarlyTags.handle(idn), plats = EarlyTags.platforms(idn).map(f => Object.values(EarlyTags.BRANDS).find(b => b[0] === f)[1]);
         const bits = [];
-        if (idn.name) bits.push('<b>' + esc(idn.name) + '</b>');
-        const h = String(idn.twitter || '').replace(/^@/, '').replace(/[^A-Za-z0-9_]/g, '');
+        bits.push(EarlyTags.isKol(idn) ? 'A known trader' + (idn.name ? ' <b>' + esc(idn.name) + '</b>' : '') : (idn.name ? 'Username <b>' + esc(idn.name) + '</b>' : 'Labelled'));
         if (h) bits.push('<a href="https://x.com/' + h + '" target="_blank" rel="noopener">@' + h + '</a>');
+        if (plats.length) bits.push('trades through ' + plats.join(', '));
         if (idn.sns) bits.push(esc(idn.sns));
-        const labels = [...new Set([idn.type].concat(idn.tags || [], idn.platforms || []).filter(l => l && l !== 'kol'))];
-        el.innerHTML = (isKol(idn) ? '<span class="tag t-known">KOL</span> ' : '')
-          + (bits.length ? 'Known as ' + bits.join(' · ') : 'Labelled')
-          + (labels.length ? ' ' + labels.map(l => '<span class="tag">' + esc(l) + '</span>').join('') : '')
-          + ' <span class="muted small">per Solana Tracker</span>';
+        el.innerHTML = bits.join(' · ') + ' <span class="muted small">per Solana Tracker</span>';
         el.hidden = false;
       }
       function renderWalletInfo(w) {
@@ -524,32 +545,102 @@
         document.getElementById('dwsec').hidden = !el.innerHTML && !document.getElementById('dcross').innerHTML;
       }
       const holdText = m => m == null ? '—' : m < 60 ? Math.round(m) + ' min' : m < 1440 ? (m / 60).toFixed(m < 600 ? 1 : 0) + ' h' : Math.round(m / 1440) + ' d';
-      function renderProfile(p) {
+      const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const utcDay = ms => { const d = new Date(ms); return MON[d.getUTCMonth()] + ' ' + d.getUTCDate(); };
+      const nf = v => (+v || 0).toLocaleString('en-US');
+      let period = '30';
+      function spark(p) {
+        // cumulative realized PnL over the period, a point at the end of every day that had a sale
+        const days = p.daily || [], W = 400, H = 92, DAYMS = 86400000, t0 = p.since_ms, t1 = p.since_ms + p.days * DAYMS;
+        if (!days.length) return '';
+        let cum = 0;
+        const pts = [[t0, 0]];
+        days.forEach(d => { cum += d[1]; pts.push([Math.min(d[0] + DAYMS, t1), cum]); });
+        pts.push([t1, cum]);
+        const ys = pts.map(q => q[1]), lo = Math.min(0, ...ys), hi = Math.max(0, ...ys), span = (hi - lo) || 1;
+        const X = t => ((t - t0) / (t1 - t0)) * W, Y = v => 5 + (H - 10) * (1 - (v - lo) / span);
+        const line = pts.map((q, i) => (i ? 'L' : 'M') + X(q[0]).toFixed(1) + ' ' + Y(q[1]).toFixed(1)).join(' ');
+        const zero = Y(0).toFixed(1);
+        return '<svg class="dspark ' + (cum >= 0 ? 'up' : 'down') + '" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true">'
+          + '<path class="a" d="' + line + ' L' + W + ' ' + zero + ' L0 ' + zero + ' Z"/><path class="z" d="M0 ' + zero + ' H' + W + '"/><path class="l" d="' + line + '"/></svg>'
+          + '<div class="dspark-x"><span>' + utcDay(t0) + '</span><span>' + utcDay(t1) + '</span></div>';
+      }
+      const DIST = [['>500', '> 500%', 'g3'], ['200-500', '200–500%', 'g2'], ['50-200', '50–200%', 'g1'], ['0-50', '0–50%', 'g0'], ['-50-0', '−50–0%', 'r0'], ['<-50', '< −50%', 'r1']];
+      function distHtml(p) {
+        const d = p.dist || {}, n = DIST.reduce((a, x) => a + (d[x[0]] || 0), 0);
+        if (!n) return '';
+        return '<div class="ddist"><div class="dbar">' + DIST.map(x => d[x[0]] ? '<i class="' + x[2] + '" style="flex:' + d[x[0]] + '"></i>' : '').join('') + '</div><ul>'
+          + DIST.map(x => '<li><i class="dot ' + x[2] + '"></i>' + x[1] + '<span>' + (d[x[0]] || 0) + ' <small>' + ((d[x[0]] || 0) / n * 100).toFixed(1) + '%</small></span></li>').join('') + '</ul></div>';
+      }
+      function heatHtml(heat) {
+        // when the wallet trades, by weekday and hour; the grid comes in UTC and follows the footer's time zone
+        if (!heat) return '';
+        const off = (window.EarlyTZ && EarlyTZ.get() === 'local') ? -Math.round(new Date().getTimezoneOffset() / 60) : 0;
+        const g = Array.from({ length: 7 }, () => Array(24).fill(0));
+        heat.forEach((row, d) => row.forEach((n, h) => { const i = ((d * 24 + h + off) % 168 + 168) % 168; g[Math.floor(i / 24)][i % 24] += n; }));
+        const max = Math.max(1, ...g.map(r => Math.max(...r))), D = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        return '<div class="dheat">' + g.map((row, d) => '<div class="hr"><span>' + D[d] + '</span>' + row.map((n, h) =>
+            '<i style="--a:' + (n ? (0.18 + 0.82 * n / max).toFixed(2) : 0) + '" title="' + D[d] + ' ' + String(h).padStart(2, '0') + ':00 · ' + n + ' swap' + (n === 1 ? '' : 's') + '"></i>').join('') + '</div>').join('')
+          + '<div class="hx"><span></span><b>0h</b><b>6h</b><b>12h</b><b>18h</b></div></div>';
+      }
+      function recentHtml(list) {
+        if (!list || !list.length) return '';
+        const ago = ms => { const m = (Date.now() - ms) / 60000; return m < 60 ? Math.max(1, Math.round(m)) + 'm' : m < 1440 ? Math.round(m / 60) + 'h' : Math.round(m / 1440) + 'd'; };
+        return '<table class="drecent"><thead><tr><th>Token</th><th class="num">PnL</th><th class="num">ROI</th><th></th><th class="num">Last</th></tr></thead><tbody>'
+          + list.slice(0, 8).map(t => '<tr><td><a href="/token?mint=' + encodeURIComponent(t.mint) + '" title="Open ' + esc(t.symbol || t.mint) + ' in tracced">' + esc(t.symbol || short(t.mint)) + '</a></td>'
+            + '<td class="num mono ' + (t.realized_usd > 0 ? 'pos' : (t.realized_usd < 0 ? 'neg' : '')) + '">' + (t.realized_usd == null ? '—' : money(t.realized_usd)) + '</td>'
+            + '<td class="num mono">' + (t.roi == null ? '—' : (t.roi > 0 ? '+' : '') + Math.round(t.roi) + '%') + '</td>'
+            + '<td><span class="st st-' + t.state.replace(' ', '-') + '">' + t.state + '</span></td>'
+            + '<td class="num muted">' + ago(t.last_ms) + '</td></tr>').join('') + '</tbody></table>';
+      }
+      function renderProfile(all) {
+        const p = (all.periods && all.periods[period]) || all;
         const sol = (window.EarlyCur && EarlyCur.get()) === 'sol' && p.pnl_sol != null;
         const cls = p.pnl_usd > 0 ? 'pos' : (p.pnl_usd < 0 ? 'neg' : '');
-        const since = '<span class="dtc" data-ms="' + (p.oldest_ms || p.since_ms) + '">' + EarlyTZ.fmt(p.oldest_ms || p.since_ms, false) + '</span>';
-        dprof.innerHTML = (p.swaps ? '<div class="drawer-facts">'
-          + '<div><b class="' + cls + '">' + (sol ? EarlyCur.sol(p.pnl_sol) : money(p.pnl_usd)) + '</b><span>PnL</span></div>'
-          + '<div><b>' + (p.win_rate == null ? '—' : Math.round(p.win_rate * 100) + '%') + '</b><span>win rate' + (p.closed ? ', ' + p.wins + ' of ' + p.closed : '') + '</span></div>'
-          + '<div><b>' + holdText(p.avg_hold_min) + '</b><span>avg hold</span></div>'
-          + '<div><b>' + p.tokens + '</b><span>tokens</span></div>'
-          + '<div><b>' + p.swaps + '</b><span>swaps</span></div>'
-          + '<div><b>' + p.open + '</b><span>still open</span></div></div>'
-          + (p.best && p.best.length ? '<p class="dline small">Best: ' + p.best.map(b => esc(b.symbol || short(b.mint)) + ' <span class="pos">' + money(b.realized_usd) + '</span>').join(' · ') + '</p>' : '')
-          : '<p class="dline muted small">No swaps in these days.</p>')
-          + '<p class="dline muted small">Counted by tracced from ' + p.swaps + ' swaps'
-          + (p.partial ? ', the latest ones only, back to ' + since : '') + '. A position counts once it is 99% sold.'
-          + (p.unbacked_tokens ? ' ' + p.unbacked_tokens + ' token' + (p.unbacked_tokens === 1 ? ' was' : 's were') + ' sold without a buy in these days and ' + (p.unbacked_tokens === 1 ? 'is' : 'are') + ' left out: the cost is unknown.' : '') + '</p>';
+        const day = x => x ? '<b class="' + (x.usd >= 0 ? 'pos' : 'neg') + '">' + money(x.usd) + '</b><small>' + utcDay(x.ms) + '</small>' : '<b>—</b>';
+        const since = '<span class="dtc" data-ms="' + (all.oldest_ms || p.since_ms) + '">' + EarlyTZ.fmt(all.oldest_ms || p.since_ms, false) + '</span>';
+        const note = 'Counted by tracced from ' + nf(p.swaps) + ' swaps' + (all.partial ? ', the latest ones only, back to ' + since : '')
+          + '. A position counts once 99% of it is sold.'
+          + (p.unbacked_tokens ? ' ' + p.unbacked_tokens + ' token' + (p.unbacked_tokens === 1 ? ' was' : 's were') + ' sold without a buy in these days and '
+             + (p.unbacked_tokens === 1 ? 'is' : 'are') + ' left out: the cost is unknown.' : '');
+        dprof.innerHTML = !p.swaps ? '<p class="dline muted small">No swaps in these ' + p.days + ' days.</p>' :
+          '<div class="dhero"><div><span class="lbl">Realized PnL</span><b class="big ' + cls + '">' + (sol ? EarlyCur.sol(p.pnl_sol) : money(p.pnl_usd)) + '</b></div>'
+          + '<div class="r"><span class="lbl">Win rate</span><b class="big">' + (p.win_rate == null ? '—' : Math.round(p.win_rate * 100) + '%') + '</b>'
+          + '<span class="sub"><span class="pos">' + p.wins + 'W</span> / <span class="neg">' + p.losses + 'L</span> of ' + p.closed + ' closed</span></div></div>'
+          + spark(p)
+          + '<div class="dgrid">'
+          + '<div><span>Volume</span><b>' + money(p.volume_usd) + '</b></div>'
+          + '<div><span>Buys / sells</span><b>' + nf(p.buys) + ' / ' + nf(p.sells) + '</b></div>'
+          + '<div><span>Avg hold</span><b>' + holdText(p.avg_hold_min) + '</b></div>'
+          + '<div><span>Best day</span>' + day(p.best_day) + '</div>'
+          + '<div><span>Worst day</span>' + day(p.worst_day) + '</div>'
+          + '<div><span>Max drawdown</span><b class="' + (p.max_drawdown_usd ? 'neg' : '') + '">' + (p.max_drawdown_usd ? money(-p.max_drawdown_usd) : '$0') + '</b></div>'
+          + '<div><span>Tokens</span><b>' + nf(p.tokens) + '</b><small>' + nf(p.open) + ' open</small></div>'
+          + '<div><span>Win streak</span><b>' + p.win_streak + ' d</b><small>loss streak ' + p.loss_streak + ' d</small></div>'
+          + '<div><span>Swaps</span><b>' + nf(p.swaps) + '</b></div>'
+          + '</div>'
+          + (distHtml(p) ? '<h5>PnL of closed positions</h5>' + distHtml(p) : '')
+          + (all.heat ? '<h5>When it trades · 30 days</h5>' + heatHtml(all.heat) : '')
+          + (all.recent && all.recent.length ? '<h5>Recent tokens · 30 days</h5>' + recentHtml(all.recent) : '')
+          + '<p class="dline muted small">' + note + '</p>';
+        document.querySelectorAll('#dper [data-p]').forEach(b => b.classList.toggle('on', b.dataset.p === period));
+        if (window.EarlyTZ) EarlyTZ.apply();
       }
+      document.getElementById('dper').addEventListener('click', e => {
+        const b = e.target.closest('[data-p]'); if (!b) return;
+        period = b.dataset.p;
+        const p = profiles.get(drawer.dataset.w);
+        if (p) renderProfile(p); else document.querySelectorAll('#dper [data-p]').forEach(x => x.classList.toggle('on', x.dataset.p === period));
+      });
       async function loadProfile(w) {
         if (profiles.has(w)) { renderProfile(profiles.get(w)); return; }
-        dprof.innerHTML = '<p class="dline muted small">Loading the last days of this wallet…</p>';
+        dprof.innerHTML = '<div class="dskel"><i></i><i></i><i></i></div><p class="dline muted small">Reading this wallet\'s swaps on every token…</p>';
         let r;
         try { r = await fetch('/wallet_profile.json?' + new URLSearchParams({ job: jobId, wallet: w }), { credentials: 'same-origin' }); }
         catch (e) { if (drawer.dataset.w === w) dprof.innerHTML = '<p class="dline muted small">Could not reach the server.</p>'; return; }
         if (drawer.dataset.w !== w) return;                   // the card moved on to another wallet meanwhile
         if (r.status === 401) {
-          dprof.innerHTML = '<p class="dline"><button type="button" class="ghost" id="dprofgo">Connect a wallet to load</button></p><p class="dline muted small">PnL and win rate over every token this wallet traded, counted from its swaps.</p>';
+          dprof.innerHTML = '<p class="dline"><button type="button" class="ghost" id="dprofgo">Connect a wallet to load</button></p><p class="dline muted small">PnL, win rate and when it trades, over every token this wallet traded, counted from its swaps.</p>';
           document.getElementById('dprofgo').addEventListener('click', () => EarlyWallet.open(() => { acctOn = true; loadMe().then(() => loadProfile(w)); }));
           return;
         }
@@ -570,16 +661,34 @@
           blank(); me.wallets[w] = me.wallets[w] || { my_tags: [] }; markSaved(); return true;
         } catch (e) { EarlyUI.toast(e.message); return false; }
       }
+      function renderPosition(row, o) {
+        // this token, the way a terminal shows a position: the result first, then how it got there
+        const cur = (window.EarlyCur && EarlyCur.get()) === 'sol', d = row ? row.dataset : {};
+        if (!row) return '';
+        const amt = (usd, sol) => (cur && sol !== undefined ? EarlyCur.sol(+sol) : money(+usd));
+        const cls = +d.real > 0 ? 'pos' : (+d.real < 0 ? 'neg' : '');
+        return '<div class="dhero"><div><span class="lbl">PnL on this token</span><b class="big ' + cls + '">' + amt(d.real, d.realsol) + '</b>'
+          + '<span class="sub">sold ' + Math.round(+d.sold || 0) + '% of it' + (+d.hold ? ' · first sale after ' + holdText(+d.hold) : '') + '</span></div>'
+          + '<div class="r"><span class="lbl">Multiple</span><b class="big">' + (+d.mult ? (+d.mult).toFixed(+d.mult >= 10 ? 0 : 1) + '×' : '—') + '</b>'
+          + '<span class="sub">' + plural(+d.buys || 0, 'buy') + ' · ' + plural(o.trades.filter(t => t.side === 'sell').length, 'sell') + '</span></div></div>'
+          + '<div class="dgrid">'
+          + '<div><span>Entry cap</span><b>' + ch.fmtMcap(+d.entry) + '</b></div>'
+          + '<div><span>Exit cap</span><b>' + (+d.exitcap ? ch.fmtMcap(+d.exitcap) : '—') + '</b></div>'
+          + '<div><span>In range</span><b>' + amt(d.inv, d.invsol) + '</b></div>'
+          + '<div><span>Total in</span><b>' + amt(d.tot, d.totsol) + '</b></div>'
+          + '<div><span>Sold for</span><b>' + amt(d.got, d.gotsol) + '</b></div>'
+          + '<div><span>Trades</span><b>' + o.n + '</b></div>'
+          + '</div>';
+      }
       function openStory(o) {
         const cur = (window.EarlyCur && EarlyCur.get()) === 'sol';
-        const row = rowOf(o.wallet), d = row ? row.dataset : {};
+        const row = rowOf(o.wallet);
         drawer.dataset.w = o.wallet; drawer.hidden = false; document.body.classList.add('drawer-open');
         const dw = document.getElementById('dw'); dw.textContent = short(o.wallet); dw.title = o.wallet;
         document.getElementById('dcopy').dataset.copy = o.wallet;
         document.getElementById('dsol').href = 'https://solscan.io/account/' + o.wallet;
         syncStar(o.wallet); renderTags(o.wallet); renderIdent(o.wallet);
-        const amt = (usd, sol) => (cur && sol !== undefined ? EarlyCur.sol(+sol) : money(+usd));
-        document.getElementById('dfacts').innerHTML = row ? '<div><b>' + ch.fmtMcap(+d.entry) + '</b><span>entry cap</span></div><div><b>' + (+d.exitcap ? ch.fmtMcap(+d.exitcap) : '—') + '</b><span>exit cap</span></div><div><b>' + amt(d.inv, d.invsol) + '</b><span>in range</span></div><div><b>' + amt(d.tot, d.totsol) + '</b><span>total</span></div><div><b>' + amt(d.got, d.gotsol) + '</b><span>sold</span></div><div><b class="' + (+d.real > 0 ? 'pos' : (+d.real < 0 ? 'neg' : '')) + '">' + amt(d.real, d.realsol) + '</b><span>PnL</span></div>' : '';
+        document.getElementById('dfacts').innerHTML = renderPosition(row, o);
         dtrades.innerHTML = o.trades.map(t => '<tr class="' + t.side + '"><td class="mono dtc" data-ms="' + t.t + '">' + EarlyTZ.fmt(t.t, false) + '</td><td>' + (t.side === 'buy' ? '<b class="buy">▲ buy</b>' : '<b class="sell">▼ sell</b>') + '</td><td class="num mono">' + (cur && t.sol != null ? EarlyCur.sol(t.sol) : money(t.usd)) + '</td><td class="num mono">' + (t.qty ? ch.fmtMcap(t.qty) : '—') + '</td><td class="num mono">' + ch.fmtMcap(t.mcap) + '</td></tr>').join('');
         const cx = crossings[o.wallet] || [];
         document.getElementById('dcross').innerHTML = cx.length
@@ -688,18 +797,15 @@
       // The same poll brings who a wallet is (Solana Tracker's identity) and its first transaction, for the card.
       const en = document.getElementById('enrich');
       const defs = {{ TAGS|tojson }};
-      const isKol = idn => !!idn && (idn.type === 'kol' || (idn.tags || []).includes('kol'));
+      const isKol = EarlyTags.isKol;
       function markKnown() {
-        // a known trader (KOL) gets a mark in the row: the rest are the unlabelled wallets this table is for.
-        // Solana Tracker also knows app usernames and trading platforms for many wallets; those stay in the card
+        // who a wallet is, as pictures next to it: KOL, its X account, the platforms it trades through, known roles.
+        // All from Solana Tracker; the tooltip and the card say so
         rows.forEach(r => {
           const idn = idents[r.dataset.w], tg = r.querySelector('.tags');
-          if (!isKol(idn) || !tg || tg.querySelector('.t-known')) return;
-          const h = String(idn.twitter || '').replace(/^@/, '').replace(/[^A-Za-z0-9_]/g, '');
-          const t = document.createElement('span'); t.className = 'tag t-known';
-          t.textContent = 'KOL' + (h ? ' @' + h : (idn.name ? ' ' + idn.name : ''));
-          t.title = 'A known trader (KOL)' + (idn.name ? ': ' + idn.name : '') + ' · per Solana Tracker';
-          tg.prepend(t);
+          if (!idn || !tg || tg.querySelector('.ids')) return;
+          const html = EarlyTags.idMarks(idn);
+          if (html) tg.insertAdjacentHTML('afterbegin', '<span class="ids">' + html + '</span>');
         });
       }
       let polls = 0;                                            // a page left open stops asking after ten minutes
@@ -712,9 +818,17 @@
         if (!en || !d.total) { if (en) en.hidden = true; ageDone = true; refresh(); if (!d.identities_done) again(); return; }
         let added = 0;
         funders = d.funders || {}; bundle = d.bundle || {};
-        const addTag = (w, tag, text, title) => { const r = rows.find(x => x.dataset.w === w); if (!r || r.dataset.tags.split(' ').includes(tag)) return;
+        const addTag = (w, tag, text, title) => {
+          const r = rows.find(x => x.dataset.w === w); if (!r) return;
+          if (r.dataset.tags.split(' ').includes(tag)) {              // the server drew it already: only the count is new
+            const el = tag === 'bundle' && r.querySelector('.tags .tag[data-tag="bundle"]');
+            if (el && !el.querySelector('small') && bundle[w]) el.insertAdjacentHTML('beforeend', '<small>×' + bundle[w].n + '</small>');
+            return;
+          }
           r.dataset.tags = (r.dataset.tags ? r.dataset.tags + ' ' : '') + tag; added++;
-          const t = document.createElement('span'); t.className = 'tag t-' + tag; t.title = title; t.textContent = text; r.querySelector('.tags').prepend(t); };
+          const tg = r.querySelector('.tags'), ids = tg.querySelector('.ids');
+          if (ids) ids.insertAdjacentHTML('afterend', EarlyTags.chip(text, title)); else tg.insertAdjacentHTML('afterbegin', EarlyTags.chip(text, title));
+        };
         d.fresh.forEach(w => addTag(w, 'fresh', 'fresh', defs.fresh));
         Object.keys(bundle).forEach(w => addTag(w, 'bundle', 'bundle ×' + bundle[w].n, defs.bundle + ' — funder ' + short(bundle[w].funder)));
         fillFunders();                                          // funders arrive after the page, so the column fills here

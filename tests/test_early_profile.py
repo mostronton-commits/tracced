@@ -87,12 +87,55 @@ class TestSummary(unittest.TestCase):
         self.assertIsNone(profile.summary(events(raws), W, NOW)["pnl_sol"])
 
 
+class TestCardExtras(unittest.TestCase):
+    """Те, що картка показує понад PnL і win rate: розподіл, дні, серії, мапа активності, останні токени."""
+    RAWS = TestSummary.RAWS
+
+    def test_same_arithmetic_as_the_table(self):
+        from tracced.early import ledger
+        evs = events(self.RAWS)
+        books, _ = profile._replay(evs)
+        for mint in {e["mint"] for e in evs}:
+            L, _ = ledger.build([e for e in evs if e["mint"] == mint], 0, NOW, NOW)
+            self.assertAlmostEqual(books[mint].realized, L[W].realized, places=6)   # таблиця і картка — одне число
+            self.assertAlmostEqual(books[mint].invested, L[W].invested, places=6)
+
+    def test_distribution_days_streaks_and_drawdown(self):
+        s = profile.summary(events(self.RAWS), W, NOW, days=30)
+        self.assertEqual((s["buys"], s["sells"], s["losses"]), (3, 3, 1))
+        self.assertAlmostEqual(s["volume_usd"], 100 + 150 + 200 + 120 + 50 + 30)
+        self.assertEqual(s["dist"]["50-200"], 1)                  # TOKA: +50 на 100
+        self.assertEqual(s["dist"]["-50-0"], 1)                   # TOKB: −80 на 200 = −40 %
+        self.assertEqual([round(v) for _, v in s["daily"]], [50, -80])
+        self.assertEqual((s["best_day"]["usd"], s["worst_day"]["usd"]), (50, -80))
+        self.assertEqual((s["win_streak"], s["loss_streak"]), (1, 1))
+        self.assertAlmostEqual(s["max_drawdown_usd"], 80)         # з +50 до −30
+
+    def test_seven_days_is_its_own_window(self):
+        c = profile.card(events(self.RAWS), W, NOW)
+        self.assertAlmostEqual(c["pnl_usd"], -30)                  # верхній рівень = 30 днів, як і раніше
+        seven = c["periods"]["7"]
+        self.assertEqual(seven["closed"], 0)                       # купівлі TOKB і TOKA старші за тиждень
+        self.assertEqual(seven["unbacked_tokens"], 2)              # TOKB (продаж рівно на межі тижня) і TOKD
+        self.assertEqual(seven["open"], 1)                         # TOKC
+
+    def test_heatmap_and_recent_tokens(self):
+        c = profile.card(events(self.RAWS), W, NOW)
+        self.assertEqual(sum(map(sum, c["heat"])), 6)              # шість обмінів з позицією за 30 днів
+        self.assertEqual(len(c["heat"]), 7)
+        recent = {r["symbol"]: r for r in c["recent"]}
+        self.assertEqual(recent["TOKC"]["state"], "open")
+        self.assertEqual(recent["TOKD"]["state"], "sold only")
+        self.assertAlmostEqual(recent["TOKA"]["roi"], 50)
+        self.assertEqual(c["recent"][0]["symbol"], "TOKC")          # найсвіжіший угорі
+
+
 class TestIdentity(unittest.TestCase):
     def test_only_what_we_show_survives(self):
         idn = profile.compact_identity({"name": "Cented", "twitter": "@Cented7", "avatar": "https://x/y.png", "type": "kol",
                                         "tags": ["kol", "axiom"], "platforms": ["axiom"], "sns": {"domain": "cented.sol"}})
         self.assertEqual(idn, {"name": "Cented", "twitter": "@Cented7", "type": "kol", "tags": ["kol", "axiom"],
-                               "platforms": ["axiom"], "sns": "cented.sol"})
+                               "platforms": ["axiom"], "sns": "cented.sol", "avatar": "https://x/y.png"})
 
     def test_unknown_wallet_is_none(self):
         self.assertIsNone(profile.compact_identity(None))

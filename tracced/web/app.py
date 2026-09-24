@@ -1506,7 +1506,7 @@ async def wallet_profile_json(request):
                 now = int(time.time() * 1000)
                 raw, partial = st.wallet_swaps(wallet, now - days * 86_400_000, pages)
                 evs = [ev for r in raw for ev in profile.normalize_wallet_swap(r, wallet)]
-                out = profile.summary(evs, wallet, now, days, partial)
+                out = profile.card(evs, wallet, now, partial)
                 out["computed_ms"] = now
                 cache.put(key, out)
                 return out

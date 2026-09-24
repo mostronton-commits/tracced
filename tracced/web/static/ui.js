@@ -34,15 +34,31 @@
     })(t0);
   }
 
-  /* The token's own events in words. On the chart they sit in the first minutes of its life, and both pages
-     open on a later stretch, so the line under the header is where they are actually read. */
-  function marksText(d, created) {
-    const at = ms => { const m = Math.round((ms - created) / 60000); return m < 1 ? 'under a minute' : m + ' min'; };
+  /* The token's own events as a legend above the chart: the same badge as on the price, what it means, when, and a
+     click that brings that moment into view. A line of «94 min» said nothing and could not be acted on. */
+  const DEX = '<img src="/static/brands/dexscreener.png" alt="">';
+  function marks(d) {
     const out = [];
-    if (d && d.migration && d.migration.ms) out.push('Migrated off ' + (d.migration.from || 'the launchpad') + ' ' + at(d.migration.ms) + ' after launch');
-    const paid = (d && d.paid) || [];
-    if (paid.length) out.push('DexScreener paid' + (paid.length > 1 ? ' ' + paid.length + '×, first' : '') + ' at ' + at(paid[0].ms));
-    return out.join(' · ');
+    if (d && d.migration && d.migration.ms) out.push({ ms: d.migration.ms, kind: 'mig', badge: 'M',
+      label: 'Migrated to ' + (d.migration.market || 'a DEX'),
+      title: 'Trading moved from ' + (d.migration.from || 'the launchpad') + ' to ' + (d.migration.market || 'a DEX') });
+    ((d && d.paid) || []).forEach(p => out.push({ ms: p.ms, kind: 'paid', html: DEX, label: 'DexScreener ' + (p.kind || 'profile') + ' paid',
+      title: 'Someone paid DexScreener for this token\'s ' + (p.kind || 'profile') + ' at this moment (anyone can pay, not only the team)' }));
+    return out;
+  }
+  function marksLegend(el, d, jump) {
+    const ev = marks(d);
+    el.innerHTML = '';
+    el.hidden = !ev.length;
+    ev.forEach(e => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'mklegend'; b.title = e.title + ' · click to show it on the chart';
+      b.innerHTML = '<span class="evdot ' + e.kind + '">' + (e.html || e.badge) + '</span>' + e.label + ' · <span class="dtc" data-ms="' + e.ms + '">'
+        + (window.EarlyTZ ? EarlyTZ.fmt(e.ms, false) : '') + '</span>';
+      b.addEventListener('click', () => jump(e.ms));
+      el.appendChild(b);
+    });
+    return ev;
   }
 
   /* <div class="menu"><button data-menu>…</button><div class="menu-panel" hidden>…</div></div> */
@@ -62,7 +78,7 @@
     let t = document.querySelector('.toast'); if (!t) { t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
     t.innerHTML = html; t.hidden = false; clearTimeout(t._h); t._h = setTimeout(() => { t.hidden = true; }, ms || 4000);
   }
-  window.EarlyUI = { countUp, fmtShort, FMT, toast, menus, marksText };
+  window.EarlyUI = { countUp, fmtShort, FMT, toast, menus, marks, marksLegend };
 })();
 
 /* home: the address field "types" a made-up base58 address until the user touches it */
@@ -83,8 +99,80 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   setTimeout(tick, 600);
 });
-/* copy buttons: [data-copy="text"] */
+/* copy buttons: [data-copy="text"]; the button may hold an icon, so its markup comes back, not only its text */
 document.addEventListener('click', e => {
-  const b = e.target.closest('[data-copy]'); if (!b || !navigator.clipboard) return;
-  navigator.clipboard.writeText(b.dataset.copy).then(() => { const o = b.textContent; b.textContent = '✓'; setTimeout(() => { b.textContent = o; }, 1200); });
+  const b = e.target.closest('[data-copy]'); if (!b || !b.dataset.copy || !navigator.clipboard) return;
+  e.stopPropagation();
+  navigator.clipboard.writeText(b.dataset.copy).then(() => {
+    if (!b.dataset.was) b.dataset.was = b.innerHTML;
+    b.textContent = '✓'; clearTimeout(b._h); b._h = setTimeout(() => { b.innerHTML = b.dataset.was; delete b.dataset.was; }, 1200);
+  });
 });
+
+/* Markers that say what kind of wallet a row is, the way terminals do: a small picture per category, the rule or
+   the source in the tooltip, the words in the card and in the filter legend. Our tags are rules computed from the
+   chain; KOL, the X account and the trading platform come from Solana Tracker and say so. */
+window.EarlyTags = (function () {
+  const S = d => '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
+  const ICON = {
+    dev: S('<path d="M4.6 9.6C2.9 9.3 1.8 8 2.1 6.5c.3-1.4 1.7-2.3 3.1-2A3.3 3.3 0 0 1 8 2.6a3.3 3.3 0 0 1 2.8 1.9c1.4-.3 2.8.6 3.1 2 .3 1.5-.8 2.8-2.5 3.1V13.4H4.6z"/><path d="M4.6 11.2h6.8"/>'),
+    sniper: S('<circle cx="8" cy="8" r="5"/><path d="M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3"/><circle cx="8" cy="8" r=".6" fill="currentColor"/>'),
+    fresh: S('<path d="M8 14V8.2"/><path d="M8 9.2C8 6.4 6.2 4.8 3 4.8c0 3 1.9 4.4 5 4.4z"/><path d="M8 8.2c0-2.6 1.7-4.2 4.8-4.2 0 2.9-1.8 4.2-4.8 4.2z"/>'),
+    bundle: S('<path d="M2.5 5 8 2.4 13.5 5v6.1L8 13.6 2.5 11.1z"/><path d="M2.5 5 8 7.6 13.5 5M8 7.6v6"/>'),
+    'bot-like': S('<rect x="3" y="5.5" width="10" height="7.5" rx="2"/><path d="M8 5.5V3.4"/><circle cx="8" cy="2.6" r=".8"/><circle cx="6" cy="9.2" r=".7" fill="currentColor"/><circle cx="10" cy="9.2" r=".7" fill="currentColor"/>'),
+    'pre-range': S('<path d="M2.9 8.6A5.2 5.2 0 1 0 4.4 4.3"/><path d="M2.6 2.4v2.9h2.9"/><path d="M8 5.4V8l1.9 1.2"/>'),
+    're-bought': S('<path d="M3 7.4a4.6 4.6 0 0 1 8.2-2.6M13 8.6a4.6 4.6 0 0 1-8.2 2.6"/><path d="M11.6 1.9v2.9H8.7M4.4 14.1v-2.9h2.9"/>'),
+    'transfer-in': S('<path d="M8 2v6.6M5.4 6 8 8.6 10.6 6"/><path d="M2.4 10.2h3.1l.9 1.6h3.2l.9-1.6h3.1V13.6H2.4z"/>'),
+    'no-exits': S('<circle cx="8" cy="8" r="5.6" stroke-dasharray="2 1.7"/><path d="M6.5 6.6a1.6 1.6 0 1 1 2.3 1.4c-.5.3-.8.6-.8 1.3"/><circle cx="8" cy="11.2" r=".55" fill="currentColor"/>'),
+    'seen-before': '<svg class="lnk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" aria-hidden="true"><g transform="rotate(-45 12 12)"><rect x="1.2" y="7.4" width="12.4" height="9.2" rx="4.6"/><rect x="10.4" y="7.4" width="12.4" height="9.2" rx="4.6"/></g></svg>',
+    kol: '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1.6l1.95 3.95 4.35.63-3.15 3.07.74 4.33L8 11.53l-3.89 2.05.74-4.33L1.7 6.18l4.35-.63z"/></svg>',
+    x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>',
+    exchange: S('<path d="M2 6.4 8 3l6 3.4M3.6 7.2v4.8M6.5 7.2v4.8M9.5 7.2v4.8M12.4 7.2v4.8M2 13.2h12"/>'),
+    hacker: S('<path d="M8 2.4a4.6 4.6 0 0 0-4.6 4.6c0 1.7.9 2.9 2.1 3.5v2.3h5v-2.3c1.2-.6 2.1-1.8 2.1-3.5A4.6 4.6 0 0 0 8 2.4z"/><circle cx="6.2" cy="7.2" r=".9" fill="currentColor"/><circle cx="9.8" cy="7.2" r=".9" fill="currentColor"/><path d="M7 12.8v-1.3M9 12.8v-1.3"/>'),
+  };
+  // trading platforms Solana Tracker names, and the file of each one's own icon in /static/brands
+  const BRANDS = { axiom: ['axiom', 'Axiom'], 'axiom-flash': ['axiom', 'Axiom'], gmgn: ['gmgn', 'GMGN'], fomo: ['fomo', 'Fomo'],
+    'pumpfun-app': ['pumpfun', 'the pump.fun app'], pumpfun: ['pumpfun', 'the pump.fun app'], terminal: ['terminal', 'Terminal (Padre)'],
+    padre: ['terminal', 'Terminal (Padre)'], photon: ['photon', 'Photon'], bloom: ['bloom', 'Bloom'], bullx: ['bullx', 'BullX'] };
+  const ROLES = { exchange: 'An exchange wallet', hacker: 'A known exploit or scam wallet', bot: 'A known bot',
+    potential_bot: 'Likely a bot or arbitrage wallet', arbitrage: 'An arbitrage wallet' };
+  const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const handle = idn => String((idn && idn.twitter) || '').replace(/^@/, '').replace(/[^A-Za-z0-9_]/g, '');
+  const isKol = idn => !!idn && (idn.type === 'kol' || (idn.tags || []).includes('kol'));
+  const platforms = idn => [...new Set([idn.type].concat(idn.tags || [], idn.platforms || []).filter(p => BRANDS[p]).map(p => BRANDS[p][0]))];
+
+  /* a tag of ours drawn as its picture; `text` also writes the word (card, legend) */
+  function chip(tag, title, opts) {
+    opts = opts || {};
+    const base = tag.replace(/ ×\d+$/, ''), n = (tag.match(/×(\d+)$/) || [])[1];
+    const icon = ICON[base];
+    if (!icon) return '<span class="tag t-' + esc(base) + '" title="' + esc(title || base) + '">' + esc(base) + '</span>';
+    return '<span class="tag ico t-' + esc(base) + (opts.text ? ' txt' : '') + '" data-tag="' + esc(base) + '" title="' + esc(title || base)
+      + '" aria-label="' + esc(base) + '">' + icon + (opts.text ? '<b>' + esc(base) + '</b>' : '') + (n ? '<small>×' + n + '</small>' : '') + '</span>';
+  }
+  /* turn a server-rendered <span class="tag" data-tag> into its picture, keeping the definition in the tooltip */
+  function iconify(el) {
+    const t = el.dataset.tag; if (!t || !ICON[t] || el.classList.contains('ico')) return;
+    const n = el.dataset.n;
+    el.classList.add('ico'); el.setAttribute('aria-label', t);
+    el.innerHTML = ICON[t] + (n ? '<small>×' + n + '</small>' : '');
+  }
+  /* who the wallet is, as pictures: KOL star, X account, the platforms it trades through, known roles */
+  function idMarks(idn, opts) {
+    if (!idn) return '';
+    opts = opts || {};
+    const out = [], h = handle(idn), who = idn.name ? '«' + esc(idn.name) + '»' : '';
+    if (isKol(idn)) out.push('<span class="idm kol" title="A known trader (KOL)' + (idn.name ? ': ' + esc(idn.name) : '') + ' · per Solana Tracker">' + ICON.kol + '</span>');
+    if (h) out.push('<a class="idm xacc" href="https://x.com/' + h + '" target="_blank" rel="noopener" title="@' + h + ' on X · per Solana Tracker">' + ICON.x + '</a>');
+    platforms(idn).forEach(f => {
+      const name = Object.values(BRANDS).find(b => b[0] === f)[1];
+      out.push('<span class="idm brand" title="Trades through ' + esc(name) + (who && !isKol(idn) ? ' as ' + who : '') + ' · per Solana Tracker"><img src="/static/brands/' + f + '.png" alt="' + esc(name) + '"></span>');
+    });
+    [...new Set([idn.type].concat(idn.tags || []))].filter(r => ROLES[r]).forEach(r => {
+      const icon = r === 'exchange' ? ICON.exchange : r === 'hacker' ? ICON.hacker : ICON['bot-like'];
+      out.push('<span class="idm role r-' + r + '" title="' + ROLES[r] + ' · per Solana Tracker">' + icon + '</span>');
+    });
+    return out.join('');
+  }
+  return { ICON, BRANDS, chip, iconify, idMarks, isKol, handle, platforms, esc };
+})();

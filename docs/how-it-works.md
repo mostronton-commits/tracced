@@ -48,9 +48,10 @@ What a wallet still holds stays in dollars. It is a valuation at a later price, 
 
 ## What the token itself did
 
-Two events are marked on the price itself and named in a line above the chart: **M** where trading left the
-launchpad, **$** where someone paid DexScreener to show the token's profile. Together they often explain the timing
-of a run.
+Two events are marked on the price itself: **M** where trading left the launchpad, the DexScreener logo where
+someone paid DexScreener to show the token's profile. Above the chart each has a button with its time; press it and
+the chart goes there. **⇤ Launch** under the chart jumps to the first hours of trading. Together the two events often
+explain the timing of a run.
 
 The first comes from the token's own pools, which arrive in the response an analysis already pays for. The second
 comes from DexScreener's public order list, which is free and costs no requests at all.
@@ -72,11 +73,12 @@ picks up again next month. A wallet checked before costs nothing.
 
 Click a wallet's name. The card shows, top to bottom:
 
-1. its tags, ours and your own;
-2. who it is, only when Solana Tracker names it: a KOL, an X handle, a trading platform, with the source written
-   next to it;
-3. what it did on this token;
-4. its last 30 days on every token it traded;
+1. who it is, when Solana Tracker names it: a KOL, an X account, the app it trades through, with the source named;
+2. its tags, ours and your own;
+3. how it trades on every token over the last 7 or 30 days: realized PnL and its curve, win rate with wins and
+   losses, volume, buys and sells, best and worst day, drawdown, how its closed positions ended, the hours it
+   trades, and its latest tokens;
+4. its position in this token;
 5. its first transaction and who sent it its first SOL;
 6. its trades on this token.
 
@@ -91,5 +93,6 @@ or was bought earlier, so its cost is unknown, and a transfer is not a profit.
     Their PnL comes from a formula they do not publish, and their win rate over a period counts profitable days,
     not positions. The card shows numbers you can rebuild from the swaps yourself.
 
-Loading the 30 days takes a few requests and a connected wallet. The answer is kept for a day, so opening the same
-wallet again is free for everyone.
+Nothing in the card is computed for wallets nobody opens. The swaps are read the moment a card opens, a few
+requests with a connected wallet, and the answer is kept for a day, so opening the same wallet again is free for
+everyone. The 7-day view is counted from the same swaps and costs nothing extra.

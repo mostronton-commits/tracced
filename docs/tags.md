@@ -3,6 +3,9 @@
 A tag is a rule, not an opinion. Each one is computed from the table or the chain, each shows its definition on
 hover, and each can be argued with.
 
+In the table a tag is a small picture, so a long list stays readable. Hover it for the rule; the filter chips above
+the table and the wallet's card name every one of them in words.
+
 | Tag | The rule |
 |---|---|
 {% for k, d in TAGS.items() %}| `{{ k }}` | {{ d }} |
@@ -25,11 +28,12 @@ early buyer in **another analysis you saved**, and clicking it opens that list.
     Repeats are computed only across the analyses saved to your own account. Nothing leaves the server, and no
     request is spent on it.
 
-## KOL is not our tag
+## Names and platforms are not our tags
 
-A few rows carry a `KOL` mark, usually with an X handle. That is not our judgement: Solana Tracker lists the wallet
-as a known trader. The wallet's card may also show a username from a trading app and the platforms it trades
-through, with the source named.
+Next to some wallets sit other pictures: a star for a known trader (KOL), the X logo when the wallet's X account is
+known, the logo of the app it trades through (Axiom, GMGN, Fomo, pump.fun, Terminal, Photon, Bloom, BullX), and a
+mark for an exchange, a known bot or a known exploit wallet. None of that is our judgement: it comes from Solana
+Tracker, and every tooltip and the card say so.
 
 Every other wallet in the table is one nobody has labelled. That is most of them, and usually the interesting part.
 
