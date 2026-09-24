@@ -171,7 +171,7 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
     store = TradeStore(store_dir, mint)
     win_t, hist_t = Timing(), Timing()                    # де пішов час: сторінки діапазону і решти історії
     fetch = win_t.wrap(lambda c: st.trades_page(mint, c))
-    fetch_hist = hist_t.wrap(lambda c: st.trades_page(mint, c, identity=False))   # ідентичність — лише з діапазону
+    fetch_hist = hist_t.wrap(lambda c: st.trades_page(mint, c))
     t_win = time.monotonic()
     pages, est_full, est_win = 0, None, 0
     credits = {"seen": None, "at": None}
@@ -346,7 +346,7 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
     }
     rows, sm = scope.rows_for(result, "all", s)
     result["rows"], result["summary"] = rows, sm
-    who = getattr(st, "identity", None)                  # хто стоїть за гаманцем: зібрано з тих самих сторінок угод
+    who = getattr(st, "identity", None)                  # хто стоїть за гаманцем: те, що вже в кеші; решту допитує збагачення
     if who:
         result["identities"] = {r["wallet"]: idn for r in rows if (idn := who(r["wallet"]))}
     counts.update(n_trades=lstats["n_trades"], n_early=len(rows), n_wallets=len(wl), **counts_extra)

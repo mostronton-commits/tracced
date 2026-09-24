@@ -95,11 +95,22 @@ class WebError(Exception):
         self.status = status
 
 
-def make_enricher(ages, s):
-    """Після аналізу: вік кожного гаманця з RPC (з паузами) → тег `fresh`; прогрес у result["enrich"]."""
+def make_enricher(ages, s, identify=None):
+    """Після аналізу, у фоні: хто стоїть за гаманцями (пакетами, секунди), потім вік кожного гаманця з RPC → тег
+    `fresh` і перший спонсор → `bundle`; прогрес у result["enrich"]."""
     def enrich(job, save):
         r = job.result
         rows = r.get("rows") or []
+        if identify and not r.get("identities_done"):
+            try:
+                found = identify([row["wallet"] for row in rows])
+                r["identities"] = dict(r.get("identities") or {}, **(found or {}))
+            except Exception as ex:  # noqa: BLE001 — імена не мають зупиняти вік і спонсорів
+                job.log.append(f"wallet names unavailable: {str(ex)[:60]}")
+            r["identities_done"] = True
+            save(job)
+        if ages is None:
+            return
         n = min(len(rows), int(s.get("age_lookups_max", 0)))
         e = r.setdefault("enrich", {"done": 0, "total": n, "fresh": 0, "failed": 0})
         e["total"] = n
@@ -233,7 +244,9 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
             if job.owner not in app["admins"]:
                 app["runs_daily"].add("global", -1)
 
-    app["jobs"] = JobQueue(runner, out_dir, enricher=make_enricher(ages, s) if ages else None, on_error=on_error)
+    identify = st.identities if (hasattr(st, "identities") and s.get("st_identity", True)) else None
+    app["jobs"] = JobQueue(runner, out_dir, enricher=make_enricher(ages, s, identify) if (ages or identify) else None,
+                           on_error=on_error)
     app.router.add_get("/", index)
     app.router.add_get("/how", how)
     app.router.add_get("/docs", docs_page)
@@ -300,13 +313,13 @@ def _share_st(st, slots):
         m = _METER.get()
         return m["n"] if m is not None else st.requests
 
-    def shared(path):
+    def shared(path, *a, **kw):
         with slots:
             m = _METER.get()
             if m is not None:
                 with _METER_LOCK:
                     m["n"] += 1
-            return orig(path)
+            return orig(path, *a, **kw)
     st.meter, st.requests_here, st._get = meter, here, shared
 
 
@@ -1446,7 +1459,8 @@ async def job_enrich_json(request):
     return web.json_response({"done": e.get("done", 0), "total": e.get("total", 0), "fresh": fresh,
                               "funders_done": e.get("funders_done", 0), "paused": e.get("paused"),
                               "funders": job.result.get("funders") or {}, "bundle": job.result.get("bundle") or {},
-                              "ages": job.result.get("ages") or {}, "identities": job.result.get("identities") or {}})
+                              "ages": job.result.get("ages") or {}, "identities": job.result.get("identities") or {},
+                              "identities_done": bool(job.result.get("identities_done"))})
 
 
 async def wallet_profile_json(request):

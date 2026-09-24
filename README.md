@@ -82,7 +82,8 @@ chart and terminal and result, without a single request to the data provider.
   pieces, since the cursor is a time) and the wallets' own trades are fetched eight at a time (`st_concurrency`). A cached analysis costs none. The balance is checked at most every 10 minutes and new runs
   wait when the month gets close to its end.
 - The wallet card: the wallet's swaps on every token (`/wallet/{owner}/trades`), run through the same ledger as the
-  table. Who a wallet is comes from `enrich=identity` on trade pages the analysis already fetches.
+  table. Who a wallet is comes from Solana Tracker's wallet summaries (`/v2/pnl/wallets/batch`, 100 wallets a
+  request), asked in the background once the table is on screen; only the identity is used, never their PnL.
 - Wallet age and funder: a Solana RPC node with the full signature index. `SOLANA_RPC_URL` walks signatures,
   `SOLANA_RPC_TX_URL` reads the one transaction that names the funder; both fall back to
   `api.mainnet-beta.solana.com`. They are split because a node can be good at one and useless at the other:

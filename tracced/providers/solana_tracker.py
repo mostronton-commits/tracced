@@ -4,7 +4,7 @@ import time
 import urllib.error
 
 from .base import PumpDataSource
-from ..util import http_get_json, to_ms
+from ..util import http_get_json, http_post_json, to_ms
 
 BASE = "https://data.solanatracker.io"
 
@@ -63,7 +63,8 @@ class SolanaTracker(PumpDataSource):
         except Exception:
             return None
 
-    def _get(self, path):
+    def _get(self, path, body=None):
+        """GET, або POST з JSON-тілом (пакетні ендпоінти PnL V2). Той самий темп, лічильник і ретраї."""
         with self._lock:
             if self.pause > 0:                                   # free: темп ≤3 req/s на всі потоки разом
                 wait = self.pause - (time.monotonic() - self._last)
@@ -74,6 +75,8 @@ class SolanaTracker(PumpDataSource):
         last = None
         for attempt in range(self.retries):
             try:
+                if body is not None:
+                    return http_post_json(BASE + path, body, self.h)
                 return http_get_json(BASE + path, self.h)
             except urllib.error.HTTPError as e:
                 last = e

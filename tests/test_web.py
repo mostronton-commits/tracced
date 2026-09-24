@@ -34,11 +34,11 @@ class FakeWebST(FakeST):
             raise RuntimeError("no such token")
         return super().token_info(mint)
 
-    def trades_page(self, mint, cursor, identity=True):
+    def trades_page(self, mint, cursor):
         if self.fail_trades:
             self.requests += 1
             raise RuntimeError("feed down")
-        return super().trades_page(mint, cursor, identity)
+        return super().trades_page(mint, cursor)
 
     def wallet_swaps(self, owner, since_ms, max_pages=5):
         """Обміни гаманця по всіх токенах: одна купівля і один продаж з прибутком $50."""

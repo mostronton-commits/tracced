@@ -131,44 +131,69 @@ class TestClient(unittest.TestCase):
         self.assertTrue(partial)
         self.assertEqual(len(raw), 3)
 
-    def test_identity_rides_along_with_the_trade_pages(self):
-        page = {"trades": [{"wallet": "K1", "type": "buy", "time": NOW, "amount": 1, "volume": 1, "priceUsd": 1, "tx": "t1",
-                            "identity": {"name": "Cented", "twitter": "@Cented7", "type": "kol"}},
-                           {"wallet": "U1", "type": "buy", "time": NOW, "amount": 1, "volume": 1, "priceUsd": 1, "tx": "t2",
-                            "identity": None}], "hasNextPage": False}
-        st = self.client([page])
-        st.trades_page("MINT", NOW - 1)
-        self.assertIn("enrich=identity", st.paths[0])
-        self.assertEqual(st.identity("K1"), {"name": "Cented", "twitter": "@Cented7", "type": "kol"})
-        self.assertIsNone(st.identity("U1"))
-
-    def test_a_refused_identity_parameter_does_not_sink_the_analysis(self):
-        import io
-        import urllib.error
-        st = EarlyST("k", pause=0, identity_cache=FakeCache())
-        st.paths = []
-
-        def fake(path):
-            st.paths.append(path)
-            if "enrich" in path:
-                raise urllib.error.HTTPError(path, 400, "bad param", {}, io.BytesIO(b""))
-            return {"trades": [], "hasNextPage": False}
-        st._get = fake
-        self.assertEqual(st.trades_page("MINT", NOW - 1)["trades"], [])
-        st.trades_page("MINT", NOW)
-        self.assertEqual(len(st.paths), 3)                        # відмова, повтор без параметра, далі одразу без нього
-        self.assertNotIn("enrich", st.paths[2])
-
-    def test_history_pages_do_not_ask_who_the_wallets_are(self):
+    def test_trade_pages_never_ask_who_the_wallets_are(self):
         st = self.client([{"trades": [], "hasNextPage": False}])
-        st.trades_page("MINT", NOW - 1, identity=False)
-        self.assertNotIn("enrich", st.paths[0])
-
-    def test_without_the_cache_nothing_is_asked(self):
-        st = self.client([{"trades": [], "hasNextPage": False}], identity=False)
         st.trades_page("MINT", NOW - 1)
-        self.assertNotIn("enrich", st.paths[0])
+        self.assertNotIn("enrich", st.paths[0])                   # 11 s a page with it on 24.09, 0.2 s without
         self.assertIn("limit=500", st.paths[0])
+
+
+class TestIdentityBatch(unittest.TestCase):
+    """Хто стоїть за гаманцем: пакетами по 100, кешуючи і відомих, і невідомих."""
+
+    def client(self, answer):
+        import threading
+        st = EarlyST("k", pause=0, identity_cache=FakeCache())
+        st.calls, lock = [], threading.Lock()
+
+        def fake(path, body=None):
+            with lock:
+                st.calls.append((path, list((body or {}).get("wallets") or [])))
+            return answer(body["wallets"])
+        st._get = fake
+        return st
+
+    def test_batches_of_a_hundred_and_only_known_wallets_come_back(self):
+        ws = [f"W{i:03d}" for i in range(250)]
+
+        def answer(chunk):
+            return {"wallets": [{"wallet": w, "identity": {"name": "Cented", "twitter": "@Cented7", "type": "kol"}}
+                                for w in chunk if w == "W007"],
+                    "notFound": [w for w in chunk if w != "W007"]}
+        st = self.client(answer)
+        got = st.identities(ws)
+        self.assertEqual(sorted(len(c[1]) for c in st.calls), [50, 100, 100])
+        self.assertTrue(all(c[0] == "/v2/pnl/wallets/batch" for c in st.calls))
+        self.assertEqual(got, {"W007": {"name": "Cented", "twitter": "@Cented7", "type": "kol"}})
+        st.calls.clear()
+        self.assertEqual(st.identities(ws), got)                  # другий раз — з кешу, і невідомі теж
+        self.assertEqual(st.calls, [])
+        self.assertIsNone(st.identity("W008"))
+
+    def test_a_failed_batch_leaves_those_wallets_unasked_not_unknown(self):
+        def answer(chunk):
+            if "W000" in chunk:
+                raise RuntimeError("down")
+            return {"wallets": [], "notFound": chunk}
+        st = self.client(answer)
+        self.assertEqual(st.identities([f"W{i:03d}" for i in range(150)]), {})
+        st.calls.clear()
+        st.identities([f"W{i:03d}" for i in range(150)])
+        self.assertEqual([len(c[1]) for c in st.calls], [100])    # збій не записався як «невідомий»: спитаємо ще
+
+
+class TestEnricherNames(unittest.TestCase):
+    def test_names_arrive_before_age_and_without_it(self):
+        from types import SimpleNamespace
+        from tracced.web.app import make_enricher
+        rows = [{"wallet": "W1"}, {"wallet": "W2"}]
+        job = SimpleNamespace(result={"rows": rows}, log=[])
+        saved = []
+        make_enricher(None, {}, identify=lambda ws: {"W2": {"name": "Cented"}})(job, saved.append)
+        self.assertEqual(job.result["identities"], {"W2": {"name": "Cented"}})
+        self.assertTrue(job.result["identities_done"])
+        self.assertEqual(len(saved), 1)
+        self.assertNotIn("enrich", job.result)                    # вік вимкнено: далі нічого
 
 
 if __name__ == "__main__":

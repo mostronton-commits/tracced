@@ -6,8 +6,8 @@ stats_cache тепер тримає угоди гаманця по токену 
 Поля перевірені живцем 16.09.2026 (docs/early_spike.md).
 """
 import threading
-import urllib.error
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
 
 from ..providers.solana_tracker import PAGE, SolanaTracker
 from ..util import to_ms
@@ -20,59 +20,56 @@ class EarlyST(SolanaTracker):
         super().__init__(api_key, **kw)
         self.chart_cache = chart_cache
         self.stats_cache = stats_cache
-        # хто стоїть за гаманцем (KOL, Twitter, платформа) приходить у тих самих сторінках угод з enrich=identity:
-        # збираємо по дорозі, окремих запитів нема. Без цього кешу параметр не додається зовсім
+        # хто стоїть за гаманцем (KOL, Twitter, платформа): пакетом по 100 гаманців з /v2/pnl/wallets/batch.
+        # Не з enrich=identity на сторінках угод: перевірено 24.09 на dev, сторінка з ним відповідає 11 с замість 0.2 с
         self.identity_cache = identity_cache
-        self._identity_off = False      # джерело відкинуло enrich=identity: далі просимо сторінки без нього
         self.chart_cache_hits = 0
         self.stats_cache_hits = 0
         # кеш свічок читають/пишуть кілька потоків (сторінка + робочий потік): без замка два
         # одночасні flush() ламались об os.replace того самого тимчасового файлу
         self._cache_lock = threading.Lock()
 
-    def _page(self, path, identity=True):
-        """Сторінка угод; з ідентичністю гаманців, якщо її збираємо. Параметр живцем ще не перевірений на всіх
-        тарифах, тому відмова на нього (400/422) не валить аналіз: той самий запит повторюється без нього, і до
-        перезапуску сервера ідентичність більше не просимо."""
-        if not identity or self.identity_cache is None or self._identity_off:
-            return self._get(path)
-        try:
-            return self._get(path + "&enrich=identity")
-        except urllib.error.HTTPError as e:
-            if e.code not in (400, 422):
-                raise
-            self._identity_off = True
-            return self._get(path)
-
-    def _harvest(self, raws):
-        """Ідентичність з сирих угод → кеш (лише відомі гаманці; невідомі приходять з identity: null)."""
-        if self.identity_cache is None:
-            return
-        found = {}
-        for tr in raws:
-            idn = compact_identity(tr.get("identity"))
-            if idn and tr.get("wallet"):
-                found[tr["wallet"]] = idn
-        if found:
-            with self._cache_lock:
-                for w, idn in found.items():
-                    if self.identity_cache.get(w) != idn:
-                        self.identity_cache.put(w, idn)
-
     def identity(self, wallet):
-        """Ідентичність гаманця, якщо Solana Tracker її колись повертав; None — невідомий або ще не бачили."""
+        """Ідентичність гаманця з кешу; None — невідомий гаманець або ще не питали."""
         if self.identity_cache is None:
             return None
         with self._cache_lock:
-            return self.identity_cache.get(wallet)
+            return self.identity_cache.get(wallet) or None
 
-    def trades_page(self, mint, cursor_ms, identity=True):
-        """Одна сторінка угод від cursor_ms (ASC). Повертає нормалізовані угоди + курсор далі.
+    def identities(self, wallets, workers=8):
+        """Хто стоїть за гаманцями: `POST /v2/pnl/wallets/batch`, 100 гаманців на запит, запити одночасно.
 
-        identity=False — для сторінок історії поза діапазоном: хто купував у діапазоні, той є на його сторінках,
-        а питати ідентичність для сотень сторінок решти історії — зайва робота джерела."""
-        d = self._page(f"/trades/{mint}?sortDirection=ASC&limit={PAGE}&cursor={int(cursor_ms)}", identity)
-        self._harvest(d.get("trades") or [])
+        Беремо лише `identity`; їхні PnL і теги в продукт не йдуть. Відповідь кешується, зокрема «невідомий»
+        (порожній запис), тож той самий гаманець у наступному аналізі не коштує нічого. Повертає {гаманець: ідентичність}
+        лише для відомих. Збій одного пакета не валить решту: ці гаманці просто лишаються без імені."""
+        if self.identity_cache is None:
+            return {}
+        with self._cache_lock:
+            todo = [w for w in dict.fromkeys(wallets) if w and self.identity_cache.get(w) is None]
+        chunks = [todo[i:i + 100] for i in range(0, len(todo), 100)]
+
+        def one(chunk):
+            try:
+                d = self._get("/v2/pnl/wallets/batch", body={"wallets": chunk}) or {}
+            except Exception:  # noqa: BLE001
+                return None
+            return {x.get("wallet"): compact_identity(x.get("identity")) or {} for x in (d.get("wallets") or []) if x.get("wallet")}
+        got = {}
+        if chunks:
+            with ThreadPoolExecutor(max_workers=max(1, min(workers, len(chunks))), thread_name_prefix="early-ident") as pool:
+                for chunk, res in zip(chunks, pool.map(one, chunks)):
+                    if res is None:
+                        continue
+                    got.update(res)
+                    got.update({w: {} for w in chunk if w not in res})     # notFound = невідомий, теж кешуємо
+        with self._cache_lock:
+            for w, idn in got.items():
+                self.identity_cache.put(w, idn)
+        return {w: self.identity(w) for w in wallets if self.identity(w)}
+
+    def trades_page(self, mint, cursor_ms):
+        """Одна сторінка угод від cursor_ms (ASC). Повертає нормалізовані угоди + курсор далі."""
+        d = self._get(f"/trades/{mint}?sortDirection=ASC&limit={PAGE}&cursor={int(cursor_ms)}")
         return {
             "trades": [normalize(tr) for tr in (d.get("trades") or [])],
             "hasNextPage": bool(d.get("hasNextPage")),
@@ -129,9 +126,8 @@ class EarlyST(SolanaTracker):
                 return cached
         out, seen, cursor = [], set(), None
         for _ in range(max_pages):
-            d = self._page(f"/trades/{mint}/by-wallet/{wallet}?sortDirection=ASC&limit={PAGE}"
-                           + (f"&cursor={int(cursor)}" if cursor else ""))
-            self._harvest(d.get("trades") or [])
+            d = self._get(f"/trades/{mint}/by-wallet/{wallet}?sortDirection=ASC&limit={PAGE}"
+                          + (f"&cursor={int(cursor)}" if cursor else ""))
             page = [normalize(tr) for tr in (d.get("trades") or [])]
             fresh = [tr for tr in page if tr["tx"] not in seen]
             seen.update(tr["tx"] for tr in fresh)

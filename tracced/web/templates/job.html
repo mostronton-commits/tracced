@@ -706,7 +706,7 @@
         idents = d.identities || {}; ages = d.ages || {};
         markKnown();
         const refresh = () => { if (!drawer.hidden && drawer.dataset.w) { renderIdent(drawer.dataset.w); renderWalletInfo(drawer.dataset.w); if (window.EarlyTZ) EarlyTZ.apply(); } };
-        if (!en || !d.total) { if (en) en.hidden = true; ageDone = true; refresh(); return; }
+        if (!en || !d.total) { if (en) en.hidden = true; ageDone = true; refresh(); if (!d.identities_done) again(); return; }
         let added = 0;
         funders = d.funders || {}; bundle = d.bundle || {};
         const addTag = (w, tag, text, title) => { const r = rows.find(x => x.dataset.w === w); if (!r || r.dataset.tags.split(' ').includes(tag)) return;
@@ -719,7 +719,7 @@
         onChart.forEach(o => { const c = bundleColor(o.wallet); if (c !== o.bundleColor) { o.bundleColor = c; rings++; } });
         if (rings) renderOnChart();
         if (added) apply();
-        const busy = !d.paused && (d.done < d.total || (d.funders_done != null && d.funders_done < d.total));
+        const busy = !d.identities_done || (!d.paused && (d.done < d.total || (d.funders_done != null && d.funders_done < d.total)));
         if (d.paused) { en.textContent = 'wallet age paused: this month\'s budget for it is used up'; ageDone = true; refresh(); return; }
         ageDone = !busy;
         if (d.done < d.total) { en.textContent = 'wallet age ' + d.done + '/' + d.total + '…'; again(); }
