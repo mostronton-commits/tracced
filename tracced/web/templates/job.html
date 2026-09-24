@@ -125,30 +125,10 @@
         <th class="num sortable" data-key="hold" title="From its entry to its first sale · how many buys and sells">Held</th>
         <th class="sortable fundh" data-key="funder" data-type="text" title="Who sent this wallet its first SOL — click a funder to see everyone it paid for">Funded by</th>
       </tr></thead>
-      <tbody>
-      {% for w in r.rows %}
-        {% set diff = (w.invested_usd or 0) > (w.invested_in_range_usd or 0) + 0.01 %}
-        {% set ecap = w.entry_range_mcap if w.entry_range_mcap else w.entry_mcap_avg %}
-        {% set etime = w.first_range_buy_ms or w.first_buy_ms %}
-        {% set vs = ((w.multiple - 1) * 100)|round|int if w.multiple else none %}
-        <tr data-w="{{ w.wallet }}" data-inv="{{ w.invested_in_range_usd or 0 }}" data-tot="{{ w.invested_usd or 0 }}"
-            data-mult="{{ w.multiple or 0 }}" data-sold="{{ w.sold_share_pct or 0 }}" data-buys="{{ w.buys or 0 }}"
-            data-hold="{{ w.hold_minutes or 0 }}" data-exit="{{ 1 if w.first_sell_ms else 0 }}" data-real="{{ w.realized_usd or 0 }}"
-            data-entry="{{ ecap or 0 }}" data-etime="{{ etime or 0 }}" data-exitcap="{{ w.exit_mcap_avg or 0 }}" data-got="{{ w.proceeds_usd or 0 }}"
-            data-tags="{{ w.tag_list|join(' ') }}"{% if w.invested_in_range_sol is not none %} data-invsol="{{ w.invested_in_range_sol }}" data-gotsol="{{ w.proceeds_sol or 0 }}" data-realsol="{{ w.realized_sol or 0 }}" data-totsol="{{ w.invested_sol or 0 }}"{% endif %}{% if loop.index0 < 40 %} style="--i: {{ loop.index0 }}"{% endif %}>
-          <td class="pk"><input type="checkbox" class="pick" aria-label="Select this wallet"></td>
-          <td class="muted n">{{ loop.index }}</td>
-          <td class="wcell"><span class="wid"><button type="button" class="mk" title="Show on the chart">◉</button><button type="button" class="wname mono" title="Open the wallet's card">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</button><button type="button" class="ghost wcopy" data-copy="{{ w.wallet }}" title="Copy the address" aria-label="Copy the address"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.8"/><path d="M10.5 5.5V4.3A1.8 1.8 0 0 0 8.7 2.5H4.3a1.8 1.8 0 0 0-1.8 1.8v4.4a1.8 1.8 0 0 0 1.8 1.8h1.2"/></svg></button></span><span class="tags">{% for t in w.tag_list %}<span class="tag t-{{ t }}" data-tag="{{ t }}" title="{{ TAGS.get(t, t) }}">{{ t }}</span>{% endfor %}</span></td>
-          <td class="num two c-inv" data-h="Bought" title="Bought in the range at a {{ ecap|mcap }} market cap{% if diff %} · {{ w.invested_usd|usd }} in total on this token{% endif %}"><b class="mono amt" data-usd="{{ w.invested_in_range_usd or 0 }}"{% if w.invested_in_range_sol is not none %} data-sol="{{ w.invested_in_range_sol }}"{% endif %}>{{ w.invested_in_range_usd|usd }}</b><small>{{ ecap|mcap }} · <span class="dtc" data-ms="{{ etime or 0 }}" data-short="1">{{ etime|dt }}</span></small></td>
-          <td class="num two c-sold" data-h="Sold"{% if w.exit_mcap_avg %} title="Sold at a {{ w.exit_mcap_avg|mcap }} market cap on average{% if vs is not none %}, {{ '+' if vs > 0 else '' }}{{ vs }}% against its entry{% endif %} · {{ w.sold_share_pct|num }}% of its tokens sold"{% endif %}><b class="mono amt" data-usd="{{ w.proceeds_usd or 0 }}"{% if w.proceeds_sol is not none %} data-sol="{{ w.proceeds_sol }}"{% endif %}>{{ w.proceeds_usd|usd if w.proceeds_usd else '—' }}</b><small>{% if w.exit_mcap_avg %}{{ w.exit_mcap_avg|mcap }} · {{ w.sold_share_pct|num }}%{% endif %}</small></td>
-          <td class="num two bar c-pnl{{ ' neg' if (w.realized_usd or 0) < 0 else '' }}" data-h="PnL" style="--w: {{ (100 * (w.realized_usd or 0)|abs / sm.max_abs_realized)|round|int if sm.max_abs_realized else 0 }}%"><b class="mono amt {{ 'pos' if (w.realized_usd or 0) > 0 else ('neg' if (w.realized_usd or 0) < 0 else '') }}" data-usd="{{ w.realized_usd or 0 }}"{% if w.realized_sol is not none %} data-sol="{{ w.realized_sol }}"{% endif %}>{{ w.realized_usd|usd }}</b><small class="{{ 'pos' if (w.unrealized_usd or 0) > 0 else ('neg' if (w.unrealized_usd or 0) < 0 else '') }}">{% if w.unrealized_usd %}{{ w.unrealized_usd|usd }} still held{% endif %}</small></td>
-          <td class="num two c-held" data-h="Held"><b class="mono">{{ w.hold_minutes|holdt }}</b><small>{{ w.buys }} buy{{ '' if w.buys == 1 else 's' }} · {{ w.sells if w.sells is not none else '—' }} sell{{ '' if w.sells == 1 else 's' }}</small></td>
-          <td class="fund" data-h="Funded by"></td>
-        </tr>
-      {% endfor %}
-      </tbody>
+      <tbody></tbody>
     </table>
     </div>
+    <script type="application/json" id="rowsdata">{{ rows_json }}</script>
     <div class="row more" id="more" hidden>
       <button type="button" id="more100">Show 100 more</button>
       <button type="button" class="ghost" id="moreall">Show all <span id="moren"></span></button>
@@ -209,8 +189,14 @@
     <script>
     (function () {
       const table = document.getElementById('facts'), tbody = table.tBodies[0], jobId = table.dataset.id;
-      const rows = [...tbody.rows], shown = document.getElementById('shown'), nsel = document.getElementById('nsel');
-      rows.forEach(r => r.querySelectorAll('.tags .tag[data-tag]').forEach(EarlyTags.iconify));   // tags as pictures, the rule in the tooltip
+      const shown = document.getElementById('shown'), nsel = document.getElementById('nsel');
+      /* The rows arrive as data, not as markup: the page draws the ones on screen, a hundred at a time, and sorts,
+         filters, selects and exports on the numbers. Drawn in full, 2,500 wallets were 75,000 elements, and a phone
+         with little memory stalled on them. */
+      const RAW = JSON.parse(document.getElementById('rowsdata').textContent);
+      const all = RAW.r.map(a => { const o = {}; RAW.f.forEach((k, i) => { o[k] = a[i]; }); o.tags = o.tags ? o.tags.split(' ') : []; return o; });
+      const byW = new Map(all.map(o => [o.w, o]));
+      let order = all.slice(), pass = all.slice();                   // order: the current sort; pass: what the filters let through
       document.querySelectorAll('#filters [data-hide]').forEach(b => {                         // the filter chips double as the legend
         const ic = EarlyTags.ICON[b.dataset.hide]; if (ic) b.insertAdjacentHTML('afterbegin', ic);
       });
@@ -232,24 +218,119 @@
         panel.querySelectorAll('[data-hide]').forEach(b => b.classList.toggle('off', f.hide.includes(b.dataset.hide)));
       }
       function nActive() { return [f.inv, f.pnl !== null, f.sold, f.buysMax, f.hold, f.exits, f.profit, f.funder, f.repeat].filter(Boolean).length + f.hide.length; }
+
+      // what arrives after the page: the background checks (funders, ages, names) and the account (repeats, lists)
+      let funders = {}, bundle = {}, crossings = {}, idents = {}, ages = {}, ageDone = false, palette = new Map();
+      const onChart = [], MAX_ON_CHART = 10, BUY_C = '#34D399', SELL_C = '#F87171';
+      const BUNDLE_PAL = ['#C4B5FD', '#FDBA74', '#7DD3FC', '#F9A8D4', '#FCD34D', '#A5B4FC', '#5EEAD4', '#FDA4AF', '#D8B4FE', '#BEF264'];
+      const BUNDLE_MIN = {{ bundle_min }}, TAGDEF = {{ TAGS|tojson }};
+      const CHAIN = '<svg class="lnk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" aria-hidden="true"><g transform="rotate(-45 12 12)"><rect x="1.2" y="7.4" width="12.4" height="9.2" rx="4.6"/><rect x="10.4" y="7.4" width="12.4" height="9.2" rx="4.6"/></g></svg>';   // two links: the repeat marker in the row and the heading of its block in the card
+      const COPY = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.8"/><path d="M10.5 5.5V4.3A1.8 1.8 0 0 0 8.7 2.5H4.3a1.8 1.8 0 0 0-1.8 1.8v4.4a1.8 1.8 0 0 0 1.8 1.8h1.2"/></svg>';
+      const short = w => w.slice(0, 6) + '…' + w.slice(-4), esc = EarlyTags.esc, fm = EarlyUI.fmtShort;
+      const money = v => (v == null || isNaN(v) ? '—' : (v < 0 ? '-$' : '$') + fm(Math.abs(v)));
+      const holdText = m => m == null ? '—' : m < 60 ? Math.round(m) + ' min' : m < 1440 ? (m / 60).toFixed(m < 600 ? 1 : 0) + ' h' : Math.round(m / 1440) + ' d';
+      const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+      const SOLON = !!(window.EarlyCur && EarlyCur.get() === 'sol');
+      const MAXR = all.reduce((m, o) => Math.max(m, Math.abs(o.real || 0)), 0);     // the PnL bar is scaled to the largest one
+      function rebundle() {
+        // wallets whose first SOL came from one funder shared by BUNDLE_MIN or more wallets here; one colour per funder
+        const cnt = {};
+        Object.values(funders).forEach(x => { cnt[x] = (cnt[x] || 0) + 1; });
+        bundle = {};
+        Object.entries(funders).forEach(([w, x]) => { if (cnt[x] >= BUNDLE_MIN) bundle[w] = { funder: x, n: cnt[x] }; });
+        palette = new Map([...new Set(Object.values(bundle).map(b => b.funder))].sort().map((x, i) => [x, BUNDLE_PAL[i % BUNDLE_PAL.length]]));
+      }
+      const bundleColor = w => bundle[w] ? palette.get(bundle[w].funder) : null;
+      function amount(usd, sol, cls) {
+        // one amount in the unit the footer switch shows; a result saved before SOL was recorded keeps its dollars, dimmed
+        if (!SOLON) return '<b class="mono ' + cls + '">' + money(usd) + '</b>';
+        if (sol == null) return '<b class="mono amt nosol ' + cls + '" title="This result was saved before tracced recorded SOL amounts">' + money(usd) + '</b>';
+        return '<b class="mono ' + cls + '">' + EarlyCur.sol(sol) + '</b>';
+      }
+      function tagsHtml(o) {
+        // a repeat, who the wallet is, then our rules as pictures with the rule in the tooltip
+        const cx = crossings[o.w], idn = idents[o.w], b = bundle[o.w];
+        let h = cx && cx.length ? '<button type="button" class="tag ico t-seen-before seen" title="Also an early buyer in ' + cx.length
+          + ' of your saved analyses — click for the list" aria-label="Seen in ' + cx.length + ' of your other analyses">' + CHAIN + '</button>' : '';
+        const ids = idn ? EarlyTags.idMarks(idn) : '';
+        if (ids) h += '<span class="ids">' + ids + '</span>';
+        o.tags.forEach(t => {
+          if (t === 'seen-before') return;
+          h += t === 'bundle' && b ? EarlyTags.chip('bundle ×' + b.n, TAGDEF.bundle + ' — funder ' + short(b.funder)) : EarlyTags.chip(t, TAGDEF[t]);
+        });
+        return h;
+      }
+      function fundHtml(o) {
+        // who sent the wallet its first SOL; the full address in the tooltip, since two short ones can look alike
+        const fnd = funders[o.w]; if (!fnd) return '';
+        const b = bundle[o.w], col = bundleColor(o.w);
+        return '<button type="button" class="link mono fundb" data-fund="' + fnd + '" title="' + fnd + ' · click to show every wallet it funded">'
+          + (col ? '<i class="dot" style="--c:' + col + '"></i>' : '') + short(fnd) + '</button>' + (b ? '<small class="muted"> ×' + b.n + '</small>' : '');
+      }
+      const cells = new Map();                                   // wallet → the tags and funder markup last drawn for it
+      function rowHtml(o, n, i) {
+        const sel = selected.has(o.w), oc = onChart.find(x => x.wallet === o.w), tg = tagsHtml(o), fd = fundHtml(o);
+        cells.set(o.w, { tg, fd });
+        const vs = o.mult ? Math.round((o.mult - 1) * 100) : null;
+        const cls = v => v > 0 ? 'pos' : (v < 0 ? 'neg' : ''), cap = v => v ? fm(v) : '—';
+        const style = (oc ? '--c:' + (oc.bundleColor || BUY_C) + ';' : '') + (i >= 0 ? '--i: ' + i : '');
+        return '<tr data-w="' + o.w + '"' + (sel || oc ? ' class="' + (sel ? 'picked' : '') + (oc ? ' onchart' : '') + '"' : '') + (style ? ' style="' + style + '"' : '') + '>'
+          + '<td class="pk"><input type="checkbox" class="pick" aria-label="Select this wallet"' + (sel ? ' checked' : '') + '></td>'
+          + '<td class="muted n">' + n + '</td>'
+          + '<td class="wcell"><span class="wid"><button type="button" class="mk" title="Show on the chart">◉</button>'
+          + '<button type="button" class="wname mono" title="Open the wallet\'s card">' + short(o.w) + '</button>'
+          + '<button type="button" class="ghost wcopy" data-copy="' + o.w + '" title="Copy the address" aria-label="Copy the address">' + COPY + '</button>'
+          + (inList(o.w) ? '<button type="button" class="saved" title="In your lists · click to change">★</button>' : '')
+          + '</span><span class="tags">' + tg + '</span></td>'
+          + '<td class="num two c-inv" data-h="Bought" title="Bought in the range at a ' + cap(o.entry) + ' market cap'
+          + (o.tot > o.inv + 0.01 ? ' · ' + money(o.tot) + ' in total on this token' : '') + '">' + amount(o.inv, o.invsol, '')
+          + '<small>' + cap(o.entry) + ' · <span class="dtc" data-ms="' + o.etime + '" data-short="1">' + (o.etime ? EarlyTZ.fmt(o.etime).replace(/^.*, /, '') : '—') + '</span></small></td>'
+          + '<td class="num two c-sold" data-h="Sold"' + (o.exitcap ? ' title="Sold at a ' + fm(o.exitcap) + ' market cap on average'
+            + (vs != null ? ', ' + (vs > 0 ? '+' : '') + vs + '% against its entry' : '') + ' · ' + Math.round(o.sold) + '% of its tokens sold"' : '') + '>'
+          + (o.got ? amount(o.got, o.gotsol, '') : '<b class="mono">—</b>') + '<small>' + (o.exitcap ? fm(o.exitcap) + ' · ' + Math.round(o.sold) + '%' : '') + '</small></td>'
+          + '<td class="num two bar c-pnl' + (o.real < 0 ? ' neg' : '') + '" data-h="PnL" style="--w: ' + (MAXR ? Math.round(100 * Math.abs(o.real) / MAXR) : 0) + '%">'
+          + amount(o.real, o.realsol, cls(o.real)) + '<small class="' + cls(o.unreal) + '">' + (o.unreal ? money(o.unreal) + ' still held' : '') + '</small></td>'
+          + '<td class="num two c-held" data-h="Held"><b class="mono">' + holdText(o.hold) + '</b><small>' + plural(o.buys, 'buy') + ' · '
+          + (o.sells == null ? '— sells' : plural(o.sells, 'sell')) + '</small></td>'
+          + '<td class="fund" data-h="Funded by">' + fd + '</td></tr>';
+      }
+
       // the page shows a window of the rows that pass the filters (LIMIT, then "Show more"); every action — Select all,
       // Export, the agent — works on all passing rows, shown or not
-      const LIMIT = 100; let limit = LIMIT; const passing = new Set();
+      const LIMIT = 100; let limit = LIMIT, drawn = [], first = true;
       const more = document.getElementById('more');
-      function visible() { return rows.filter(r => passing.has(r.dataset.w)); }
-      function exportSet() { return selected.size ? rows.filter(r => selected.has(r.dataset.w)) : visible(); }
-      function apply() {
-        let n = 0; passing.clear();
-        rows.forEach(r => {
-          const d = r.dataset, tg = d.tags ? d.tags.split(' ') : [];
-          const ok = +d.inv >= f.inv && (f.pnl === null || +d.real >= f.pnl) && +d.sold >= f.sold && (!f.profit || +d.real > 0) &&
-                     (!f.buysMax || +d.buys <= f.buysMax) && (!f.hold || +d.hold >= f.hold) && (!f.exits || d.exit === '1') &&
-                     (!f.funder || d.funder === f.funder) && (!f.repeat || !!crossings[d.w]) && !f.hide.some(t => tg.includes(t));
-          if (ok || pinned.has(d.w)) { passing.add(d.w); n++; r.querySelector('.n').textContent = n; r.hidden = n > limit && !pinned.has(d.w); }
-          else r.hidden = true;
+      function exportSet() { return selected.size ? order.filter(o => selected.has(o.w)) : pass; }
+      const okRow = o => o.inv >= f.inv && (f.pnl === null || o.real >= f.pnl) && o.sold >= f.sold && (!f.profit || o.real > 0) &&
+        (!f.buysMax || o.buys <= f.buysMax) && (!f.hold || (o.hold || 0) >= f.hold) && (!f.exits || o.exit) &&
+        (!f.funder || funders[o.w] === f.funder) && (!f.repeat || !!crossings[o.w]) && !f.hide.some(t => o.tags.includes(t));
+      function draw() {
+        // the first `limit` rows that pass, plus any wallet pinned to the chart further down; the same rows as last
+        // time are patched in place, so a background update never replaces a button under the pointer
+        const idx = [];
+        pass.forEach((o, i) => { if (i < limit || pinned.has(o.w)) idx.push(i); });
+        const ws = idx.map(i => pass[i].w);
+        if (!first && ws.length === drawn.length && ws.every((w, k) => w === drawn[k])) { refreshRows(idx); return; }
+        tbody.innerHTML = idx.map(i => rowHtml(pass[i], i + 1, first && i < 40 ? i : -1)).join('');
+        drawn = ws; first = false;
+      }
+      function refreshRows(idx) {
+        [...tbody.rows].forEach((tr, k) => {
+          const o = byW.get(tr.dataset.w); if (!o) return;
+          if (idx && tr.cells[1].textContent !== String(idx[k] + 1)) tr.cells[1].textContent = idx[k] + 1;   // a wallet pinned below the fold keeps its place in the count
+          const c = cells.get(o.w) || {}, tg = tagsHtml(o), fd = fundHtml(o);
+          if (c.tg !== tg) tr.querySelector('.tags').innerHTML = tg;
+          if (c.fd !== fd) tr.querySelector('.fund').innerHTML = fd;
+          cells.set(o.w, { tg, fd });
+          const oc = onChart.find(x => x.wallet === o.w);
+          tr.classList.toggle('onchart', !!oc);
+          if (oc) tr.style.setProperty('--c', oc.bundleColor || BUY_C); else tr.style.removeProperty('--c');
         });
-        const na = nActive(), left = Math.max(0, n - limit);
-        shown.textContent = (left ? Math.min(n, limit) + ' of ' + n + ' shown' : n + ' of ' + rows.length) + (na ? ' · filtered' : '');
+      }
+      function apply() {
+        pass = order.filter(o => okRow(o) || pinned.has(o.w));
+        draw();
+        const na = nActive(), n = pass.length, left = Math.max(0, n - limit);
+        shown.textContent = (left ? Math.min(n, limit) + ' of ' + n + ' shown' : n + ' of ' + all.length) + (na ? ' · filtered' : '');
         more.hidden = !left; document.getElementById('more100').hidden = left <= 100; document.getElementById('moren').textContent = n;
         ftoggle.textContent = na ? 'Filters · ' + na : 'Filters'; ftoggle.classList.toggle('on', !!na);
         syncChecks();
@@ -257,10 +338,10 @@
       document.getElementById('more100').addEventListener('click', () => { limit += LIMIT; apply(); });
       document.getElementById('moreall').addEventListener('click', () => { limit = Infinity; apply(); });
       function syncChecks() {
-        rows.forEach(r => { r.querySelector('.pick').checked = selected.has(r.dataset.w); r.classList.toggle('picked', selected.has(r.dataset.w)); });
+        for (const tr of tbody.rows) { const on = selected.has(tr.dataset.w); tr.querySelector('.pick').checked = on; tr.classList.toggle('picked', on); }
         nsel.textContent = selected.size; document.getElementById('selinfo').hidden = !selected.size; watch.hidden = !selected.size;
         document.getElementById('watchn').textContent = selected.size;
-        const vis = visible(); document.getElementById('pickall').checked = vis.length > 0 && vis.every(r => selected.has(r.dataset.w));
+        document.getElementById('pickall').checked = pass.length > 0 && pass.every(o => selected.has(o.w));
         if (typeof syncWatchBtn === 'function') syncWatchBtn();
         const xs = exportSet(), what = selected.size ? xs.length + ' selected' : (xs.length + (na() ? ' filtered' : ' wallets'));
         document.getElementById('xcsv').textContent = '— ' + what + ', all columns';
@@ -285,7 +366,7 @@
       document.getElementById('fclear').addEventListener('click', () => { Object.assign(f, FDEF, { hide: [] }); saveF(); syncInputs(); apply(); });
       clearsel.addEventListener('click', () => { selected.clear(); saveSel(); syncChecks(); });
       tbody.addEventListener('change', e => { if (!e.target.classList.contains('pick')) return; const w = e.target.closest('tr').dataset.w; e.target.checked ? selected.add(w) : selected.delete(w); saveSel(); syncChecks(); });
-      document.getElementById('pickall').addEventListener('change', e => { visible().forEach(r => e.target.checked ? selected.add(r.dataset.w) : selected.delete(r.dataset.w)); saveSel(); syncChecks(); });
+      document.getElementById('pickall').addEventListener('change', e => { pass.forEach(o => e.target.checked ? selected.add(o.w) : selected.delete(o.w)); saveSel(); syncChecks(); });
 
       // the account: selected wallets go to the watchlist, the whole analysis to «My analyses»; no wallet yet → connect first, then continue.
       // Both ways: ★ on a row removes that wallet, «★ Saved» removes the analysis, «– Watchlist» removes the selected wallets.
@@ -355,11 +436,11 @@
       document.addEventListener('click', e => { if (!listpop.hidden && !e.target.closest('.listpop, #watchbtn, #dstar, .saved')) listpop.hidden = true; });
       document.addEventListener('keydown', e => { if (e.key === 'Escape') listpop.hidden = true; });
       function markSaved() {
-        rows.forEach(r => {
+        for (const r of tbody.rows) {
           const wid = r.querySelector('.wid'), has = wid.querySelector('.saved');
           if (inList(r.dataset.w)) { if (!has) { const s = document.createElement('button'); s.type = 'button'; s.className = 'saved'; s.title = 'In your lists · click to change'; s.textContent = '★'; wid.appendChild(s); } }
           else if (has) has.remove();
-        });
+        }
         const card = document.getElementById('drawer');
         if (card && !card.hidden && card.dataset.w && typeof syncStar === 'function') syncStar(card.dataset.w);
         const saved = !!(me && me.analyses && me.analyses[jobId]);
@@ -374,7 +455,6 @@
       }
       const withAcct = fn => acctOn ? fn() : EarlyWallet.open(() => { acctOn = true; loadMe().then(fn); });
       const blank = () => { me = me || { wallets: {}, analyses: {} }; };
-      const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
       async function saveWallets() {
         const ws = [...selected]; if (!ws.length) return;
         try {
@@ -408,7 +488,6 @@
       // the action is what the button said at click time — not what it turns into after a sign-in loads the account
       wbtn.addEventListener('click', () => withAcct(() => openLists(wbtn, [...selected])));
       sjob.addEventListener('click', () => { const saved = !!(me && me.analyses && me.analyses[jobId]); withAcct(() => saved ? removeJob() : saveJob()); });
-      tbody.addEventListener('click', e => { const s = e.target.closest('.saved'); if (s) withAcct(() => openLists(s, [s.closest('tr').dataset.w])); });
       loadMe();
       const mkdemo = document.getElementById('mkdemo');
       if (mkdemo) mkdemo.addEventListener('click', async () => {
@@ -425,9 +504,9 @@
       const msort = document.getElementById('msort');
       function sortBy(k, dir, text) {
         sortKey = k; sortDir = dir;
-        rows.sort((a, b) => text ? (a.dataset[k] || '').localeCompare(b.dataset[k] || '') * dir
-          : ((+a.dataset[k] || 0) - (+b.dataset[k] || 0)) * dir);
-        rows.forEach(r => tbody.appendChild(r));
+        const val = o => k === 'funder' ? (funders[o.w] || '') : o[k];
+        order.sort((a, b) => text ? String(val(a) || '').localeCompare(String(val(b) || '')) * dir : ((+val(a) || 0) - (+val(b) || 0)) * dir);
+        limit = LIMIT;
         table.querySelectorAll('th.sortable').forEach(x => x.classList.toggle('desc', x.dataset.key === k && dir < 0));
         table.querySelectorAll('th.sortable').forEach(x => x.classList.toggle('asc', x.dataset.key === k && dir > 0));
         msort.value = [...msort.options].some(o => o.value === k) ? k : msort.value;
@@ -450,7 +529,7 @@
       const csvCell = v => v == null ? '' : (/[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v));
       document.querySelector('.menu-panel').addEventListener('click', async e => {
         const x = e.target.closest('[data-x]'); if (!x) return;
-        const wallets = exportSet().map(r => r.dataset.w), want = new Set(wallets);
+        const wallets = exportSet().map(o => o.w), want = new Set(wallets);
         const suffix = '-' + SCOPE + (selected.size ? '-selected' : (na() ? '-filtered' : ''));
         if (x.dataset.x === 'txt') { download(jobId + suffix + '.txt', wallets.join('\n') + '\n', 'text/plain'); return; }
         const d = await rowsData(), rowsOut = d.rows.filter(r => want.has(r.wallet));
@@ -477,34 +556,24 @@
       ch.init().then(() => { ch.focus(+el.dataset.from, +el.dataset.to, +el.dataset.exit || null); loadMarks(ch, el.dataset.mint, jobId); });
 
       // wallet story: markers on the chart (green bought, red sold; a ring when the wallet shares a funder) + the drawer
-      const MAX_ON_CHART = 10, BUY_C = '#34D399', SELL_C = '#F87171';
-      const BUNDLE_PAL = ['#C4B5FD', '#FDBA74', '#7DD3FC', '#F9A8D4', '#FCD34D', '#A5B4FC', '#5EEAD4', '#FDA4AF', '#D8B4FE', '#BEF264'];
-      const onChart = [], bar = document.getElementById('onchart');
-      const short = w => w.slice(0, 6) + '…' + w.slice(-4);
-      const money = v => (v == null || isNaN(v) ? '—' : (v < 0 ? '-' : '') + '$' + ch.fmtMcap(Math.abs(v)));
+      const bar = document.getElementById('onchart');
       const drawer = document.getElementById('drawer'), dtrades = document.getElementById('dtrades');
-      let funders = {}, bundle = {}, crossings = {};       // crossings: wallets that were early in this person's other analyses
       const crossLine = c => (c.symbol || c.mint.slice(0, 6)) + ' · ' + EarlyTZ.fmt(c.from, false) + ' → ' + EarlyTZ.fmt(c.to, false)
         + (c.mult ? ' · ' + (+c.mult).toFixed(1) + '×' : '') + (c.real ? ' · ' + money(c.real) : '');
-      const CHAIN = '<svg class="lnk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" aria-hidden="true"><g transform="rotate(-45 12 12)"><rect x="1.2" y="7.4" width="12.4" height="9.2" rx="4.6"/><rect x="10.4" y="7.4" width="12.4" height="9.2" rx="4.6"/></g></svg>';   // two links: the repeat marker in the row and the heading of its block in the card
       function fillCrossings() {
-        // a repeat is a fact about this wallet, so it belongs with the other tags; the card holds the detail
+        // a repeat is a fact about this wallet, so it belongs with the other tags (and the Hide chips); the card holds the detail
         let n = 0;
-        rows.forEach(r => {
-          const c = crossings[r.dataset.w]; if (!c || !c.length) return;
+        Object.keys(crossings).forEach(w => {
+          const o = byW.get(w); if (!o || !crossings[w] || !crossings[w].length) return;
           n++;
-          const tg = r.querySelector('.tags'); if (!tg || tg.querySelector('.t-seen-before')) return;
-          r.dataset.tags = (r.dataset.tags ? r.dataset.tags + ' ' : '') + 'seen-before';
-          const t = document.createElement('button');
-          t.type = 'button'; t.className = 'tag ico t-seen-before seen';
-          t.innerHTML = CHAIN;
-          t.title = 'Also an early buyer in ' + c.length + ' of your saved analyses — click for the list';
-          t.setAttribute('aria-label', 'Seen in ' + c.length + ' of your other analyses');
-          t.addEventListener('click', ev => { ev.stopPropagation(); toggleWallet(r.dataset.w, true); });
-          tg.prepend(t);
+          if (!o.tags.includes('seen-before')) o.tags.push('seen-before');
         });
         const wrap = document.getElementById('fseenwrap');
         if (wrap) wrap.hidden = !n;
+      }
+      function fillFunders() {
+        // funders arrive after the page: the bundles are recounted and the drawn rows patched
+        rebundle(); refreshRows();
       }
       async function loadCrossings() {
         if (!acctOn) return;
@@ -516,32 +585,9 @@
           fillCrossings(); apply();
         } catch (e) {}
       }
-      function fillFunders() {
-        // who paid for the wallet: known only after the background check, so the cell is filled here, not by the server
-        rows.forEach(r => {
-          const fnd = funders[r.dataset.w], cell = r.querySelector('.fund');
-          if (!cell || !fnd) return;
-          r.dataset.funder = fnd;
-          const b = bundle[r.dataset.w], col = bundleColor(r.dataset.w);
-          // full address in the tooltip: two shortened funders can look alike, and that is what decides the bundle tag
-          cell.innerHTML = '<button type="button" class="link mono fundb" title="' + fnd + ' · click to show every wallet it funded">'
-            + (col ? '<i class="dot" style="--c:' + col + '"></i>' : '') + short(fnd) + '</button>'
-            + (b ? '<small class="muted"> ×' + b.n + '</small>' : '');
-          cell.querySelector('.fundb').addEventListener('click', () => {
-            f.funder = f.funder === fnd ? '' : fnd; saveF(); limit = LIMIT; apply();
-            EarlyUI.toast(f.funder ? 'Showing the ' + (b ? b.n : 1) + ' wallets funded by ' + short(fnd) + ' · click again to clear' : 'Funder filter cleared');
-          });
-        });
-      }
-      function bundleColor(w) {                                  // one colour per funder, stable for this result
-        const b = bundle[w]; if (!b) return null;
-        const all = [...new Set(Object.values(bundle).map(x => x.funder))].sort();
-        return BUNDLE_PAL[all.indexOf(b.funder) % BUNDLE_PAL.length];
-      }
       function renderOnChart() {
         bar.innerHTML = ''; bar.hidden = !onChart.length;
         pinned.clear(); onChart.forEach(o => pinned.add(o.wallet));
-        rows.forEach(r => { const x = onChart.find(o => o.wallet === r.dataset.w); r.classList.toggle('onchart', !!x); r.style.setProperty('--c', x ? (x.bundleColor || BUY_C) : ''); });
         if (onChart.length) {
           const l = document.createElement('span'); l.className = 'muted small'; l.textContent = 'On the chart:'; bar.appendChild(l);
           onChart.forEach(o => {
@@ -558,12 +604,10 @@
         apply();
       }
       // the wallet card: what this wallet did on this token, who it is if anyone knows, how it trades overall, where its SOL came from
-      const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-      const rowOf = w => rows.find(r => r.dataset.w === w);
+      const rowOf = w => byW.get(w);
       const MAX_TAGS = {{ max_my_tags }};
       const PLUS = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg>';
       const dtags = document.getElementById('dtags'), dstar = document.getElementById('dstar'), dprof = document.getElementById('dprof');
-      let idents = {}, ages = {}, ageDone = false;
       const profiles = new Map();
       const myTags = w => (me && me.wallets && me.wallets[w] && me.wallets[w].my_tags) || [];
       function closeCard() { drawer.hidden = true; document.body.classList.remove('drawer-open'); }
@@ -572,11 +616,10 @@
         dstar.textContent = on ? '★' : '☆'; dstar.classList.toggle('on', on);
         dstar.title = on ? 'In ' + plural(listsOfWallet(w).length, 'list') + ' · click to change' : 'Add to one of your lists'; dstar.setAttribute('aria-label', dstar.title);
       }
-      const TAGDEF = {{ TAGS|tojson }};
       function renderTags(w) {
         // our tags as picture and word, then the person's own; seen-before has its own block further down
         const row = rowOf(w), mine = myTags(w);
-        const ours = row ? (row.dataset.tags || '').split(' ').filter(t => t && t !== 'seen-before')
+        const ours = row ? row.tags.filter(t => t && t !== 'seen-before')
           .map(t => EarlyTags.chip(t === 'bundle' && bundle[w] ? 'bundle ×' + bundle[w].n : t, TAGDEF[t], { text: true })).join('') : '';
         dtags.innerHTML = ours + mine.map(t => '<button type="button" class="tag mine" title="Your tag · click to remove">' + esc(t) + '</button>').join('')
           + (mine.length < MAX_TAGS ? '<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd wide" title="Your own tag for this wallet" aria-label="Add your own tag">' + PLUS + '<span>tag</span></button>' : '');
@@ -614,7 +657,7 @@
         el.innerHTML = bits.join(' · ');
         el.hidden = false;
       }
-      const rankOf = new Map(rows.map((r, i) => [r.dataset.w, i])), AGE_N = {{ s.age_lookups_max or 0 }}, ageTried = new Map();
+      const rankOf = new Map(all.map((o, i) => [o.w, i])), AGE_N = {{ s.age_lookups_max or 0 }}, ageTried = new Map();
       async function loadAge(w) {
         // the analysis checks the first AGE_N wallets by PnL; any other wallet is checked when its card is opened
         if (ageTried.has(w)) return;
@@ -626,7 +669,8 @@
         if (!r.ok) { ageTried.set(w, 'failed'); if (drawer.dataset.w === w) renderWalletInfo(w); return; }
         if (d.age) ages[w] = d.age;
         if (d.funder) funders[w] = d.funder;
-        if (d.bundle) bundle[w] = d.bundle;
+        const o = byW.get(w);
+        if (d.fresh && o && !o.tags.includes('fresh')) o.tags.unshift('fresh');
         ageTried.set(w, d.paused ? 'paused' : 'done');
         if (d.fresh || d.funder) fillFunders();
         if (drawer.dataset.w === w) renderWalletInfo(w);
@@ -649,7 +693,6 @@
         if (go) go.addEventListener('click', () => EarlyWallet.open(() => { acctOn = true; ageTried.delete(w); loadMe().then(() => loadAge(w)); }));
         document.getElementById('dwsec').hidden = !el.innerHTML && !document.getElementById('dcross').innerHTML;
       }
-      const holdText = m => m == null ? '—' : m < 60 ? Math.round(m) + ' min' : m < 1440 ? (m / 60).toFixed(m < 600 ? 1 : 0) + ' h' : Math.round(m / 1440) + ' d';
       const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const utcDay = ms => { const d = new Date(ms); return MON[d.getUTCMonth()] + ' ' + d.getUTCDate(); };
       const nf = v => (+v || 0).toLocaleString('en-US');
@@ -769,9 +812,9 @@
       }
       function renderPosition(row, o) {
         // this token, the way a terminal shows a position: the result first, then how it got there
-        const cur = (window.EarlyCur && EarlyCur.get()) === 'sol', d = row ? row.dataset : {};
+        const cur = (window.EarlyCur && EarlyCur.get()) === 'sol', d = row;
         if (!row) return '';
-        const amt = (usd, sol) => (cur && sol !== undefined ? EarlyCur.sol(+sol) : money(+usd));
+        const amt = (usd, sol) => (cur && sol != null ? EarlyCur.sol(+sol) : money(+usd));
         const cls = +d.real > 0 ? 'pos' : (+d.real < 0 ? 'neg' : '');
         return '<div class="dhero"><div><span class="lbl">PnL on this token</span><b class="big ' + cls + '">' + amt(d.real, d.realsol) + '</b>'
           + '<span class="sub">sold ' + Math.round(+d.sold || 0) + '% of it' + (+d.hold ? ' · first sale after ' + holdText(+d.hold) : '') + '</span></div>'
@@ -850,9 +893,21 @@
         if (onChart.length >= MAX_ON_CHART) { openStory(o); return; }   // the chart keeps its ten; the card still opens
         onChart.push(o); renderOnChart(); if (story) openStory(o);
       }
+      // every button in a row answers here, so a redrawn row needs no listeners of its own
       tbody.addEventListener('click', e => {
+        const tr = e.target.closest('tr'); if (!tr) return;
+        const w = tr.dataset.w, s = e.target.closest('.saved');
+        if (s) { withAcct(() => openLists(s, [w])); return; }
+        const fb = e.target.closest('.fundb');
+        if (fb) {
+          const fnd = fb.dataset.fund, b = bundle[w];
+          f.funder = f.funder === fnd ? '' : fnd; saveF(); limit = LIMIT; apply();
+          EarlyUI.toast(f.funder ? 'Showing the ' + (b ? b.n : 1) + ' wallets funded by ' + short(fnd) + ' · click again to clear' : 'Funder filter cleared');
+          return;
+        }
+        if (e.target.closest('.t-seen-before.seen')) { toggleWallet(w, true); return; }
         const b = e.target.closest('.mk, .wname'); if (!b) return;
-        b.disabled = true; toggleWallet(b.closest('tr').dataset.w, b.classList.contains('wname')).finally(() => { b.disabled = false; });
+        b.disabled = true; toggleWallet(w, b.classList.contains('wname')).finally(() => { b.disabled = false; });
       });
 
       // assistant: facts of the visible rows + the user's method → picks with reasons
@@ -872,7 +927,7 @@
       document.getElementById('areset').addEventListener('click', () => { amethod.value = DEFAULT_METHOD; try { localStorage.removeItem(MKEY); } catch (e) {} });
       amethod.addEventListener('input', () => { try { localStorage.setItem(MKEY, amethod.value); } catch (e) {} });
       document.getElementById('arun').addEventListener('click', async () => {
-        const wallets = visible().map(r => r.dataset.w).slice(0, 200);
+        const wallets = pass.map(o => o.w).slice(0, 200);
         astat.textContent = 'reading ' + wallets.length + ' wallets…'; apicks.innerHTML = ''; aact.hidden = true;
         try {
           const r = await fetch('/job/' + jobId + '/assistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wallets, method: amethod.value, scope: SCOPE }) });
@@ -881,8 +936,8 @@
           lastPicks = d.picks || [];
           astat.textContent = lastPicks.length + ' picks' + (d.cached ? ' (cached)' : '') + ' · ' + (d.model || '');
           if (d.left != null) document.getElementById('aleft').textContent = d.left + (d.left === 1 ? ' ask' : ' asks') + ' left today.';
-          lastPicks.forEach(p => { const row = rows.find(x => x.dataset.w === p.wallet), li = document.createElement('li');
-            li.innerHTML = '<button type="button" class="wname mono" data-w="' + p.wallet + '">' + short(p.wallet) + '</button>' + (row ? ' <span class="mono small">' + ch.fmtMcap(+row.dataset.entry) + ' → ' + (+row.dataset.exitcap ? ch.fmtMcap(+row.dataset.exitcap) : '—') + ' · ' + money(+row.dataset.real) + '</span>' : '') + '<div class="areason">' + p.reason.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])) + '</div>';
+          lastPicks.forEach(p => { const row = byW.get(p.wallet), li = document.createElement('li');
+            li.innerHTML = '<button type="button" class="wname mono" data-w="' + p.wallet + '">' + short(p.wallet) + '</button>' + (row ? ' <span class="mono small">' + ch.fmtMcap(+row.entry) + ' → ' + (+row.exitcap ? ch.fmtMcap(+row.exitcap) : '—') + ' · ' + money(+row.real) + '</span>' : '') + '<div class="areason">' + p.reason.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])) + '</div>';
             apicks.appendChild(li); });
           anote.textContent = d.note || ''; aact.hidden = !lastPicks.length;
         } catch (e) { astat.textContent = 'could not reach the server'; }
@@ -892,54 +947,43 @@
       document.getElementById('awatch').addEventListener('click', () => { lastPicks.forEach(p => selected.add(p.wallet)); saveSel(); syncChecks(); withAcct(saveWallets); });
       apanel.querySelectorAll('.apreset').forEach(b => b.addEventListener('click', () => { amethod.value = b.dataset.method; try { localStorage.setItem(MKEY, amethod.value); } catch (e) {} apanel.querySelectorAll('.apreset').forEach(x => x.classList.toggle('on', x === b)); }));
 
-      // background wallet-age check → `fresh` tags appear without a reload; filters re-apply each time.
-      // The same poll brings who a wallet is (Solana Tracker's identity) and its first transaction, for the card.
+      // The background checks, asked every five seconds while they run: `fresh` and `bundle` tags, funders, first
+      // transactions and who a wallet is. Each answer carries only what is new since the one before, and a tab in the
+      // background waits until it is looked at again.
       const en = document.getElementById('enrich');
-      const defs = {{ TAGS|tojson }};
-      const isKol = EarlyTags.isKol;
-      function markKnown() {
-        // who a wallet is, as pictures next to it: KOL, its X account, the platforms it trades through, known roles.
-        // All from Solana Tracker; the tooltip and the card say so
-        rows.forEach(r => {
-          const idn = idents[r.dataset.w], tg = r.querySelector('.tags');
-          if (!idn || !tg || tg.querySelector('.ids')) return;
-          const html = EarlyTags.idMarks(idn);
-          if (html) tg.insertAdjacentHTML('afterbegin', '<span class="ids">' + html + '</span>');
-        });
-      }
-      let polls = 0;                                            // a page left open stops asking after ten minutes
-      const again = () => { if (++polls < 120) setTimeout(tick, 5000); };
+      let polls = 0, nF = 0, nA = 0, haveIds = false;           // a page left open stops asking after ten minutes
+      const again = () => {
+        if (++polls >= 120) return;
+        setTimeout(() => { if (document.hidden) document.addEventListener('visibilitychange', tick, { once: true }); else tick(); }, 5000);
+      };
       const tick = async () => {
-        let d; try { const r = await fetch('/job/' + jobId + '.enrich.json'); if (!r.ok) { if (en) en.hidden = true; ageDone = true; return; } d = await r.json(); } catch (e) { if (en) en.hidden = true; ageDone = true; return; }
-        idents = d.identities || {}; ages = d.ages || {};
-        markKnown();
+        let d;
+        try {
+          const r = await fetch('/job/' + jobId + '.enrich.json?' + new URLSearchParams({ f: nF, a: nA, i: haveIds ? 1 : 0 }));
+          if (!r.ok) { if (en) en.hidden = true; ageDone = true; return; }
+          d = await r.json();
+        } catch (e) { if (en) en.hidden = true; ageDone = true; return; }
+        let changed = false, added = 0;
+        if (d.identities) { idents = d.identities; haveIds = !!d.identities_done; changed = Object.keys(idents).length > 0; }
+        Object.assign(ages, d.ages || {}); if (d.n_ages != null) nA = d.n_ages;
+        const newF = Object.keys(d.funders || {}).length;
+        Object.assign(funders, d.funders || {}); if (d.n_funders != null) nF = d.n_funders;
+        (d.fresh || []).forEach(w => { const o = byW.get(w); if (o && !o.tags.includes('fresh')) { o.tags.unshift('fresh'); added++; } });
+        if (newF) {
+          rebundle();
+          Object.keys(bundle).forEach(w => { const o = byW.get(w); if (o && !o.tags.includes('bundle')) { o.tags.unshift('bundle'); added++; } });
+          let rings = 0;                                        // bundles arrive after the page: ring the wallets already on the chart
+          onChart.forEach(o => { const c = bundleColor(o.wallet); if (c !== o.bundleColor) { o.bundleColor = c; rings++; } });
+          if (rings) renderOnChart();
+        }
+        if (added || newF || changed) apply();                  // a Hide chip may catch a new tag; rows already drawn are patched in place
         const refresh = () => { if (!drawer.hidden && drawer.dataset.w) { renderIdent(drawer.dataset.w); renderWalletInfo(drawer.dataset.w); if (window.EarlyTZ) EarlyTZ.apply(); } };
         if (!en || !d.total) { if (en) en.hidden = true; ageDone = true; refresh(); if (!d.identities_done) again(); return; }
-        let added = 0;
-        funders = d.funders || {}; bundle = d.bundle || {};
-        const addTag = (w, tag, text, title) => {
-          const r = rows.find(x => x.dataset.w === w); if (!r) return;
-          if (r.dataset.tags.split(' ').includes(tag)) {              // the server drew it already: only the count is new
-            const el = tag === 'bundle' && r.querySelector('.tags .tag[data-tag="bundle"]');
-            if (el && !el.querySelector('small') && bundle[w]) el.insertAdjacentHTML('beforeend', '<small>×' + bundle[w].n + '</small>');
-            return;
-          }
-          r.dataset.tags = (r.dataset.tags ? r.dataset.tags + ' ' : '') + tag; added++;
-          const tg = r.querySelector('.tags'), ids = tg.querySelector('.ids');
-          if (ids) ids.insertAdjacentHTML('afterend', EarlyTags.chip(text, title)); else tg.insertAdjacentHTML('afterbegin', EarlyTags.chip(text, title));
-        };
-        d.fresh.forEach(w => addTag(w, 'fresh', 'fresh', defs.fresh));
-        Object.keys(bundle).forEach(w => addTag(w, 'bundle', 'bundle ×' + bundle[w].n, defs.bundle + ' — funder ' + short(bundle[w].funder)));
-        fillFunders();                                          // funders arrive after the page, so the column fills here
-        let rings = 0;                                          // bundles arrive after the page: ring the wallets already on the chart
-        onChart.forEach(o => { const c = bundleColor(o.wallet); if (c !== o.bundleColor) { o.bundleColor = c; rings++; } });
-        if (rings) renderOnChart();
-        if (added) apply();
         const busy = !d.identities_done || (!d.paused && (d.done < d.total || (d.funders_done != null && d.funders_done < d.total)));
         if (d.paused) { en.textContent = 'wallet age paused: this month\'s budget for it is used up'; ageDone = true; refresh(); return; }
         ageDone = !busy;
         if (d.done < d.total) { en.textContent = 'wallet age ' + d.done + '/' + d.total + '…'; again(); }
-        else { const nb = Object.keys(bundle).length; en.textContent = (busy ? 'funders ' + (d.funders_done || 0) + '/' + d.total + '…' : 'wallet age checked') + (d.fresh.length ? ' · ' + d.fresh.length + ' fresh' : '') + (nb ? ' · ' + nb + ' in bundles' : ''); if (busy) again(); }
+        else { const nb = Object.keys(bundle).length; en.textContent = (busy ? 'funders ' + (d.funders_done || 0) + '/' + d.total + '…' : 'wallet age checked') + ((d.fresh || []).length ? ' · ' + d.fresh.length + ' fresh' : '') + (nb ? ' · ' + nb + ' in bundles' : ''); if (busy) again(); }
         refresh();
       };
       tick();

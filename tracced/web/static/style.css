@@ -405,15 +405,18 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .menu-panel.r { left: auto; right: 0; }
 .soonwrap { position: relative; }
 /* «AI agent» — holographic: an iridescent gradient border and sheen on our pastel palette, dark text.
-   Only this one button gets it. Everything else on the toolbar is quiet, or the accent stops meaning anything. */
+   Only this one button gets it. Everything else on the toolbar is quiet, or the accent stops meaning anything.
+   It shimmers for the first seconds and under the pointer, then rests: an endless background animation repaints the
+   button every frame for as long as the page is open, which a weak phone feels. */
 .button.holo { position: relative; padding: 0; border: 0; height: 36px; border-radius: 10px; overflow: visible;
   background: linear-gradient(115deg, #A7F3D0 0%, #BAE6FD 22%, #C4B5FD 45%, #FBCFE8 62%, #FDE68A 80%, #A7F3D0 100%);
-  background-size: 260% 260%; animation: holo-shift 7s ease-in-out infinite; color: var(--ink); font-weight: 600;
+  background-size: 260% 260%; background-position: 0% 50%; animation: holo-shift 7s ease-in-out 2; color: var(--ink); font-weight: 600;
   box-shadow: 0 0 0 1px rgba(15, 23, 42, .06), 0 6px 18px -8px rgba(196, 181, 253, .9); }
 .button.holo .holo-in { display: inline-flex; align-items: center; gap: 8px; height: 32px; margin: 2px; padding: 0 13px; border-radius: 8px;
-  background: linear-gradient(115deg, rgba(255,255,255,.86), rgba(255,255,255,.72)); backdrop-filter: blur(2px); }
+  background: linear-gradient(115deg, rgba(255,255,255,.86), rgba(255,255,255,.72)); }
 .button.holo::after { content: ""; position: absolute; inset: 0; border-radius: 10px; pointer-events: none;
-  background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.75) 50%, transparent 70%); background-size: 250% 100%; animation: holo-sheen 3.2s linear infinite; mix-blend-mode: soft-light; }
+  background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.75) 50%, transparent 70%); background-size: 250% 100%; animation: holo-sheen 3.2s linear 4; mix-blend-mode: soft-light; }
+.button.holo:hover, .button.holo:hover::after, .button.holo:focus-visible, .button.holo:focus-visible::after { animation-iteration-count: infinite; }
 .button.holo:hover { transform: translateY(-1px); box-shadow: 0 0 0 1px rgba(15, 23, 42, .1), 0 10px 22px -8px rgba(196, 181, 253, .9); }
 .button.holo:active { transform: translateY(0); }
 @keyframes holo-shift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }

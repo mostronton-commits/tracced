@@ -262,8 +262,12 @@ if AioHTTPTestCase:
                        'id="dfacts"', 'id="dcross"', 'id="dtrades"', 'id="dnote"', 'id="dclose"'):
                 self.assertIn(el, html)                                    # картка гаманця: секції, на які спирається скрипт
             self.assertIn('class="button wl" id="watchbtn"', html)
-            self.assertIn("data-invsol=", html)                            # рядок таблиці несе суми в SOL
-            self.assertIn("data-sol=", html)                               # і плитка «Spent in range» теж
+            m = re.search(r'<script type="application/json" id="rowsdata">(.*?)</script>', html, re.S)
+            table = json.loads(m.group(1))                                 # рядки йдуть даними, малює їх браузер
+            first = dict(zip(table["f"], table["r"][0]))
+            self.assertIsNotNone(first["invsol"])                          # рядок таблиці несе суми в SOL
+            self.assertIsNone(re.search(r'<tr data-w="[1-9A-HJ-NP-Za-km-z]{20,}"', html))   # жодного рядка розміткою: 2 500 рядків вішали телефон
+            self.assertIn("data-sol=", html)                               # плитка «Spent in range» теж у SOL
             self.assertNotIn('class="muted small solnote"', html)          # свіжий результат не виправдовується
 
             # угоди гаманця для графіка й картки: SOL іде з тієї самої збереженої угоди, без нових запитів
@@ -563,6 +567,13 @@ if AioHTTPTestCase:
             d = await (await self.client.get(f"/job/{jid}.enrich.json")).json()
             self.assertEqual(d["ages"][w]["ms"], 999000000000)
             self.assertEqual(d["identities"][w]["twitter"], "@Cented7")
+            self.assertEqual(d["n_ages"], 1)
+            # наступне опитування несе лише нове: вік уже є, імена вже є
+            d = await (await self.client.get(f"/job/{jid}.enrich.json?f=0&a=1&i=1")).json()
+            self.assertEqual(d["ages"], {})
+            self.assertNotIn("identities", d)
+            d = await (await self.client.get(f"/job/{jid}.enrich.json?a=5")).json()
+            self.assertEqual(d["ages"][w]["ms"], 999000000000)            # сторінка знає більше, ніж є: усе заново
 
         async def test_analyze_charges_the_overview_and_validates_before_asking_for_a_wallet(self):
             # гість з хибними межами дізнається про це до підключення; огляд токена оплачений; кешований огляд безкоштовний

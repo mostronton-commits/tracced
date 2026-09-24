@@ -25,6 +25,7 @@ from pathlib import Path
 
 from aiohttp import web
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from markupsafe import Markup
 
 from ..cache import JsonCache
 from ..config import DEFAULTS as CFG_DEFAULTS
@@ -1502,6 +1503,7 @@ async def job_page(request):
     else:
         result = None
     return render("job.html", request, job=job, save_id=job.canon or job.id, jstatus=status, result=result, s=app["s"], back=_back_link(job),
+                  rows_json=_json_script(_table(result["rows"])) if result else "", bundle_min=tags.BUNDLE_MIN,
                   max_my_tags=acct_mod.MAX_MY_TAGS, is_admin=bool(request.get("acct")) and request.get("acct") in app["admins"],
                   is_demo=job.id in _demo_job_ids(app) or (job.canon or "") in _demo_job_ids(app),
                   sm=sm, TAGS=tags.DEFS, created=created or (job.t_from - 24 * HOUR), now=int(time.time() * 1000),
@@ -1509,6 +1511,55 @@ async def job_page(request):
                   assistant_on=app.get("assistant") is not None,
                   scope=sc, scopes=scope.scopes_for(app["s"]), has_scopes=bool((result or {}).get("wallet_trades")),
                   scope_end=(scope.end_for(sc, job.t_to, (result or {}).get("window", {}).get("end", 0)) if result else None))
+
+
+# поля рядка таблиці результату в тому порядку, в якому їх віддає _table
+TABLE = ("w", "inv", "invsol", "tot", "totsol", "got", "gotsol", "real", "realsol", "unreal",
+         "mult", "sold", "buys", "sells", "hold", "exit", "entry", "etime", "exitcap", "tags")
+
+
+def _rnd(v, digits):
+    """Число для таблиці з потрібною точністю; None, NaN і нескінченність стають null."""
+    try:
+        x = float(v)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(x):
+        return None
+    x = round(x, digits)
+    return int(x) if x == int(x) else x
+
+
+def _table(rows):
+    """Рядки таблиці результату як дані, не як розмітка. Сторінка малює лише видиму сотню, а сортує, фільтрує, виділяє
+    й експортує по цих числах. Раніше кожен рядок приходив готовим HTML: на 2 481 гаманці це 5.6 МБ і 75 тисяч
+    елементів, від яких сторінка підвисала на телефоні з малою пам'яттю."""
+    out = []
+    for r in rows:
+        has_sol = r.get("invested_in_range_sol") is not None      # результат, збережений до сум у SOL, їх не має зовсім
+
+        def sol(v):
+            return _rnd(v or 0, 4) if has_sol else None
+        out.append([r["wallet"],
+                    _rnd(r.get("invested_in_range_usd") or 0, 2), sol(r.get("invested_in_range_sol")),
+                    _rnd(r.get("invested_usd") or 0, 2), sol(r.get("invested_sol")),
+                    _rnd(r.get("proceeds_usd") or 0, 2), sol(r.get("proceeds_sol")),
+                    _rnd(r.get("realized_usd") or 0, 2), sol(r.get("realized_sol")),
+                    _rnd(r.get("unrealized_usd") or 0, 2),
+                    _rnd(r.get("multiple") or 0, 4), _rnd(r.get("sold_share_pct") or 0, 1),
+                    int(r.get("buys") or 0), r.get("sells"), _rnd(r.get("hold_minutes"), 1),
+                    1 if r.get("first_sell_ms") else 0,
+                    _rnd(r.get("entry_range_mcap") or r.get("entry_mcap_avg"), 0),
+                    int(r.get("first_range_buy_ms") or r.get("first_buy_ms") or 0),
+                    _rnd(r.get("exit_mcap_avg"), 0),
+                    " ".join(r.get("tag_list") or [])])
+    return {"f": TABLE, "r": out}
+
+
+def _json_script(obj):
+    """JSON усередині <script type="application/json">: без пробілів, і ніщо в ньому не закриє тег."""
+    s = json.dumps(obj, separators=(",", ":"))
+    return Markup(s.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026"))
 
 
 def _scope(request, s):
@@ -1626,18 +1677,40 @@ async def job_state_json(request):
         headers={"Cache-Control": "no-store"})
 
 
+def _tail(d, since):
+    """Записи словника після перших `since`: фонові перевірки лише дописують, тож порядок вставки стабільний.
+    Якщо сторінка знає більше, ніж є (результат перезаписали), — усе заново."""
+    items = list((d or {}).items())
+    return dict(items[since:] if 0 <= since <= len(items) else items), len(items)
+
+
 async def job_enrich_json(request):
-    """Progress of the background wallet-age check and the wallets tagged `fresh` so far."""
+    """Progress of the background checks and what they found since the page last asked.
+
+    The page sends how many funders (`f`) and first transactions (`a`) it already holds and whether it has the names
+    (`i=1`); the answer carries only the rest. The whole state every five seconds was 177 KB on a 2,500-wallet result.
+    Bundles are not sent: the page counts them from the funders by the same rule."""
     job = request.app["jobs"].get(request.match_info["id"])
     if not job or job.status != "done" or not job.result:
         raise web.HTTPNotFound(text="No result yet.")
-    e = job.result.get("enrich") or {"done": 0, "total": 0, "fresh": 0}
-    fresh = [r["wallet"] for r in job.result.get("rows") or [] if "fresh" in (r.get("tag_list") or [])]
-    return web.json_response({"done": e.get("done", 0), "total": e.get("total", 0), "fresh": fresh,
-                              "funders_done": e.get("funders_done", 0), "paused": e.get("paused"),
-                              "funders": job.result.get("funders") or {}, "bundle": job.result.get("bundle") or {},
-                              "ages": job.result.get("ages") or {}, "identities": job.result.get("identities") or {},
-                              "identities_done": bool(job.result.get("identities_done"))})
+    r = job.result
+
+    def since(key):
+        try:
+            return int(request.query.get(key, 0))
+        except ValueError:
+            return 0
+    e = r.get("enrich") or {"done": 0, "total": 0, "fresh": 0}
+    fresh = [row["wallet"] for row in r.get("rows") or [] if "fresh" in (row.get("tag_list") or [])]
+    funders, n_funders = _tail(r.get("funders"), since("f"))
+    ages, n_ages = _tail(r.get("ages"), since("a"))
+    out = {"done": e.get("done", 0), "total": e.get("total", 0), "fresh": fresh,
+           "funders_done": e.get("funders_done", 0), "paused": e.get("paused"),
+           "funders": funders, "n_funders": n_funders, "ages": ages, "n_ages": n_ages,
+           "identities_done": bool(r.get("identities_done"))}
+    if request.query.get("i") != "1":
+        out["identities"] = r.get("identities") or {}
+    return web.json_response(out, headers={"Cache-Control": "no-store"})
 
 
 async def wallet_profile_json(request):
