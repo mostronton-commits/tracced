@@ -86,7 +86,9 @@ picks up again next month. A wallet checked before costs nothing.
 Click a wallet's name. The card shows, top to bottom:
 
 1. who it is, when Solana Tracker knows (a star for a KOL, its X account, the app it trades through), and next to
-   the address its age, like `94d`, and who sent it its first SOL; hover either for the detail;
+   the address its age, like `94d`, and who sent it its first SOL; hover either for the detail. A very busy wallet
+   shows `6k+ tx` instead: tracced reads its latest 6,000 transactions, and when they do not reach the first one,
+   its age and first funder stay unknown rather than guessed;
 2. its tags, ours and your own;
 3. how it trades on every token over the last 7 or 30 days: realized PnL and its curve, win rate with wins and
    losses, volume, buys and sells, best and worst day, drawdown, how its closed positions ended, the hours it

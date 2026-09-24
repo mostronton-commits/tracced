@@ -658,15 +658,17 @@
         const idn = idents[w];
         document.getElementById('dav').innerHTML = idn && idn.avatar
           ? '<img src="' + esc(idn.avatar) + '" alt="" referrerpolicy="no-referrer">' : identicon(w);
-        document.getElementById('dname').textContent = (idn && idn.name) || 'Wallet';
+        document.getElementById('dname').textContent = EarlyTags.displayName(idn) || 'Wallet';
         document.getElementById('dids').innerHTML = EarlyTags.idMarks(idn);
       }
       function renderIdent(w) {
         renderHead(w);
         const idn = idents[w];
-        document.getElementById('dname').title = (idn && idn.sns) || '';
+        const shown = EarlyTags.displayName(idn);                // the other name it goes by, and its .sol domain, on hover
+        document.getElementById('dname').title = idn ? [idn.name && idn.name !== shown ? idn.name : '', idn.sns || ''].filter(Boolean).join(' · ') : '';
       }
       const rankOf = new Map(all.map((o, i) => [o.w, i])), AGE_N = {{ s.age_lookups_max or 0 }}, ageTried = new Map();
+      const AGE_READ = {{ age_read or 6000 }};                   // the age check reads this many of a wallet's latest transactions
       async function loadAge(w) {
         // the analysis checks the first AGE_N wallets by PnL; any other wallet is checked when its card is opened
         if (ageTried.has(w)) return;
@@ -690,10 +692,14 @@
         const a = ages[w], fnd = funders[w], bn = bundle[w], st = ageTried.get(w), out = [];
         const queued = !ageDone && (rankOf.get(w) ?? 1e9) < AGE_N;
         if (!(a && a.ms) && !queued && !st && AGE_N) loadAge(w);
-        if (a && a.ms) {
+        if (a && a.ms && a.exact) {
           const young = Date.now() - a.ms < 86400000;
-          out.push('<span class="dchip age' + (young ? ' young' : '') + '" title="Wallet age. First transaction '
-            + (a.exact ? '' : 'before ') + EarlyTZ.fmt(a.ms, true) + '">' + (a.exact ? '' : '≥') + ageText(a.ms) + '</span>');
+          out.push('<span class="dchip age' + (young ? ' young' : '') + '" title="Wallet age. First transaction ' + EarlyTZ.fmt(a.ms, true) + '">' + ageText(a.ms) + '</span>');
+        } else if (a && a.ms) {
+          // a busy wallet: its latest transactions end before its first one, so the age is unknown, not "at least 12 days"
+          out.push('<span class="dchip age" title="More than ' + nf(AGE_READ) + ' transactions. tracced reads the latest ' + nf(AGE_READ)
+            + ', and they reach back only to ' + EarlyTZ.fmt(a.ms, true) + ': the first one, and the first funder, are older.">'
+            + Math.round(AGE_READ / 1000) + 'k+ tx</span>');
         } else if (AGE_N) {
           const busy = queued || st === 'busy' || !st;
           const why = busy ? 'Checking the wallet\'s age…' : st === 'connect' ? 'Connect a wallet to check its age and funder'

@@ -149,11 +149,14 @@ window.EarlyTags = (function () {
     el.classList.add('ico'); el.setAttribute('aria-label', t);
     el.innerHTML = ICON[t] + (n ? '<small>×' + esc(n) + '</small>' : '');
   }
+  /* The name to show. A known trader goes by the name traders use; anyone else by the handle the apps show: Fomo,
+     Axiom and Solscan call such a wallet by its X handle, while the display name differs from one app to the next. */
+  const displayName = idn => !idn ? '' : (isKol(idn) ? (idn.name || handle(idn)) : (handle(idn) || idn.name || ''));
   /* who the wallet is, as pictures: KOL star, X account, the platforms it trades through, known roles */
   function idMarks(idn, opts) {
     if (!idn) return '';
     opts = opts || {};
-    const out = [], h = handle(idn), who = idn.name ? '«' + esc(idn.name) + '»' : '';
+    const out = [], h = handle(idn), who = displayName(idn) ? '«' + esc(displayName(idn)) + '»' : '';
     if (isKol(idn)) out.push('<span class="idm kol" title="A known trader (KOL)' + (idn.name ? ': ' + esc(idn.name) : '') + '">' + ICON.kol + '</span>');
     if (h) out.push('<a class="idm xacc" href="https://x.com/' + h + '" target="_blank" rel="noopener" title="@' + h + ' on X">' + ICON.x + '</a>');
     platforms(idn).forEach(f => {
@@ -166,5 +169,5 @@ window.EarlyTags = (function () {
     });
     return out.join('');
   }
-  return { ICON, BRANDS, chip, iconify, idMarks, isKol, handle, platforms, esc };
+  return { ICON, BRANDS, chip, iconify, idMarks, isKol, handle, platforms, displayName, esc };
 })();
