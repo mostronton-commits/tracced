@@ -251,6 +251,7 @@ class TestWalletAge(unittest.TestCase):
         self.assertEqual(wa.funder("APP", "sig1"), "REALFUNDER")                 # картка: лише пошук, 10 кредитів
         self.assertEqual((post.calls[-1]["method"], len(post.calls), b.spent), ("getTransactionsForAddress", 2, 11))
         self.assertFalse(wa.funder_pending("APP"))
+        self.assertEqual(wa.cache["funder:APP"]["via"], "scan")                 # спонсор лише з пошуку: видно в кеші
         old = Cache()
         old["funder:OLD"] = {"funder": None}                                     # записаний до цієї позначки: дочитаний
         wa = WalletAge(url=HX, post=FakePost([]), sleep=lambda s: None, pace_s=0, cache=old)
@@ -394,6 +395,7 @@ class TestRpcBudget(unittest.TestCase):
         self.assertEqual((r["ages"]["TOP"]["exact"], r["ages"]["OLD"]["exact"], r["ages"]["BOT"]["exact"]), (True, False, True))
         self.assertEqual(r["fresh_wallets"], ["BOT"])
         self.assertEqual(r["funders"], {"TOP": "EXCHANGE", "BOT": "BUNDLER"})
+        self.assertEqual((wa.cache["funder:TOP"]["via"], wa.cache["funder:BOT"]["via"]), ("scan", "first"))
         self.assertTrue(wa.funder_pending("NEW"))                             # пошук для NEW — з картки, якщо відкриють
         self.assertEqual(b.spent, (1 + 10 + 1 + 10) + 1 + (1 + 10 + 1) + (1 + 1))
         self.assertEqual((r["enrich"]["done"], r["enrich"]["funders_done"], r["enrich"]["total"]), (4, 4, 4))

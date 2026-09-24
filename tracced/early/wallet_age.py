@@ -323,14 +323,16 @@ class WalletAge:
             self.cache_hits += 1
             return cached.get("funder")
         if cached is not None:                            # перша транзакція вже прочитана і спонсора не дала
-            found = self._first_sol_in(wallet)
+            found, via = self._first_sol_in(wallet), "scan"
         else:
             tx = self._call("getTransaction", [oldest_sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}],
                             url=self.tx_url, pace_s=self.tx_pace_s)
-            found = funder_from_tx(tx, wallet)
+            found, via = funder_from_tx(tx, wallet), "first"
             if found is None and can_scan and scan:
-                found = self._first_sol_in(wallet)
+                found, via = self._first_sol_in(wallet), "scan"
         out = {"funder": found, "scanned": bool(found) or scan or not can_scan}
+        if found:
+            out["via"] = via                              # звідки: скільки спонсорів дає лише пошук за 10 кредитів
         if self.cache is not None:
             self.cache.put(key, out)
         return found
