@@ -148,6 +148,34 @@ class TestStore(unittest.TestCase):
         self.assertFalse(self.st.remove_wallet(self.pk, w2))
         self.assertEqual(list(self.st.load(self.pk)["wallets"]), [w1])
 
+    def test_several_lists(self):
+        w1, w2 = A.b58encode(b"\x21" * 32), A.b58encode(b"\x22" * 32)
+        items = [{"wallet": w1, "symbol": "A"}, {"wallet": w2, "symbol": "B"}]
+        self.assertEqual(self.st.add_wallets(self.pk, items), (2, 2))                  # у перший список, як завжди
+        lid, name = self.st.create_list(self.pk, "  Insiders  ")
+        self.assertEqual(name, "Insiders")
+        with self.assertRaises(A.AccountError):
+            self.st.create_list(self.pk, "insiders")                                     # та сама назва
+        self.assertEqual(self.st.add_wallets(self.pk, items[:1], lid), (1, 2))          # той самий гаманець — ще в один список
+        a = self.st.load(self.pk)
+        self.assertEqual(a["wallets"][w1]["lists"], [A.MAIN_LIST, lid])
+        self.assertTrue(self.st.remove_wallet(self.pk, w2, A.MAIN_LIST))              # w2 був лише в першому — зникає
+        self.assertNotIn(w2, self.st.load(self.pk)["wallets"])
+        self.assertEqual(self.st.delete_list(self.pk, lid), 0)                           # w1 лишається в першому
+        self.assertEqual(self.st.load(self.pk)["wallets"][w1]["lists"], [A.MAIN_LIST])
+        with self.assertRaises(A.AccountError):
+            self.st.delete_list(self.pk, A.MAIN_LIST)
+
+    def test_old_accounts_get_their_list_named(self):
+        w = A.b58encode(b"\x23" * 32)
+        a = self.st.load(self.pk)
+        a["wallets"][w] = {"added_ms": 1, "my_tags": []}                                 # запис з часів одного списку
+        a.pop("lists", None)
+        self.st.save(a)
+        a = self.st.load(self.pk)
+        self.assertEqual(a["lists"][A.MAIN_LIST]["name"], "Watchlist")
+        self.assertEqual(a["wallets"][w]["lists"], [A.MAIN_LIST])
+
     def test_wallet_cap(self):
         old = A.MAX_WALLETS
         A.MAX_WALLETS = 2

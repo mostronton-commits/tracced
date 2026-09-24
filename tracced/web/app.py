@@ -296,6 +296,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_post("/me/wallets", me_add_wallets)
     app.router.add_post("/me/wallets/remove", me_remove_wallet)
     app.router.add_post("/me/wallets/tags", me_tags)
+    app.router.add_post("/me/lists", me_lists)
+    app.router.add_post("/me/lists/{action}", me_lists)
     app.router.add_post("/me/analyses", me_add_analysis)
     app.router.add_post("/me/analyses/remove", me_remove_analysis)
     app.router.add_get("/admin", admin_page)
@@ -755,13 +757,14 @@ async def me_add_wallets(request, pk):
     items = [_wallet_snapshot(job, by[w]) for w in dict.fromkeys(str(w) for w in want) if w in by]
     if not items:
         return _jerr("Nothing to save from this analysis.")
+    lid = str(body.get("list") or acct_mod.MAIN_LIST)
     try:
-        added, total = app["accounts"].add_wallets(pk, items)
+        added, total = app["accounts"].add_wallets(pk, items, lid)
     except acct_mod.AccountError as e:
         return _jerr(str(e))
     app["events"].add(pk, "save_wallets", n=added, job=job.id, symbol=job.symbol)
     return web.json_response({"ok": True, "added": added, "total": total, "skipped": len(want) - len(items),
-                              "wallets": [i["wallet"] for i in items]})
+                              "wallets": [i["wallet"] for i in items], "list": lid})
 
 
 @_acct_route
@@ -772,10 +775,35 @@ async def me_remove_wallet(request, pk):
         return _jerr("Bad request body.")
     want = body.get("wallets") if isinstance(body.get("wallets"), list) else [body.get("wallet")]
     want = [str(w) for w in want if w][: acct_mod.MAX_WALLETS]
-    removed = sum(1 for w in want if request.app["accounts"].remove_wallet(pk, w))
+    lid = str(body["list"]) if body.get("list") else None          # без списку — з усіх списків
+    removed = sum(1 for w in want if request.app["accounts"].remove_wallet(pk, w, lid))
     if removed:
         request.app["events"].add(pk, "remove_wallet", n=removed)
     return web.json_response({"ok": bool(removed), "removed": removed})
+
+
+@_acct_route
+async def me_lists(request, pk):
+    """Списки спостереження: створити ({name}), перейменувати ({id, name}) чи прибрати ({id}) — за адресою."""
+    body = await _json_body(request)
+    if body is None:
+        return _jerr("Bad request body.")
+    acc, action = request.app["accounts"], request.match_info.get("action") or "create"
+    try:
+        if action == "create":
+            lid, name = acc.create_list(pk, body.get("name"))
+            out = {"id": lid, "name": name}
+        elif action == "rename":
+            acc.rename_list(pk, str(body.get("id") or ""), body.get("name"))
+            out = {}
+        elif action == "remove":
+            out = {"removed_wallets": acc.delete_list(pk, str(body.get("id") or ""))}
+        else:
+            return _jerr("Unknown action.", 404)
+    except acct_mod.AccountError as e:
+        return _jerr(str(e))
+    request.app["events"].add(pk, "list_" + action)
+    return web.json_response(dict(out, ok=True, lists=acc.load(pk)["lists"]))
 
 
 @_acct_route
@@ -831,17 +859,18 @@ def _account_view(app, pk):
 @_acct_route
 async def me_json(request, pk):
     a = request.app["accounts"].load(pk)
-    return web.json_response({"pubkey": pk, "short": _short(pk), "wallets": a["wallets"], "analyses": a["analyses"]},
-                             headers={"Cache-Control": "no-store"})
+    return web.json_response({"pubkey": pk, "short": _short(pk), "wallets": a["wallets"], "analyses": a["analyses"],
+                              "lists": a["lists"]}, headers={"Cache-Control": "no-store"})
 
 
 async def me_page(request):
     pk, demo = request.get("acct"), _demo(request.app)
     if not pk:
         return render("me.html", request, wallets=[], analyses=[], max_my_tags=acct_mod.MAX_MY_TAGS)
-    _, wallets, analyses = _account_view(request.app, pk)
+    a, wallets, analyses = _account_view(request.app, pk)
+    lists = [dict(v, id=k, n=sum(1 for w in wallets if k in (w.get("lists") or []))) for k, v in a["lists"].items()]
     return render("me.html", request, wallets=wallets, analyses=analyses, max_my_tags=acct_mod.MAX_MY_TAGS,
-                  demo_mint=(demo or {}).get("mint"))
+                  demo_mint=(demo or {}).get("mint"), lists=lists, max_lists=acct_mod.MAX_LISTS, TAGS=tags.DEFS)
 
 
 async def admin_demo(request):
@@ -961,12 +990,16 @@ async def admin_page(request):
     return render("admin.html", request, accounts=accounts, totals=totals, events=app["events"].tail(100), now=now, budget=budget)
 
 
-ME_COLUMNS = ["wallet", "symbol", "mint", "from_job", "entry_mcap", "invested_usd", "multiple", "tags", "my_tags", "added_utc"]
+ME_COLUMNS = ["wallet", "symbol", "mint", "from_job", "entry_mcap", "invested_usd", "multiple", "tags", "my_tags", "lists", "added_utc"]
 
 
 @_acct_route
 async def me_wallets_csv(request, pk):
-    _, wallets, _ = _account_view(request.app, pk)
+    a, wallets, _ = _account_view(request.app, pk)
+    only = request.query.get("list")                                    # ?list=<id> — один список
+    if only:
+        wallets = [w for w in wallets if only in (w.get("lists") or [])]
+    names = {k: v["name"] for k, v in a["lists"].items()}
     buf = io.StringIO()
     w = csv.DictWriter(buf, fieldnames=ME_COLUMNS, extrasaction="ignore")
     w.writeheader()
@@ -975,6 +1008,7 @@ async def me_wallets_csv(request, pk):
     for r in wallets:
         w.writerow({**{k: cell(r.get(k)) for k in ME_COLUMNS},
                     "tags": "|".join(r.get("tags") or []), "my_tags": "|".join(r.get("my_tags") or []),
+                    "lists": cell("|".join(names.get(x, x) for x in r.get("lists") or [])),
                     "added_utc": chart.fmt_dt(r.get("added_ms") or 0, year=True, utc=True)})
     return web.Response(text=buf.getvalue(), content_type="text/csv",
                         headers={"Content-Disposition": 'attachment; filename="watchlist.csv"'})

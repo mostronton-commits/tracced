@@ -12,29 +12,37 @@
 {% else %}
 <section class="card me" id="list">
   <div class="row mehead">
-    <h2>Watchlist</h2><span class="muted small">{{ wallets|length }} wallet{{ '' if wallets|length == 1 else 's' }}</span>
+    <h2>Watchlists</h2><span class="muted small" id="wcount">{{ wallets|length }} wallet{{ '' if wallets|length == 1 else 's' }}</span>
     {% if wallets %}<div class="menu right"><button type="button" class="ghost" data-menu>↓ Export</button>
-      <div class="menu-panel r" hidden><a href="/me/wallets.csv">CSV <small>all columns</small></a><button type="button" id="xtxt">TXT <small>addresses only</small></button></div></div>{% endif %}
+      <div class="menu-panel r" hidden><a href="/me/wallets.csv" id="xcsv">CSV <small>all columns</small></a><button type="button" id="xtxt">TXT <small>addresses only</small></button></div></div>{% endif %}
+  </div>
+  <div class="ltabs" role="tablist" id="ltabs">
+    <button type="button" class="ltab on" data-list="" role="tab">All <b>{{ wallets|length }}</b></button>
+    {% for l in lists %}<button type="button" class="ltab" data-list="{{ l.id }}" role="tab">{{ l.name }} <b>{{ l.n }}</b></button>{% endfor %}
+    {% if lists|length < max_lists %}<form class="lnewtab" id="lnew"><input type="text" maxlength="32" placeholder="New list" aria-label="Name of a new list"><button type="submit" class="ghost">+ Create</button></form>{% endif %}
+    <span class="lacts" id="lacts" hidden><button type="button" class="link" id="lrename">Rename</button> · <button type="button" class="link" id="ldelete">Delete this list</button></span>
   </div>
   {% if wallets %}
   <div class="tablewrap"><table class="facts melist"><thead><tr>
-    <th>Wallet</th><th>Token</th><th class="num">Entry cap</th><th class="num">Spent</th><th class="num" title="Average exit cap ÷ entry cap at the time of saving">×</th><th title="Your own labels: type one and press Enter, click a label to remove it">My tags</th><th>Added</th><th></th>
+    <th>Wallet</th><th>Token</th><th class="num">Entry cap</th><th class="num">Spent</th><th class="num" title="How much higher the average exit was than the entry, at the time of saving">Exit vs entry</th><th title="Your own labels: type one and press Enter, click a label to remove it">My tags</th><th>Lists</th><th>Added</th><th></th>
   </tr></thead><tbody>
   {% for w in wallets %}
-    <tr data-w="{{ w.wallet }}">
-      <td class="wcell"><span class="wid"><span class="mono" title="{{ w.wallet }}">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</span><button type="button" class="ghost copy" data-copy="{{ w.wallet }}" title="Copy address">⧉</button><a class="ext" href="https://solscan.io/account/{{ w.wallet }}" target="_blank" rel="noopener" title="Solscan">↗</a></span><span class="tags">{% for t in w.tags or [] %}<span class="tag t-{{ t }}">{{ t }}</span>{% endfor %}</span></td>
+    <tr data-w="{{ w.wallet }}" data-lists="{{ (w.lists or ['main'])|join(' ') }}">
+      <td class="wcell"><span class="wid"><span class="mono" title="{{ w.wallet }}">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</span><button type="button" class="ghost copy" data-copy="{{ w.wallet }}" title="Copy address">⧉</button><a class="ext" href="https://solscan.io/account/{{ w.wallet }}" target="_blank" rel="noopener" title="Solscan">↗</a></span><span class="tags">{% for t in w.tags or [] %}<span class="tag t-{{ t }}" data-tag="{{ t }}" title="{{ TAGS.get(t, t) }}">{{ t }}</span>{% endfor %}</span></td>
       <td>{% if w.from_job %}<a href="/job/{{ w.from_job }}" title="The result it was saved from">{{ w.symbol or (w.mint or '')[:6] }}</a>{% else %}{{ w.symbol }}{% endif %}</td>
       <td class="num mono">{{ w.entry_mcap|mcap }}</td>
       <td class="num mono">{{ w.invested_usd|usd }}</td>
-      <td class="num mono">{% if w.multiple %}{{ w.multiple|round(1) }}×{% else %}—{% endif %}</td>
+      <td class="num mono">{% if w.multiple %}{{ '+' if w.multiple >= 1 else '' }}{{ ((w.multiple - 1) * 100)|round|int }}%{% else %}—{% endif %}</td>
       <td class="mytags" data-tags="{{ (w.my_tags or [])|join(' ') }}">{% for t in w.my_tags or [] %}<button type="button" class="tag mine" title="Click to remove">{{ t }}</button>{% endfor %}<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd" title="Add your own tag" aria-label="Add your own tag"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg></button></td>
+      <td class="lchips">{% for lid in w.lists or ['main'] %}{% for l in lists if l.id == lid %}<span class="lchip">{{ l.name }}</span>{% endfor %}{% endfor %}</td>
       <td class="muted small"><span class="dtc" data-ms="{{ w.added_ms }}">{{ w.added_ms|dt }}</span></td>
-      <td><button type="button" class="ghost x" data-rm-wallet title="Remove from the watchlist">×</button></td>
+      <td><button type="button" class="ghost x" data-rm-wallet title="Remove from this list">×</button></td>
     </tr>
   {% endfor %}
   </tbody></table></div>
+  <p class="muted" id="lempty" hidden>This list is empty. Open a result, tick wallets, then <b>+ Add to list</b>.</p>
   {% else %}
-  <p class="muted">Nothing here yet. Open a result, tick the wallets you want, then <b>+ Watchlist</b>.{% if demo_mint %} <a href="/token?mint={{ demo_mint }}">Try it on the demo</a>.{% endif %}</p>
+  <p class="muted">Nothing here yet. Open a result, tick the wallets you want, then <b>+ Add to list</b>.{% if demo_mint %} <a href="/token?mint={{ demo_mint }}">Try it on the demo</a>.{% endif %}</p>
   {% endif %}
 </section>
 
@@ -63,7 +71,17 @@
   const post = (u, b) => EarlyWallet.post(u, b), oops = e => EarlyUI.toast(e.message || 'Something went wrong.');
   document.addEventListener('click', async e => {
     const rw = e.target.closest('[data-rm-wallet]');
-    if (rw) { const tr = rw.closest('tr'); try { await post('/me/wallets/remove', { wallet: tr.dataset.w }); tr.remove(); } catch (x) { oops(x); } return; }
+    if (rw) {                                           // × removes from the list on screen; on «All», from every list
+      const tr = rw.closest('tr');
+      try {
+        await post('/me/wallets/remove', current ? { wallets: [tr.dataset.w], list: current } : { wallets: [tr.dataset.w] });
+        const left = current ? tr.dataset.lists.split(' ').filter(x => x !== current) : [];
+        if (left.length) { tr.dataset.lists = left.join(' '); tr.querySelectorAll('.lchip').forEach(c => { if (c.textContent === names[current]) c.remove(); }); }
+        else tr.remove();
+        showList(current);
+      } catch (x) { oops(x); }
+      return;
+    }
     const rj = e.target.closest('[data-rm-job]');
     if (rj) { const row = rj.closest('.rrow'); try { await post('/me/analyses/remove', { job: row.dataset.j }); row.remove(); } catch (x) { oops(x); } }
   });
@@ -98,9 +116,40 @@
     inp.addEventListener('blur', () => { if (!inp.value.trim()) close(); });
     room();
   });
+  // several lists: a tab shows one, «All» shows every saved wallet once; export follows the tab
+  let current = '';
+  const names = {}; document.querySelectorAll('#ltabs .ltab[data-list]').forEach(b => { if (b.dataset.list) names[b.dataset.list] = b.firstChild.textContent.trim(); });
+  function showList(id) {
+    current = id || '';
+    let n = 0;
+    document.querySelectorAll('tr[data-w]').forEach(tr => { const on = !current || tr.dataset.lists.split(' ').includes(current); tr.hidden = !on; n += on; });
+    document.querySelectorAll('#ltabs .ltab').forEach(b => b.classList.toggle('on', b.dataset.list === current));
+    const acts = document.getElementById('lacts'); if (acts) { acts.hidden = !current; document.getElementById('ldelete').hidden = current === 'main'; }
+    const csv = document.getElementById('xcsv'); if (csv) csv.href = '/me/wallets.csv' + (current ? '?list=' + encodeURIComponent(current) : '');
+    const em = document.getElementById('lempty'); if (em) em.hidden = n > 0;
+    try { localStorage.setItem('early:list', current); } catch (e) {}
+  }
+  document.getElementById('ltabs').addEventListener('click', e => { const b = e.target.closest('.ltab'); if (b) showList(b.dataset.list); });
+  const lnew = document.getElementById('lnew');
+  if (lnew) lnew.addEventListener('submit', async e => {
+    e.preventDefault();
+    const name = lnew.querySelector('input').value.trim(); if (!name) return;
+    try { await post('/me/lists', { name }); location.reload(); } catch (x) { oops(x); }
+  });
+  const lr = document.getElementById('lrename'), ld = document.getElementById('ldelete');
+  if (lr) lr.addEventListener('click', async () => {
+    const name = prompt('New name for «' + names[current] + '»', names[current]); if (!name) return;
+    try { await post('/me/lists/rename', { id: current, name }); location.reload(); } catch (x) { oops(x); }
+  });
+  if (ld) ld.addEventListener('click', async () => {
+    if (!confirm('Delete the list «' + names[current] + '»? Wallets that are only in it leave your watchlists.')) return;
+    try { await post('/me/lists/remove', { id: current }); try { localStorage.removeItem('early:list'); } catch (e) {} location.reload(); } catch (x) { oops(x); }
+  });
+  try { const was = localStorage.getItem('early:list'); if (was && document.querySelector('#ltabs .ltab[data-list="' + was + '"]')) showList(was); } catch (e) {}
+  document.querySelectorAll('.tags .tag[data-tag]').forEach(EarlyTags.iconify);
   const tx = document.getElementById('xtxt');
   if (tx) tx.addEventListener('click', () => {
-    const ws = [...document.querySelectorAll('tr[data-w]')].map(t => t.dataset.w);
+    const ws = [...document.querySelectorAll('tr[data-w]')].filter(t => !t.hidden).map(t => t.dataset.w);
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([ws.join('\n') + '\n'], { type: 'text/plain' })); a.download = 'watchlist.txt'; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   });

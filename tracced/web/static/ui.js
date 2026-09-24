@@ -163,15 +163,15 @@ window.EarlyTags = (function () {
     if (!idn) return '';
     opts = opts || {};
     const out = [], h = handle(idn), who = idn.name ? '«' + esc(idn.name) + '»' : '';
-    if (isKol(idn)) out.push('<span class="idm kol" title="A known trader (KOL)' + (idn.name ? ': ' + esc(idn.name) : '') + ' · per Solana Tracker">' + ICON.kol + '</span>');
-    if (h) out.push('<a class="idm xacc" href="https://x.com/' + h + '" target="_blank" rel="noopener" title="@' + h + ' on X · per Solana Tracker">' + ICON.x + '</a>');
+    if (isKol(idn)) out.push('<span class="idm kol" title="A known trader (KOL)' + (idn.name ? ': ' + esc(idn.name) : '') + '">' + ICON.kol + '</span>');
+    if (h) out.push('<a class="idm xacc" href="https://x.com/' + h + '" target="_blank" rel="noopener" title="@' + h + ' on X">' + ICON.x + '</a>');
     platforms(idn).forEach(f => {
       const name = Object.values(BRANDS).find(b => b[0] === f)[1];
-      out.push('<span class="idm brand" title="Trades through ' + esc(name) + (who && !isKol(idn) ? ' as ' + who : '') + ' · per Solana Tracker"><img src="/static/brands/' + f + '.png" alt="' + esc(name) + '"></span>');
+      out.push('<span class="idm brand" title="Trades through ' + esc(name) + (who && !isKol(idn) ? ' as ' + who : '') + '"><img src="/static/brands/' + f + '.png" alt="' + esc(name) + '"></span>');
     });
     [...new Set([idn.type].concat(idn.tags || []))].filter(r => ROLES[r]).forEach(r => {
       const icon = r === 'exchange' ? ICON.exchange : r === 'hacker' ? ICON.hacker : ICON['bot-like'];
-      out.push('<span class="idm role r-' + r + '" title="' + ROLES[r] + ' · per Solana Tracker">' + icon + '</span>');
+      out.push('<span class="idm role r-' + r + '" title="' + ROLES[r] + '">' + icon + '</span>');
     });
     return out.join('');
   }

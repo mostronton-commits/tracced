@@ -37,6 +37,7 @@ _HEAD = " wants you to sign in with your Solana account:"
 MAX_MESSAGE = 2048
 
 MAX_WALLETS, MAX_ANALYSES, MAX_NOTE = 500, 200, 200
+MAX_LISTS, MAX_LIST_NAME, MAIN_LIST = 20, 32, "main"      # кілька списків спостереження; «main» — той, що був завжди
 MAX_MY_TAGS, MAX_MY_TAG = 6, 24          # власні теги гаманця: коротка мітка, а не нотатка
 MY_TAG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 _-]{0,%d}$" % (MAX_MY_TAG - 1))
 WALLET_FIELDS = ("from_job", "mint", "symbol", "entry_mcap", "invested_usd", "multiple", "tags")
@@ -221,7 +222,8 @@ def _now_ms():
 
 
 def _empty(pubkey):
-    return {"pubkey": pubkey, "created_ms": _now_ms(), "last_seen_ms": _now_ms(), "wallets": {}, "analyses": {}}
+    return {"pubkey": pubkey, "created_ms": _now_ms(), "last_seen_ms": _now_ms(), "wallets": {}, "analyses": {},
+            "lists": {MAIN_LIST: {"name": "Watchlist", "created_ms": _now_ms()}}}
 
 
 class AccountStore:
@@ -246,13 +248,19 @@ class AccountStore:
             with open(path, encoding="utf-8") as f:
                 a = json.load(f)
         except FileNotFoundError:
-            return _empty(pubkey)
+            a = _empty(pubkey)
         except Exception as e:  # noqa: BLE001 — битий файл не валить сторінку
             log.warning("account file unreadable %s: %s", pubkey[:8], e)
             return _empty(pubkey)
         a["pubkey"] = pubkey
         a.setdefault("wallets", {})
         a.setdefault("analyses", {})
+        lists = a.setdefault("lists", {})
+        if MAIN_LIST not in lists:                          # акаунти з часів одного списку: він стає першим
+            lists[MAIN_LIST] = {"name": "Watchlist", "created_ms": a.get("created_ms") or _now_ms()}
+        for w in a["wallets"].values():
+            ls = [x for x in (w.get("lists") or []) if x in lists]
+            w["lists"] = ls or [MAIN_LIST]
         return a
 
     def save(self, a):
@@ -312,23 +320,97 @@ class AccountStore:
             return True
         return self._update(pubkey, fn)
 
-    def add_wallets(self, pubkey, items):
-        """items: словники з ключем wallet і полями WALLET_FIELDS → (додано, разом)."""
+    def add_wallets(self, pubkey, items, list_id=MAIN_LIST):
+        """items: словники з ключем wallet і полями WALLET_FIELDS → (додано до списку, гаманців разом).
+
+        Гаманець, який уже є в іншому списку, просто стає і в цьому: дані й власні теги в нього одні."""
         def fn(a):
+            if list_id not in a["lists"]:
+                raise AccountError("That list does not exist any more.")
             added = 0
             for it in items:
                 w = it.get("wallet")
-                if not valid_pubkey(w) or w in a["wallets"]:
+                if not valid_pubkey(w):
+                    continue
+                cur = a["wallets"].get(w)
+                if cur is not None:
+                    if list_id not in cur["lists"]:
+                        cur["lists"].append(list_id)
+                        added += 1
                     continue
                 if len(a["wallets"]) >= MAX_WALLETS:
-                    raise AccountError(f"Your watchlist is full ({MAX_WALLETS} wallets). Remove some first.")
-                a["wallets"][w] = {"added_ms": _now_ms(), "note": "", "my_tags": [], **{k: it.get(k) for k in WALLET_FIELDS}}
+                    raise AccountError(f"Your watchlists are full ({MAX_WALLETS} wallets). Remove some first.")
+                a["wallets"][w] = {"added_ms": _now_ms(), "note": "", "my_tags": [], "lists": [list_id], **{k: it.get(k) for k in WALLET_FIELDS}}
                 added += 1
             return added, len(a["wallets"])
         return self._update(pubkey, fn)
 
-    def remove_wallet(self, pubkey, wallet):
-        return self._update(pubkey, lambda a: a["wallets"].pop(wallet, None) is not None)
+    def remove_wallet(self, pubkey, wallet, list_id=None):
+        """З одного списку, або з усіх (list_id=None). Гаманець без жодного списку зникає зовсім."""
+        def fn(a):
+            cur = a["wallets"].get(wallet)
+            if cur is None:
+                return False
+            if list_id is None:
+                a["wallets"].pop(wallet)
+                return True
+            if list_id not in cur["lists"]:
+                return False
+            cur["lists"].remove(list_id)
+            if not cur["lists"]:
+                a["wallets"].pop(wallet)
+            return True
+        return self._update(pubkey, fn)
+
+    def _clean_name(self, name):
+        name = " ".join(str(name or "").split())[:MAX_LIST_NAME]
+        if not name:
+            raise AccountError("Give the list a name.")
+        return name
+
+    def create_list(self, pubkey, name):
+        name = self._clean_name(name)
+
+        def fn(a):
+            if len(a["lists"]) >= MAX_LISTS:
+                raise AccountError(f"At most {MAX_LISTS} lists.")
+            if any(v["name"].lower() == name.lower() for v in a["lists"].values()):
+                raise AccountError("You already have a list with that name.")
+            lid = "l" + os.urandom(4).hex()
+            a["lists"][lid] = {"name": name, "created_ms": _now_ms()}
+            return lid
+        return self._update(pubkey, fn), name
+
+    def rename_list(self, pubkey, list_id, name):
+        name = self._clean_name(name)
+
+        def fn(a):
+            if list_id not in a["lists"]:
+                raise AccountError("That list does not exist any more.")
+            if any(k != list_id and v["name"].lower() == name.lower() for k, v in a["lists"].items()):
+                raise AccountError("You already have a list with that name.")
+            a["lists"][list_id]["name"] = name
+            return True
+        return self._update(pubkey, fn)
+
+    def delete_list(self, pubkey, list_id):
+        """Список зникає; гаманці, які були лише в ньому, теж. Перший список лишається завжди."""
+        if list_id == MAIN_LIST:
+            raise AccountError("The first list stays; rename it instead.")
+
+        def fn(a):
+            if a["lists"].pop(list_id, None) is None:
+                return 0
+            gone = 0
+            for w in list(a["wallets"]):
+                ls = a["wallets"][w]["lists"]
+                if list_id in ls:
+                    ls.remove(list_id)
+                    if not ls:
+                        a["wallets"].pop(w)
+                        gone += 1
+            return gone
+        return self._update(pubkey, fn)
 
     def set_my_tags(self, pubkey, wallet, tags):
         """Власні теги гаманця у списку спостереження: короткі мітки замість вільної нотатки.

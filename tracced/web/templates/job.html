@@ -84,7 +84,7 @@
         </div>
       </div>
       <div id="watch" hidden>
-        <button type="button" class="button wl" id="watchbtn" title="Add the selected wallets to your watchlist"><span id="watchtxt">+ Watchlist</span><span class="wl-n" id="watchn"></span></button>
+        <button type="button" class="button wl" id="watchbtn" title="Add the selected wallets to your watchlist"><span id="watchtxt">+ Add to list</span><span class="wl-n" id="watchn"></span></button>
       </div>
       <div class="menu">
         <button type="button" class="ghost xbtn" data-menu>↓ Export</button>
@@ -293,15 +293,71 @@
       const wbtn = document.getElementById('watchbtn'), sjob = document.getElementById('savejob');
       const inList = w => !!(me && me.wallets && me.wallets[w]);
       function syncWatchBtn() {
-        const ws = [...selected], removing = ws.length > 0 && ws.every(inList);
-        wbtn.dataset.mode = removing ? 'remove' : 'add';
-        document.getElementById('watchtxt').textContent = removing ? '– Watchlist' : '+ Watchlist';
-        wbtn.title = removing ? 'Remove the selected wallets from your watchlist' : 'Add the selected wallets to your watchlist';
+        document.getElementById('watchtxt').textContent = '+ Add to list';
+        wbtn.title = 'Add the selected wallets to one of your lists';
       }
+      /* Several watchlists: the toolbar button and the card's star open the same small menu. For one wallet it shows
+         which lists hold it and toggles them; for a selection it adds all of them to the list you pick. */
+      const listpop = document.createElement('div');
+      listpop.className = 'listpop'; listpop.hidden = true; document.body.appendChild(listpop);
+      const listsOf = () => (me && me.lists) || { main: { name: 'Watchlist' } };
+      const listsOfWallet = w => (me && me.wallets && me.wallets[w] && me.wallets[w].lists) || [];
+      async function addToList(lid, ws) {
+        const d = await EarlyWallet.post('/me/wallets', { job: jobId, wallets: ws, list: lid });
+        blank();
+        d.wallets.forEach(w => { const x = me.wallets[w] = me.wallets[w] || { my_tags: [], lists: [] }; x.lists = x.lists || []; if (!x.lists.includes(lid)) x.lists.push(lid); });
+        markSaved();
+        return d;
+      }
+      async function removeFromList(lid, w) {
+        await EarlyWallet.post('/me/wallets/remove', { wallets: [w], list: lid });
+        const x = me && me.wallets[w];
+        if (x) { x.lists = (x.lists || []).filter(l => l !== lid); if (!x.lists.length) delete me.wallets[w]; }
+        markSaved();
+      }
+      function openLists(anchor, ws) {
+        const single = ws.length === 1 ? ws[0] : null, L = listsOf();
+        listpop.innerHTML = '<div class="lh">' + (single ? 'Lists for this wallet' : 'Add ' + plural(ws.length, 'wallet') + ' to') + '</div>'
+          + Object.entries(L).map(([id, v]) => {
+              const on = single && listsOfWallet(single).includes(id);
+              return '<button type="button" class="li' + (on ? ' on' : '') + '" data-id="' + id + '" aria-pressed="' + !!on + '">'
+                + (single ? '<i class="ck">' + (on ? '✓' : '') + '</i>' : '') + esc(v.name) + '</button>';
+            }).join('')
+          + '<form class="lnew"><input type="text" maxlength="32" placeholder="New list" aria-label="Name of a new list"><button type="submit">Create</button></form>'
+          + (!single && ws.some(inList) ? '<button type="button" class="li rm" data-rm="1">Remove from all lists</button>' : '');
+        const r = anchor.getBoundingClientRect();
+        listpop.style.top = (window.scrollY + r.bottom + 6) + 'px';
+        listpop.style.left = Math.max(8, Math.min(window.scrollX + r.left, window.scrollX + document.documentElement.clientWidth - 248)) + 'px';
+        listpop.hidden = false;
+        listpop.onclick = async e => {
+          const b = e.target.closest('.li'); if (!b) return;
+          try {
+            if (b.dataset.rm) { await removeWallets(ws); listpop.hidden = true; return; }
+            const id = b.dataset.id, name = L[id].name;
+            if (single && listsOfWallet(single).includes(id)) { await removeFromList(id, single); EarlyUI.toast('Removed from ' + esc(name)); }
+            else { const d = await addToList(id, ws); EarlyUI.toast((single ? 'Added to ' : plural(d.added, 'wallet') + ' added to ') + esc(name) + ' · <a href="/me#list">Lists →</a>'); }
+            if (single) { openLists(anchor, ws); if (drawer.dataset.w === single) { syncStar(single); renderTags(single); } } else listpop.hidden = true;
+          } catch (x) { EarlyUI.toast(x.message); }
+        };
+        listpop.querySelector('.lnew').onsubmit = async e => {
+          e.preventDefault();
+          const name = e.target.querySelector('input').value.trim(); if (!name) return;
+          try {
+            const d = await EarlyWallet.post('/me/lists', { name });
+            blank(); me.lists = d.lists;
+            await addToList(d.id, ws);
+            EarlyUI.toast((single ? 'Added' : plural(ws.length, 'wallet') + ' added') + ' to the new list ' + esc(d.name) + ' · <a href="/me#list">Lists →</a>');
+            if (single) { openLists(anchor, ws); if (drawer.dataset.w === single) { syncStar(single); renderTags(single); } } else listpop.hidden = true;
+          } catch (x) { EarlyUI.toast(x.message); }
+        };
+        if (!single) setTimeout(() => { const i = listpop.querySelector('.lnew input'); if (i && !Object.keys(L).length) i.focus(); }, 0);
+      }
+      document.addEventListener('click', e => { if (!listpop.hidden && !e.target.closest('.listpop, #watchbtn, #dstar, .saved')) listpop.hidden = true; });
+      document.addEventListener('keydown', e => { if (e.key === 'Escape') listpop.hidden = true; });
       function markSaved() {
         rows.forEach(r => {
           const wid = r.querySelector('.wid'), has = wid.querySelector('.saved');
-          if (inList(r.dataset.w)) { if (!has) { const s = document.createElement('button'); s.type = 'button'; s.className = 'saved'; s.title = 'In your watchlist · click to remove'; s.textContent = '★'; wid.appendChild(s); } }
+          if (inList(r.dataset.w)) { if (!has) { const s = document.createElement('button'); s.type = 'button'; s.className = 'saved'; s.title = 'In your lists · click to change'; s.textContent = '★'; wid.appendChild(s); } }
           else if (has) has.remove();
         });
         const card = document.getElementById('drawer');
@@ -350,9 +406,9 @@
         } catch (e) { EarlyUI.toast(e.message); }
       }
       // the action is what the button said at click time — not what it turns into after a sign-in loads the account
-      wbtn.addEventListener('click', () => { const remove = wbtn.dataset.mode === 'remove'; withAcct(() => remove ? removeWallets([...selected]) : saveWallets()); });
+      wbtn.addEventListener('click', () => withAcct(() => openLists(wbtn, [...selected])));
       sjob.addEventListener('click', () => { const saved = !!(me && me.analyses && me.analyses[jobId]); withAcct(() => saved ? removeJob() : saveJob()); });
-      tbody.addEventListener('click', e => { const s = e.target.closest('.saved'); if (s) removeWallets([s.closest('tr').dataset.w]); });
+      tbody.addEventListener('click', e => { const s = e.target.closest('.saved'); if (s) withAcct(() => openLists(s, [s.closest('tr').dataset.w])); });
       loadMe();
       const mkdemo = document.getElementById('mkdemo');
       if (mkdemo) mkdemo.addEventListener('click', async () => {
@@ -514,7 +570,7 @@
       function syncStar(w) {
         const on = inList(w);
         dstar.textContent = on ? '★' : '☆'; dstar.classList.toggle('on', on);
-        dstar.title = on ? 'In your watchlist · click to remove' : 'Add to your watchlist'; dstar.setAttribute('aria-label', dstar.title);
+        dstar.title = on ? 'In ' + plural(listsOfWallet(w).length, 'list') + ' · click to change' : 'Add to one of your lists'; dstar.setAttribute('aria-label', dstar.title);
       }
       const TAGDEF = {{ TAGS|tojson }};
       function renderTags(w) {
@@ -555,7 +611,7 @@
         if (h) bits.push('<a href="https://x.com/' + h + '" target="_blank" rel="noopener">@' + h + '</a>');
         if (plats.length) bits.push('trades through ' + plats.join(', '));
         if (idn.sns) bits.push(esc(idn.sns));
-        el.innerHTML = bits.join(' · ') + ' <span class="muted small">per Solana Tracker</span>';
+        el.innerHTML = bits.join(' · ');
         el.hidden = false;
       }
       const rankOf = new Map(rows.map((r, i) => [r.dataset.w, i])), AGE_N = {{ s.age_lookups_max or 0 }}, ageTried = new Map();
@@ -628,9 +684,10 @@
         const g = Array.from({ length: 7 }, () => Array(24).fill(0));
         heat.forEach((row, d) => row.forEach((n, h) => { const i = ((d * 24 + h + off) % 168 + 168) % 168; g[Math.floor(i / 24)][i % 24] += n; }));
         const max = Math.max(1, ...g.map(r => Math.max(...r))), D = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        const ampm = h => (h % 12 || 12) + (h < 12 ? 'am' : 'pm');
         return '<div class="dheat">' + g.map((row, d) => '<div class="hr"><span>' + D[d] + '</span>' + row.map((n, h) =>
-            '<i style="--a:' + (n ? (0.18 + 0.82 * n / max).toFixed(2) : 0) + '" title="' + D[d] + ' ' + String(h).padStart(2, '0') + ':00 · ' + n + ' swap' + (n === 1 ? '' : 's') + '"></i>').join('') + '</div>').join('')
-          + '<div class="hx"><span></span><b>0h</b><b>6h</b><b>12h</b><b>18h</b></div></div>';
+            '<i style="--a:' + (n ? (0.18 + 0.82 * n / max).toFixed(2) : 0) + '" title="' + D[d] + ' ' + ampm(h) + '–' + ampm((h + 1) % 24) + ' · ' + n + ' swap' + (n === 1 ? '' : 's') + '"></i>').join('') + '</div>').join('')
+          + '<div class="hx"><span></span>' + [0, 3, 6, 9, 12, 15, 18, 21].map(h => '<b>' + ampm(h) + '</b>').join('') + '</div></div>';
       }
       function recentHtml(list) {
         if (!list || !list.length) return '';
@@ -669,7 +726,7 @@
           + '<div><span>Swaps</span><b>' + nf(p.swaps) + '</b></div>'
           + '</div>'
           + (distHtml(p) ? '<h5>PnL of closed positions</h5>' + distHtml(p) : '')
-          + (all.heat ? '<h5>When it trades · 30 days</h5>' + heatHtml(all.heat) : '')
+          + (all.heat ? '<h5>When it trades · 30 days · ' + ((window.EarlyTZ && EarlyTZ.get() === 'local') ? 'your time' : 'UTC') + '</h5>' + heatHtml(all.heat) : '')
           + (all.recent && all.recent.length ? '<h5>Recent tokens · 30 days</h5>' + recentHtml(all.recent) : '')
           + '<p class="dline muted small">' + note + '</p>';
         document.querySelectorAll('#dper [data-p]').forEach(b => b.classList.toggle('on', b.dataset.p === period));
@@ -752,14 +809,7 @@
       }
       document.getElementById('dclose').addEventListener('click', closeCard);
       document.addEventListener('keydown', e => { if (e.key === 'Escape' && !drawer.hidden) closeCard(); });
-      dstar.addEventListener('click', () => {
-        const w = drawer.dataset.w;
-        withAcct(async () => {
-          if (inList(w)) await removeWallets([w]);
-          else if (await addOne(w)) EarlyUI.toast('Added to your watchlist · <a href="/me#list">Watchlist →</a>');
-          if (drawer.dataset.w === w) { syncStar(w); renderTags(w); }
-        });
-      });
+      dstar.addEventListener('click', () => { const w = drawer.dataset.w; withAcct(() => openLists(dstar, [w])); });
       // your own tags: a tag is a reason to watch, so tagging a wallet that is not watched yet adds it to the watchlist
       dtags.addEventListener('click', e => {
         const w = drawer.dataset.w, mine = e.target.closest('.tag.mine');
