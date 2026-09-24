@@ -84,6 +84,54 @@ class TestWalletAge(unittest.TestCase):
         self.assertEqual(len(post.calls), 4)                              # два гаманці по дві сторінки; третій виклик — з кешу
         self.assertTrue(slept and 0 < slept[0] <= 0.5)                    # pause before the second call
 
+    def test_each_node_keeps_its_own_pace(self):
+        """Транзакції йдуть у публічну ноду зі своїм темпом і не чекають на паузу платної ноди підписів."""
+        slept = []
+        post = FakePost([sigs(1), [], {"meta": {}}, {"meta": {}}])
+        wa = WalletAge(url="https://rpc.example/?k", tx_url=DEFAULT_URL, post=post, sleep=slept.append,
+                       pace_s=0.5, tx_pace_s=0.3)
+        wa.oldest_tx("W1")                                                # дві сторінки: друга чекає 0.5 с
+        wa.funder("W1", "0")                                              # перша транзакція: нода тиха, без паузи
+        wa.funder("W2", "0")                                              # друга: темп транзакцій, не підписів
+        self.assertEqual(len(slept), 2)
+        self.assertTrue(0.45 < slept[0] <= 0.5)
+        self.assertTrue(0.25 < slept[1] <= 0.3)
+        self.assertEqual(post.urls, [None, None, DEFAULT_URL, DEFAULT_URL])
+
+    def test_a_slow_node_does_not_hold_up_the_other(self):
+        import threading
+        entered, release = threading.Event(), threading.Event()
+
+        def post(payload, url=None):
+            if url is None:                                               # платна нода підписів «зависла»
+                entered.set()
+                release.wait(5)
+                return {"result": []}
+            return {"result": {"meta": {}}}
+        wa = WalletAge(url="https://rpc.example/?k", tx_url=DEFAULT_URL, post=post, sleep=lambda s: None, pace_s=0)
+        t = threading.Thread(target=wa.oldest_tx, args=("W1",))
+        t.start()
+        try:
+            self.assertTrue(entered.wait(5))
+            done = []
+            probe = threading.Thread(target=lambda: done.append(wa.funder("W2", "0")))
+            probe.start()
+            probe.join(2)
+            self.assertEqual(done, [None])                                # відповіла, не чекаючи на першу ноду
+        finally:
+            release.set()
+            t.join(5)
+
+    def test_429_waits_as_long_as_the_node_asks_within_a_cap(self):
+        from tracced.early.wallet_age import RETRY_AFTER_MAX
+        err = lambda after: urllib.error.HTTPError("u", 429, "x", {"Retry-After": after}, None)  # noqa: E731
+        for after, want in (("7", 7.0), ("600", RETRY_AFTER_MAX), ("soon", 2)):
+            with self.subTest(after=after):
+                slept = []
+                wa = WalletAge(post=FakePost([err(after), sigs(1), []]), sleep=slept.append, pace_s=0)
+                self.assertEqual(wa.oldest_tx("W")["n"], 1)
+                self.assertEqual(slept, [want])                           # незрозумілий заголовок — звичайна пауза
+
     def test_funder_from_tx(self):
         keys = [{"pubkey": "FUNDER", "signer": True}, {"pubkey": "NEWWALLET", "signer": False}, {"pubkey": "11111111111111111111111111111111", "signer": False}]
         tx = {"transaction": {"message": {"accountKeys": keys}},

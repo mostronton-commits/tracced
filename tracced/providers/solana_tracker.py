@@ -1,4 +1,5 @@
 """Реализация источника на Solana Tracker Data API. Эндпоинты проверены живьём."""
+import http.client
 import threading
 import time
 import urllib.error
@@ -10,6 +11,12 @@ BASE = "https://data.solanatracker.io"
 
 
 PAGE = 500          # стеля сторінки /trades; за замовчуванням вони дають 250, тобто вдвічі більше запитів
+SYMBOL_MAX, NAME_MAX = 24, 64   # символ і назву задає творець токена, а вони йдуть у сторінки
+
+
+def _text(v, n):
+    """Рядок від творця токена: лише str і не довший за n. None лишається None."""
+    return None if v is None else str(v)[:n]
 
 
 def _usd(v):
@@ -87,9 +94,11 @@ class SolanaTracker(PumpDataSource):
                     time.sleep(0.4 * (attempt + 1))  # серверный сбой — короткий повтор
                     continue
                 raise
-            except urllib.error.URLError as e:
+            except (urllib.error.URLError, OSError, http.client.HTTPException, ValueError) as e:
+                # сетевой сбой — повтор. Не только URLError: тайм-аут чтения, обрыв соединения, недочитанное или
+                # битое тело (JSON) приходят уже после urlopen и без обёртки, а одна такая страница валила прогон
                 last = e
-                time.sleep(1.0 * (attempt + 1))       # сетевой сбой — повтор
+                time.sleep(1.0 * (attempt + 1))
         raise last
 
     def token_info(self, mint):
@@ -101,8 +110,8 @@ class SolanaTracker(PumpDataSource):
         # усе нижче приходить у тій самій відповіді, за яку ми вже заплатили — окремих запитів нема
         return {
             "mint": mint,
-            "symbol": tok.get("symbol"),
-            "name": tok.get("name"),
+            "symbol": _text(tok.get("symbol"), SYMBOL_MAX),
+            "name": _text(tok.get("name"), NAME_MAX),
             "created_time": to_ms((tok.get("creation") or {}).get("created_time")),
             "supply": (p.get("tokenSupply") or 0) or None,
             "price_usd": (p.get("price") or {}).get("usd"),

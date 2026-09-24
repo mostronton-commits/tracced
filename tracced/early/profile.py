@@ -30,7 +30,7 @@ CASH = {
     "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1",          # bSOL
 }
 CLOSED_SHARE = 99.0          # позиція закрита, коли продано стільки відсотків купленого
-VERSION = 3                  # змінився порахунок — нова версія, і картки з кешу рахуються заново
+VERSION = 4                  # змінився порахунок — нова версія, і картки з кешу рахуються заново
 
 
 def _num(v):
@@ -107,13 +107,29 @@ class _Book:
         return self.sold / self.bought * 100 if self.bought else 0.0
 
 
+def _chrono(evs):
+    """Події від старих до нових, і в межах однієї секунди теж.
+
+    `/wallet/{owner}/trades` віддає обміни від нових до старих, а час угод — цілі секунди. Стабільне сортування
+    лише за часом лишило б купівлю і продаж однієї секунди в порядку джерела, продаж першим: він став би
+    продажем без позиції, а купівля — відкритою позицією. Тому спадний вхід спершу перевертаємо."""
+    evs = list(evs)
+    ts = [e["time"] for e in evs]
+    down = sum(1 for x, y in zip(ts, ts[1:]) if x > y)
+    up = sum(1 for x, y in zip(ts, ts[1:]) if x < y)
+    if down > up:
+        evs.reverse()
+    evs.sort(key=lambda x: x["time"])
+    return evs
+
+
 def _replay(evs):
     """Події → позиції по токенах і реалізоване кожного продажу в часі [(ms, $)].
 
     Правила ті самі, що в ledger.build, щоб картка і таблиця ніколи не рахували по-різному: продаж без позиції —
     не вихід і не прибуток; продаж понад куплене рахується лише на куплену частину."""
     books, deltas = {}, []
-    for e in sorted(evs, key=lambda x: x["time"]):
+    for e in _chrono(evs):
         qty, usd = float(e.get("qty") or 0), float(e.get("usd") or 0)
         if qty <= 0:
             continue

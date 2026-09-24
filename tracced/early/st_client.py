@@ -1,11 +1,13 @@
 """Клієнт Solana Tracker для early: сирі сторінки угод (з кількістю) і свічки з відрізком.
 
 Наслідує темп, ретраї 429/5xx і token_info з providers/solana_tracker.py. Безпечний для кількох потоків:
-кеші під `_cache_lock`, темп і лічильник запитів під замком у `_get`.
+кожен JsonCache сам тримає свій замок (і пише файл поза ним), темп і лічильник запитів під замком у `_get`.
+Спільного замка на всі кеші нема: цикл подій питає chart_cached(), і він не має чекати, поки інший потік
+переписує файл імен чи угод.
 stats_cache тепер тримає угоди гаманця по токену (ключ trades:<mint>:<wallet>).
 Поля перевірені живцем 16.09.2026 (docs/early_spike.md).
 """
-import threading
+import time
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 
@@ -13,6 +15,8 @@ from ..providers.solana_tracker import PAGE, SolanaTracker
 from ..util import to_ms
 from .ledger import normalize
 from .profile import compact_identity
+
+LIVE_EDGE_MS = 300_000       # шматок свічок, що закінчується ближче до «зараз», ще росте: його не кешуємо
 
 
 class EarlyST(SolanaTracker):
@@ -25,16 +29,12 @@ class EarlyST(SolanaTracker):
         self.identity_cache = identity_cache
         self.chart_cache_hits = 0
         self.stats_cache_hits = 0
-        # кеш свічок читають/пишуть кілька потоків (сторінка + робочий потік): без замка два
-        # одночасні flush() ламались об os.replace того самого тимчасового файлу
-        self._cache_lock = threading.Lock()
 
     def identity(self, wallet):
         """Ідентичність гаманця з кешу; None — невідомий гаманець або ще не питали."""
         if self.identity_cache is None:
             return None
-        with self._cache_lock:
-            return self.identity_cache.get(wallet) or None
+        return self.identity_cache.get(wallet) or None
 
     def identities(self, wallets, workers=8):
         """Хто стоїть за гаманцями: `POST /v2/pnl/wallets/batch`, 100 гаманців на запит, запити одночасно.
@@ -44,8 +44,7 @@ class EarlyST(SolanaTracker):
         лише для відомих. Збій одного пакета не валить решту: ці гаманці просто лишаються без імені."""
         if self.identity_cache is None:
             return {}
-        with self._cache_lock:
-            todo = [w for w in dict.fromkeys(wallets) if w and self.identity_cache.get(w) is None]
+        todo = [w for w in dict.fromkeys(wallets) if w and self.identity_cache.get(w) is None]
         chunks = [todo[i:i + 100] for i in range(0, len(todo), 100)]
 
         def one(chunk):
@@ -62,9 +61,10 @@ class EarlyST(SolanaTracker):
                         continue
                     got.update(res)
                     got.update({w: {} for w in chunk if w not in res})     # notFound = невідомий, теж кешуємо
-        with self._cache_lock:
-            for w, idn in got.items():
-                self.identity_cache.put(w, idn)
+        if got:
+            # одним кроком і одним записом файлу: по одному put() файл переписувався б кожні 25 гаманців
+            self.identity_cache.put_many(got)
+            self.identity_cache.flush()
         return {w: self.identity(w) for w in wallets if self.identity(w)}
 
     def trades_page(self, mint, cursor_ms):
@@ -81,12 +81,16 @@ class EarlyST(SolanaTracker):
         # v3: свічки до міграції з пулу кривої. Старі записи кешу — лише пул після міграції, тому не читаються
         return f"v3:{mint}:{interval}:{int(t_from_ms // 1000)}:{int(t_to_ms // 1000)}"
 
+    @staticmethod
+    def _live(t_to_ms):
+        """Шматок доходить до «зараз»: нові свічки ще з'являються, тож кожен запит тягне його заново."""
+        return t_to_ms > time.time() * 1000 - LIVE_EDGE_MS
+
     def chart_cached(self, mint, interval, t_from_ms, t_to_ms):
-        """Чи лежить цей шматок у кеші (тоді він нічого не коштує)."""
-        if self.chart_cache is None:
+        """Чи лежить цей шматок у кеші (тоді він нічого не коштує). Живий край — ніколи."""
+        if self.chart_cache is None or self._live(t_to_ms):
             return False
-        with self._cache_lock:
-            return self.chart_cache.get(self._chart_key(mint, interval, t_from_ms, t_to_ms)) is not None
+        return self.chart_cache.get(self._chart_key(mint, interval, t_from_ms, t_to_ms)) is not None
 
     def _candles(self, path, interval, a, b):
         q = urllib.parse.urlencode({"type": interval, "time_from": a, "time_to": b, "dynamicPools": "true"})
@@ -106,12 +110,15 @@ class EarlyST(SolanaTracker):
         Джерело будує графік токена з пулу, що головний зараз. У токена, який переїхав з pump.fun на біржу, це пул
         біржі, і торгівля на кривій, де стається більшість пампів, приходила кількома свічками (SI 24.09: 13 з 90
         хвилин діапазону). Тому все, що до міграції, береться з пулу кривої (`/chart/{mint}/{pool}`), решта — як
-        було, а на межі дві відповіді зшиваються: до моменту міграції свічки кривої, після нього — біржі."""
+        було, а на межі дві відповіді зшиваються: до моменту міграції свічки кривої, після нього — біржі.
+
+        Шматок, що доходить до «зараз», у кеш не йде і з кешу не читається: інакше графік токена, що памп'ить,
+        застигав на першому перегляді, бо ключ шматка той самий ще багато годин."""
         a, b = int(t_from_ms // 1000), int(t_to_ms // 1000)
         key = self._chart_key(mint, interval, t_from_ms, t_to_ms)
-        if self.chart_cache is not None:
-            with self._cache_lock:
-                cached = self.chart_cache.get(key)
+        cache = self.chart_cache if not self._live(t_to_ms) else None
+        if cache is not None:
+            cached = cache.get(key)
             if cached is not None:
                 self.chart_cache_hits += 1
                 return cached
@@ -123,20 +130,21 @@ class EarlyST(SolanaTracker):
         else:
             out = self._candles(f"/chart/{mint}", interval, a, b)
         out.sort(key=lambda c: c["time"])
-        if self.chart_cache is not None:
-            with self._cache_lock:
-                self.chart_cache.put(key, out)
+        if cache is not None:
+            cache.put(key, out)
         return out
 
-    def wallet_token_trades(self, wallet, mint, max_pages=4):
+    def wallet_token_trades(self, wallet, mint, max_pages=4, fresh=False):
         """All trades of one wallet on one token (ST `/trades/{mint}/by-wallet/{owner}`, ASC, cursor
         pages of 500; 1 request per page, cached). Same raw swaps as the token feed, filtered by
         wallet on their side. Cursor is exclusive (time > cursor), so pages restart one ms before the last
-        time and duplicates are dropped by tx — otherwise trades sharing the boundary second are lost."""
+        time and duplicates are dropped by tx — otherwise trades sharing the boundary second are lost.
+
+        fresh=True skips the cached copy (the result is still stored): a live run claims history up to now,
+        and a copy fetched hours ago misses every exit made since."""
         key = f"trades:{mint}:{wallet}"
-        if self.stats_cache is not None:
-            with self._cache_lock:
-                cached = self.stats_cache.get(key)
+        if self.stats_cache is not None and not fresh:
+            cached = self.stats_cache.get(key)
             if cached is not None:
                 self.stats_cache_hits += 1
                 return cached
@@ -157,8 +165,7 @@ class EarlyST(SolanaTracker):
             cursor = nxt
         out.sort(key=lambda tr: tr["time"] or 0)
         if self.stats_cache is not None:
-            with self._cache_lock:
-                self.stats_cache.put(key, out)
+            self.stats_cache.put(key, out)
         return out
 
     def wallet_swaps(self, owner, since_ms, max_pages=5):
@@ -187,8 +194,7 @@ class EarlyST(SolanaTracker):
         return out, partial
 
     def flush(self):
-        with self._cache_lock:
-            super().flush()
-            for c in (self.chart_cache, self.stats_cache, self.identity_cache):
-                if c is not None:
-                    c.flush()
+        super().flush()
+        for c in (self.chart_cache, self.stats_cache, self.identity_cache):
+            if c is not None:
+                c.flush()                   # кожен кеш пише свій файл під власним замком запису

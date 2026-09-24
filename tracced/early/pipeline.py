@@ -391,7 +391,8 @@ def fetch_wallets(st, mint, wallets, t_end, s, trades, here, req0=0, run_cap=0, 
     lookup = timing.wrap(st.wallet_token_trades) if timing else st.wallet_token_trades
 
     def one(wallet):
-        wt = [tr for tr in lookup(wallet, mint, per_wallet)
+        # fresh: прогін бере історію до «зараз», а копія з кешу могла бути взята години тому, без свіжих виходів
+        wt = [tr for tr in lookup(wallet, mint, per_wallet, fresh=True)
               if tr["time"] is not None and tr["time"] <= t_end]
         seen = max(((tr["time"], tr["price"]) for tr in wt if tr.get("price")), default=None)
         ledger.repair_quantities(wt, ref=ref)

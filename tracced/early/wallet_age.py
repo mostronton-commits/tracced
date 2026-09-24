@@ -8,10 +8,13 @@ MAX_PAGES; у другому випадку вік невідомий (`exact=Fa
 Нода за замовчуванням — офіційна api.mainnet-beta.solana.com: вона віддає повну історію підписів
 (проба 17.09.2026: гаманець з лютого → oldest = лютий, 0.3 с). publicnode НЕ підходить: тримає лише
 ~2 доби історії, тому кожен гаманець виглядав «свіжим» (100 % fresh на PAID — хибно).
-Публічні ноди ріжуть серії запитів, тому між запитами пауза `pace_s`, а на 429/5xx — повтор з
-наростаючою паузою. Один запит на гаманець, кеш 7 днів. Адресу ноди можна замінити через
+Публічні ноди ріжуть серії запитів, тому між запитами пауза: `pace_s` для підписів, `tx_pace_s` для
+транзакцій, і в кожної ноди свій замок і свій час останнього запиту, щоб одна нода не чекала на іншу.
+На 429/5xx — повтор з наростаючою паузою, а на 429 із заголовком Retry-After — стільки, скільки просить нода
+(не довше RETRY_AFTER_MAX). Один запит на гаманець, кеш 7 днів. Адресу ноди можна замінити через
 SOLANA_RPC_URL (платна нода → без пауз), але вона мусить зберігати повну історію підписів.
 """
+import email.utils
 import json
 import os
 import threading
@@ -24,6 +27,22 @@ HEAVY = {"getSignaturesForAddress", "getTransaction"}   # платна нода 
 LIMIT = 1000
 MAX_PAGES = 6            # 6 000 підписів: далі гаманець точно не «свіжий», а ходити глибше дорого
 RETRY_SLEEP = (2, 4, 8)
+RETRY_AFTER_MAX = 10     # Retry-After слухаємо, але картку, що чекає на відповідь, довше не тримаємо
+
+
+def _retry_after(err, default):
+    """Пауза після 429: заголовок Retry-After (секунди або дата HTTP), не довше RETRY_AFTER_MAX; нема — default."""
+    v = (getattr(err, "headers", None) or {}).get("Retry-After")
+    if v is None:
+        return default
+    try:
+        wait = float(v)
+    except (TypeError, ValueError):
+        try:
+            wait = email.utils.parsedate_to_datetime(v).timestamp() - time.time()
+        except (TypeError, ValueError, IndexError, OverflowError):
+            return default
+    return min(max(wait, 0.0), RETRY_AFTER_MAX)
 
 
 class MonthBudget:
@@ -95,7 +114,8 @@ class MonthBudget:
 
 
 class WalletAge:
-    def __init__(self, url=None, cache=None, pace_s=0.5, post=None, sleep=time.sleep, tx_url=None, budget=None):
+    def __init__(self, url=None, cache=None, pace_s=0.5, post=None, sleep=time.sleep, tx_url=None, budget=None,
+                 tx_pace_s=0.3):
         self.url = url or os.getenv("SOLANA_RPC_URL") or DEFAULT_URL
         # getTransaction і getSignaturesForAddress не конче живуть на одній ноді. Нода Solana Tracker віддає
         # повну історію підписів і не ріже серії, але на getTransaction відповідає Internal error (перевірено
@@ -103,12 +123,16 @@ class WalletAge:
         self.tx_url = tx_url or os.getenv("SOLANA_RPC_TX_URL") or (DEFAULT_URL if self.url != DEFAULT_URL else self.url)
         self.cache = cache
         self.pace_s = pace_s
+        self.tx_pace_s = tx_pace_s
         self.requests = 0
         self.cache_hits = 0
         self._post = post or self._http
         self._sleep = sleep
-        self._last = 0.0
-        self._lock = threading.Lock()
+        # замок і час останнього запиту — окремі для кожної ноди: транзакції на публічній ноді не чекають на
+        # підписи з платної. Публічна api.mainnet-beta тримає ~40 викликів за 10 с на метод: спонсори ловили 429,
+        # поки йшли в темпі платної ноди, тому в транзакцій свій темп
+        self._slots = {u: {"lock": threading.Lock(), "last": 0.0} for u in (self.url, self.tx_url)}
+        self._count_lock = threading.Lock()              # лічильник спільний, а ноди йдуть паралельно
         self.budget = budget            # MonthBudget: кредити платної ноди (публічна нода безкоштовна і не рахується)
 
     # ── транспорт ──
@@ -120,28 +144,35 @@ class WalletAge:
         with urllib.request.urlopen(req, timeout=30) as r:
             return json.loads(r.read().decode())
 
-    def _call(self, method, params, url=None):
+    def _call(self, method, params, url=None, pace_s=None):
         payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
         last_err = None
-        paid = self.budget is not None and (url or self.url) != DEFAULT_URL
+        node = url or self.url
+        paid = self.budget is not None and node != DEFAULT_URL
+        pace = self.pace_s if pace_s is None else pace_s
+        slot = self._slots.setdefault(node, {"lock": threading.Lock(), "last": 0.0})
         for attempt in range(len(RETRY_SLEEP) + 1):
-            with self._lock:
-                wait = self.pace_s - (time.monotonic() - self._last)
+            pause = RETRY_SLEEP[min(attempt, len(RETRY_SLEEP) - 1)]
+            with slot["lock"]:
+                wait = pace - (time.monotonic() - slot["last"])
                 if wait > 0:
                     self._sleep(wait)
                 try:
-                    self.requests += 1
+                    with self._count_lock:
+                        self.requests += 1
                     if paid:
                         self.budget.spend(10 if method in HEAVY else 1)   # невдала спроба теж оплачена
                     d = self._post(payload, url) if url else self._post(payload)
-                    self._last = time.monotonic()
+                    slot["last"] = time.monotonic()
                 except urllib.error.HTTPError as e:
-                    self._last = time.monotonic()
+                    slot["last"] = time.monotonic()
                     last_err = e
                     if e.code not in (429, 500, 502, 503, 504) or attempt == len(RETRY_SLEEP):
                         raise
+                    if e.code == 429:
+                        pause = _retry_after(e, pause)
                 except urllib.error.URLError as e:
-                    self._last = time.monotonic()
+                    slot["last"] = time.monotonic()
                     last_err = e
                     if attempt == len(RETRY_SLEEP):
                         raise
@@ -149,7 +180,7 @@ class WalletAge:
                     if d.get("error"):
                         raise RuntimeError(f"RPC error: {d['error']}")
                     return d.get("result")
-            self._sleep(RETRY_SLEEP[attempt])
+            self._sleep(pause)
         raise last_err  # pragma: no cover — цикл завжди або повертає, або кидає
 
     def paused(self):
@@ -199,7 +230,7 @@ class WalletAge:
                 self.cache_hits += 1
                 return cached.get("funder")
         tx = self._call("getTransaction", [oldest_sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}],
-                         url=self.tx_url)
+                         url=self.tx_url, pace_s=self.tx_pace_s)
         out = {"funder": funder_from_tx(tx, wallet)}
         if self.cache is not None:
             self.cache.put(key, out)

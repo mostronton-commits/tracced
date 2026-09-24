@@ -197,6 +197,27 @@ class TestParallelEnsure(unittest.TestCase):
             store.ensure(T0, T0 + 5_000, fetch, max_pages=50, workers=8)
             self.assertEqual(state["calls"], 1)
 
+    def test_a_quiet_history_costs_what_the_sequential_path_does(self):
+        """400 угод за дві доби, діапазон входу вже в кеші: кожна сторінка — кредит, тож тиха історія не має
+        коштувати по сторінці на кожен потік (було щонайменше 8 на кожну з двох прогалин замість 5 разом)."""
+        trades = [{"wallet": f"q{i % 9}", "type": "buy", "time": T0 + i * 432_000, "qty": 1.0, "usd": 1.0,
+                   "price": 1.0, "tx": f"q{i}", "program": "p"} for i in range(400)]
+        end = trades[-1]["time"]
+
+        def fetch(cursor, page=100):
+            chunk = [t for t in trades if t["time"] > cursor][:page]
+            return {"trades": chunk, "hasNextPage": bool(chunk) and chunk[-1]["time"] < end}
+        pages = {}
+        for workers in (1, 8):
+            with tempfile.TemporaryDirectory() as d:
+                store = TradeStore(d, MINT)
+                store.mark_covered(T0 + 23 * 3_600_000, T0 + 24 * 3_600_000)   # діапазон входу вже купили
+                pages[workers] = store.ensure(T0, end, fetch, max_pages=100, workers=workers)
+                self.assertEqual(store.gaps(T0, end), [])
+                outside = {t["tx"] for t in trades if not T0 + 23 * 3_600_000 <= t["time"] <= T0 + 24 * 3_600_000}
+                self.assertLessEqual(outside, {t["tx"] for t in store.trades})
+        self.assertEqual(pages, {1: 5, 8: 5})
+
 
 class TestTradeCandles(unittest.TestCase):
     """Де джерело свічок мовчить, графік бере свічки з угод, які аналіз уже купив."""
