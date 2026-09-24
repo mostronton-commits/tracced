@@ -23,6 +23,7 @@
     return withDate ? MONTHS[u ? d.getUTCMonth() : d.getMonth()] + ' ' + (u ? d.getUTCDate() : d.getDate()) + ', ' + hm : hm;
   }
   function autoTf(spanSec) { const h = spanSec / 3600; return h <= 24 ? '1m' : h <= 24 * 7 ? '5m' : h <= 24 * 30 ? '15m' : '1h'; }
+  const TF_ORDER = ['1m', '5m', '15m', '1h'];
   const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 
   window.EarlyChart = function (el, opts) {
@@ -37,14 +38,17 @@
                 fontFamily: '"Geist Mono", "JetBrains Mono", ui-monospace, Menlo, monospace', attributionLogo: false },
       grid: { vertLines: { color: '#10172A' }, horzLines: { color: '#182236' } },
       rightPriceScale: { borderColor: '#1E293B', scaleMargins: { top: 0.08, bottom: 0.08 } },
-      timeScale: { borderColor: '#1E293B', timeVisible: true, secondsVisible: false, rightOffset: 4,
+      // minBarSpacing 2: the renderer draws a candle body only when it is wider than its two borders, so bars packed
+      // below a pixel or two turn into outlines on the dark ground and the chart reads as empty (it did on phones)
+      timeScale: { borderColor: '#1E293B', timeVisible: true, secondsVisible: false, rightOffset: 4, minBarSpacing: 2,
                    tickMarkFormatter: (t, type) => (type <= 2 ? fmtTime(t, true).replace(/, \d\d:\d\d$/, '') : fmtTime(t, false)) },
       crosshair: { mode: LW.CrosshairMode.Normal, vertLine: { color: '#64748B', labelBackgroundColor: '#1E293B' }, horzLine: { color: '#64748B', labelBackgroundColor: '#1E293B' } },
       localization: { priceFormatter: fmtMcap, timeFormatter: s => fmtTime(s, true) },
-      handleScroll: true, handleScale: true,
+      // a vertical swipe scrolls the page, not the chart: on a phone the chart is half the screen and used to trap it
+      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false }, handleScale: true,
     });
     const series = chart.addSeries(LW.CandlestickSeries, {
-      upColor: '#090D16', downColor: '#CBD5E1', borderUpColor: '#A7F3D0', borderDownColor: '#CBD5E1',
+      upColor: 'rgba(167, 243, 208, 0.22)', downColor: '#CBD5E1', borderUpColor: '#A7F3D0', borderDownColor: '#CBD5E1',
       wickUpColor: '#A7F3D0', wickDownColor: '#CBD5E1',
       priceFormat: { type: 'custom', formatter: fmtMcap, minMove: 1 },
       priceLineVisible: false, lastValueVisible: true,
@@ -56,6 +60,8 @@
       try { LW.createTextWatermark(chart.panes()[0], { horzAlign: 'center', vertAlign: 'center',
         lines: [{ text: opts.symbol, color: 'rgba(148, 163, 184, 0.09)', fontSize: 72, fontFamily: '"Geist", -apple-system, sans-serif', fontStyle: '600' }] }); } catch (e) {}
     }
+    const empty = document.createElement('div'); empty.className = 'chart-empty'; empty.hidden = true;
+    empty.textContent = 'No candles here yet'; el.appendChild(empty);
     // crosshair legend (top-left): O · H · L · C · Vol · time
     const legend = document.createElement('div'); legend.className = 'legend'; legend.hidden = true; el.appendChild(legend);
     const fmtVol = v => (v == null ? '—' : '$' + fmtMcap(v));
@@ -68,6 +74,15 @@
     });
 
     const sec = v => (v == null ? null : (v > 1e11 ? v / 1000 : v));   // accept ms or seconds
+    // how many candles fit the width at ~5 px each: the timeframe is chosen from the width as well as the time span
+    const scaleW = () => { try { return chart.priceScale('right').width() || 64; } catch (e) { return 64; } };
+    const maxBars = () => Math.max(60, Math.floor((box.clientWidth - scaleW()) / 5));
+    const narrow = () => box.clientWidth < 600;
+    function pickTf(spanSec) {
+      let i = TF_ORDER.indexOf(autoTf(spanSec));
+      while (i < TF_ORDER.length - 1 && spanSec / TF_SEC[TF_ORDER[i]] > maxBars()) i++;
+      return TF_ORDER[i];
+    }
     const normWins = ws => (ws || []).map(w => ({ ...w, from: sec(w.from), to: sec(w.to) }));
     let tf = null, data = new Map(), times = [], loaded = { a: null, b: null }, busy = false, gen = 0;
     let edge = { left: false, right: false };   // the feed has nothing further that way: stop asking for it
@@ -116,6 +131,12 @@
       else if (now - created <= span) { a = created; b = now; }
       else { const c = center(); a = c - span / 2; b = c + span / 2; }
       await load(...capSpan(a, b));
+      if (!data.size && !(v && keepView)) {
+        // a cold start centred on the middle of a long life can land on hours with no trades: try the latest hours,
+        // then the first ones, before saying the chart is empty
+        for (const [x, y] of [[now - span, now], [created, created + span]]) { await load(...capSpan(x, y)); if (data.size) break; }
+      }
+      empty.hidden = data.size > 0;
       if (v && keepView) chart.timeScale().setVisibleRange({ from: Math.max(v.a, created), to: Math.min(v.b, now) });
       else chart.timeScale().fitContent();
       el.querySelectorAll('.tf').forEach(btn => btn.classList.toggle('on', btn.dataset.tf === tf));
@@ -123,10 +144,10 @@
     async function focus(fromSec, toSec, exitS) {
       // bring the range into view; keep the user's timeframe and the loaded candles (no reload, no blink)
       const span = Math.max(toSec - fromSec, 300);
-      const padS = Math.max(span * 1.2, 2 * 3600);
+      const padS = narrow() ? Math.max(span * 0.3, 1800) : Math.max(span * 1.2, 2 * 3600);   // a phone shows the range, not hours around it
       const a = Math.max(created, fromSec - padS), b = Math.min(now, (exitS && exitS < toSec + 8 * 3600 ? exitS : toSec) + padS);
-      const want = autoTf(b - a);
-      if (!tf || (b - a) / TF_SEC[tf] < 12) {                       // no timeframe yet, or the range would be a few bars
+      const want = pickTf(b - a);
+      if (!tf || (b - a) / TF_SEC[tf] < 12 || (b - a) / TF_SEC[tf] > maxBars() * 1.5) {   // none yet, a few bars, or too many for the width
         tf = want; gen++; data.clear(); times = []; loaded = { a: null, b: null }; edge = { left: false, right: false };
         await load(...capSpan(a - CHUNK[tf] / 4, b + CHUNK[tf] / 4));
       } else {
@@ -149,7 +170,17 @@
       else if (info.barsAfter < 40 && !edge.right && loaded.b < now - TF_SEC[tf]) await load(loaded.b, loaded.b + CHUNK[tf], 'right');
     }, 120));
     chart.timeScale().subscribeVisibleTimeRangeChange(() => place());
-    new ResizeObserver(() => place()).observe(el);
+    let pickedW = 0;
+    new ResizeObserver(() => {
+      place();
+      // turning a phone or narrowing a window by a third: re-pick the timeframe if the candles no longer fit
+      const w = box.clientWidth, v = visible();
+      if (!pickedW) { pickedW = w; return; }
+      if (!tf || !v || busy || Math.abs(w - pickedW) < pickedW * 0.3) return;
+      pickedW = w;
+      const want = pickTf(v.b - v.a);
+      if (want !== tf) setTf(want, true);
+    }).observe(el);
 
     // overlays: windows, exit line, first-click marker
     // A time that is not exactly a candle's timestamp has no coordinate of its own: timeToCoordinate only
@@ -185,7 +216,7 @@
     function place() {
       layer.innerHTML = '';
       const v = visible(); if (!v) return;
-      const W = box.clientWidth - 64;   // price scale on the right
+      const W = box.clientWidth - scaleW();   // price scale on the right
       windows.forEach((w, i) => {
         if (!w.from || !w.to || w.to < v.a || w.from > v.b) return;
         const x1 = xOf(w.from), x2 = xOf(w.to); if (x1 == null || x2 == null) return;
@@ -279,7 +310,7 @@
       setMarker(v) { marker = sec(v); place(); },
       setWalletMarkers(list) { wallets = list || []; renderMarkers(); },
       focus: (from, to, exit) => focus(sec(from), sec(to), sec(exit)),
-      setTf, init: async () => { await setTf(autoTf(now - created), false); },
+      setTf, init: async () => { await setTf(pickTf(now - created), false); },
       fmtMcap,
       candles: () => [...data.values()].sort((x, y) => x.time - y.time),   // loaded candles in market cap, oldest first
     };

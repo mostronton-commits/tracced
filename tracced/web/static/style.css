@@ -668,3 +668,55 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
   .wcard .drawer-facts { grid-template-columns: repeat(2, 1fr); }
   body.drawer-open { overflow: hidden; }       /* the page under the card does not scroll along with it */
 }
+.chart-empty { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); z-index: 5; color: #94A3B8; font: 13px var(--sans); pointer-events: none; }
+/* ── phone: the result table becomes one card per wallet, fewer controls, bigger touch targets ── */
+.msort, .colhelp, .button .short { display: none; }
+@media (max-width: 640px) {
+  .button .long { display: none; } .button .short { display: inline; }
+  .h-right { flex-wrap: wrap; gap: 8px; }
+  .toolbar { row-gap: 8px; }
+  .msort { display: inline-flex; align-items: center; gap: 6px; }
+  .msort select { height: 34px; font-size: 13px; padding: 0 6px; }
+  .colhelp { display: block; margin: 6px 0 8px; }
+  .tablewrap { overflow: visible; border: 0; border-radius: 0; background: none; }
+  table.facts, .facts tbody { display: block; width: 100%; }
+  .facts thead { display: none; }
+  .facts tbody tr { position: relative; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px 8px;
+                    padding: 10px 12px 12px; margin: 0 0 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  .facts tbody tr[hidden] { display: none; }
+  .facts td { border: 0; padding: 0; white-space: normal; text-align: left; min-width: 0; }
+  .facts td.bar, .facts td.bar.neg { background-image: none; }
+  .facts td[data-h]::before { content: attr(data-h); display: block; margin-bottom: 2px; font: 600 9.5px/1.3 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+  .facts td.n { display: none; }
+  .facts td.pk { position: absolute; top: 6px; right: 6px; }
+  .facts td.pk .pick { width: 22px; height: 22px; margin: 7px; }
+  .facts td.wcell { grid-column: 1 / -1; order: 0; padding-right: 40px; }
+  .facts td.wcell .tags { display: block; margin-top: 4px; }
+  .facts td.wcell .tag:first-child { margin-left: 0; }
+  .facts td.c-inv { order: 1; } .facts td.c-pnl { order: 2; } .facts td.c-sold { order: 3; }
+  .facts td.c-mult { order: 4; } .facts td.c-held { order: 5; } .facts td.c-entry { order: 6; }
+  .facts td.c-exit { order: 7; } .facts td.fund { order: 8; grid-column: span 4; }
+  .facts td.c-inv, .facts td.c-pnl, .facts td.c-sold, .facts td.c-mult, .facts td.c-held, .facts td.c-entry, .facts td.c-exit { grid-column: span 2; }
+  .facts td.fund:empty { display: none; }
+  .facts td.two b, .facts td.num b { font-size: 13.5px; }
+  tr.picked { background: #F6FEF9; } tr.picked td { background: transparent; }
+  tr.onchart td:first-child { box-shadow: none; } tr.onchart { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
+  /* touch targets: 36 px where a finger has to land */
+  .facts .mk, .facts .wname { min-height: 36px; }
+  .facts .mk { min-width: 36px; }
+  .copy, .tf, .chipw .x, .tzseg b { min-height: 34px; }
+  .chartbox .tf { min-width: 36px; }
+  .tzseg b { display: inline-flex; align-items: center; padding: 0 10px; }
+  .tagadd { min-width: 30px; min-height: 30px; }
+}
+@media (max-width: 640px) {
+  /* a range row on a phone: its name on top, From and To side by side, Analyze across the whole width */
+  .wrow { grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 8px; padding: 10px; }
+  .wrow .n { grid-column: span 1; }
+  .wrow .label { grid-column: span 10; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wrow .del { grid-row: 1; grid-column: 12; justify-self: end; min-width: 34px; min-height: 34px; }
+  .wrow label.fld { grid-column: span 6; flex-direction: column; align-items: stretch; gap: 3px; }
+  .wrow label.fld input { min-width: 0; width: 100%; box-sizing: border-box; font-size: 13px; }
+  .wrow button[type=submit] { grid-column: 1 / -1; justify-self: stretch; justify-content: center; min-height: 40px; }
+  .wrow .result, .wrow a.result { grid-column: 1 / -1; justify-self: stretch; text-align: center; }
+}
