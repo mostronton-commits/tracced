@@ -11,7 +11,7 @@ from ..config import load_config
 from ..early import settings
 from ..early.st_client import EarlyST
 from ..early.assistant import Assistant
-from ..early.wallet_age import WalletAge
+from ..early.wallet_age import MonthBudget, WalletAge
 from .app import create_app
 
 
@@ -30,7 +30,9 @@ def main():
                                        flush_every=200))   # великий файл: при паралельних гаманцях дамп кожні 25 записів гальмує всіх
     ages = None
     if s.get("age_lookups_max", 0) > 0:
-        ages = WalletAge(cache=JsonCache("cache/early/wallet_age.json", ttl_hours=s["wallet_age_ttl_hours"]),
+        budget = MonthBudget("output/early/daily/rpc-month.json", limit=s.get("rpc_credits_month", 0),   # поруч з добовими лічильниками
+                             reserve_pct=s.get("rpc_reserve_pct", 10))
+        ages = WalletAge(cache=JsonCache("cache/early/wallet_age.json", ttl_hours=s["wallet_age_ttl_hours"]), budget=budget,
                          pace_s=float(s.get("rpc_pace_s", 0.5)))
     assistant = None
     if os.getenv("ASSISTANT_KEY"):

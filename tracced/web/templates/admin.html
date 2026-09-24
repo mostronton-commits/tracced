@@ -10,6 +10,13 @@
     <div title="Wallets saved to lists, all accounts"><b data-count="{{ totals.wallets }}" data-fmt="int">0</b><span>Saved wallets</span></div>
     <div title="Analyses saved, all accounts"><b data-count="{{ totals.analyses }}" data-fmt="int">0</b><span>Saved analyses</span></div>
   </div>
+  <div class="row mehead"><h2>Budget</h2><span class="muted small">Solana Tracker credits · asked at most once per 10 minutes</span></div>
+  <div class="stats">
+    <div title="Data API credits left on the key{% if budget.credits_at %}, checked at this time{% endif %}"><b>{{ budget.credits_left|num if budget.credits_left is not none else '—' }}</b><span>Data API left{% if budget.credits_at %} · <span class="dtc" data-ms="{{ budget.credits_at }}">{{ budget.credits_at|dt }}</span>{% endif %}</span></div>
+    <div title="Below this, new live analyses by others wait for the plan to renew"><b>{{ budget.reserve|num if budget.reserve else 'off' }}</b><span>Reserve of {{ budget.credits_month|num }}</span></div>
+    <div title="Live analyses started today by anyone but the owner"><b>{{ budget.runs_today }}</b><span>Runs today</span></div>
+    {% if budget.rpc %}<div title="Credits spent on the paid RPC node this month (10 per signatures page or transaction); wallet age pauses near the limit"><b>{{ budget.rpc.spent|num }}</b><span>RPC {{ budget.rpc.month }} of {{ budget.rpc.limit|num }}</span></div>{% endif %}
+  </div>
   {% if accounts %}
   <div class="tablewrap"><table class="facts melist"><thead><tr>
     <th>Account</th><th>Wallet app</th><th>First seen</th><th>Last seen</th><th class="num">Sign-ins</th><th class="num">Saved wallets</th><th class="num">Saved analyses</th>

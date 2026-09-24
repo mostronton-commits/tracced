@@ -105,9 +105,25 @@ def make_enricher(ages, s):
         e["total"] = n
         if e.get("failed"):
             e.update(done=0, failed=0, fresh=0)            # був збій ноди — перевіряємо заново (кеш лишається)
+        e.pop("paused", None)
+
+        is_paused = getattr(ages, "paused", None) or (lambda: False)
+        cached = getattr(ages, "cached", None) or (lambda w: None)
+
+        def pause(w):
+            """Місячний бюджет платної ноди вичерпано: гаманець, якого нема в кеші, чекає нового місяця."""
+            if not is_paused() or cached(w) is not None:
+                return False
+            e["paused"] = "rpc-budget"
+            job.log.append("wallet age paused: this month's RPC budget is used up; it resumes next month")
+            save(job)
+            ages.flush()
+            return True
         for i, row in enumerate(rows[:n], 1):
             if i <= e.get("done", 0):
                 continue                                   # продовження після перезапуску
+            if pause(row["wallet"]):
+                return
             try:
                 age = ages.oldest_tx(row["wallet"])
             except Exception as ex:  # noqa: BLE001 — одна нода/гаманець не має зупиняти решту
@@ -134,6 +150,13 @@ def make_enricher(ages, s):
             w = row["wallet"]
             if w in funders or w in checked:
                 continue
+            if is_paused() and getattr(ages, "cache", None) is not None and ages.cache.get(f"funder:{w}") is None:
+                e["paused"] = "rpc-budget"
+                r["funder_checked"] = sorted(checked)
+                _bundles(r, rows)
+                save(job)
+                ages.flush()
+                return
             try:
                 age = ages.oldest_tx(w)
                 if age.get("exact") and age.get("n") and not age.get("oldest_sig"):
@@ -192,6 +215,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["assistant_daily"] = DailyCount(daily_dir / "assistant.json")
     app["browse_daily"] = DailyCount(daily_dir / "browse.json")   # запити на графіки живих токенів: на адресу, на гаманець, на сайт
     app["runs_daily"] = DailyCount(daily_dir / "runs.json")       # живі прогони на весь сайт за добу (будь-який ключ підписує безкоштовно)
+    app["credits"] = {"left": None, "at": 0}                     # залишок кредитів Data API: питаємо не частіше ніж раз на 10 хв
+    app["ages"] = ages
     _share_st(st, app["st_slots"])
 
     def runner(job):
@@ -449,6 +474,28 @@ def _is_demo_mint(app, mint):
 
 
 OVERVIEW_TTL, OVERVIEW_FAIL_TTL, OVERVIEW_MAX = 600, 120, 200
+CREDITS_TTL = 600
+
+
+async def _credits_left(app):
+    """Credits left on the Solana Tracker key, asked at most once per 10 minutes: the question is a request too, and
+    asked on every run or every health check it would itself become a noticeable share of the month. None when
+    unknown (a failed call, a client without /credits): then nothing is blocked."""
+    c, st = app["credits"], app["st"]
+    if not hasattr(st, "credits"):
+        return None
+    if c["at"] and time.time() - c["at"] < CREDITS_TTL:
+        return c["left"]
+    try:
+        left = await asyncio.to_thread(st.credits)
+    except Exception:  # noqa: BLE001
+        left = None
+    c.update(left=int(left) if left is not None else None, at=time.time())
+    return c["left"]
+
+
+def _credits_reserve(s):
+    return int(float(s.get("credits_month", 0) or 0) * float(s.get("credits_reserve_pct", 0) or 0) / 100)
 
 
 def _overview_cached(app, mint):
@@ -775,7 +822,13 @@ async def admin_page(request):
               "active_7d": sum(1 for a in accounts if (a.get("last_seen_ms") or 0) >= week),
               "wallets": sum(len(a.get("wallets") or {}) for a in accounts),
               "analyses": sum(len(a.get("analyses") or {}) for a in accounts)}
-    return render("admin.html", request, accounts=accounts, totals=totals, events=app["events"].tail(100), now=now)
+    left = await _credits_left(app)
+    ages = app.get("ages")
+    budget = {"credits_left": left, "credits_at": int(app["credits"]["at"] * 1000) or None,
+              "credits_month": int(app["s"].get("credits_month", 0) or 0), "reserve": _credits_reserve(app["s"]),
+              "runs_today": int(app["s"].get("runs_global_per_day", 10)) - app["runs_daily"].left("global", int(app["s"].get("runs_global_per_day", 10))),
+              "rpc": ages.budget.state() if ages is not None and getattr(ages, "budget", None) else None}
+    return render("admin.html", request, accounts=accounts, totals=totals, events=app["events"].tail(100), now=now, budget=budget)
 
 
 ME_COLUMNS = ["wallet", "symbol", "mint", "from_job", "entry_mcap", "invested_usd", "multiple", "tags", "my_tags", "added_utc"]
@@ -1149,6 +1202,17 @@ async def analyze(request):
     if not admin and app["runs_daily"].left("global", gcap) <= 0:
         raise WebError("Today's live analyses are used up for the whole site. " + EARLY_NOTE
                        + " The demo is always open; more tomorrow.", 429)
+    reserve = _credits_reserve(s)
+    if reserve:
+        # the month is what nothing else protected: a run has its cap, the day has its count, but thirty busy days
+        # in a row could still spend five times the plan. A run starts only while the worst case of it leaves the reserve.
+        left = await _credits_left(app)
+        worst = int(s.get("run_cap_requests", 0) or 0)
+        if left is not None and left - worst < reserve:
+            if not admin:
+                raise WebError("This month's data budget is nearly used up, so new live analyses wait until it renews. "
+                               "The demo and every saved result stay open.", 503)
+            log.warning("admin run with %s credits left (reserve %s)", left, reserve)
     cap_day = int(s.get("runs_per_day", 1))
     if not admin and not app["accounts"].take_run(pk, cap_day):
         raise WebError(f"You have used today's {'analysis' if cap_day == 1 else str(cap_day) + ' analyses'}. "
@@ -1380,7 +1444,7 @@ async def job_enrich_json(request):
     e = job.result.get("enrich") or {"done": 0, "total": 0, "fresh": 0}
     fresh = [r["wallet"] for r in job.result.get("rows") or [] if "fresh" in (r.get("tag_list") or [])]
     return web.json_response({"done": e.get("done", 0), "total": e.get("total", 0), "fresh": fresh,
-                              "funders_done": e.get("funders_done", 0),
+                              "funders_done": e.get("funders_done", 0), "paused": e.get("paused"),
                               "funders": job.result.get("funders") or {}, "bundle": job.result.get("bundle") or {},
                               "ages": job.result.get("ages") or {}, "identities": job.result.get("identities") or {}})
 
@@ -1491,4 +1555,6 @@ async def health(request):
         ok = False
     st = [j.status for j in jobs.jobs.values()]
     return web.json_response({"ok": ok, "jobs": len(st), "running": st.count("running"), "queued": st.count("queued"),
-                              "demo": _demo(request.app) is not None}, status=200 if ok else 503)
+                              "demo": _demo(request.app) is not None,
+                              "credits": request.app["credits"]["left"]},          # лише кешоване число: /health не витрачає запитів
+                             status=200 if ok else 503)

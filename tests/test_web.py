@@ -501,6 +501,34 @@ if AioHTTPTestCase:
             self.assertEqual(self.st.requests - before, 1)              # і без другого запиту
             self.app["admins"] = {TEST_PK}
 
+        async def test_live_runs_wait_when_the_month_is_nearly_spent(self):
+            # місяць: запуск можливий, лише поки найгірший прогін лишає резерв; день людини при відмові не згорає
+            s = self.app["s"]
+            s.update(credits_month=10_000, credits_reserve_pct=5, run_cap_requests=300)      # резерв 500
+            self.app["admins"] = set()
+            calls = []
+            real = self.st.credits
+            self.st.credits = lambda: (calls.append(1), real())[1]
+            self.st._credits = 700                                   # 700 − 300 < 500 → чекаємо
+            rng = {"mint": "G" * 40, "from": "2001-09-09T01:46", "to": "2001-09-09T02:06"}
+            r = await self.client.post("/analyze", data=rng, allow_redirects=False)
+            self.assertEqual(r.status, 503, await r.text())
+            self.assertIn("data budget is nearly used up", await r.text())
+            r = await self.client.post("/analyze", data=rng, allow_redirects=False)
+            self.assertEqual(r.status, 503)
+            self.assertEqual(len(calls), 1)                          # залишок питали раз, не на кожен клік
+            self.st._credits = 50_000
+            self.app["credits"].update(at=0)                         # минуло 10 хвилин
+            r = await self.client.post("/analyze", data=rng, allow_redirects=False)
+            self.assertEqual(r.status, 302, await r.text())          # запас є — і день не був витрачений відмовою
+            await asyncio.to_thread(self.app["jobs"].q.join)         # запущений аналіз робить свої запити: чекаємо його
+            before = self.st.requests
+            h = await (await self.client.get("/health")).json()
+            self.assertEqual(h["credits"], 50_000)
+            self.assertEqual(self.st.requests, before)               # /health не питає Solana Tracker
+            self.app["admins"] = {TEST_PK}
+            s.update(credits_month=0, credits_reserve_pct=0)
+
         async def test_enrich_json_carries_ages_and_identities(self):
             jid, mint = "FFFFFF_20010909-0146_0206", "F" * 40
             w = acct_mod.b58encode(b"\x04" * 32)

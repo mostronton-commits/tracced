@@ -719,7 +719,8 @@
         onChart.forEach(o => { const c = bundleColor(o.wallet); if (c !== o.bundleColor) { o.bundleColor = c; rings++; } });
         if (rings) renderOnChart();
         if (added) apply();
-        const busy = d.done < d.total || (d.funders_done != null && d.funders_done < d.total);
+        const busy = !d.paused && (d.done < d.total || (d.funders_done != null && d.funders_done < d.total));
+        if (d.paused) { en.textContent = 'wallet age paused: this month\'s budget for it is used up'; ageDone = true; refresh(); return; }
         ageDone = !busy;
         if (d.done < d.total) { en.textContent = 'wallet age ' + d.done + '/' + d.total + '…'; again(); }
         else { const nb = Object.keys(bundle).length; en.textContent = (busy ? 'funders ' + (d.funders_done || 0) + '/' + d.total + '…' : 'wallet age checked') + (d.fresh.length ? ' · ' + d.fresh.length + ' fresh' : '') + (nb ? ' · ' + nb + ' in bundles' : ''); if (busy) again(); }

@@ -13,6 +13,10 @@ DEFAULTS = {
     "max_window_pages": 60,
     "max_wallet_lookups": 500,
     "budget_guard_pct": 25,      # один прогін ≤ стільки % залишку кредитів (0 = вимкнено)
+    # місяць: скільки кредитів дає тариф і скільки лишити в резерві. Коли залишок мінус найгірший прогін падає нижче
+    # резерву, нові живі аналізи не-адмінів чекають оновлення тарифу (0 = не перевіряти)
+    "credits_month": 0,
+    "credits_reserve_pct": 0,
     "full_fetch_margin": 1.15,   # запас до оцінки сторінок повного діапазону
     "pause_s": 0.35,             # пауза між запитами до ST (free: 3 req/s)
     # скільки запитів до ST іде одночасно: угоди різних гаманців незалежні, тож їх тягнемо паралельно.
@@ -25,6 +29,10 @@ DEFAULTS = {
     # тег `fresh`: вік гаманця з публічного RPC у фоні після аналізу (0 = вимкнено)
     "age_lookups_max": 300,
     "rpc_pace_s": 0.5,           # пауза між запитами до публічної ноди (ріже серії без пауз)
+    # платна RPC-нода (SOLANA_RPC_URL) — окремий продукт зі своїм пулом кредитів: 10 за кожен виклик підписів.
+    # Збагачення стає на паузу, коли за місяць витрачено все, крім резерву. 500 000 = безкоштовний тариф RPC
+    "rpc_credits_month": 500000,
+    "rpc_reserve_pct": 10,
     "wallet_age_ttl_hours": 168,
     "markers_max": 200,          # мітки угод одного гаманця на графіку
     # картка гаманця: його угоди по всіх токенах за останні дні, порахунок нашим леджером (не чужий PnL)
@@ -63,11 +71,12 @@ DEFAULTS = {
 
 PLAN_CAPS = {
     "free":     {"max_trade_pages": 300, "max_wallet_lookups": 500, "max_window_pages": 60,
-                 "budget_guard_pct": 25, "pause_s": 0.35, "st_concurrency": 1},
+                 "budget_guard_pct": 25, "pause_s": 0.35, "st_concurrency": 1, "credits_month": 2500},
     # pause_s 0: спільний темп між потоками інакше тримав би стелю 1/pause запитів на секунду, скільки б
     # потоків не було. Швидкість тримає st_concurrency, а не пауза
     "advanced": {"max_trade_pages": 2000, "max_wallet_lookups": 3000, "max_window_pages": 400,
-                 "budget_guard_pct": 0, "pause_s": 0.0, "st_concurrency": 8},
+                 "budget_guard_pct": 0, "pause_s": 0.0, "st_concurrency": 8,
+                 "credits_month": 1_000_000, "credits_reserve_pct": 5},
 }
 
 

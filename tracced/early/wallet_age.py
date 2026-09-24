@@ -20,13 +20,82 @@ import urllib.error
 import urllib.request
 
 DEFAULT_URL = "https://api.mainnet-beta.solana.com"
+HEAVY = {"getSignaturesForAddress", "getTransaction"}   # платна нода Solana Tracker бере за них по 10 кредитів
 LIMIT = 1000
 MAX_PAGES = 6            # 6 000 підписів: далі гаманець точно не «свіжий», а ходити глибше дорого
 RETRY_SLEEP = (2, 4, 8)
 
 
+class MonthBudget:
+    """Кредити платної RPC-ноди за календарний місяць (UTC), з файлом: переживає перезапуск і деплой.
+
+    RPC — окремий продукт зі своїм лічильником, і в Data API його не видно. Лічильник запитів гаманців погано
+    захищав цей гаманець кредитів: 30 прогонів на день по 600 гаманців з'їли б безкоштовний пул за день з
+    лишком. Тому межа — кредити, а не кількість гаманців. `limit` 0 — без межі."""
+
+    def __init__(self, path=None, limit=0, reserve_pct=10, now=time.time):
+        self.path, self.limit, self.reserve_pct = path, int(limit or 0), float(reserve_pct or 0)
+        self._now, self._lock, self._dirty = now, threading.Lock(), 0
+        self.month, self.spent = self._month(), 0
+        if path and os.path.exists(path):
+            try:
+                with open(path, encoding="utf-8") as f:
+                    d = json.load(f)
+                if d.get("month") == self.month:
+                    self.spent = int(d.get("spent") or 0)
+            except Exception:  # noqa: BLE001 — битий файл = чистий місяць
+                pass
+
+    def _month(self):
+        return time.strftime("%Y-%m", time.gmtime(self._now()))
+
+    def _roll(self):
+        m = self._month()
+        if m != self.month:
+            self.month, self.spent, self._dirty = m, 0, 1
+
+    def spend(self, n):
+        with self._lock:
+            self._roll()
+            self.spent += int(n)
+            self._dirty += 1
+            if self._dirty >= 20:
+                self._flush()
+
+    def exhausted(self):
+        """True, коли до межі лишився лише резерв: збагачення стає на паузу до нового місяця."""
+        if not self.limit:
+            return False
+        with self._lock:
+            self._roll()
+            return self.spent >= self.limit * (1 - self.reserve_pct / 100)
+
+    def state(self):
+        with self._lock:
+            self._roll()
+            return {"month": self.month, "spent": self.spent, "limit": self.limit}
+
+    def _flush(self):
+        self._dirty = 0
+        if not self.path:
+            return
+        try:
+            os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+            tmp = self.path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump({"month": self.month, "spent": self.spent}, f)
+            os.replace(tmp, self.path)
+        except OSError:
+            pass
+
+    def flush(self):
+        with self._lock:
+            if self._dirty:
+                self._flush()
+
+
 class WalletAge:
-    def __init__(self, url=None, cache=None, pace_s=0.5, post=None, sleep=time.sleep, tx_url=None):
+    def __init__(self, url=None, cache=None, pace_s=0.5, post=None, sleep=time.sleep, tx_url=None, budget=None):
         self.url = url or os.getenv("SOLANA_RPC_URL") or DEFAULT_URL
         # getTransaction і getSignaturesForAddress не конче живуть на одній ноді. Нода Solana Tracker віддає
         # повну історію підписів і не ріже серії, але на getTransaction відповідає Internal error (перевірено
@@ -40,6 +109,7 @@ class WalletAge:
         self._sleep = sleep
         self._last = 0.0
         self._lock = threading.Lock()
+        self.budget = budget            # MonthBudget: кредити платної ноди (публічна нода безкоштовна і не рахується)
 
     # ── транспорт ──
     def _http(self, payload, url=None):
@@ -53,6 +123,7 @@ class WalletAge:
     def _call(self, method, params, url=None):
         payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
         last_err = None
+        paid = self.budget is not None and (url or self.url) != DEFAULT_URL
         for attempt in range(len(RETRY_SLEEP) + 1):
             with self._lock:
                 wait = self.pace_s - (time.monotonic() - self._last)
@@ -60,6 +131,8 @@ class WalletAge:
                     self._sleep(wait)
                 try:
                     self.requests += 1
+                    if paid:
+                        self.budget.spend(10 if method in HEAVY else 1)   # невдала спроба теж оплачена
                     d = self._post(payload, url) if url else self._post(payload)
                     self._last = time.monotonic()
                 except urllib.error.HTTPError as e:
@@ -78,6 +151,14 @@ class WalletAge:
                     return d.get("result")
             self._sleep(RETRY_SLEEP[attempt])
         raise last_err  # pragma: no cover — цикл завжди або повертає, або кидає
+
+    def paused(self):
+        """Бюджет платної ноди на цей місяць вичерпано (до резерву): нові гаманці чекають наступного місяця."""
+        return bool(self.budget and self.budget.exhausted())
+
+    def cached(self, wallet):
+        """Вік з кешу без запиту; None — треба питати ноду."""
+        return self.cache.get(wallet) if self.cache is not None else None
 
     # ── факт ──
     def oldest_tx(self, wallet, refresh=False):
@@ -127,6 +208,8 @@ class WalletAge:
     def flush(self):
         if self.cache is not None:
             self.cache.flush()
+        if self.budget is not None:
+            self.budget.flush()
 
 
 def funder_from_tx(tx, wallet):

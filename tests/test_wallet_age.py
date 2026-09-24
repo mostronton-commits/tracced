@@ -2,7 +2,7 @@ import unittest
 import urllib.error
 
 from tracced.early import tags
-from tracced.early.wallet_age import WalletAge, funder_from_tx
+from tracced.early.wallet_age import DEFAULT_URL, MonthBudget, WalletAge, funder_from_tx
 
 H = 3_600_000
 
@@ -107,6 +107,64 @@ class TestWalletAge(unittest.TestCase):
         self.assertFalse(tags.is_fresh(buy, {"oldest_ms": buy - 2 * H, "exact": False}))   # only a bound
         self.assertFalse(tags.is_fresh(None, {"oldest_ms": 1, "exact": True}))
         self.assertEqual(tags.with_tag(["re-bought"], "fresh"), ["fresh", "re-bought"])
+
+
+
+class TestRpcBudget(unittest.TestCase):
+    """RPC — окремий гаманець кредитів: межа стоїть на кредитах місяця, а не на кількості гаманців."""
+
+    def test_spend_pauses_at_the_reserve_and_a_new_month_starts_clean(self):
+        import tempfile, os
+        t = [1_790_000_000]                                   # вересень 2026
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "rpc.json")
+            b = MonthBudget(path, limit=100, reserve_pct=10, now=lambda: t[0])
+            b.spend(80)
+            self.assertFalse(b.exhausted())
+            b.spend(10)
+            self.assertTrue(b.exhausted())                    # 90 з 100: лишився лише резерв
+            b.flush()
+            again = MonthBudget(path, limit=100, reserve_pct=10, now=lambda: t[0])
+            self.assertEqual(again.spent, 90)                 # переживає перезапуск
+            t[0] += 40 * 86400                                # наступний місяць
+            self.assertFalse(again.exhausted())
+            self.assertEqual(again.state()["spent"], 0)
+
+    def test_only_the_paid_node_is_counted(self):
+        b = MonthBudget(None, limit=1000)
+        free = WalletAge(url=DEFAULT_URL, tx_url=DEFAULT_URL, post=FakePost([sigs(3), []]), sleep=lambda s: None, pace_s=0, budget=b)
+        free.oldest_tx("W1")
+        self.assertEqual(b.spent, 0)                          # публічна нода нічого не коштує
+        paid = WalletAge(url="https://rpc.example/?k", tx_url=DEFAULT_URL, post=FakePost([sigs(3), [], {"meta": {}}]),
+                         sleep=lambda s: None, pace_s=0, budget=b)
+        age = paid.oldest_tx("W2")
+        self.assertEqual(b.spent, 20)                         # дві сторінки підписів по 10 кредитів
+        paid.funder("W2", age["oldest_sig"])
+        self.assertEqual(b.spent, 20)                         # транзакцію читає публічна нода
+
+    def test_enrichment_pauses_on_the_budget_and_keeps_cached_wallets_free(self):
+        from types import SimpleNamespace
+        from tracced.web.app import make_enricher
+
+        class Cache(dict):
+            def put(self, k, v): self[k] = v
+            def flush(self): pass
+        b = MonthBudget(None, limit=44, reserve_pct=10)       # пауза з 39.6 кредита: два гаманці по 20 = 40
+        cache = Cache()
+        cache["W9"] = {"oldest_ms": 1000, "exact": True, "n": 3, "oldest_sig": "s"}
+        answers = [sigs(3), []] * 2
+        wa = WalletAge(url="https://rpc.example/?k", post=FakePost(answers), sleep=lambda s: None, pace_s=0,
+                       cache=cache, budget=b)
+        rows = [{"wallet": w, "first_buy_ms": 2000, "tag_list": []} for w in ("W1", "W2", "W3", "W9")]
+        job = SimpleNamespace(result={"rows": rows}, log=[])
+        saved = []
+        make_enricher(wa, {"age_lookups_max": 10})(job, saved.append)
+        e = job.result["enrich"]
+        self.assertEqual(e["done"], 2)                        # W1 і W2 перевірені, на W3 бюджет скінчився
+        self.assertEqual(e["paused"], "rpc-budget")
+        self.assertEqual(b.spent, 40)
+        self.assertTrue(any("paused" in m for m in job.log))
+        self.assertTrue(saved)
 
 
 if __name__ == "__main__":

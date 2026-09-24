@@ -23,10 +23,14 @@ early:
   max_window_hours: 24          # was 6; the first trader reached for hours straight away
   min_invested_usd: 20          # was 95, raised only to save credits — there is nothing to save now
   run_cap_requests: 6000        # was 1000; the whole history of a busy token must not stop half way
+  st_concurrency: 8             # wallets fetched at once (Pro has no rate limit). Set 1 to go back to one by one
 
-  # What the budget carries: 30 runs × ~1000 requests = 30,000 a day, the rest stays for charts.
+  # What the budget carries: 20 runs × ~1000 requests = 20,000 a day, the rest stays for charts.
+  # The month is guarded by the real balance: /credits is asked at most every 10 minutes, and a live run by anyone
+  # but the owner starts only while the balance minus run_cap_requests stays above 5% of the plan (the Pro profile
+  # sets credits_month 1,000,000 and credits_reserve_pct 5).
   runs_per_day: 5               # was 1
-  runs_global_per_day: 30       # was 10
+  runs_global_per_day: 20       # was 30: 30 × 6,000 worst-case runs a day was five times the plan over a month
   ranges_per_token: 5           # was 3
 
   # Charts of live tokens spend from the same budget (an overview is ~2 requests, a chunk of candles is 1).
@@ -40,4 +44,6 @@ early:
   # does and never throttles a series, while the public node answers 429 on deep pagination.
   # Note: that node returns short pages in the middle of a history, so wallet_age pages to an empty answer.
   rpc_pace_s: 0.2               # 5 requests a second, the free RPC tier's pace; lower it on Developer
-  age_lookups_max: 600          # was 300
+  age_lookups_max: 2000         # was 600: every wallet with exits gets its age and funder. The guard is the budget below
+  rpc_credits_month: 500000     # the RPC plan's monthly pool (free tier; checked 24.09: under 500 used). 10 credits per
+                                # signatures page; wallet age pauses at 90% and resumes next month. Cached wallets are free
