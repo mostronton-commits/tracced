@@ -1733,9 +1733,12 @@ class TestJobQueue(unittest.TestCase):
                 order.append(job.id)
                 job.result["identities_done"] = True
                 save(job)
+            rows = [{"wallet": f"W{i}"} for i in range(25)]
+            self._file(d, "refused", created_ms=7, result={"rows": rows, "identities_done": True})   # «названий» з нулем імен
+            self._file(d, "few", created_ms=8, result={"rows": rows[:3], "identities_done": True})    # три невідомих — так буває
             q = JobQueue(lambda j: None, d, namer=namer)
             q.nq.join()
-            self.assertEqual(order, ["new", "old"])                         # найсвіжіший — перший; названий — ні
+            self.assertEqual(order, ["refused", "new", "old"])              # найсвіжіший — перший; названий — ні
             with open(os.path.join(d, "old.json")) as f:
                 self.assertTrue(json.load(f)["result"]["identities_done"])
 

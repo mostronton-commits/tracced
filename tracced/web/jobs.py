@@ -74,6 +74,12 @@ def make_id(mint, t_from, t_to):
     return re.sub(r"[^A-Za-z0-9_-]", "", f"{mint[:6]}_{f(t_from / 1000):%Y%m%d-%H%M}_{f(t_to / 1000):%H%M}")
 
 
+def unnamed(result):
+    """Позначений названим, але без жодного імені на 20+ гаманців: так виглядав результат, чиї імена джерело відмовилось
+    віддати (24.09, ключ без кредитів). Серед двадцяти гаманців завжди є відомі хоча б за застосунком."""
+    return bool(result.get("identities_done")) and not result.get("identities") and len(result.get("rows") or []) >= 20
+
+
 REPLAY_THREADS = 2                        # демо лише спить між рядками журналу: двох потоків досить і на натовп
 
 
@@ -106,7 +112,7 @@ class JobQueue:
             self.nthread = threading.Thread(target=self._name_worker, name="early-names", daemon=True)
             self.nthread.start()
             for j in done:                    # імен не питали (результат до v0.4 або рестарт): пакет на 100 гаманців, раз
-                if not j.result.get("identities_done"):
+                if not j.result.get("identities_done") or unnamed(j.result):
                     self.nq.put(j)
         if enricher:
             self.ethread = threading.Thread(target=self._enrich_worker, name="early-enrich", daemon=True)

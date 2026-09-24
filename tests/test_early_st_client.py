@@ -127,6 +127,29 @@ class TestNoSharedLock(unittest.TestCase):
         st = client(stats_cache=gate, chart_cache=JsonCache(None))
         self.check(st, gate, st.flush)
 
+    def test_a_refused_name_request_is_not_taken_for_no_names(self):
+        """24.09 ключ без кредитів отримав 403 на кожен пакет імен, і шість результатів лишились «названими» з нулем імен."""
+        from tracced.web.app import make_namer
+        from types import SimpleNamespace
+        st = client(identity_cache=JsonCache(None))
+        calls = []
+
+        def get(path, body=None):
+            calls.append(len(calls))
+            if len(calls) == 2:                                          # другий пакет з трьох — відмова
+                raise RuntimeError("HTTP Error 403: Forbidden")
+            return {"wallets": [{"wallet": w, "identity": {"name": "N" + w}} for w in body["wallets"]]}
+        st._get = get
+        wallets = [f"W{i}" for i in range(250)]
+        with self.assertRaises(RuntimeError):
+            st.identities(wallets, workers=1, strict=True)
+        self.assertEqual(len(st.identities(wallets, workers=1)), 250)  # повтор питає лише пакет, що впав
+        self.assertEqual(len(calls), 4)
+        job = SimpleNamespace(result={"rows": [{"wallet": "X"}]}, log=[])
+        make_namer(lambda ws: (_ for _ in ()).throw(RuntimeError("403")))(job, lambda j: True)
+        self.assertNotIn("identities_done", job.result)                  # наступний запуск спитає знову
+        self.assertTrue(any("names unavailable" in m for m in job.log))
+
     def test_names_reach_the_file_in_one_write(self):
         import os
         import tempfile

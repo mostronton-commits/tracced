@@ -38,12 +38,14 @@ class EarlyST(SolanaTracker):
             return None
         return self.identity_cache.get(wallet) or None
 
-    def identities(self, wallets, workers=8):
+    def identities(self, wallets, workers=8, strict=False):
         """Хто стоїть за гаманцями: `POST /v2/pnl/wallets/batch`, 100 гаманців на запит, запити одночасно.
 
         Беремо лише `identity`; їхні PnL і теги в продукт не йдуть. Відповідь кешується, зокрема «невідомий»
         (порожній запис), тож той самий гаманець у наступному аналізі не коштує нічого. Повертає {гаманець: ідентичність}
-        лише для відомих. Збій одного пакета не валить решту: ці гаманці просто лишаються без імені."""
+        лише для відомих. Збій одного пакета не валить решту: ці гаманці просто лишаються без імені. `strict=True`
+        після цього ще й кидає помилку, щоб результат не вважався названим (24.09: ключ без кредитів дав 403 на
+        кожен пакет, і шість результатів позначились «імена є» з нулем імен)."""
         if self.identity_cache is None:
             return {}
         todo = [w for w in dict.fromkeys(wallets) if w and self.identity_cache.get(w) is None]
@@ -55,11 +57,12 @@ class EarlyST(SolanaTracker):
             except Exception:  # noqa: BLE001
                 return None
             return {x.get("wallet"): compact_identity(x.get("identity")) or {} for x in (d.get("wallets") or []) if x.get("wallet")}
-        got = {}
+        got, failed = {}, 0
         if chunks:
             with ThreadPoolExecutor(max_workers=max(1, min(workers, len(chunks))), thread_name_prefix="early-ident") as pool:
                 for chunk, res in zip(chunks, pool.map(one, chunks)):
                     if res is None:
+                        failed += 1
                         continue
                     got.update(res)
                     got.update({w: {} for w in chunk if w not in res})     # notFound = невідомий, теж кешуємо
@@ -67,6 +70,8 @@ class EarlyST(SolanaTracker):
             # одним кроком і одним записом файлу: по одному put() файл переписувався б кожні 25 гаманців
             self.identity_cache.put_many(got)
             self.identity_cache.flush()
+        if strict and failed:
+            raise RuntimeError(f"{failed} of {len(chunks)} name requests failed")   # успішні вже в кеші: повтор їх не питає
         return {w: self.identity(w) for w in wallets if self.identity(w)}
 
     def trades_page(self, mint, cursor_ms):

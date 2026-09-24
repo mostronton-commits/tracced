@@ -36,7 +36,7 @@ from . import docs as docs_mod
 from . import chart
 from . import demo as demo_mod
 from . import replay
-from .jobs import JobQueue, make_id
+from .jobs import JobQueue, make_id, unnamed
 
 log = logging.getLogger("early.web")
 HERE = Path(__file__).resolve().parent
@@ -122,16 +122,20 @@ class WebError(Exception):
 
 def make_namer(identify):
     """Після аналізу, одразу: хто стоїть за гаманцями таблиці, пакетами по 100 (секунди). Власний потік, бо черга
-    збагачення зайнята віком гаманців попередніх аналізів хвилинами, а імена мають з'явитись, поки людина дивиться."""
+    збагачення зайнята віком гаманців попередніх аналізів хвилинами, а імена мають з'явитись, поки людина дивиться.
+
+    Джерело відмовило (скінчились кредити, збій) — результат не позначається названим: наступний запуск сервера
+    спитає знову, і вже знайдені імена з кешу нічого не коштують."""
     def name(job, save):
         r = job.result
-        if r.get("identities_done"):
+        if r.get("identities_done") and not unnamed(r):
             return
         try:
             found = identify([row["wallet"] for row in r.get("rows") or []])
-            r["identities"] = dict(r.get("identities") or {}, **(found or {}))
         except Exception as ex:  # noqa: BLE001
             job.log.append(f"wallet names unavailable: {str(ex)[:60]}")
+            return
+        r["identities"] = dict(r.get("identities") or {}, **(found or {}))
         r["identities_done"] = True
         save(job)
     return name
@@ -367,7 +371,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
             for key in job.charged or []:
                 app["runs_daily"].add(key, -1)
 
-    identify = st.identities if (hasattr(st, "identities") and s.get("st_identity", True)) else None
+    identify = ((lambda ws: st.identities(ws, strict=True))               # відмова джерела ≠ «імен нема»
+                if (hasattr(st, "identities") and s.get("st_identity", True)) else None)
     app["jobs"] = JobQueue(runner, out_dir, enricher=make_enricher(ages, s) if ages else None, on_error=on_error,
                            enrich_upto=(lambda r: enrich_target(r, s)) if ages else 0,
                            namer=make_namer(identify) if identify else None)
