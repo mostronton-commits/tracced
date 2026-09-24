@@ -40,6 +40,8 @@ positions, average hold, counted by tracced from the wallet's own swaps. When So
 is, small marks say so: a star for a KOL, its X account, the app it trades through.
 [The wallet card →](https://tracced.xyz/docs/how-it-works#the-wallet-card)
 
+![Wallet card](docs/img/card.png)
+
 Keep what you find in several named lists, tag wallets in your own words, and export a list as CSV or TXT.
 [Your account →](https://tracced.xyz/docs/account)
 
