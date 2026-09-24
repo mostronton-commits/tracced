@@ -335,8 +335,8 @@
         ftoggle.textContent = na ? 'Filters · ' + na : 'Filters'; ftoggle.classList.toggle('on', !!na);
         syncChecks();
       }
-      document.getElementById('more100').addEventListener('click', () => { limit += LIMIT; apply(); });
-      document.getElementById('moreall').addEventListener('click', () => { limit = Infinity; apply(); });
+      document.getElementById('more100').addEventListener('click', () => { EarlyUI.track('show-more'); limit += LIMIT; apply(); });
+      document.getElementById('moreall').addEventListener('click', () => { EarlyUI.track('show-more', { all: 1 }); limit = Infinity; apply(); });
       function syncChecks() {
         for (const tr of tbody.rows) { const on = selected.has(tr.dataset.w); tr.querySelector('.pick').checked = on; tr.classList.toggle('picked', on); }
         nsel.textContent = selected.size; document.getElementById('selinfo').hidden = !selected.size; watch.hidden = !selected.size;
@@ -385,6 +385,7 @@
       const listsOfWallet = w => (me && me.wallets && me.wallets[w] && me.wallets[w].lists) || [];
       async function addToList(lid, ws) {
         const d = await EarlyWallet.post('/me/wallets', { job: jobId, wallets: ws, list: lid });
+        EarlyUI.track('list-add');
         blank();
         d.wallets.forEach(w => { const x = me.wallets[w] = me.wallets[w] || { my_tags: [], lists: [] }; x.lists = x.lists || []; if (!x.lists.includes(lid)) x.lists.push(lid); });
         markSaved();
@@ -474,6 +475,7 @@
       async function saveJob() {
         try {
           const d = await EarlyWallet.post('/me/analyses', { job: jobId });
+          EarlyUI.track('save-analysis');
           blank(); me.analyses[jobId] = true; markSaved();
           EarlyUI.toast((d.added ? 'Analysis saved' : 'Already saved') + ' · <a href="/me#analyses">My analyses →</a>');
         } catch (e) { EarlyUI.toast(e.message); }
@@ -529,6 +531,7 @@
       const csvCell = v => v == null ? '' : (/[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v));
       document.querySelector('.menu-panel').addEventListener('click', async e => {
         const x = e.target.closest('[data-x]'); if (!x) return;
+        EarlyUI.track('export', { format: x.dataset.x });
         const wallets = exportSet().map(o => o.w), want = new Set(wallets);
         const suffix = '-' + SCOPE + (selected.size ? '-selected' : (na() ? '-filtered' : ''));
         if (x.dataset.x === 'txt') { download(jobId + suffix + '.txt', wallets.join('\n') + '\n', 'text/plain'); return; }
@@ -830,6 +833,7 @@
           + '</div>';
       }
       function openStory(o) {
+        if (drawer.hidden || drawer.dataset.w !== o.wallet) EarlyUI.track('card-open');
         const cur = (window.EarlyCur && EarlyCur.get()) === 'sol';
         const row = rowOf(o.wallet);
         drawer.dataset.w = o.wallet; drawer.hidden = false; document.body.classList.add('drawer-open');
@@ -917,7 +921,7 @@
       try { const m = localStorage.getItem(MKEY); if (m) amethod.value = m; } catch (e) {}
       let lastPicks = [];
       const ASSIST_ON = {{ 'true' if assistant_on else 'false' }}, aipop = document.getElementById('aipop'), aiwrap = document.getElementById('aiwrap');
-      document.getElementById('askbtn').addEventListener('click', () => { if (ASSIST_ON) { apanel.hidden = !apanel.hidden; closeCard(); } else aipop.hidden = !aipop.hidden; });
+      document.getElementById('askbtn').addEventListener('click', () => { EarlyUI.track('agent-open'); if (ASSIST_ON) { apanel.hidden = !apanel.hidden; closeCard(); } else aipop.hidden = !aipop.hidden; });
       if (!ASSIST_ON) {
         document.getElementById('askbtn').addEventListener('mouseenter', () => { aipop.hidden = false; });
         aiwrap.addEventListener('mouseleave', () => { aipop.hidden = true; });

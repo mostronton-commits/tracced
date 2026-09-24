@@ -162,8 +162,9 @@
   }
   // a daily cap: a window that says so and when it resets, and the range stays where it was
   const LIMIT = document.getElementById('limitsheet'), RUNS_LEFT = {{ runs_left if runs_left is not none else 'null' }}, RESET = {{ reset_ms }};
-  function openLimit() {
+  function openLimit(kind) {
     if (!LIMIT) return false;
+    EarlyUI.track('limit-window', { kind: kind || 'limit' });
     const m = Math.max(1, Math.round((RESET - Date.now()) / 60000));
     const local = new Date().getTimezoneOffset() ? ' (' + new Date(RESET).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' your time)' : '';
     LIMIT.querySelector('[data-reset]').textContent = (m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : m + ' min') + local;
@@ -174,7 +175,7 @@
   if (LIMIT) {
     LIMIT.addEventListener('click', e => { if (e.target === LIMIT || e.target.closest('[data-limit-close]')) LIMIT.hidden = true; });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') LIMIT.hidden = true; });
-    {% if notice %}openLimit();{% endif %}
+    {% if notice %}openLimit('{{ notice }}');{% endif %}
   }
   rowsEl.addEventListener('submit', e => {
     const f = e.target.closest('.wrow'), r = f && state.rows[+f.dataset.i], hit = r && hitFor(r);
@@ -185,6 +186,7 @@
     if (!(f0 && t0 && f0 < t0)) { e.preventDefault(); EarlyUI.toast('From must be earlier than To.'); return; }
     if (t0 - f0 > MAX_HOURS * 3600e3) { e.preventDefault(); EarlyUI.toast('Range up to ' + MAX_HOURS + ' h. Shorten it.'); return; }
     if (ACCT && RUNS_LEFT === 0 && openLimit()) { e.preventDefault(); return; }   // nothing left today: say so before the round trip
+    EarlyUI.track('analyze', { who: ACCT ? 'wallet' : 'guest' });
     if (ACCT) return;                                            // a new live run needs a wallet
     e.preventDefault();
     EarlyWallet.open(() => { ACCT = true; f.submit(); }, 'A live analysis needs a connected wallet: ' + RUNS + ', free, no transaction. Connect, and this range runs right away.');
@@ -282,7 +284,7 @@
     const f = rowsEl.querySelector('.wrow.sel'); if (f) { f.classList.remove('pulse'); void f.offsetWidth; f.classList.add('pulse'); }
     fp.title = cs.length > 1 ? 'Pump ' + (k + 1) + ' of ' + cs.length + ' · click again for the next one' : 'The one pump on this chart';
   }
-  fp.addEventListener('click', findPump);
+  fp.addEventListener('click', () => { EarlyUI.track('find-pump'); findPump(); });
 
   render();
   ch.init().then(() => {

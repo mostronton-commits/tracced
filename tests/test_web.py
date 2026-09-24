@@ -675,6 +675,17 @@ if AioHTTPTestCase:
             s["runs_per_day"], s["runs_per_ip_per_day"] = 1, 10
             self.app["admins"] = {TEST_PK}
 
+        async def test_analytics_counts_only_on_the_live_domains_and_never_names_the_wallet(self):
+            from unittest import mock
+            with mock.patch.dict(os.environ, {"UMAMI_WEBSITE_ID": "site-id", "UMAMI_DOMAINS": "tracced.xyz"}):
+                html = await (await self.client.get("/")).text()
+                guest = await (await self.client.get("/", headers=GUEST)).text()
+            self.assertIn('data-website-id="site-id" data-domains="tracced.xyz" data-performance="true" data-tag="wallet"', html)
+            self.assertIn('data-tag="guest"', guest)                       # сегмент без адреси: гаманець чи гість
+            self.assertNotIn(TEST_PK, html.split("umami.is/script.js")[1].split("</script>")[0])
+            with mock.patch.dict(os.environ, {"UMAMI_WEBSITE_ID": ""}):
+                self.assertNotIn("umami.is", await (await self.client.get("/")).text())   # без id — жодного скрипта
+
         async def test_a_failed_run_gives_the_browser_and_the_network_their_run_back(self):
             from tracced.web.app import _ip_key
             self.app["admins"] = set()

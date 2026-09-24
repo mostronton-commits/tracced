@@ -37,8 +37,8 @@
     const pct = p.total ? Math.min(100, Math.round(100 * p.done / p.total)) : (d.status === 'done' ? 100 : 0);
     fill.style.width = pct + '%'; t.classList.toggle('indeterminate', !p.total && d.status === 'running');
     t.classList.remove('queued', 'running', 'done', 'error'); t.classList.add(d.status);
-    if (d.status === 'done') { stopped = true; add('done — opening the result', 0, 'dim'); setTimeout(() => { if (d.open) location.replace(d.open); else location.reload(); }, reduced ? 0 : 500); return; }
-    if (d.status === 'error') { stopped = true; errEl.textContent = d.error || 'The analysis failed.'; foot.hidden = false; return; }
+    if (d.status === 'done') { if (!stopped && window.EarlyUI) EarlyUI.track('analysis-done', { secs: Math.round((elapsed0 + Date.now() - tick0) / 1000) }); stopped = true; add('done — opening the result', 0, 'dim'); setTimeout(() => { if (d.open) location.replace(d.open); else location.reload(); }, reduced ? 0 : 500); return; }
+    if (d.status === 'error') { if (!stopped && window.EarlyUI) EarlyUI.track('analysis-failed'); stopped = true; errEl.textContent = d.error || 'The analysis failed.'; foot.hidden = false; return; }
     setTimeout(poll, document.hidden ? 3000 : 1000);
   }
   setInterval(tickClock, 1000); poll();

@@ -6,7 +6,7 @@
 <title>{% block title %}tracced{% endblock %}</title>
 <link rel="icon" href="/static/brand/icon.svg?v={{ v }}" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/static/brand/icon-180.png?v={{ v }}">
-{% if umami_id %}<script defer src="https://cloud.umami.is/script.js" data-website-id="{{ umami_id }}"></script>{% endif %}
+{% if umami_id %}<script defer src="https://cloud.umami.is/script.js" data-website-id="{{ umami_id }}" data-domains="{{ umami_domains }}" data-performance="true" data-tag="{{ 'wallet' if acct else 'guest' }}"></script>{% endif %}
 <link rel="stylesheet" href="/static/style.css?v={{ v }}">
 <script src="/static/ui.js?v={{ v }}"></script>
 <script src="/static/wallet.js?v={{ v }}" defer></script>

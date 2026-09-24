@@ -2,7 +2,8 @@
 {% block title %}Accounts · tracced{% endblock %}
 {% block body %}
 <section class="card me">
-  <div class="row mehead"><h2>Accounts</h2><span class="muted small">who connected a wallet and what they did · this page is for the owner only</span></div>
+  <div class="row mehead"><h2>Accounts</h2><span class="muted small">who connected a wallet and what they did · this page is for the owner only</span>
+    <button type="button" class="ghost right" id="umamioff" title="Umami's own switch: this browser's visits stop counting in the analytics (set it on every device you use)"></button></div>
   <div class="stats">
     <div title="Wallets that signed in at least once"><b data-count="{{ totals.accounts }}" data-fmt="int">0</b><span>Accounts</span></div>
     <div title="First sign-in within the last 7 days"><b data-count="{{ totals.new_7d }}" data-fmt="int">0</b><span>New · 7 d</span></div>
@@ -60,4 +61,14 @@
   </div>
   {% else %}<p class="muted">Nothing yet.</p>{% endif %}
 </section>
+<script>
+(function () {
+  // the owner's own visits are not visitors: Umami skips a browser that has this key (docs.umami.is, "Exclude my own visits")
+  const b = document.getElementById('umamioff'), KEY = 'umami.disabled';
+  const off = () => { try { return !!localStorage.getItem(KEY); } catch (e) { return false; } };
+  const paint = () => { b.textContent = off() ? 'Analytics: this browser is not counted · count it' : 'Analytics: this browser is counted · stop'; };
+  b.addEventListener('click', () => { try { if (off()) localStorage.removeItem(KEY); else localStorage.setItem(KEY, '1'); } catch (e) {} paint(); });
+  paint();
+})();
+</script>
 {% endblock %}

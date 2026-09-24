@@ -48,6 +48,9 @@ Tags are facts with fixed definitions you can read: bought within 60 seconds of 
 hours, funded by the same wallet as others in the list. Each is derived from trades you can open yourself. The
 judgement stays with the person.
 
+No tracking of who you are. The live site counts visits and steps (a token opened, an analysis run, a card opened)
+with Umami, which sets no cookies, and never sends it a wallet address.
+
 ## Where to go next
 
 | | |

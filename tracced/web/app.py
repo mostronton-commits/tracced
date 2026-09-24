@@ -1061,6 +1061,7 @@ def render(name, request, status=200, **ctx):
         ctx.setdefault("assistant_on", request.app.get("assistant") is not None)   # без ключа сторінки не обіцяють агента
         ctx.setdefault("early_note", EARLY_NOTE)
     ctx.setdefault("umami_id", os.getenv("UMAMI_WEBSITE_ID", ""))   # аналітика вмикається лише там, де задано id
+    ctx.setdefault("umami_domains", os.getenv("UMAMI_DOMAINS", "tracced.xyz,www.tracced.xyz"))   # і лише на цих доменах: локальні запуски з тим самим id не рахуються
     html = env.get_template(name).render(**ctx)
     return web.Response(text=html, content_type="text/html", status=status)
 

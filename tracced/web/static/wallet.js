@@ -61,6 +61,7 @@
       const msg = n.domain + ' wants you to sign in with your Solana account:\n' + pk + '\n\n' + n.statement + '\n\nNonce: ' + n.nonce + '\nIssued At: ' + n.issued_at;
       const sig = await a.sign(new TextEncoder().encode(msg));
       const v = await post('/auth/verify', { pubkey: pk, signature: b64(sig), message: msg, wallet: a.name });
+      if (window.EarlyUI) EarlyUI.track('connect-done', { app: a.name });   // which wallet app, never the address
       const f = onDone; close();                       // close() drops the callback: take it first
       if (!f) {                                          // no callback: a page may leave a form to send once signed in (the 401 card), else reload
         const after = document.querySelector('form[data-wallet-after]');
@@ -76,6 +77,7 @@
 
   function open(cb, note) {
     const s = sheet(); if (!s) return;
+    if (window.EarlyUI) EarlyUI.track('connect-open');
     onDone = cb || null; state(); opener = document.activeElement;
     const wn = document.getElementById('wnote'); if (wn) { wn.textContent = note || ''; wn.hidden = !note; }   // why we ask, in context
     const l = list(); l.innerHTML = '';
