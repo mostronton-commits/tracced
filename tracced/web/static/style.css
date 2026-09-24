@@ -886,3 +886,25 @@ td.c-inv small, td.c-sold small { white-space: nowrap; }
 .lacts { margin-left: auto; font-size: 12.5px; }
 .lchip { display: inline-block; margin: 1px 3px 1px 0; padding: 1px 7px; border-radius: 999px; background: #F1F5F9; border: 1px solid var(--line); font-size: 11px; white-space: nowrap; }
 td.lchips { white-space: normal; min-width: 90px; }
+
+/* ── the wallet card says it in chips: age and funder under the name, the rule behind an i ── */
+.dchips { display: inline-flex; flex-wrap: wrap; gap: 5px; margin-left: 8px; vertical-align: middle; }
+.dchip { display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 7px; border: 1px solid var(--line); border-radius: 999px;
+         background: var(--bg); color: var(--ink); font: 600 11px/1 var(--mono); white-space: nowrap; cursor: default; }
+.dchip.age.young { background: #ECFDF5; border-color: #A7F3D0; color: #047857; }
+.dchip.q { color: var(--muted); font-weight: 500; }
+button.dchip { cursor: pointer; } button.dchip:hover { color: var(--ink); }
+a.dchip.fund { color: var(--ink); border-bottom: 1px solid var(--line); cursor: pointer; } a.dchip.fund:hover { border-color: #94A3B8; }
+.dchip small { font: 600 10px/1 var(--mono); color: var(--muted); }
+.dinfo { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; margin-left: 4px; border: 1px solid var(--line);
+         border-radius: 50%; font: 600 9.5px/1 var(--sans); font-style: normal; color: var(--muted); text-transform: none; letter-spacing: 0; cursor: help; vertical-align: 1px; }
+.dinfo.warn { border-color: #FCD34D; color: #B45309; background: #FFFBEB; }
+.wcard h5 .muted { font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: 4px; }
+.wcard h4 .muted { font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: 4px; }
+/* ROI in the table: the multiple, the percent in the tooltip */
+td.c-roi b { font-size: 13px; }
+@media (max-width: 640px) {
+  .facts td.c-roi { order: 4; grid-column: span 2; }
+  .facts td.c-held { order: 5; }
+  .facts td.fund { order: 6; grid-column: span 2; white-space: normal; }
+}

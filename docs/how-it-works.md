@@ -85,14 +85,18 @@ picks up again next month. A wallet checked before costs nothing.
 
 Click a wallet's name. The card shows, top to bottom:
 
-1. who it is, when Solana Tracker knows: a star for a KOL, its X account, the app it trades through;
+1. who it is, when Solana Tracker knows (a star for a KOL, its X account, the app it trades through), and next to
+   the address its age, like `94d`, and who sent it its first SOL; hover either for the detail;
 2. its tags, ours and your own;
 3. how it trades on every token over the last 7 or 30 days: realized PnL and its curve, win rate with wins and
    losses, volume, buys and sells, best and worst day, drawdown, how its closed positions ended, the hours it
    trades, and its latest tokens;
-4. its position in this token;
-5. its first transaction and who sent it its first SOL;
+4. its position in this token, with its ROI;
+5. the analyses you saved where it was early too, if any;
 6. its trades on this token.
+
+ROI, in the card and in its own column of the table, is the average exit cap over the average entry cap, buys
+before the range included: `2×` is +100%, `61.5×` is +6,050%. Hover it for the percent.
 
 The 30 days are counted by tracced from the wallet's own swaps, the same way as the table: average cost, and
 profit only on tokens the wallet actually bought. A position is closed once 99% of it is sold. Win rate is the

@@ -24,7 +24,7 @@
   </div>
   {% if wallets %}
   <div class="tablewrap"><table class="facts melist"><thead><tr>
-    <th>Wallet</th><th>Token</th><th class="num" title="Its entry inside the range">Entry in range</th><th class="num">Spent</th><th class="num" title="Average exit cap ÷ average entry cap, buys before the range included, at the time of saving">Exit vs entry</th><th title="Your own labels: type one and press Enter, click a label to remove it">My tags</th><th>Lists</th><th>Added</th><th></th>
+    <th>Wallet</th><th>Token</th><th class="num" title="Its entry inside the range">Entry in range</th><th class="num">Spent</th><th class="num" title="Average exit cap ÷ average entry cap, buys before the range included, at the time of saving. 2× = +100%">ROI</th><th title="Your own labels: type one and press Enter, click a label to remove it">My tags</th><th>Lists</th><th>Added</th><th></th>
   </tr></thead><tbody>
   {% for w in wallets %}
     <tr data-w="{{ w.wallet }}" data-lists="{{ (w.lists or ['main'])|join(' ') }}">
@@ -32,7 +32,7 @@
       <td>{% if w.from_job %}<a href="/job/{{ w.from_job }}" title="The result it was saved from">{{ w.symbol or (w.mint or '')[:6] }}</a>{% else %}{{ w.symbol }}{% endif %}</td>
       <td class="num mono">{{ w.entry_mcap|mcap }}</td>
       <td class="num mono">{{ w.invested_usd|usd }}</td>
-      <td class="num mono">{% if w.multiple %}{{ '+' if w.multiple >= 1 else '' }}{{ ((w.multiple - 1) * 100)|round|int }}%{% else %}—{% endif %}</td>
+      <td class="num mono {{ ('pos' if w.multiple >= 1 else 'neg') if w.multiple else '' }}"{% if w.multiple %} title="{{ '+' if w.multiple >= 1 else '' }}{{ '{:,}'.format(((w.multiple - 1) * 100)|round|int) }}%"{% endif %}>{% if w.multiple %}{{ '{:,.0f}'.format(w.multiple) if w.multiple >= 100 else '%.1f'|format(w.multiple) }}×{% else %}—{% endif %}</td>
       <td class="mytags" data-tags="{{ (w.my_tags or [])|join(' ') }}">{% for t in w.my_tags or [] %}<button type="button" class="tag mine" title="Click to remove">{{ t }}</button>{% endfor %}<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd" title="Add your own tag" aria-label="Add your own tag"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg></button></td>
       <td class="lchips">{% for lid in w.lists or ['main'] %}{% for l in lists if l.id == lid %}<span class="lchip">{{ l.name }}</span>{% endfor %}{% endfor %}</td>
       <td class="muted small"><span class="dtc" data-ms="{{ w.added_ms }}">{{ w.added_ms|dt }}</span></td>

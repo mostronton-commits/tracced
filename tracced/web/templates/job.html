@@ -59,7 +59,7 @@
       <div title="Wallets that bought inside the range — the list below"><b data-count="{{ sm.n }}" data-fmt="int">0</b><span>Bought in range</span></div>
       <div title="Sold 99% or more of what they bought"><b data-count="{{ sm.exited }}" data-fmt="int">0</b><span>Sold out</span></div>
       <div title="Sold less than half of what they bought"><b data-count="{{ sm.holding }}" data-fmt="int">0</b><span>Still holding</span></div>
-      <div title="Highest average exit cap ÷ average entry cap among these wallets, buys before the range included"><b data-count="{{ sm.best_multiple or 0 }}" data-fmt="mult">0</b><span>Best multiple</span></div>
+      <div title="Highest average exit cap ÷ average entry cap among these wallets, buys before the range included"><b data-count="{{ sm.best_multiple or 0 }}" data-fmt="mult">0</b><span>Best ROI</span></div>
       <div title="What these wallets spent inside the range"><b class="amt" data-usd="{{ (sm.invested_range or 0)|round(0)|int }}"{% if sm.invested_range_sol is not none %} data-sol="{{ sm.invested_range_sol|round(2) }}"{% endif %} data-count="{{ (sm.invested_range or 0)|round(0)|int }}" data-fmt="usd">0</b><span>Spent in range</span></div>
     </div>
     {% if not sm.has_sol %}<p class="muted small solnote" hidden>This analysis was saved before tracced started recording SOL amounts, so its figures stay in dollars.</p>{% endif %}
@@ -71,7 +71,7 @@
       <label class="sortby muted small">Sort <select id="msort" aria-label="Sort the wallets">
         <option value="real" selected>PnL, highest first</option><option value="inv">Bought the most</option>
         <option value="etime" data-dir="1">Bought first</option><option value="got">Sold for the most</option>
-        <option value="mult">Sold highest vs entry</option><option value="entry" data-dir="1">Lowest entry cap</option>
+        <option value="mult">ROI, highest first</option><option value="entry" data-dir="1">Lowest entry cap</option>
         <option value="hold">Held longest</option><option value="" hidden disabled>Custom</option></select></label>
       <label class="chk"><input type="checkbox" id="pickall"> Select all</label>
       <span class="muted small" id="selinfo" hidden><b id="nsel">0</b> selected · <button type="button" class="link" id="clearsel">Clear</button></span>
@@ -103,12 +103,13 @@
       <label title="At most this many buys on this token">Buys <input type="number" data-f="buysMax" min="1" step="1" placeholder="max"></label>
       <label title="At least this many minutes from its entry to its first sale">Held, min <input type="number" data-f="hold" min="0" step="5" placeholder="min"></label>
       <span class="sep"></span>
+      <span class="muted small" title="Show only the wallets that match">Only:</span>
       <button type="button" class="fchip" data-t="exits" title="Only wallets that have sold something">Has sold</button>
       <button type="button" class="fchip" data-t="profit" title="Only wallets with a realized profit">In profit</button>
       <button type="button" class="fchip" data-t="repeat" id="fseenwrap" hidden title="Only wallets that were also early in another analysis you saved">Seen before</button>
       <span class="sep"></span>
       <span class="muted small">Hide:</span>
-      {% for k, d in TAGS.items() %}<button type="button" class="tagchip t-{{ k }}" data-hide="{{ k }}" title="Hide wallets tagged {{ k }}: {{ d }}">{{ k }}</button>{% endfor %}
+      {% for k, d in TAGS.items() if k != 'seen-before' %}<button type="button" class="tagchip t-{{ k }}" data-hide="{{ k }}" title="Hide wallets tagged {{ k }}: {{ d }}">{{ k }}</button>{% endfor %}
       {% if s.age_lookups_max %}<span class="muted small" id="enrich" title="{{ TAGS.fresh }}">wallet age…</span>{% endif %}
       <button type="button" class="ghost" id="fclear">Reset</button>
     </div>
@@ -122,6 +123,7 @@
         <th class="num sortable" data-key="inv" title="How much it bought inside the range · the market cap and the time of its first buy there">Bought</th>
         <th class="num sortable" data-key="got" title="What it received from selling · its average exit market cap and the share of its tokens sold">Sold</th>
         <th class="num sortable desc" data-key="real" title="Profit on what it sold: received minus what those tokens cost · below it, the paper result on what it still holds">PnL</th>
+        <th class="num sortable" data-key="mult" title="How many times over it sold: average exit cap ÷ average entry cap, buys before the range included. 2× = +100%">ROI</th>
         <th class="num sortable" data-key="hold" title="From its entry to its first sale · how many buys and sells">Held</th>
         <th class="sortable fundh" data-key="funder" data-type="text" title="Who sent this wallet its first SOL — click a funder to see everyone it paid for">Funded by</th>
       </tr></thead>
@@ -154,7 +156,7 @@
             <span class="wav" id="dav" aria-hidden="true"></span>
             <div class="dh-names">
               <div class="dh-top"><b id="dname">Wallet</b><span class="ids" id="dids"></span></div>
-              <div class="dh-addr"><span class="mono" id="dw"></span><button type="button" class="ghost wcopy" id="dcopy" data-copy="" title="Copy the address" aria-label="Copy the address"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.8"/><path d="M10.5 5.5V4.3A1.8 1.8 0 0 0 8.7 2.5H4.3a1.8 1.8 0 0 0-1.8 1.8v4.4a1.8 1.8 0 0 0 1.8 1.8h1.2"/></svg></button><a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan">Solscan ↗</a></div>
+              <div class="dh-addr"><span class="mono" id="dw"></span><button type="button" class="ghost wcopy" id="dcopy" data-copy="" title="Copy the address" aria-label="Copy the address"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.8"/><path d="M10.5 5.5V4.3A1.8 1.8 0 0 0 8.7 2.5H4.3a1.8 1.8 0 0 0-1.8 1.8v4.4a1.8 1.8 0 0 0 1.8 1.8h1.2"/></svg></button><a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan" aria-label="This wallet on Solscan">↗</a><span class="dchips" id="dchips"></span></div>
             </div>
           </div>
           <div class="dh-act">
@@ -163,23 +165,20 @@
           </div>
         </div>
         <div class="dtags" id="dtags"></div>
-        <p class="dident" id="dident" hidden></p>
         <section class="dsec dperf">
-          <div class="dsec-h"><h4>Trading, every token</h4>
+          <div class="dsec-h"><h4>All tokens <span class="dinfo" id="dprofi" hidden>i</span></h4>
             <div class="seg" id="dper" role="tablist" aria-label="Period"><button type="button" data-p="7">7D</button><button type="button" data-p="30" class="on">30D</button></div></div>
           <div id="dprof"></div>
         </section>
         <section class="dsec">
-          <h4>Position in {{ job.symbol }}</h4>
+          <h4>{{ job.symbol }}</h4>
           <div id="dfacts"></div>
         </section>
-        <section class="dsec" id="dwsec">
-          <h4>Wallet</h4>
-          <p class="dline" id="dwinfo"></p>
+        <section class="dsec" id="dwsec" hidden>
           <div class="dcross" id="dcross"></div>
         </section>
         <section class="dsec">
-          <h4>Trades on {{ job.symbol }}</h4>
+          <h4>Trades <span class="muted" id="dtcount"></span></h4>
           <table class="story"><thead><tr><th>Time</th><th></th><th class="num">Amount</th><th class="num">Tokens</th><th class="num">Cap</th></tr></thead><tbody id="dtrades"></tbody></table>
           <p class="muted small dline" id="dnote"></p>
         </section>
@@ -209,6 +208,7 @@
       const FDEF = { inv: 0, pnl: null, sold: 0, buysMax: 0, hold: 0, exits: false, profit: false, hide: [], funder: '', repeat: false };
       const f = Object.assign({}, FDEF);
       try { const saved = JSON.parse(localStorage.getItem(FKEY) || '{}'); Object.keys(FDEF).forEach(k => { if (k in saved) f[k] = saved[k]; }); } catch (e) {}
+      f.hide = (f.hide || []).filter(t => t !== 'seen-before');       // repeats are a "show only" chip now: a saved hide of them could not be undone
       const saveF = () => { try { localStorage.setItem(FKEY, JSON.stringify(f)); } catch (e) {} };
       const panel = document.getElementById('filters'), ftoggle = document.getElementById('ftoggle'), clearsel = document.getElementById('clearsel');
       const watch = document.getElementById('watch');
@@ -230,6 +230,9 @@
       const money = v => (v == null || isNaN(v) ? '—' : (v < 0 ? '-$' : '$') + fm(Math.abs(v)));
       const holdText = m => m == null ? '—' : m < 60 ? Math.round(m) + ' min' : m < 1440 ? (m / 60).toFixed(m < 600 ? 1 : 0) + ' h' : Math.round(m / 1440) + ' d';
       const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+      // ROI as a trader says it: 61.5× is +6,050%, the percent in the tooltip
+      const roiX = m => m ? (m >= 100 ? Math.round(m).toLocaleString('en-US') : (+m).toFixed(1)) + '×' : '—';
+      const roiPct = m => { const v = Math.round((m - 1) * 100); return (v > 0 ? '+' : '') + v.toLocaleString('en-US') + '%'; };
       const SOLON = !!(window.EarlyCur && EarlyCur.get() === 'sol');
       const MAXR = all.reduce((m, o) => Math.max(m, Math.abs(o.real || 0)), 0);     // the PnL bar is scaled to the largest one
       function rebundle() {
@@ -290,6 +293,8 @@
           + (o.got ? amount(o.got, o.gotsol, '') : '<b class="mono">—</b>') + '<small>' + (o.exitcap ? fm(o.exitcap) + ' · ' + Math.round(o.sold) + '%' : '') + '</small></td>'
           + '<td class="num two bar c-pnl' + (o.real < 0 ? ' neg' : '') + '" data-h="PnL" style="--w: ' + (MAXR ? Math.round(100 * Math.abs(o.real) / MAXR) : 0) + '%">'
           + amount(o.real, o.realsol, cls(o.real)) + '<small class="' + cls(o.unreal) + '">' + (o.unreal ? money(o.unreal) + ' still held' : '') + '</small></td>'
+          + '<td class="num c-roi" data-h="ROI"' + (o.mult ? ' title="' + roiPct(o.mult) + ' · average exit ' + cap(o.exitcap) + ' ÷ average entry ' + cap(o.eavg) + '"' : ' title="Nothing sold yet"') + '>'
+          + '<b class="mono ' + (o.mult ? (o.mult >= 1 ? 'pos' : 'neg') : '') + '">' + roiX(o.mult) + '</b></td>'
           + '<td class="num two c-held" data-h="Held"><b class="mono">' + holdText(o.hold) + '</b><small>' + plural(o.buys, 'buy') + ' · '
           + (o.sells == null ? '— sells' : plural(o.sells, 'sell')) + '</small></td>'
           + '<td class="fund" data-h="Funded by">' + fd + '</td></tr>';
@@ -657,18 +662,9 @@
         document.getElementById('dids').innerHTML = EarlyTags.idMarks(idn);
       }
       function renderIdent(w) {
-        // who the wallet is, when Solana Tracker knows: an identification with its source, never a score
-        const el = document.getElementById('dident'), idn = idents[w];
         renderHead(w);
-        if (!idn) { el.hidden = true; el.innerHTML = ''; return; }
-        const h = EarlyTags.handle(idn), plats = EarlyTags.platforms(idn).map(f => Object.values(EarlyTags.BRANDS).find(b => b[0] === f)[1]);
-        const bits = [];
-        bits.push(EarlyTags.isKol(idn) ? 'A known trader' + (idn.name ? ' <b>' + esc(idn.name) + '</b>' : '') : (idn.name ? 'Username <b>' + esc(idn.name) + '</b>' : 'Labelled'));
-        if (h) bits.push('<a href="https://x.com/' + h + '" target="_blank" rel="noopener">@' + h + '</a>');
-        if (plats.length) bits.push('trades through ' + plats.join(', '));
-        if (idn.sns) bits.push(esc(idn.sns));
-        el.innerHTML = bits.join(' · ');
-        el.hidden = false;
+        const idn = idents[w];
+        document.getElementById('dname').title = (idn && idn.sns) || '';
       }
       const rankOf = new Map(all.map((o, i) => [o.w, i])), AGE_N = {{ s.age_lookups_max or 0 }}, ageTried = new Map();
       async function loadAge(w) {
@@ -688,25 +684,31 @@
         if (d.fresh || d.funder) fillFunders();
         if (drawer.dataset.w === w) renderWalletInfo(w);
       }
+      const ageText = ms => { const d = (Date.now() - ms) / 86400000;
+        return d >= 365 ? (d / 365).toFixed(d >= 3650 ? 0 : 1) + 'y' : d >= 1 ? Math.floor(d) + 'd' : Math.max(1, Math.floor(d * 24)) + 'h'; };
       function renderWalletInfo(w) {
-        const a = ages[w], fnd = funders[w], bn = bundle[w], out = [];
-        if (a && a.ms) out.push((a.exact ? 'First transaction ' : 'First transaction before ') + '<span class="dtc" data-ms="' + a.ms + '" data-long="1">' + EarlyTZ.fmt(a.ms, true) + '</span>.');
-        if (fnd) out.push('First SOL from <a class="mono" href="https://solscan.io/account/' + fnd + '" target="_blank" rel="noopener" title="' + fnd + '">' + short(fnd) + '</a>'
-          + (bn && bn.n > 1 ? ', which also funded ' + (bn.n - 1) + ' other wallet' + (bn.n === 2 ? '' : 's') + ' in this list (bundle).' : '.'));
-        const el = document.getElementById('dwinfo'), st = ageTried.get(w);
+        const a = ages[w], fnd = funders[w], bn = bundle[w], st = ageTried.get(w), out = [];
         const queued = !ageDone && (rankOf.get(w) ?? 1e9) < AGE_N;
-        if (!out.length && !queued && !st && AGE_N) loadAge(w);
-        el.innerHTML = out.length ? out.join(' ')
-          : queued ? 'Age and funder are still being checked…'
-          : st === 'connect' ? '<button type="button" class="link" id="dagego">Connect a wallet</button> to check when this wallet was created and who funded it.'
-          : st === 'paused' ? 'The age check is paused until next month: its budget is used up.'
-          : st === 'failed' ? 'The chain node did not answer. Reopen the card to try again.'
-          : st === 'capped' ? 'Today\'s age checks from wallet cards are used up. More tomorrow.'
-          : st === 'unchecked' ? 'Age and funder were not checked for this wallet.'
-          : st === 'done' ? 'No transaction history found.' : (AGE_N ? 'Checking when this wallet was created and who funded it…' : '');
+        if (!(a && a.ms) && !queued && !st && AGE_N) loadAge(w);
+        if (a && a.ms) {
+          const young = Date.now() - a.ms < 86400000;
+          out.push('<span class="dchip age' + (young ? ' young' : '') + '" title="Wallet age. First transaction '
+            + (a.exact ? '' : 'before ') + EarlyTZ.fmt(a.ms, true) + '">' + (a.exact ? '' : '≥') + ageText(a.ms) + '</span>');
+        } else if (AGE_N) {
+          const busy = queued || st === 'busy' || !st;
+          const why = busy ? 'Checking the wallet\'s age…' : st === 'connect' ? 'Connect a wallet to check its age and funder'
+            : st === 'paused' ? 'Age checks are paused until next month: their budget is used up'
+            : st === 'capped' ? 'Today\'s age checks from wallet cards are used up. More tomorrow'
+            : st === 'failed' ? 'The chain node did not answer. Reopen the card to try again'
+            : st === 'unchecked' ? 'Age not checked for this wallet' : 'No transaction history found';
+          out.push(st === 'connect' ? '<button type="button" class="dchip age q" id="dagego" title="' + why + '">age?</button>'
+            : '<span class="dchip age q" title="' + why + '">' + (busy ? '…' : '?') + '</span>');
+        }
+        if (fnd) out.push('<a class="dchip fund mono" href="https://solscan.io/account/' + fnd + '" target="_blank" rel="noopener" title="First SOL came from '
+          + fnd + (bn && bn.n > 1 ? ', which funded ' + bn.n + ' wallets here (bundle)' : '') + '">↘ ' + short(fnd) + (bn && bn.n > 1 ? '<small>×' + bn.n + '</small>' : '') + '</a>');
+        document.getElementById('dchips').innerHTML = out.join('');
         const go = document.getElementById('dagego');
         if (go) go.addEventListener('click', () => EarlyWallet.open(() => { acctOn = true; ageTried.delete(w); loadMe().then(() => loadAge(w)); }));
-        document.getElementById('dwsec').hidden = !el.innerHTML && !document.getElementById('dcross').innerHTML;
       }
       const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const utcDay = ms => { const d = new Date(ms); return MON[d.getUTCMonth()] + ' ' + d.getUTCDate(); };
@@ -758,19 +760,21 @@
             + '<td class="num muted">' + ago(t.last_ms) + '</td></tr>').join('') + '</tbody></table>';
       }
       function renderProfile(all) {
+        // numbers first, words only where a number needs one; how it is counted sits behind the i
         const p = (all.periods && all.periods[period]) || all;
         const sol = (window.EarlyCur && EarlyCur.get()) === 'sol' && p.pnl_sol != null;
         const cls = p.pnl_usd > 0 ? 'pos' : (p.pnl_usd < 0 ? 'neg' : '');
         const day = x => x ? '<b class="' + (x.usd >= 0 ? 'pos' : 'neg') + '">' + money(x.usd) + '</b><small>' + utcDay(x.ms) + '</small>' : '<b>—</b>';
-        const since = '<span class="dtc" data-ms="' + (all.oldest_ms || p.since_ms) + '">' + EarlyTZ.fmt(all.oldest_ms || p.since_ms, false) + '</span>';
-        const note = 'Counted by tracced from ' + nf(p.swaps) + ' swaps' + (all.partial ? ', the latest ones only, back to ' + since : '')
-          + '. A position counts once 99% of it is sold.'
-          + (p.unbacked_tokens ? ' ' + p.unbacked_tokens + ' token' + (p.unbacked_tokens === 1 ? ' was' : 's were') + ' sold without a buy in these days and '
-             + (p.unbacked_tokens === 1 ? 'is' : 'are') + ' left out: the cost is unknown.' : '');
-        dprof.innerHTML = !p.swaps ? '<p class="dline muted small">No swaps in these ' + p.days + ' days.</p>' :
-          '<div class="dhero"><div><span class="lbl">Realized PnL</span><b class="big ' + cls + '">' + (sol ? EarlyCur.sol(p.pnl_sol) : money(p.pnl_usd)) + '</b></div>'
-          + '<div class="r"><span class="lbl">Win rate</span><b class="big">' + (p.win_rate == null ? '—' : Math.round(p.win_rate * 100) + '%') + '</b>'
-          + '<span class="sub"><span class="pos">' + p.wins + 'W</span> / <span class="neg">' + p.losses + 'L</span> of ' + p.closed + ' closed</span></div></div>'
+        const info = document.getElementById('dprofi');
+        info.title = 'Counted by tracced from ' + nf(p.swaps) + ' swaps on every token' + (all.partial ? ', the latest ones only, back to ' + EarlyTZ.fmt(all.oldest_ms || p.since_ms, false) : '')
+          + '. A position counts as closed once 99% of it is sold.'
+          + (p.unbacked_tokens ? ' ' + plural(p.unbacked_tokens, 'token') + ' sold without a buy in these days ' + (p.unbacked_tokens === 1 ? 'is' : 'are') + ' left out: the cost is unknown.' : '');
+        info.hidden = !p.swaps;
+        info.classList.toggle('warn', !!(all.partial || p.unbacked_tokens));
+        dprof.innerHTML = !p.swaps ? '<p class="dline muted small">No swaps in ' + p.days + ' days.</p>' :
+          '<div class="dhero"><div><span class="lbl">PnL</span><b class="big ' + cls + '">' + (sol ? EarlyCur.sol(p.pnl_sol) : money(p.pnl_usd)) + '</b></div>'
+          + '<div class="r" title="' + p.closed + ' closed positions · win streak ' + p.win_streak + ' d, loss streak ' + p.loss_streak + ' d"><span class="lbl">Win rate</span><b class="big">' + (p.win_rate == null ? '—' : Math.round(p.win_rate * 100) + '%') + '</b>'
+          + '<span class="sub"><span class="pos">' + p.wins + 'W</span> <span class="neg">' + p.losses + 'L</span></span></div></div>'
           + spark(p)
           + '<div class="dgrid">'
           + '<div><span>Volume</span><b>' + money(p.volume_usd) + '</b></div>'
@@ -778,15 +782,11 @@
           + '<div><span>Avg hold</span><b>' + holdText(p.avg_hold_min) + '</b></div>'
           + '<div><span>Best day</span>' + day(p.best_day) + '</div>'
           + '<div><span>Worst day</span>' + day(p.worst_day) + '</div>'
-          + '<div><span>Max drawdown</span><b class="' + (p.max_drawdown_usd ? 'neg' : '') + '">' + (p.max_drawdown_usd ? money(-p.max_drawdown_usd) : '$0') + '</b></div>'
-          + '<div><span>Tokens</span><b>' + nf(p.tokens) + '</b><small>' + nf(p.open) + ' open</small></div>'
-          + '<div><span>Win streak</span><b>' + p.win_streak + ' d</b><small>loss streak ' + p.loss_streak + ' d</small></div>'
-          + '<div><span>Swaps</span><b>' + nf(p.swaps) + '</b></div>'
+          + '<div title="The deepest fall of the running PnL in these days"><span>Drawdown</span><b class="' + (p.max_drawdown_usd ? 'neg' : '') + '">' + (p.max_drawdown_usd ? money(-p.max_drawdown_usd) : '$0') + '</b></div>'
           + '</div>'
-          + (distHtml(p) ? '<h5>PnL of closed positions</h5>' + distHtml(p) : '')
-          + (all.heat ? '<h5>When it trades · 30 days · ' + ((window.EarlyTZ && EarlyTZ.get() === 'local') ? 'your time' : 'UTC') + '</h5>' + heatHtml(all.heat) : '')
-          + (all.recent && all.recent.length ? '<h5>Recent tokens · 30 days</h5>' + recentHtml(all.recent) : '')
-          + '<p class="dline muted small">' + note + '</p>';
+          + (distHtml(p) ? '<h5>Closed positions</h5>' + distHtml(p) : '')
+          + (all.heat ? '<h5>Active hours · ' + ((window.EarlyTZ && EarlyTZ.get() === 'local') ? 'your time' : 'UTC') + '</h5>' + heatHtml(all.heat) : '')
+          + (all.recent && all.recent.length ? '<h5>Recent tokens <span class="muted">' + nf(p.tokens) + ' · ' + nf(p.open) + ' open</span></h5>' + recentHtml(all.recent) : '');
         document.querySelectorAll('#dper [data-p]').forEach(b => b.classList.toggle('on', b.dataset.p === period));
         if (window.EarlyTZ) EarlyTZ.apply();
       }
@@ -798,13 +798,14 @@
       });
       async function loadProfile(w) {
         if (profiles.has(w)) { renderProfile(profiles.get(w)); return; }
-        dprof.innerHTML = '<div class="dskel"><i></i><i></i><i></i></div><p class="dline muted small">Reading this wallet\'s swaps on every token…</p>';
+        dprof.innerHTML = '<div class="dskel"><i></i><i></i><i></i></div>';
+        document.getElementById('dprofi').hidden = true;
         let r;
         try { r = await fetch('/wallet_profile.json?' + new URLSearchParams({ job: jobId, wallet: w }), { credentials: 'same-origin' }); }
         catch (e) { if (drawer.dataset.w === w) dprof.innerHTML = '<p class="dline muted small">Could not reach the server.</p>'; return; }
         if (drawer.dataset.w !== w) return;                   // the card moved on to another wallet meanwhile
         if (r.status === 401) {
-          dprof.innerHTML = '<p class="dline"><button type="button" class="ghost" id="dprofgo">Connect a wallet to load</button></p><p class="dline muted small">PnL, win rate and when it trades, over every token this wallet traded, counted from its swaps.</p>';
+          dprof.innerHTML = '<p class="dline"><button type="button" class="ghost" id="dprofgo" title="PnL, win rate and active hours over every token it traded, counted from its swaps">Connect a wallet to load</button></p>';
           document.getElementById('dprofgo').addEventListener('click', () => EarlyWallet.open(() => { acctOn = true; loadMe().then(() => loadProfile(w)); }));
           return;
         }
@@ -832,20 +833,19 @@
         if (!row) return '';
         const amt = (usd, sol) => (cur && sol != null ? EarlyCur.sol(+sol) : money(+usd));
         const cls = +d.real > 0 ? 'pos' : (+d.real < 0 ? 'neg' : '');
-        const sells = d.sells != null ? +d.sells : o.trades.filter(t => t.side === 'sell').length;   // the row counts every sell; the trades here stop at 200
-        const eavg = +d.eavg || 0;                                // what Exit vs entry divides by; a page from before it was sent leaves the cell out
-        return '<div class="dhero"><div><span class="lbl">PnL on this token</span><b class="big ' + cls + '">' + amt(d.real, d.realsol) + '</b>'
-          + '<span class="sub">sold ' + Math.round(+d.sold || 0) + '% of it' + (+d.hold ? ' · first sale after ' + holdText(+d.hold) : '') + '</span></div>'
-          + '<div class="r" title="Average exit cap ÷ average entry cap, buys before the range included"><span class="lbl">Exit vs entry</span><b class="big">' + (+d.mult ? ((+d.mult - 1) * 100 >= 0 ? '+' : '') + Math.round((+d.mult - 1) * 100) + '%' : '—') + '</b>'
-          + '<span class="sub">' + plural(+d.buys || 0, 'buy') + ' · ' + plural(sells, 'sell') + '</span></div></div>'
+        const eavg = +d.eavg || 0;                                // a page from before it was sent leaves the cell out
+        return '<div class="dhero"><div><span class="lbl">PnL</span><b class="big ' + cls + '">' + amt(d.real, d.realsol) + '</b>'
+          + '<span class="sub">sold ' + Math.round(+d.sold || 0) + '%' + (+d.hold ? ' · ' + holdText(+d.hold) + ' to first sale' : '') + '</span></div>'
+          + '<div class="r" title="Average exit cap ÷ average entry cap, buys before the range included"><span class="lbl">ROI</span>'
+          + '<b class="big ' + (+d.mult ? (+d.mult >= 1 ? 'pos' : 'neg') : '') + '">' + roiX(+d.mult) + '</b>'
+          + '<span class="sub">' + (+d.mult ? roiPct(+d.mult) : 'nothing sold') + '</span></div></div>'
           + '<div class="dgrid">'
-          + '<div title="Its entry inside the range"><span>Entry in range</span><b>' + ch.fmtMcap(+d.entry) + '</b></div>'
-          + (eavg ? '<div title="Over every buy on this token, before the range too: the entry that Exit vs entry compares with"><span>Avg entry cap</span><b>' + ch.fmtMcap(eavg) + '</b></div>' : '')
-          + '<div><span>Avg exit cap</span><b>' + (+d.exitcap ? ch.fmtMcap(+d.exitcap) : '—') + '</b></div>'
-          + '<div><span>In range</span><b>' + amt(d.inv, d.invsol) + '</b></div>'
-          + '<div><span>Total in</span><b>' + amt(d.tot, d.totsol) + '</b></div>'
+          + '<div title="Its first buy inside the range"><span>Entry</span><b>' + ch.fmtMcap(+d.entry) + '</b></div>'
+          + (eavg ? '<div title="Over every buy on this token, before the range too"><span>Avg entry</span><b>' + ch.fmtMcap(eavg) + '</b></div>' : '')
+          + '<div><span>Avg exit</span><b>' + (+d.exitcap ? ch.fmtMcap(+d.exitcap) : '—') + '</b></div>'
+          + '<div title="Bought inside the range"><span>In range</span><b>' + amt(d.inv, d.invsol) + '</b></div>'
+          + '<div title="Bought on this token in total"><span>Total in</span><b>' + amt(d.tot, d.totsol) + '</b></div>'
           + '<div><span>Sold for</span><b>' + amt(d.got, d.gotsol) + '</b></div>'
-          + '<div><span>Trades</span><b>' + o.n + '</b></div>'
           + '</div>';
       }
       function openStory(o) {
@@ -864,9 +864,12 @@
           ? '<b>' + CHAIN + ' Seen in ' + cx.length + ' of your other analyses</b><ul>' + cx.map(c =>
               '<li><a href="/job/' + encodeURIComponent(c.job) + '">' + crossLine(c) + '</a></li>').join('') + '</ul>'
           : '';
+        document.getElementById('dwsec').hidden = !cx.length;
         renderWalletInfo(o.wallet);
-        document.getElementById('dnote').textContent = (o.complete === false ? 'Exits not fetched (over the cap): only trades inside the range are known.' : 'All trades of this wallet on the token.')
-          + (o.truncated ? ' First ' + o.trades.length + ' of ' + o.n + '.' : '');
+        const sells = row && row.sells != null ? +row.sells : o.trades.filter(t => t.side === 'sell').length;   // the row counts every sell; the list stops at 200
+        document.getElementById('dtcount').textContent = row ? plural(+row.buys || 0, 'buy') + ' · ' + plural(sells, 'sell') : '';
+        document.getElementById('dnote').textContent = (o.complete === false ? 'Exits not fetched (over the cap): only trades inside the range are known. ' : '')
+          + (o.truncated ? 'First ' + o.trades.length + ' of ' + o.n + '.' : '');
         loadProfile(o.wallet);
         if (window.EarlyTZ) EarlyTZ.apply();
       }
