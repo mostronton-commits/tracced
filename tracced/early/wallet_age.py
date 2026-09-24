@@ -1,8 +1,9 @@
 """Вік гаманця з блокчейну: час його найстарішої транзакції (для тега-факту `fresh`).
 
-Джерело — публічний Solana RPC `getSignaturesForAddress(limit=1000)`: підписи йдуть від нових до
-старих, тож останній у списку — найстаріший. Якщо підписів менше 1000, вік точний; якщо рівно 1000 —
-гаманець старший за цю межу (точна дата невідома, `exact=False`, тегу `fresh` не буде).
+Джерело — Solana RPC `getSignaturesForAddress(limit=1000)`: підписи йдуть від нових до старих, тож
+останній у списку — найстаріший. Гортаємо сторінки, доки відповідь не порожня або доки не впремось у
+MAX_PAGES; у другому випадку вік невідомий (`exact=False`, тегу `fresh` не буде). Зупинятись на короткій
+сторінці НЕ можна: нода ST віддає [7, 1000, 1000, …], і тоді старий гаманець виглядав би свіжим.
 
 Нода за замовчуванням — офіційна api.mainnet-beta.solana.com: вона віддає повну історію підписів
 (проба 17.09.2026: гаманець з лютого → oldest = лютий, 0.3 с). publicnode НЕ підходить: тримає лише
@@ -20,12 +21,17 @@ import urllib.request
 
 DEFAULT_URL = "https://api.mainnet-beta.solana.com"
 LIMIT = 1000
+MAX_PAGES = 6            # 6 000 підписів: далі гаманець точно не «свіжий», а ходити глибше дорого
 RETRY_SLEEP = (2, 4, 8)
 
 
 class WalletAge:
-    def __init__(self, url=None, cache=None, pace_s=0.5, post=None, sleep=time.sleep):
+    def __init__(self, url=None, cache=None, pace_s=0.5, post=None, sleep=time.sleep, tx_url=None):
         self.url = url or os.getenv("SOLANA_RPC_URL") or DEFAULT_URL
+        # getTransaction і getSignaturesForAddress не конче живуть на одній ноді. Нода Solana Tracker віддає
+        # повну історію підписів і не ріже серії, але на getTransaction відповідає Internal error (перевірено
+        # 24.09.2026, усі варіанти параметрів). Тому одну транзакцію питаємо там, де вона працює.
+        self.tx_url = tx_url or os.getenv("SOLANA_RPC_TX_URL") or (DEFAULT_URL if self.url != DEFAULT_URL else self.url)
         self.cache = cache
         self.pace_s = pace_s
         self.requests = 0
@@ -36,15 +42,15 @@ class WalletAge:
         self._lock = threading.Lock()
 
     # ── транспорт ──
-    def _http(self, payload):
-        req = urllib.request.Request(self.url, data=json.dumps(payload).encode(),
+    def _http(self, payload, url=None):
+        req = urllib.request.Request(url or self.url, data=json.dumps(payload).encode(),
                                      headers={"Content-Type": "application/json",
                                               "User-Agent": "early-wallets/1.0"},   # без UA деякі ноди дають 403
                                      method="POST")
         with urllib.request.urlopen(req, timeout=30) as r:
             return json.loads(r.read().decode())
 
-    def _call(self, method, params):
+    def _call(self, method, params, url=None):
         payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
         last_err = None
         for attempt in range(len(RETRY_SLEEP) + 1):
@@ -54,7 +60,7 @@ class WalletAge:
                     self._sleep(wait)
                 try:
                     self.requests += 1
-                    d = self._post(payload)
+                    d = self._post(payload, url) if url else self._post(payload)
                     self._last = time.monotonic()
                 except urllib.error.HTTPError as e:
                     self._last = time.monotonic()
@@ -81,10 +87,23 @@ class WalletAge:
             if cached is not None:
                 self.cache_hits += 1
                 return cached
-        sigs = self._call("getSignaturesForAddress", [wallet, {"limit": LIMIT}]) or []
-        bt = (sigs[-1].get("blockTime") if sigs else None)
-        out = {"oldest_ms": int(bt) * 1000 if bt else None, "exact": len(sigs) < LIMIT, "n": len(sigs),
-               "oldest_sig": sigs[-1].get("signature") if sigs else None}
+        # Коротка сторінка НЕ означає кінець історії: нода Solana Tracker віддає першою сторінкою 7 підписів,
+        # а далі ще двадцять дев'ять по тисячі. Тому гортаємо, доки відповідь не порожня, і лише вичерпавши
+        # сторінки, зізнаємось, що точної дати не знаємо (exact=False, тег fresh не ставиться).
+        before, last, n, pages = None, None, 0, 0
+        while pages < MAX_PAGES:
+            params = [wallet, {"limit": LIMIT}]
+            if before:
+                params[1]["before"] = before
+            sigs = self._call("getSignaturesForAddress", params) or []
+            if not sigs:
+                break
+            n += len(sigs)
+            last, before = sigs[-1], sigs[-1].get("signature")
+            pages += 1
+        bt = last.get("blockTime") if last else None
+        out = {"oldest_ms": int(bt) * 1000 if bt else None, "exact": pages < MAX_PAGES, "n": n,
+               "oldest_sig": last.get("signature") if last else None}
         if self.cache is not None:
             self.cache.put(wallet, out)
         return out
@@ -98,7 +117,8 @@ class WalletAge:
             if cached is not None:
                 self.cache_hits += 1
                 return cached.get("funder")
-        tx = self._call("getTransaction", [oldest_sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}])
+        tx = self._call("getTransaction", [oldest_sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}],
+                         url=self.tx_url)
         out = {"funder": funder_from_tx(tx, wallet)}
         if self.cache is not None:
             self.cache.put(key, out)

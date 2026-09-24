@@ -11,21 +11,33 @@ detect:                             # pump detector: suggested ranges on the cha
   merge_gap_min: 60                 # pumps closer than this are one pump
 
 early:
-  plan: free                        # free (2,500 requests/month, 3 req/s) | advanced (200,000/month, no rate limit)
+  plan: advanced                # Pro: 1 000 000 requests a month, no rate limit. One call is one credit.
   example_job: 98kfF7_20260915-1930_1950   # a finished analysis pinned as the example on the home page (ignored if missing)
   demo_job: 98kfF7_20260915-1930_1950      # replays from output/early/demo/<mint>.json with zero requests (ignored if missing)
 
   # Cost of one new token. The entry range is always fetched in full (up to max_window_pages); exits come
   # either from the token's whole history (capped at max_trade_pages) or from each wallet's own trades
   # (1-4 requests per wallet) — the per-wallet path is where the credits go, so its cap is the main lever.
-  max_wallet_lookups: 250       # wallets that get exact exits; the rest keep their entry and get the no-exits tag
-  max_window_hours: 6           # a pump range is minutes to hours; a longer range is refused before anything is fetched
-  min_invested_usd: 95          # total bought inside the range, summed over all buys — smaller buyers stay out of the table
-  run_cap_requests: 1000        # hard ceiling for one run; reaching it leaves the remaining wallets entry-only
+  # Budget: 1M a month is about 33,000 a day. One busy new token costs roughly a thousand requests.
+  max_wallet_lookups: 2000      # was 250, which left 842 of 1,092 wallets without exits on the first trader's run
+  max_window_hours: 24          # was 6; the first trader reached for hours straight away
+  min_invested_usd: 20          # was 95, raised only to save credits — there is nothing to save now
+  run_cap_requests: 6000        # was 1000; the whole history of a busy token must not stop half way
 
-  # Wallet age and first funder (tags `fresh` and `bundle`) come from a Solana RPC, not from the Data API.
-  # These need the wallet's FIRST transaction, so the node must keep the full signature index. api.mainnet-beta
-  # (the default when SOLANA_RPC_URL is empty) does; most fast commercial nodes keep only a day or two and would
-  # make every wallet look new. Values below are paced for the public node — raise them only for a verified archive.
-  rpc_pace_s: 0.5               # 2 requests/s: the public node cuts bursts
-  age_lookups_max: 300          # wallets checked per analysis, in the background
+  # What the budget carries: 30 runs × ~1000 requests = 30,000 a day, the rest stays for charts.
+  runs_per_day: 5               # was 1
+  runs_global_per_day: 30       # was 10
+  ranges_per_token: 5           # was 3
+
+  # Charts of live tokens spend from the same budget (an overview is ~2 requests, a chunk of candles is 1).
+  browse_per_day_guest: 100     # was 30
+  browse_per_day: 600           # was 150
+  browse_global_per_day: 4000   # was 300
+
+  # Wallet age and first funder (tags `fresh` and `bundle`) come from a Solana RPC. That is a SEPARATE product
+  # with its own key and its own credit pool: Data API requests are not spent on it. The node must keep the full
+  # signature index. Checked 24.09.2026: rpc-mainnet.solanatracker.io returns exactly the history api.mainnet-beta
+  # does and never throttles a series, while the public node answers 429 on deep pagination.
+  # Note: that node returns short pages in the middle of a history, so wallet_age pages to an empty answer.
+  rpc_pace_s: 0.2               # 5 requests a second, the free RPC tier's pace; lower it on Developer
+  age_lookups_max: 600          # was 300
