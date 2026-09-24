@@ -1249,6 +1249,7 @@ async def job_page(request):
     else:
         result = None
     return render("job.html", request, job=job, save_id=job.canon or job.id, jstatus=status, result=result, s=app["s"], back=_back_link(job),
+                  max_my_tags=acct_mod.MAX_MY_TAGS,
                   sm=sm, TAGS=tags.DEFS, created=created or (job.t_from - 24 * HOUR), now=int(time.time() * 1000),
                   cov_text=report.coverage_text((result or {}).get("coverage")), default_method=assistant_mod.DEFAULT_METHOD, presets=assistant_mod.PRESETS,
                   assistant_on=app.get("assistant") is not None,
@@ -1379,6 +1380,7 @@ async def job_enrich_json(request):
     e = job.result.get("enrich") or {"done": 0, "total": 0, "fresh": 0}
     fresh = [r["wallet"] for r in job.result.get("rows") or [] if "fresh" in (r.get("tag_list") or [])]
     return web.json_response({"done": e.get("done", 0), "total": e.get("total", 0), "fresh": fresh,
+                              "funders_done": e.get("funders_done", 0),
                               "funders": job.result.get("funders") or {}, "bundle": job.result.get("bundle") or {},
                               "ages": job.result.get("ages") or {}, "identities": job.result.get("identities") or {}})
 

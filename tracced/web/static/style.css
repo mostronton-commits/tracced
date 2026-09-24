@@ -635,3 +635,36 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
 .chip.lp { margin-left: 6px; font-size: 11px; vertical-align: 1px; }
 .chip.demo { vertical-align: 4px; margin-left: 6px; font-size: 11px; background: #FEF3C7; border-color: #FCD34D; color: #92400E; cursor: help; }
 .me .stats { margin: 4px 0 14px; }
+/* ── wallet card v2: one scroll with a sticky head, sections with small headings, full screen on a phone ── */
+.drawer.wcard { width: 440px; }
+.drawer-scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
+.wcard .drawer-head { position: sticky; top: 0; z-index: 2; background: var(--surface); gap: 8px; padding: 10px 12px 10px 16px; }
+.dh-id { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.dh-id b { font-size: 13.5px; word-break: normal; }
+.dh-id .copy { height: 28px; width: 28px; padding: 0; font-size: 13px; color: #94A3B8; } .dh-id .copy:hover { color: var(--ink); }
+.dh-id .ext { font-size: 12px; margin-left: 4px; white-space: nowrap; color: var(--muted); border-bottom: 1px solid var(--line); } .dh-id .ext:hover { color: var(--ink); }
+.dh-act { display: flex; align-items: center; gap: 2px; flex: none; }
+.wcard .dstar, .wcard .x { width: 36px; height: 36px; padding: 0; font-size: 17px; line-height: 1; }
+.wcard .dstar.on { color: #D97706; }
+.dtags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 10px 16px 0; }
+.dtags:empty { display: none; }
+.dtags .tag { margin: 0; }
+.dtags .tag.mine { margin: 0; }
+.dtags .tagadd.wide { width: auto; height: 24px; gap: 4px; padding: 0 9px 0 7px; font: 11px/1 var(--sans); vertical-align: 0; }
+.wcard p.dident { border-top: 0; padding: 8px 16px 0; font-size: 12.5px; line-height: 1.7; }
+.wcard p.dident .tag { margin-left: 4px; }
+.dsec { padding: 12px 16px 14px; border-top: 1px solid var(--line); }
+.dtags + .dident + .dsec, .dtags + .dsec { margin-top: 10px; }
+.dsec h4 { margin: 0 0 8px; font: 600 10.5px/1.2 var(--sans); text-transform: uppercase; letter-spacing: .09em; color: var(--muted); }
+.wcard .drawer-facts { padding: 0; border-bottom: 0; }
+.wcard p.dline { padding: 0; margin: 8px 0 0; border-top: 0; font-size: 12.5px; line-height: 1.5; }
+.wcard p.dline:first-child { margin-top: 0; }
+.wcard .dcross { margin: 8px 0 0; }
+.wcard .story { width: 100%; }
+.wcard .story th, .wcard .story td { padding: 5px 6px; }
+.tag.t-known { color: #1E3A8A; border-color: #BFDBFE; background: #EFF6FF; }
+@media (max-width: 640px) {
+  .drawer, .drawer.wcard { width: 100vw; border-left: 0; }
+  .wcard .drawer-facts { grid-template-columns: repeat(2, 1fr); }
+  body.drawer-open { overflow: hidden; }       /* the page under the card does not scroll along with it */
+}

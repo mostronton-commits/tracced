@@ -165,15 +165,40 @@
         <p class="muted small">Reads only this table and your method. No predictions. Verify before acting. <span id="aleft"></span></p>
       </div>
     </aside>
-    <aside class="drawer" id="drawer" hidden>
-      <div class="drawer-head">
-        <div><b class="mono" id="dw"></b> <a class="ext" id="dsol" href="#" target="_blank" rel="noopener">Solscan ↗</a></div>
-        <button type="button" class="ghost x" id="dclose" title="Close">×</button>
+    <aside class="drawer wcard" id="drawer" hidden aria-label="Wallet card">
+      <div class="drawer-scroll">
+        <div class="drawer-head">
+          <div class="dh-id">
+            <b class="mono" id="dw"></b>
+            <button type="button" class="ghost copy" id="dcopy" data-copy="" title="Copy the address" aria-label="Copy the address">⧉</button>
+            <a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan">Solscan ↗</a>
+          </div>
+          <div class="dh-act">
+            <button type="button" class="ghost dstar" id="dstar" title="Add to your watchlist" aria-label="Add to your watchlist">☆</button>
+            <button type="button" class="ghost x" id="dclose" title="Close" aria-label="Close">×</button>
+          </div>
+        </div>
+        <div class="dtags" id="dtags"></div>
+        <p class="dident" id="dident" hidden></p>
+        <section class="dsec">
+          <h4>On {{ job.symbol }}</h4>
+          <div class="drawer-facts" id="dfacts"></div>
+        </section>
+        <section class="dsec">
+          <h4>Last {{ s.profile_days or 30 }} days, every token</h4>
+          <div id="dprof"></div>
+        </section>
+        <section class="dsec" id="dwsec">
+          <h4>Wallet</h4>
+          <p class="dline" id="dwinfo"></p>
+          <div class="dcross" id="dcross"></div>
+        </section>
+        <section class="dsec">
+          <h4>Trades on {{ job.symbol }}</h4>
+          <table class="story"><thead><tr><th>Time</th><th></th><th class="num">Amount</th><th class="num">Tokens</th><th class="num">Cap</th></tr></thead><tbody id="dtrades"></tbody></table>
+          <p class="muted small dline" id="dnote"></p>
+        </section>
       </div>
-      <div class="drawer-facts" id="dfacts"></div>
-      <div class="dcross" id="dcross"></div>
-      <div class="drawer-body"><table class="story"><thead><tr><th>Time</th><th></th><th class="num">USD</th><th class="num">Tokens</th><th class="num">Cap</th></tr></thead><tbody id="dtrades"></tbody></table></div>
-      <p class="muted small" id="dnote"></p>
     </aside>
 
     <script>
@@ -257,6 +282,8 @@
           if (inList(r.dataset.w)) { if (!has) { const s = document.createElement('button'); s.type = 'button'; s.className = 'saved'; s.title = 'In your watchlist · click to remove'; s.textContent = '★'; wid.appendChild(s); } }
           else if (has) has.remove();
         });
+        const card = document.getElementById('drawer');
+        if (card && !card.hidden && card.dataset.w && typeof syncStar === 'function') syncStar(card.dataset.w);
         const saved = !!(me && me.analyses && me.analyses[jobId]);
         sjob.textContent = saved ? '★ Saved' : '☆ Save analysis'; sjob.classList.toggle('on', saved);
         sjob.title = saved ? 'In My analyses · click to remove' : 'Keep this analysis under My analyses';
@@ -432,35 +459,166 @@
             c.title = 'Stays visible when filtered · click for the story';
             c.addEventListener('click', ev => { if (!ev.target.closest('.x')) openStory(o); });
             const x = document.createElement('button'); x.type = 'button'; x.className = 'ghost x'; x.textContent = '×'; x.title = 'Remove from chart';
-            x.addEventListener('click', () => { onChart.splice(onChart.indexOf(o), 1); if (drawer.dataset.w === o.wallet) drawer.hidden = true; renderOnChart(); });
+            x.addEventListener('click', () => { onChart.splice(onChart.indexOf(o), 1); if (drawer.dataset.w === o.wallet) closeCard(); renderOnChart(); });
             c.appendChild(x); bar.appendChild(c);
           });
         }
         ch.setWalletMarkers(onChart);
         apply();
       }
+      // the wallet card: what this wallet did on this token, who it is if anyone knows, how it trades overall, where its SOL came from
+      const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const rowOf = w => rows.find(r => r.dataset.w === w);
+      const MAX_TAGS = {{ max_my_tags }};
+      const PLUS = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg>';
+      const dtags = document.getElementById('dtags'), dstar = document.getElementById('dstar'), dprof = document.getElementById('dprof');
+      let idents = {}, ages = {}, ageDone = false;
+      const profiles = new Map();
+      const myTags = w => (me && me.wallets && me.wallets[w] && me.wallets[w].my_tags) || [];
+      function closeCard() { drawer.hidden = true; document.body.classList.remove('drawer-open'); }
+      function syncStar(w) {
+        const on = inList(w);
+        dstar.textContent = on ? '★' : '☆'; dstar.classList.toggle('on', on);
+        dstar.title = on ? 'In your watchlist · click to remove' : 'Add to your watchlist'; dstar.setAttribute('aria-label', dstar.title);
+      }
+      function renderTags(w) {
+        const row = rowOf(w), mine = myTags(w);
+        const ours = row ? [...row.querySelectorAll('.tags .tag:not(.t-seen-before):not(.t-known)')].map(t => t.outerHTML).join('') : '';
+        dtags.innerHTML = ours + mine.map(t => '<button type="button" class="tag mine" title="Your tag · click to remove">' + esc(t) + '</button>').join('')
+          + (mine.length < MAX_TAGS ? '<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd wide" title="Your own tag for this wallet" aria-label="Add your own tag">' + PLUS + '<span>tag</span></button>' : '');
+      }
+      function renderIdent(w) {
+        // who the wallet is, when Solana Tracker knows: an identification with its source, never a score
+        const el = document.getElementById('dident'), idn = idents[w];
+        if (!idn) { el.hidden = true; el.innerHTML = ''; return; }
+        const bits = [];
+        if (idn.name) bits.push('<b>' + esc(idn.name) + '</b>');
+        const h = String(idn.twitter || '').replace(/^@/, '').replace(/[^A-Za-z0-9_]/g, '');
+        if (h) bits.push('<a href="https://x.com/' + h + '" target="_blank" rel="noopener">@' + h + '</a>');
+        if (idn.sns) bits.push(esc(idn.sns));
+        const labels = [...new Set([idn.type].concat(idn.tags || [], idn.platforms || []).filter(Boolean))];
+        el.innerHTML = (bits.length ? 'Known as ' + bits.join(' · ') : 'Labelled')
+          + (labels.length ? ' ' + labels.map(l => '<span class="tag">' + esc(l) + '</span>').join('') : '')
+          + ' <span class="muted small">per Solana Tracker</span>';
+        el.hidden = false;
+      }
+      function renderWalletInfo(w) {
+        const a = ages[w], fnd = funders[w], bn = bundle[w], out = [];
+        if (a && a.ms) out.push((a.exact ? 'First transaction ' : 'First transaction before ') + '<span class="dtc" data-ms="' + a.ms + '" data-long="1">' + EarlyTZ.fmt(a.ms, true) + '</span>.');
+        if (fnd) out.push('First SOL from <a class="mono" href="https://solscan.io/account/' + fnd + '" target="_blank" rel="noopener" title="' + fnd + '">' + short(fnd) + '</a>'
+          + (bn && bn.n > 1 ? ', which also funded ' + (bn.n - 1) + ' other wallet' + (bn.n === 2 ? '' : 's') + ' in this list (bundle).' : '.'));
+        const el = document.getElementById('dwinfo');
+        el.innerHTML = out.length ? out.join(' ') : (ageDone ? '' : 'Age and funder are still being checked…');
+        document.getElementById('dwsec').hidden = !el.innerHTML && !document.getElementById('dcross').innerHTML;
+      }
+      const holdText = m => m == null ? '—' : m < 60 ? Math.round(m) + ' min' : m < 1440 ? (m / 60).toFixed(m < 600 ? 1 : 0) + ' h' : Math.round(m / 1440) + ' d';
+      function renderProfile(p) {
+        const sol = (window.EarlyCur && EarlyCur.get()) === 'sol' && p.pnl_sol != null;
+        const cls = p.pnl_usd > 0 ? 'pos' : (p.pnl_usd < 0 ? 'neg' : '');
+        const since = '<span class="dtc" data-ms="' + (p.oldest_ms || p.since_ms) + '">' + EarlyTZ.fmt(p.oldest_ms || p.since_ms, false) + '</span>';
+        dprof.innerHTML = (p.swaps ? '<div class="drawer-facts">'
+          + '<div><b class="' + cls + '">' + (sol ? EarlyCur.sol(p.pnl_sol) : money(p.pnl_usd)) + '</b><span>PnL</span></div>'
+          + '<div><b>' + (p.win_rate == null ? '—' : Math.round(p.win_rate * 100) + '%') + '</b><span>win rate' + (p.closed ? ', ' + p.wins + ' of ' + p.closed : '') + '</span></div>'
+          + '<div><b>' + holdText(p.avg_hold_min) + '</b><span>avg hold</span></div>'
+          + '<div><b>' + p.tokens + '</b><span>tokens</span></div>'
+          + '<div><b>' + p.swaps + '</b><span>swaps</span></div>'
+          + '<div><b>' + p.open + '</b><span>still open</span></div></div>'
+          + (p.best && p.best.length ? '<p class="dline small">Best: ' + p.best.map(b => esc(b.symbol || short(b.mint)) + ' <span class="pos">' + money(b.realized_usd) + '</span>').join(' · ') + '</p>' : '')
+          : '<p class="dline muted small">No swaps in these days.</p>')
+          + '<p class="dline muted small">Counted by tracced from ' + p.swaps + ' swaps'
+          + (p.partial ? ', the latest ones only, back to ' + since : '') + '. A position counts once it is 99% sold.'
+          + (p.unbacked_tokens ? ' ' + p.unbacked_tokens + ' token' + (p.unbacked_tokens === 1 ? ' was' : 's were') + ' sold without a buy in these days and ' + (p.unbacked_tokens === 1 ? 'is' : 'are') + ' left out: the cost is unknown.' : '') + '</p>';
+      }
+      async function loadProfile(w) {
+        if (profiles.has(w)) { renderProfile(profiles.get(w)); return; }
+        dprof.innerHTML = '<p class="dline muted small">Loading the last days of this wallet…</p>';
+        let r;
+        try { r = await fetch('/wallet_profile.json?' + new URLSearchParams({ job: jobId, wallet: w }), { credentials: 'same-origin' }); }
+        catch (e) { if (drawer.dataset.w === w) dprof.innerHTML = '<p class="dline muted small">Could not reach the server.</p>'; return; }
+        if (drawer.dataset.w !== w) return;                   // the card moved on to another wallet meanwhile
+        if (r.status === 401) {
+          dprof.innerHTML = '<p class="dline"><button type="button" class="ghost" id="dprofgo">Connect a wallet to load</button></p><p class="dline muted small">PnL and win rate over every token this wallet traded, counted from its swaps.</p>';
+          document.getElementById('dprofgo').addEventListener('click', () => EarlyWallet.open(() => { acctOn = true; loadMe().then(() => loadProfile(w)); }));
+          return;
+        }
+        let d = {}; try { d = await r.json(); } catch (e) {}
+        if (!r.ok) { dprof.innerHTML = '<p class="dline muted small">' + esc(d.error || 'Could not load this wallet.') + '</p>'; return; }
+        profiles.set(w, d); renderProfile(d);
+      }
+      async function saveMyTags(w, tags) {
+        try {
+          const d = await EarlyWallet.post('/me/wallets/tags', { wallet: w, tags });
+          blank(); me.wallets[w] = me.wallets[w] || {}; me.wallets[w].my_tags = d.tags || [];
+        } catch (e) { EarlyUI.toast(e.message); }
+        if (drawer.dataset.w === w) renderTags(w);
+      }
+      async function addOne(w) {
+        try {
+          await EarlyWallet.post('/me/wallets', { job: jobId, wallets: [w] });
+          blank(); me.wallets[w] = me.wallets[w] || { my_tags: [] }; markSaved(); return true;
+        } catch (e) { EarlyUI.toast(e.message); return false; }
+      }
       function openStory(o) {
         const cur = (window.EarlyCur && EarlyCur.get()) === 'sol';
-        const row = rows.find(r => r.dataset.w === o.wallet), d = row ? row.dataset : {};
-        drawer.dataset.w = o.wallet; drawer.hidden = false;
-        document.getElementById('dw').textContent = o.wallet; document.getElementById('dsol').href = 'https://solscan.io/account/' + o.wallet;
+        const row = rowOf(o.wallet), d = row ? row.dataset : {};
+        drawer.dataset.w = o.wallet; drawer.hidden = false; document.body.classList.add('drawer-open');
+        const dw = document.getElementById('dw'); dw.textContent = short(o.wallet); dw.title = o.wallet;
+        document.getElementById('dcopy').dataset.copy = o.wallet;
+        document.getElementById('dsol').href = 'https://solscan.io/account/' + o.wallet;
+        syncStar(o.wallet); renderTags(o.wallet); renderIdent(o.wallet);
         const amt = (usd, sol) => (cur && sol !== undefined ? EarlyCur.sol(+sol) : money(+usd));
-        document.getElementById('dfacts').innerHTML = row ? '<div><b>' + ch.fmtMcap(+d.entry) + '</b><span>entry cap</span></div><div><b>' + (+d.exitcap ? ch.fmtMcap(+d.exitcap) : '—') + '</b><span>exit cap</span></div><div><b>' + amt(d.inv, d.invsol) + '</b><span>in range</span></div><div><b>' + amt(d.tot, d.totsol) + '</b><span>total</span></div><div><b>' + amt(d.got, d.gotsol) + '</b><span>sold</span></div><div><b class="' + (+d.real > 0 ? 'pos' : (+d.real < 0 ? 'neg' : '')) + '">' + amt(d.real, d.realsol) + '</b><span>realized</span></div>' : '';
+        document.getElementById('dfacts').innerHTML = row ? '<div><b>' + ch.fmtMcap(+d.entry) + '</b><span>entry cap</span></div><div><b>' + (+d.exitcap ? ch.fmtMcap(+d.exitcap) : '—') + '</b><span>exit cap</span></div><div><b>' + amt(d.inv, d.invsol) + '</b><span>in range</span></div><div><b>' + amt(d.tot, d.totsol) + '</b><span>total</span></div><div><b>' + amt(d.got, d.gotsol) + '</b><span>sold</span></div><div><b class="' + (+d.real > 0 ? 'pos' : (+d.real < 0 ? 'neg' : '')) + '">' + amt(d.real, d.realsol) + '</b><span>PnL</span></div>' : '';
         dtrades.innerHTML = o.trades.map(t => '<tr class="' + t.side + '"><td class="mono dtc" data-ms="' + t.t + '">' + EarlyTZ.fmt(t.t, false) + '</td><td>' + (t.side === 'buy' ? '<b class="buy">▲ buy</b>' : '<b class="sell">▼ sell</b>') + '</td><td class="num mono">' + (cur && t.sol != null ? EarlyCur.sol(t.sol) : money(t.usd)) + '</td><td class="num mono">' + (t.qty ? ch.fmtMcap(t.qty) : '—') + '</td><td class="num mono">' + ch.fmtMcap(t.mcap) + '</td></tr>').join('');
         const cx = crossings[o.wallet] || [];
         document.getElementById('dcross').innerHTML = cx.length
           ? '<b>' + CHAIN + ' Seen in ' + cx.length + ' of your other analyses</b><ul>' + cx.map(c =>
               '<li><a href="/job/' + c.job + '">' + crossLine(c) + '</a></li>').join('') + '</ul>'
           : '';
-        const fnd = funders[o.wallet], bn = bundle[o.wallet];
-        document.getElementById('dnote').innerHTML = (fnd ? 'First SOL from <a class="mono" href="https://solscan.io/account/' + fnd + '" target="_blank" rel="noopener">' + short(fnd) + '</a>' + (bn ? ' · shared with ' + (bn.n - 1) + ' other wallets here (bundle)' : '') + '. ' : '') +
-          (o.complete === false ? 'Exits not fetched (over the cap) — only trades inside the range are known.' : 'All trades of this wallet on the token.') + (o.truncated ? ' First ' + o.trades.length + ' of ' + o.n + '.' : '');
+        renderWalletInfo(o.wallet);
+        document.getElementById('dnote').textContent = (o.complete === false ? 'Exits not fetched (over the cap): only trades inside the range are known.' : 'All trades of this wallet on the token.')
+          + (o.truncated ? ' First ' + o.trades.length + ' of ' + o.n + '.' : '');
+        loadProfile(o.wallet);
         if (window.EarlyTZ) EarlyTZ.apply();
       }
-      document.getElementById('dclose').addEventListener('click', () => { drawer.hidden = true; });
+      document.getElementById('dclose').addEventListener('click', closeCard);
+      document.addEventListener('keydown', e => { if (e.key === 'Escape' && !drawer.hidden) closeCard(); });
+      dstar.addEventListener('click', () => {
+        const w = drawer.dataset.w;
+        withAcct(async () => {
+          if (inList(w)) await removeWallets([w]);
+          else if (await addOne(w)) EarlyUI.toast('Added to your watchlist · <a href="/me#list">Watchlist →</a>');
+          if (drawer.dataset.w === w) { syncStar(w); renderTags(w); }
+        });
+      });
+      // your own tags: a tag is a reason to watch, so tagging a wallet that is not watched yet adds it to the watchlist
+      dtags.addEventListener('click', e => {
+        const w = drawer.dataset.w, mine = e.target.closest('.tag.mine');
+        if (mine) { saveMyTags(w, myTags(w).filter(t => t !== mine.textContent)); return; }
+        if (!e.target.closest('.tagadd')) return;
+        withAcct(async () => {
+          if (!inList(w) && !(await addOne(w))) return;
+          if (drawer.dataset.w !== w) return;
+          renderTags(w); syncStar(w);
+          const inp = dtags.querySelector('.tagin'), add = dtags.querySelector('.tagadd');
+          if (inp) { inp.hidden = false; if (add) add.hidden = true; inp.focus(); }
+        });
+      });
+      dtags.addEventListener('keydown', e => {
+        const inp = e.target.closest('.tagin'); if (!inp) return;
+        const w = drawer.dataset.w;
+        if (e.key === 'Escape') { e.stopPropagation(); renderTags(w); return; }
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const v = inp.value.trim();
+        if (!v) { renderTags(w); return; }
+        saveMyTags(w, myTags(w).concat([v]));
+      });
+      dtags.addEventListener('focusout', e => { const inp = e.target.closest('.tagin'); if (inp && !inp.value.trim()) setTimeout(() => { if (document.activeElement !== inp) renderTags(drawer.dataset.w); }, 150); });
       async function toggleWallet(w, story) {
         const i = onChart.findIndex(o => o.wallet === w);
-        if (i >= 0) { if (story) { openStory(onChart[i]); return; } onChart.splice(i, 1); if (drawer.dataset.w === w) drawer.hidden = true; renderOnChart(); return; }
+        if (i >= 0) { if (story) { openStory(onChart[i]); return; } onChart.splice(i, 1); if (drawer.dataset.w === w) closeCard(); renderOnChart(); return; }
+        const full = onChart.length >= MAX_ON_CHART;
+        if (full && !story) { EarlyUI.toast(MAX_ON_CHART + ' wallets on the chart is the limit — remove one to add another'); return; }   // before paying for the trades
         const r = await fetch('/wallet_trades.json?' + new URLSearchParams({ job: jobId, wallet: w }));
         if (!r.ok) {                                             // say why, never a dead click
           let err = {}; try { err = await r.json(); } catch (e) {}
@@ -468,8 +626,8 @@
           return;
         }
         const d = await r.json();
-        if (onChart.length >= MAX_ON_CHART) { EarlyUI.toast(MAX_ON_CHART + ' wallets on the chart is the limit — remove one to add another'); return; }
         const o = { wallet: w, bundleColor: bundleColor(w), trades: d.trades, n: d.n, truncated: d.truncated, complete: d.complete };
+        if (onChart.length >= MAX_ON_CHART) { openStory(o); return; }   // the chart keeps its ten; the card still opens
         onChart.push(o); renderOnChart(); if (story) openStory(o);
       }
       tbody.addEventListener('click', e => {
@@ -484,7 +642,7 @@
       try { const m = localStorage.getItem(MKEY); if (m) amethod.value = m; } catch (e) {}
       let lastPicks = [];
       const ASSIST_ON = {{ 'true' if assistant_on else 'false' }}, aipop = document.getElementById('aipop'), aiwrap = document.getElementById('aiwrap');
-      document.getElementById('askbtn').addEventListener('click', () => { if (ASSIST_ON) { apanel.hidden = !apanel.hidden; drawer.hidden = true; } else aipop.hidden = !aipop.hidden; });
+      document.getElementById('askbtn').addEventListener('click', () => { if (ASSIST_ON) { apanel.hidden = !apanel.hidden; closeCard(); } else aipop.hidden = !aipop.hidden; });
       if (!ASSIST_ON) { document.getElementById('askbtn').addEventListener('mouseenter', () => { aipop.hidden = false; }); aiwrap.addEventListener('mouseleave', () => { aipop.hidden = true; }); }
       document.getElementById('aclose').addEventListener('click', () => { apanel.hidden = true; });
       document.getElementById('areset').addEventListener('click', () => { amethod.value = DEFAULT_METHOD; try { localStorage.removeItem(MKEY); } catch (e) {} });
@@ -510,30 +668,49 @@
       document.getElementById('awatch').addEventListener('click', () => { lastPicks.forEach(p => selected.add(p.wallet)); saveSel(); syncChecks(); withAcct(saveWallets); });
       apanel.querySelectorAll('.apreset').forEach(b => b.addEventListener('click', () => { amethod.value = b.dataset.method; try { localStorage.setItem(MKEY, amethod.value); } catch (e) {} apanel.querySelectorAll('.apreset').forEach(x => x.classList.toggle('on', x === b)); }));
 
-      // background wallet-age check → `fresh` tags appear without a reload; filters re-apply each time
+      // background wallet-age check → `fresh` tags appear without a reload; filters re-apply each time.
+      // The same poll brings who a wallet is (Solana Tracker's identity) and its first transaction, for the card.
       const en = document.getElementById('enrich');
-      if (en) {
-        const defs = {{ TAGS|tojson }};
-        const tick = async () => {
-          let d; try { const r = await fetch('/job/' + jobId + '.enrich.json'); if (!r.ok) { en.hidden = true; return; } d = await r.json(); } catch (e) { en.hidden = true; return; }
-          if (!d.total) { en.hidden = true; return; }
-          let added = 0;
-          funders = d.funders || {}; bundle = d.bundle || {};
-          const addTag = (w, tag, text, title) => { const r = rows.find(x => x.dataset.w === w); if (!r || r.dataset.tags.split(' ').includes(tag)) return;
-            r.dataset.tags = (r.dataset.tags ? r.dataset.tags + ' ' : '') + tag; added++;
-            const t = document.createElement('span'); t.className = 'tag t-' + tag; t.title = title; t.textContent = text; r.querySelector('.tags').prepend(t); };
-          d.fresh.forEach(w => addTag(w, 'fresh', 'fresh', defs.fresh));
-          Object.keys(bundle).forEach(w => addTag(w, 'bundle', 'bundle ×' + bundle[w].n, defs.bundle + ' — funder ' + short(bundle[w].funder)));
-          fillFunders();                                          // funders arrive after the page, so the column fills here
-          let rings = 0;                                          // bundles arrive after the page: ring the wallets already on the chart
-          onChart.forEach(o => { const c = bundleColor(o.wallet); if (c !== o.bundleColor) { o.bundleColor = c; rings++; } });
-          if (rings) renderOnChart();
-          if (added) apply();
-          if (d.done < d.total) { en.textContent = 'wallet age ' + d.done + '/' + d.total + '…'; setTimeout(tick, 5000); }
-          else { const nb = Object.keys(bundle).length; en.textContent = 'wallet age checked' + (d.fresh.length ? ' · ' + d.fresh.length + ' fresh' : '') + (nb ? ' · ' + nb + ' in bundles' : ''); }
-        };
-        tick();
+      const defs = {{ TAGS|tojson }};
+      function markKnown() {
+        // a wallet somebody has named gets its name in the row: the rest are the unlabelled ones this table is for
+        rows.forEach(r => {
+          const idn = idents[r.dataset.w], tg = r.querySelector('.tags');
+          if (!idn || !tg || tg.querySelector('.t-known')) return;
+          const h = String(idn.twitter || '').replace(/^@/, '');
+          const t = document.createElement('span'); t.className = 'tag t-known';
+          t.textContent = h ? '@' + h : (idn.name || idn.type || 'known');
+          t.title = 'Known wallet' + (idn.name ? ': ' + idn.name : '') + ' · per Solana Tracker';
+          tg.prepend(t);
+        });
       }
+      let polls = 0;                                            // a page left open stops asking after ten minutes
+      const again = () => { if (++polls < 120) setTimeout(tick, 5000); };
+      const tick = async () => {
+        let d; try { const r = await fetch('/job/' + jobId + '.enrich.json'); if (!r.ok) { if (en) en.hidden = true; ageDone = true; return; } d = await r.json(); } catch (e) { if (en) en.hidden = true; ageDone = true; return; }
+        idents = d.identities || {}; ages = d.ages || {};
+        markKnown();
+        const refresh = () => { if (!drawer.hidden && drawer.dataset.w) { renderIdent(drawer.dataset.w); renderWalletInfo(drawer.dataset.w); if (window.EarlyTZ) EarlyTZ.apply(); } };
+        if (!en || !d.total) { if (en) en.hidden = true; ageDone = true; refresh(); return; }
+        let added = 0;
+        funders = d.funders || {}; bundle = d.bundle || {};
+        const addTag = (w, tag, text, title) => { const r = rows.find(x => x.dataset.w === w); if (!r || r.dataset.tags.split(' ').includes(tag)) return;
+          r.dataset.tags = (r.dataset.tags ? r.dataset.tags + ' ' : '') + tag; added++;
+          const t = document.createElement('span'); t.className = 'tag t-' + tag; t.title = title; t.textContent = text; r.querySelector('.tags').prepend(t); };
+        d.fresh.forEach(w => addTag(w, 'fresh', 'fresh', defs.fresh));
+        Object.keys(bundle).forEach(w => addTag(w, 'bundle', 'bundle ×' + bundle[w].n, defs.bundle + ' — funder ' + short(bundle[w].funder)));
+        fillFunders();                                          // funders arrive after the page, so the column fills here
+        let rings = 0;                                          // bundles arrive after the page: ring the wallets already on the chart
+        onChart.forEach(o => { const c = bundleColor(o.wallet); if (c !== o.bundleColor) { o.bundleColor = c; rings++; } });
+        if (rings) renderOnChart();
+        if (added) apply();
+        const busy = d.done < d.total || (d.funders_done != null && d.funders_done < d.total);
+        ageDone = !busy;
+        if (d.done < d.total) { en.textContent = 'wallet age ' + d.done + '/' + d.total + '…'; again(); }
+        else { const nb = Object.keys(bundle).length; en.textContent = (busy ? 'funders ' + (d.funders_done || 0) + '/' + d.total + '…' : 'wallet age checked') + (d.fresh.length ? ' · ' + d.fresh.length + ' fresh' : '') + (nb ? ' · ' + nb + ' in bundles' : ''); if (busy) again(); }
+        refresh();
+      };
+      tick();
       loadCrossings();
     })();
     </script>

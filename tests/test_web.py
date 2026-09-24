@@ -258,6 +258,9 @@ if AioHTTPTestCase:
             self.assertIn("↓ Export", html)
             self.assertIn('id="cur"', html)                                # перемикач USD | SOL над таблицею
             self.assertIn('class="button holo" id="askbtn"', html)         # сяйво лишилось тільки на кнопці агента
+            for el in ('id="dtags"', 'id="dident"', 'id="dprof"', 'id="dwinfo"', 'id="dstar"', 'id="dcopy"',
+                       'id="dfacts"', 'id="dcross"', 'id="dtrades"', 'id="dnote"', 'id="dclose"'):
+                self.assertIn(el, html)                                    # картка гаманця: секції, на які спирається скрипт
             self.assertIn('class="button wl" id="watchbtn"', html)
             self.assertIn("data-invsol=", html)                            # рядок таблиці несе суми в SOL
             self.assertIn("data-sol=", html)                               # і плитка «Spent in range» теж
