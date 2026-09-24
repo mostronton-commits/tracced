@@ -233,7 +233,7 @@ if AioHTTPTestCase:
             for path in ("/", "/docs"):
                 html = await (await self.client.get(path)).text()
                 self.assertIn('<footer class="foot"><div class="foot-in">', html)
-                self.assertIn(">v0.3<", html)                                   # product version, not the asset hash
+                self.assertIn(">v0.4<", html)                                   # product version, not the asset hash
                 self.assertIn('href="https://github.com/mostronton-commits/tracced"', html)
                 self.assertIn('href="https://x.com/tracced_xyz"', html)
             html = await (await self.client.get("/docs")).text()

@@ -22,6 +22,15 @@ The range is always fetched in full. For each wallet's history the app then take
 paths: the token's whole trade history, or each wallet's own trades. Completeness decides, not price. The line
 above the table says which path ran and for how many wallets exits are known.
 
+## How long it takes
+
+The range is read page by page, because each page starts where the previous one ended. After that the wallets are
+independent of each other, so their histories are fetched eight at a time. A thousand wallets take seconds rather
+than minutes.
+
+One run never spends more than its cap. A wallet starts only when the most it could cost still fits, so fetching
+in parallel cannot push a run past its limit.
+
 !!! warning "🔧 Two defects in the source, fixed on the way in"
     The trade feed silently drops about 1% of swaps under naive pagination. We overlap the cursor and
     de-duplicate by transaction. About one trade in a thousand arrives with a broken token amount; it is repriced
@@ -29,7 +38,7 @@ above the table says which path ran and for how many wallets exits are known.
 
 ## Dollars or SOL
 
-The `USD | SOL` switch in the footer changes the unit of every amount that came from a swap: spent, sold, made.
+The `USD | SOL` switch above the table changes the unit of every amount that came from a swap: spent, sold, made.
 
 Nothing is converted at today's rate. Both figures were recorded by the same swap, so the SOL amount is what
 actually moved on chain and the dollar amount is what it was worth then. Profit is counted the same way in both
@@ -39,8 +48,9 @@ What a wallet still holds stays in dollars. It is a valuation at a later price, 
 
 ## What the token itself did
 
-Two events sit under the chart and as thin lines on it: when trading left the launchpad, and when someone paid
-DexScreener to show the token's profile. Together they often explain the timing of a run.
+Two events are marked on the price itself and named in a line above the chart: **M** where trading left the
+launchpad, **$** where someone paid DexScreener to show the token's profile. Together they often explain the timing
+of a run.
 
 The first comes from the token's own pools, which arrive in the response an analysis already pays for. The second
 comes from DexScreener's public order list, which is free and costs no requests at all.
@@ -55,3 +65,31 @@ Two facts are not trades, so they do not come from the trade feed: when a wallet
 and who sent it its first SOL. Those come from a Solana RPC node with the full signature index.
 
 They are what `fresh` and `bundle` are built from, and they fill in quietly after the table is already on screen.
+These lookups have a monthly budget of their own. When it runs out, the check pauses, the page says so, and it
+picks up again next month. A wallet checked before costs nothing.
+
+## The wallet card
+
+Click a wallet's name. The card shows, top to bottom:
+
+1. its tags, ours and your own;
+2. who it is, only when Solana Tracker names it: a KOL, an X handle, a trading platform, with the source written
+   next to it;
+3. what it did on this token;
+4. its last 30 days on every token it traded;
+5. its first transaction and who sent it its first SOL;
+6. its trades on this token.
+
+The 30 days are counted by tracced from the wallet's own swaps, the same way as the table: average cost, and
+profit only on tokens the wallet actually bought. A position is closed once 99% of it is sold. Win rate is the
+closed positions that made money, out of all closed ones.
+
+A token the wallet sold in those days without buying it there is left out and counted apart. It came by transfer
+or was bought earlier, so its cost is unknown, and a transfer is not a profit.
+
+!!! info "📊 Why not the numbers Solana Tracker already sells"
+    Their PnL comes from a formula they do not publish, and their win rate over a period counts profitable days,
+    not positions. The card shows numbers you can rebuild from the swaps yourself.
+
+Loading the 30 days takes a few requests and a connected wallet. The answer is kept for a day, so opening the same
+wallet again is free for everyone.

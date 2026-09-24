@@ -142,6 +142,23 @@ class TestClient(unittest.TestCase):
         self.assertEqual(st.identity("K1"), {"name": "Cented", "twitter": "@Cented7", "type": "kol"})
         self.assertIsNone(st.identity("U1"))
 
+    def test_a_refused_identity_parameter_does_not_sink_the_analysis(self):
+        import io
+        import urllib.error
+        st = EarlyST("k", pause=0, identity_cache=FakeCache())
+        st.paths = []
+
+        def fake(path):
+            st.paths.append(path)
+            if "enrich" in path:
+                raise urllib.error.HTTPError(path, 400, "bad param", {}, io.BytesIO(b""))
+            return {"trades": [], "hasNextPage": False}
+        st._get = fake
+        self.assertEqual(st.trades_page("MINT", NOW - 1)["trades"], [])
+        st.trades_page("MINT", NOW)
+        self.assertEqual(len(st.paths), 3)                        # відмова, повтор без параметра, далі одразу без нього
+        self.assertNotIn("enrich", st.paths[2])
+
     def test_without_the_cache_nothing_is_asked(self):
         st = self.client([{"trades": [], "hasNextPage": False}], identity=False)
         st.trades_page("MINT", NOW - 1)

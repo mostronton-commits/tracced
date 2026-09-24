@@ -2,7 +2,6 @@
 import threading
 import time
 import urllib.error
-import urllib.parse
 
 from .base import PumpDataSource
 from ..util import http_get_json, to_ms
@@ -58,7 +57,7 @@ class SolanaTracker(PumpDataSource):
             self.cache.flush()
 
     def credits(self):
-        """Остаток кредитов ST (free-план ~10k/мес). None при ошибке."""
+        """Остаток кредитов ST на ключе. None при ошибке."""
         try:
             return self._get("/credits").get("credits")
         except Exception:
@@ -118,119 +117,3 @@ class SolanaTracker(PumpDataSource):
             "buys": d.get("buys"),
             "sells": d.get("sells"),
         }
-
-    def trades_iter(self, mint, max_pages=40):
-        cursor = None
-        pages = 0
-        while pages < max_pages:
-            path = f"/trades/{mint}?sortDirection=ASC&limit={PAGE}"
-            if cursor:
-                path += f"&cursor={cursor}"
-            d = self._get(path)
-            pages += 1
-            for tr in d.get("trades", []) or []:
-                yield {
-                    "wallet": tr.get("wallet"),
-                    "type": tr.get("type"),
-                    "time": to_ms(tr.get("time")),
-                    "volume_usd": tr.get("volume"),
-                    "price_usd": tr.get("priceUsd"),
-                    "program": tr.get("program"),
-                }
-            if not d.get("hasNextPage"):
-                break
-            cursor = d.get("nextCursor")
-
-    def trades_window(self, mint, t_from, t_to, max_pages=40):
-        """Сделки в окне [t_from..t_to] (мс): курсор стартует с t_from, идём ASC до t_to.
-        Дёшево для токенов, где окно далеко от момента создания."""
-        cursor = int(t_from)
-        pages = 0
-        while pages < max_pages:
-            path = f"/trades/{mint}?sortDirection=ASC&limit={PAGE}&cursor={cursor}"
-            d = self._get(path)
-            pages += 1
-            for tr in d.get("trades", []) or []:
-                t = to_ms(tr.get("time"))
-                if t is not None and t > t_to:
-                    return
-                yield {
-                    "wallet": tr.get("wallet"),
-                    "type": tr.get("type"),
-                    "time": t,
-                    "volume_usd": tr.get("volume"),
-                    "price_usd": tr.get("priceUsd"),
-                    "program": tr.get("program"),
-                }
-            if not d.get("hasNextPage"):
-                break
-            cursor = d.get("nextCursor")
-
-    def price_series(self, mint, interval="5m", t_from=None, t_to=None):
-        """Свечи графика → [(time_ms, close, volume)] по возрастанию времени."""
-        params = {"type": interval}
-        if t_from:
-            params["time_from"] = int(t_from)
-        if t_to:
-            params["time_to"] = int(t_to)
-        d = self._get(f"/chart/{mint}?" + urllib.parse.urlencode(params))
-        out = []
-        for c in (d.get("oclhv") or d.get("data") or []):
-            t = to_ms(c.get("time"))
-            close = c.get("close")
-            if t and close:
-                out.append((t, close, c.get("volume")))
-        out.sort()
-        return out
-
-    def wallet_stats(self, wallet):
-        if self.cache is not None:
-            cached = self.cache.get(wallet)
-            if cached is not None:
-                self.cache_hits += 1          # запрос сэкономлен
-                return cached
-        d = self._get(f"/pnl/{wallet}")
-        s = d.get("summary", {}) or {}
-        toks = d.get("tokens")
-        ntok = len(toks) if isinstance(toks, (dict, list)) else None
-        stats = {
-            "winrate": (s.get("winPercentage") or 0) / 100.0,
-            "total_pnl_usd": s.get("total"),
-            "total_invested_usd": s.get("totalInvested"),   # «депозит» — развёрнутый капитал
-            "positions": (s.get("totalWins") or 0) + (s.get("totalLosses") or 0),
-            "distinct_tokens": ntok,
-        }
-        if self.cache is not None:
-            self.cache.put(wallet, stats)
-        return stats
-
-    def discover_tokens(self, scan_cfg):
-        """Свежие токены с mcap≥порога через /search (фильтры по дате и капитализации)."""
-        now_ms = int(time.time() * 1000)
-        min_created = now_ms - scan_cfg["max_age_hours"] * 3_600_000
-        params = {
-            "minCreatedAt": min_created,
-            "minMarketCap": scan_cfg["min_mcap"],
-            "sortBy": "createdAt",
-            "sortOrder": "desc",
-            "limit": 100,
-        }
-        if scan_cfg.get("max_mcap"):
-            params["maxMarketCap"] = scan_cfg["max_mcap"]
-        d = self._get("/search?" + urllib.parse.urlencode(params))
-        out = []
-        for it in (d.get("data") or []):
-            mc = it.get("marketCapUsd")
-            ct = it.get("createdAt")
-            mint = it.get("mint")
-            if not mc or not ct or not mint:
-                continue
-            out.append({
-                "mint": mint,
-                "symbol": it.get("symbol"),
-                "mcap": round(mc),
-                "age_hours": round((now_ms - ct) / 3_600_000, 1),
-                "link": f"https://www.solanatracker.io/tokens/{mint}",
-            })
-        out.sort(key=lambda r: r["age_hours"])
-        return out

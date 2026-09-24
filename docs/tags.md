@@ -25,6 +25,12 @@ early buyer in **another analysis you saved**, and clicking it opens that list.
     Repeats are computed only across the analyses saved to your own account. Nothing leaves the server, and no
     request is spent on it.
 
+## A name is not a tag
+
+Some rows carry an X handle or a name. That is not our judgement: Solana Tracker identifies the wallet as a known
+trader, a bot or a platform, and the card says so with the source. Every other wallet in the table is one nobody
+has labelled, which is most of them, and usually the interesting part.
+
 ## Why there is no score
 
 A score compresses a judgement into a number and then hides the judgement. "Smart money" means whatever the

@@ -6,6 +6,7 @@ stats_cache тепер тримає угоди гаманця по токену 
 Поля перевірені живцем 16.09.2026 (docs/early_spike.md).
 """
 import threading
+import urllib.error
 import urllib.parse
 
 from ..providers.solana_tracker import PAGE, SolanaTracker
@@ -22,14 +23,26 @@ class EarlyST(SolanaTracker):
         # хто стоїть за гаманцем (KOL, Twitter, платформа) приходить у тих самих сторінках угод з enrich=identity:
         # збираємо по дорозі, окремих запитів нема. Без цього кешу параметр не додається зовсім
         self.identity_cache = identity_cache
+        self._identity_off = False      # джерело відкинуло enrich=identity: далі просимо сторінки без нього
         self.chart_cache_hits = 0
         self.stats_cache_hits = 0
         # кеш свічок читають/пишуть кілька потоків (сторінка + робочий потік): без замка два
         # одночасні flush() ламались об os.replace того самого тимчасового файлу
         self._cache_lock = threading.Lock()
 
-    def _enrich(self):
-        return "&enrich=identity" if self.identity_cache is not None else ""
+    def _page(self, path):
+        """Сторінка угод; з ідентичністю гаманців, якщо її збираємо. Параметр живцем ще не перевірений на всіх
+        тарифах, тому відмова на нього (400/422) не валить аналіз: той самий запит повторюється без нього, і до
+        перезапуску сервера ідентичність більше не просимо."""
+        if self.identity_cache is None or self._identity_off:
+            return self._get(path)
+        try:
+            return self._get(path + "&enrich=identity")
+        except urllib.error.HTTPError as e:
+            if e.code not in (400, 422):
+                raise
+            self._identity_off = True
+            return self._get(path)
 
     def _harvest(self, raws):
         """Ідентичність з сирих угод → кеш (лише відомі гаманці; невідомі приходять з identity: null)."""
@@ -55,7 +68,7 @@ class EarlyST(SolanaTracker):
 
     def trades_page(self, mint, cursor_ms):
         """Одна сторінка угод від cursor_ms (ASC). Повертає нормалізовані угоди + курсор далі."""
-        d = self._get(f"/trades/{mint}?sortDirection=ASC&limit={PAGE}&cursor={int(cursor_ms)}{self._enrich()}")
+        d = self._page(f"/trades/{mint}?sortDirection=ASC&limit={PAGE}&cursor={int(cursor_ms)}")
         self._harvest(d.get("trades") or [])
         return {
             "trades": [normalize(tr) for tr in (d.get("trades") or [])],
@@ -113,9 +126,8 @@ class EarlyST(SolanaTracker):
                 return cached
         out, seen, cursor = [], set(), None
         for _ in range(max_pages):
-            q = (f"/trades/{mint}/by-wallet/{wallet}?sortDirection=ASC&limit={PAGE}{self._enrich()}"
-                 + (f"&cursor={int(cursor)}" if cursor else ""))
-            d = self._get(q)
+            d = self._page(f"/trades/{mint}/by-wallet/{wallet}?sortDirection=ASC&limit={PAGE}"
+                           + (f"&cursor={int(cursor)}" if cursor else ""))
             self._harvest(d.get("trades") or [])
             page = [normalize(tr) for tr in (d.get("trades") or [])]
             fresh = [tr for tr in page if tr["tx"] not in seen]

@@ -68,7 +68,7 @@ def quick_pairs(buy_times, sell_times, within_ms=PAIR_MS):
 
 
 def compute(f, created_ms=None, buy_times=(), sell_times=(), wallet_first_tx_ms=None):
-    """Список тегів для рядка фактів `f` (див. ledger.facts / facts_from_stats)."""
+    """Список тегів для рядка фактів `f` (див. ledger.facts)."""
     out = []
     fb = f.get("first_buy_ms")
     if fb and created_ms and 0 <= fb - created_ms <= SNIPER_MS:

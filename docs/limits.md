@@ -21,7 +21,8 @@ press Analyze, not before, and the range you marked survives the sign-in.
 | Wallets that get exact exits | {{ s.max_wallet_lookups }} |
 | Smallest position in the table | ${{ s.min_invested_usd }} bought inside the range |
 | Wallets whose age is checked | {{ s.age_lookups_max }} |
-| Chart requests a day: guest / wallet / site | {{ s.browse_per_day_guest }} / {{ s.browse_per_day }} / {{ s.browse_global_per_day }} |
+| Chart and wallet-card requests a day: guest / wallet / site | {{ s.browse_per_day_guest }} / {{ s.browse_per_day }} / {{ s.browse_global_per_day }} |
+| New analyses on the whole site, per day | {{ s.runs_global_per_day }} |
 
 !!! info "📐 These numbers are the live settings"
     The table is rendered from the same configuration the site runs on, so it cannot drift from what actually
@@ -34,7 +35,13 @@ A new token costs real money. Reconstructing its history can take hundreds of re
 The first analysis of a busy token is the expensive one. Every further range on the same token is nearly free,
 because its trades are already stored.
 
-## Which wallets get exact exits
+{% if s.credits_reserve_pct %}## The month
+
+The data plan is a monthly budget. A new analysis starts only while the worst it could cost still leaves
+{{ s.credits_reserve_pct }}% of the plan untouched. Near the end of a heavy month new analyses wait for the plan to
+renew; the demo, every finished result and every chart stay open.
+
+{% endif %}## Which wallets get exact exits
 
 The largest buyers of the range. The rest keep their entry and carry `no-exits`.
 

@@ -163,21 +163,8 @@ class TestLedger(unittest.TestCase):
         self.assertAlmostEqual(f["realized_usd"], 100)
         self.assertTrue(f["partial_history"])
 
-    def test_facts_from_stats(self):
+    def test_facts_entry_only(self):
         L, _ = self.run_one([tr(1, "buy", "A", 100, 1.0)])
-        st = {"invested": 140.0, "proceeds": 150.0, "bought": 110.0, "sold": 50.0, "buys": 2, "sells": 1,
-              "first_buy": T0 + MIN, "first_sell": T0 + 10 * MIN, "last_sell": T0 + 10 * MIN,
-              "realized": 100.0, "unrealized": 60.0}
-        f = ledger.facts_from_stats(L["A"], st, SUPPLY)
-        self.assertEqual(f["source"], "wallet-stats")
-        self.assertAlmostEqual(f["entry_mcap_avg"], 1.0 * SUPPLY)          # from our window ledger
-        self.assertAlmostEqual(f["exit_mcap_avg"], 3.0 * SUPPLY)           # 150 / 50 × supply
-        self.assertAlmostEqual(f["sold_share_pct"], 50 / 110 * 100)
-        self.assertAlmostEqual(f["hold_minutes"], 9)
-        self.assertTrue(f["bought_after_range"])                           # 2 buys lifetime vs 1 in window
-        self.assertFalse(f["partial_history"])
-        st["first_buy"] = T0 - 5 * MIN                                       # traded before our window
-        self.assertTrue(ledger.facts_from_stats(L["A"], st, SUPPLY)["partial_history"])
         e = ledger.facts_entry_only(L["A"], SUPPLY)
         self.assertEqual(e["source"], "entry-only")
         self.assertIsNone(e["realized_usd"])

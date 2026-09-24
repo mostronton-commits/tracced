@@ -30,6 +30,10 @@ can read and check. [Every rule →](https://tracced.xyz/docs/tags)
 Amounts read in dollars or in SOL. Both come from the same swap, so nothing is converted at a rate, and profit
 uses the cost basis of what was actually sold in both units. [Where the numbers come from →](https://tracced.xyz/docs/how-it-works)
 
+Click a wallet and its card shows the last 30 days on every token it traded: PnL, win rate over closed positions,
+average hold, counted by tracced from the wallet's own swaps. When Solana Tracker knows who the wallet is (a KOL,
+an X handle), the card names it and says where the name came from. [The wallet card →](https://tracced.xyz/docs/how-it-works#the-wallet-card)
+
 ## Documentation
 
 | Page | |
@@ -62,7 +66,7 @@ docker compose run --rm --no-deps -v "$PWD/tests:/app/tests" web python -m unitt
 On a server: [deploy/README.md](deploy/README.md), one container behind an existing Caddy. Quotas and costs live
 in `config.yaml` under `early:` (`early.plan: free | advanced` sets the request caps for the Solana Tracker plan);
 defaults are in `tracced/early/settings.py`. Version: `__version__` in `tracced/__init__.py`, shown in the footer
-as `v0.3`, bumped on every release to `main`.
+as `v0.4`, bumped on every release to `main`.
 
 ## Demo token
 
@@ -73,12 +77,18 @@ chart and terminal and result, without a single request to the data provider.
 
 ## Data
 
-- Swaps and candles: [Solana Tracker Data API](https://www.solanatracker.io/data-api). Free plan: 2,500 requests a month at 3 per second; a cached analysis costs none.
+- Swaps and candles: [Solana Tracker Data API](https://www.solanatracker.io/data-api). Free plan: 2,500 requests a
+  month at 3 per second; Pro: 1,000,000 a month, no rate limit, and wallet histories are fetched eight at a time
+  (`st_concurrency`). A cached analysis costs none. The balance is checked at most every 10 minutes and new runs
+  wait when the month gets close to its end.
+- The wallet card: the wallet's swaps on every token (`/wallet/{owner}/trades`), run through the same ledger as the
+  table. Who a wallet is comes from `enrich=identity` on trade pages the analysis already fetches.
 - Wallet age and funder: a Solana RPC node with the full signature index. `SOLANA_RPC_URL` walks signatures,
   `SOLANA_RPC_TX_URL` reads the one transaction that names the funder; both fall back to
   `api.mainnet-beta.solana.com`. They are split because a node can be good at one and useless at the other:
   Solana Tracker's RPC returns full history and never throttles a series, and answers `Internal error` to every
-  `getTransaction`.
+  `getTransaction`. The paid node's credits are counted per month (`rpc_credits_month`) and the check pauses
+  near the limit.
 - The AI agent: any OpenAI-compatible endpoint (`ASSISTANT_*` in `.env`), with per-wallet, per-guest and site-wide daily limits.
 - Nothing else. No third-party PnL, labels or scores.
 

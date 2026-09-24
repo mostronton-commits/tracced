@@ -225,47 +225,6 @@ def classify(ledgers, t_to, min_invested_usd):
     return early, counts
 
 
-def facts_from_stats(l, st, supply):
-    """Вхід — з нашого леджера вікна (точно), виходи — зі статистики гаманця по токену (ST, за весь
-    час до моменту запиту). Для гарячих токенів, де повний список угод коштує тисячі сторінок."""
-    entry_first = (l.first_buy_price or 0) * supply
-    entry_avg = (l.invested / l.bought_qty) * supply if l.bought_qty else None
-    bought = float(st.get("bought") or 0) or l.bought_qty
-    sold = float(st.get("sold") or 0)
-    proceeds = float(st.get("proceeds") or 0)
-    exit_avg = (proceeds / sold) * supply if (sold > 0 and proceeds > 0) else None
-    sold_share = min(sold / bought * 100, 100.0) if bought else 0.0
-    first_sell, last_sell = st.get("first_sell"), st.get("last_sell")
-    hold_min = None
-    if first_sell and l.first_buy_t and first_sell >= l.first_buy_t:
-        hold_min = (first_sell - l.first_buy_t) / 60_000
-    buys_total = int(st.get("buys") or 0)
-    return {
-        "wallet": l.wallet,
-        "first_buy_ms": l.first_buy_t,
-        "entry_mcap_first": entry_first,
-        "entry_mcap_avg": entry_avg,
-        "buys_in_range": l.buys_in_window,
-        "invested_in_range_usd": l.invested_in_window,
-        "buys": max(buys_total, l.buys),
-        "invested_usd": float(st.get("invested") or 0) or l.invested,
-        "first_sell_ms": first_sell,
-        "last_sell_ms": last_sell,
-        "exit_mcap_avg": exit_avg,
-        "sells": int(st.get("sells") or 0),
-        "proceeds_usd": proceeds,
-        "sold_share_pct": sold_share,
-        "holding_share_pct": max(0.0, 100.0 - sold_share),
-        "realized_usd": float(st.get("realized") or 0),
-        "unrealized_usd": float(st.get("unrealized") or 0),
-        "multiple": (exit_avg / entry_avg) if (exit_avg and entry_avg) else None,
-        "hold_minutes": hold_min,
-        "bought_after_range": buys_total > l.buys,
-        "partial_history": bool(st.get("first_buy")) and st["first_buy"] < (l.first_buy_t or 0) - 1000,
-        "source": "wallet-stats",
-    }
-
-
 def facts(l, supply, price_at_exit):
     """Колонки таблиці з леджера. Капа = ціна × supply."""
     entry_first = (l.first_buy_price or 0) * supply
@@ -314,7 +273,7 @@ def facts(l, supply, price_at_exit):
 
 
 def facts_entry_only(l, supply):
-    """Лише вхід (виходи невідомі): для гаманців поза стелею запитів у режимі wallet-stats."""
+    """Лише вхід (виходи невідомі): для гаманців поза стелею запитів."""
     f = facts(l, supply, 0)
     for k in ("first_sell_ms", "last_sell_ms", "exit_mcap_avg", "multiple", "hold_minutes"):
         f[k] = None
