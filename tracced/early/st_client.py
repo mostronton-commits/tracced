@@ -78,7 +78,8 @@ class EarlyST(SolanaTracker):
 
     @staticmethod
     def _chart_key(mint, interval, t_from_ms, t_to_ms):
-        return f"{mint}:{interval}:{int(t_from_ms // 1000)}:{int(t_to_ms // 1000)}"
+        # v2: свічки з dynamicPools. Старі записи кешу — лише пул після міграції, тому не читаються
+        return f"v2:{mint}:{interval}:{int(t_from_ms // 1000)}:{int(t_to_ms // 1000)}"
 
     def chart_cached(self, mint, interval, t_from_ms, t_to_ms):
         """Чи лежить цей шматок у кеші (тоді він нічого не коштує)."""
@@ -97,7 +98,9 @@ class EarlyST(SolanaTracker):
             if cached is not None:
                 self.chart_cache_hits += 1
                 return cached
-        q = urllib.parse.urlencode({"type": interval, "time_from": a, "time_to": b})
+        # dynamicPools: у кожен момент головний пул того часу. Без нього джерело бере пул, що головний зараз, і в токена
+        # після міграції зникають свічки кривої pump.fun — тобто сам памп, який людина має позначити на графіку
+        q = urllib.parse.urlencode({"type": interval, "time_from": a, "time_to": b, "dynamicPools": "true"})
         d = self._get(f"/chart/{mint}?{q}")
         out = []
         for c in (d.get("oclhv") or d.get("data") or []):
