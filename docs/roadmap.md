@@ -18,7 +18,19 @@ a reason for each pick.{% if not assistant_on %}
 
 ## Next
 
-**Alerts.** A wallet on your watchlist buys something and you hear about it within a minute or two. The wallets
+!!! agent "✦ An analyst you can talk to"
+    Describe how you pick wallets, in your own words. The agent reads the table, opens the wallet cards it needs
+    (30-day PnL, win rate, when it trades, what it bought lately), checks funders and your earlier analyses, and
+    returns a short list. Every reason points at a number you can open: a row, a card, a swap on Solscan. It judges
+    only by those facts and your method, and it never predicts a price.
+
+!!! agent "✦ tracced for agents"
+    The same tools, open to any AI agent through the Model Context Protocol (MCP): analyze a token's range, read the
+    wallets, open a card, keep lists. An agent you already use, in Claude, Cursor or your own trading bot, asks
+    tracced who bought before a pump the way it would search the web. Alerts reach it next, then copy-trading, and
+    no trade leaves without your confirmation.
+
+**Alerts.** A wallet on one of your lists buys something and you hear about it within a minute or two. The wallets
 you watch are checked on a schedule, so no new data source is needed.
 
 **90 days in the wallet card.** Today it counts 30.

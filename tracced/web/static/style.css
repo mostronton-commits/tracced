@@ -258,6 +258,12 @@ td.wcell .wid { white-space: nowrap; }       /* сам гаманець ніко
 .docs-body .admonition.tip { border-left-color: #34D399; background: #F2FDF7; }
 .docs-body .admonition.info { border-left-color: #60A5FA; background: #F5F9FF; }
 .docs-body .admonition.warning { border-left-color: #F59E0B; background: #FFFBF3; }
+/* the roadmap's agent items wear the AI button's iridescent edge, still: they are what the roadmap is about */
+.docs-body .admonition.agent { border: 2px solid transparent; border-radius: 12px; padding: 16px 20px;
+  background: linear-gradient(115deg, #F4FDF8, #F5FAFF 35%, #F9F7FF 65%, #FFF8FB) padding-box,
+              linear-gradient(115deg, #6EE7B7, #7DD3FC 30%, #A78BFA 55%, #F9A8D4 78%, #FCD34D) border-box;
+  box-shadow: 0 10px 26px -16px rgba(167, 139, 250, .9); }
+.docs-body .admonition.agent .admonition-title { font-size: 15px; }
 
 .docs-pager { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .docs-pager .pg { display: grid; gap: 3px; padding: 13px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
