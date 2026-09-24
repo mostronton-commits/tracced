@@ -130,6 +130,32 @@ class TradeStore:
             out.append((cur, b))
         return out
 
+    def save_candles(self):
+        """Хвилинні свічки (ціна в $) з усіх угод сховища — щоб графік заповнив місця, де джерело свічок мовчить.
+
+        У частини токенів після міграції Solana Tracker не знає пулу, де йшла торгівля (у SI 24.09 — PumpSwap), і
+        графік має діру якраз на пампі. Угоди ми вже купили під час аналізу, тож свічки з них нічого не коштують.
+        Разом зі свічками зберігаємо покриття: заповнювати можна лише там, де угоди відомі повністю."""
+        by = {}
+        for tr in self.trades:
+            t, pr = tr.get("time"), tr.get("price")
+            if t is None or not pr or pr <= 0:
+                continue
+            m = int(t // 60000) * 60
+            usd = float(tr.get("usd") or 0)
+            c = by.get(m)
+            if c is None:
+                by[m] = [m, pr, pr, pr, pr, usd]
+            else:
+                c[2], c[3], c[4] = max(c[2], pr), min(c[3], pr), pr
+                c[5] += usd
+        os.makedirs(self.dir, exist_ok=True)
+        tmp = candles_path(self.dir, self.mint) + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"covered": self.covered, "c": [by[k] for k in sorted(by)]}, f)
+        os.replace(tmp, candles_path(self.dir, self.mint))
+        return len(by)
+
     def between(self, a, b):
         return [tr for tr in self.trades if tr["time"] is not None and a <= tr["time"] <= b]
 
@@ -259,6 +285,19 @@ class TradeStore:
             left = self.gaps(a, b)
             raise PageBudget(pages, left[0][0] if left else b)
         return pages
+
+
+def candles_path(dir_path, mint):
+    return os.path.join(dir_path, f"candles_{mint}.json")
+
+
+def load_candles(dir_path, mint):
+    """Хвилинні свічки з наших угод, збережені після аналізу: {"covered": [[a, b] мс], "c": [[t с, o, h, l, c, $]]}."""
+    try:
+        with open(candles_path(dir_path, mint), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
 
 
 def _hhmm(ms):

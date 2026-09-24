@@ -198,5 +198,33 @@ class TestParallelEnsure(unittest.TestCase):
             self.assertEqual(state["calls"], 1)
 
 
+class TestTradeCandles(unittest.TestCase):
+    """Де джерело свічок мовчить, графік бере свічки з угод, які аналіз уже купив."""
+
+    def test_minute_candles_from_trades_and_filling_only_the_holes(self):
+        from tracced.early.store import load_candles
+        from tracced.web.chart import fill_gaps
+        B = (T0 // 60000 + 1) * 60000                                              # початок хвилини
+        trades = [{"wallet": "a", "type": "buy", "time": B + s_ * 1000, "qty": 1.0, "usd": 10.0, "price": p, "tx": f"t{s_}", "program": "p"}
+                  for s_, p in ((0, 1.0), (20, 3.0), (40, 2.0), (60, 5.0), (125, 4.0))]
+        with tempfile.TemporaryDirectory() as d:
+            st = TradeStore(d, MINT)
+            st.add(trades)
+            st.mark_covered(B, B + 180_000)
+            self.assertEqual(st.save_candles(), 3)
+            ours = load_candles(d, MINT)
+            m0 = B // 1000
+            self.assertEqual(ours["c"][0], [m0, 1.0, 3.0, 1.0, 2.0, 30.0])      # open, high, low, close, $ за хвилину
+            source = [{"time": m0 + 60, "open": 9, "high": 9, "low": 9, "close": 9, "volume": 1}]   # джерело має лише 2-гу хвилину
+            out = fill_gaps(source, ours, m0, m0 + 300, "1m", 1000)
+            self.assertEqual([c["time"] for c in out], [m0, m0 + 60, m0 + 120])
+            self.assertEqual(out[1]["close"], 9)                                    # свічка джерела лишається своєю
+            self.assertEqual((out[0]["close"], out[0]["src"]), (2000.0, "trades"))  # ціна × supply
+            st.covered = []
+            st.mark_covered(B, B + 60_000)                                          # покрита лише перша хвилина
+            st.save_candles()
+            self.assertEqual(len(fill_gaps(source, load_candles(d, MINT), m0, m0 + 300, "1m", 1000)), 2)
+
+
 if __name__ == "__main__":
     unittest.main()

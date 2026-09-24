@@ -361,6 +361,10 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
     if who:
         result["identities"] = {r["wallet"]: idn for r in rows if (idn := who(r["wallet"]))}
     counts.update(n_trades=lstats["n_trades"], n_early=len(rows), n_wallets=len(wl), **counts_extra)
+    try:
+        store.save_candles()                              # графік заповнить свої діри з цих угод, без запитів
+    except OSError as e:
+        log(f"  chart candles from trades not saved: {e}")
     log(f"done ({mode}): {len(rows)} wallets bought in the range; {report.coverage_text(coverage)}; "
         f"requests {result['requests']}")
     progress("done", 1, 1)

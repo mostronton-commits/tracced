@@ -75,6 +75,31 @@ def snap_range(a_sec, b_sec, tf):
     return (a_sec // chunk) * chunk, ((b_sec + chunk - 1) // chunk) * chunk
 
 
+def fill_gaps(candles, ours, a, b, tf, supply):
+    """Свічки джерела (вже в капі, секунди) + наші з угод там, де джерело не дало нічого.
+
+    `ours` — {"covered", "c"} з TradeStore.save_candles: хвилинні свічки в ціні. Беремо лише повні відрізки, які
+    покриті угодами, і лише бари, яких у джерела немає: де джерело щось має, його свічка лишається як є."""
+    if not ours or not ours.get("c") or not supply:
+        return candles
+    step, have = TF_SEC[tf], {c["time"] for c in candles}
+    covered = [(x[0] // 1000, x[1] // 1000) for x in ours.get("covered") or []]
+    inside = lambda t: any(ca <= t and t + step <= cb for ca, cb in covered)   # noqa: E731
+    agg = {}
+    for t, o, h, lo, c, v in ours["c"]:
+        if t < a or t > b:
+            continue
+        k = t - t % step
+        x = agg.get(k)
+        if x is None:
+            agg[k] = [o, h, lo, c, v]
+        else:
+            x[1], x[2], x[3], x[4] = max(x[1], h), min(x[2], lo), c, x[4] + v
+    add = [{"time": k, "open": x[0] * supply, "high": x[1] * supply, "low": x[2] * supply, "close": x[3] * supply,
+            "volume": x[4], "src": "trades"} for k, x in agg.items() if k not in have and inside(k)]
+    return sorted(candles + add, key=lambda c: c["time"]) if add else candles
+
+
 def candles_mcap(candles, supply):
     """Server candles (ms, price) → browser candles (seconds, market cap), sorted, deduplicated."""
     out, seen = [], set()

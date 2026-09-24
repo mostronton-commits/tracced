@@ -1178,7 +1178,28 @@ async def candles_json(request):
                 if settle:
                     settle(st.requests_here() - req0)
     candles = await asyncio.to_thread(load)
-    return web.json_response(chart.candles_mcap(candles, info["supply"]))
+    out = chart.candles_mcap(candles, info["supply"])
+    ours = await asyncio.to_thread(_trade_candles, app, mint)        # діри джерела — з угод, які ми вже маємо
+    return web.json_response(chart.fill_gaps(out, ours, a, b, tf, info["supply"]))
+
+
+def _trade_candles(app, mint):
+    """Наші хвилинні свічки токена з диска, у пам'яті, доки файл не змінився (новий аналіз його переписує)."""
+    from ..early.store import candles_path, load_candles
+    path = candles_path(app["store_dir"], mint)
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return None
+    memo = app.setdefault("trade_candles", {})
+    hit = memo.get(mint)
+    if hit and hit[0] == mtime:
+        return hit[1]
+    data = load_candles(app["store_dir"], mint)
+    if len(memo) > 50:
+        memo.clear()
+    memo[mint] = (mtime, data)
+    return data
 
 
 async def analyze(request):
