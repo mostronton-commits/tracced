@@ -9,7 +9,6 @@ import asyncio
 import contextlib
 import contextvars
 import csv
-import copy
 import hashlib
 import ipaddress
 import os
@@ -29,7 +28,7 @@ from markupsafe import Markup
 
 from ..cache import JsonCache
 from ..config import DEFAULTS as CFG_DEFAULTS
-from ..early import assistant as assistant_mod, pipeline, profile, report, scope, tags, window
+from ..early import assistant as assistant_mod, ledger, pipeline, profile, report, scope, tags, window
 from ..early.store import TradeStore
 from ..providers import dexscreener
 from . import accounts as acct_mod
@@ -77,6 +76,16 @@ def _asset_version():
     return h.hexdigest()[:8]
 
 
+def _rows_rev():
+    """Хеш коду, що рахує рядки результату (scope, ledger, tags, report). Прогін пише його в результат: поки код той
+    самий, збережені рядки «усієї історії» дорівнюють перерахунку і беруться як є; змінився код — перераховуються."""
+    h = hashlib.sha1()
+    for m in (scope, ledger, tags, report):
+        h.update(Path(m.__file__).read_bytes())
+    return h.hexdigest()[:12]
+
+
+ROWS_REV = _rows_rev()
 env.globals["v"] = _asset_version()
 from .. import __version__                                   # noqa: E402 — product version for the footer
 env.globals["version"] = ".".join(__version__.split(".")[:2])
@@ -140,6 +149,7 @@ def make_enricher(ages, s):
         if e.get("failed"):
             e.update(done=0, failed=0, fresh=0)            # був збій ноди — перевіряємо заново (кеш лишається)
         e.pop("paused", None)
+        e.pop("funders_failed", None)                      # невдалі спонсори не в funder_checked: цей прохід їх повторить
 
         is_paused = getattr(ages, "paused", None) or (lambda: False)
         cached = getattr(ages, "cached", None) or (lambda w: None)
@@ -192,18 +202,21 @@ def make_enricher(ages, s):
                 save(job)
                 ages.flush()
                 return
+            fund, ok = None, True
             try:
                 age = ages.oldest_tx(w)
                 if age.get("exact") and age.get("n") and not age.get("oldest_sig"):
                     age = ages.oldest_tx(w, refresh=True)          # кеш віку з часів без підпису → 1 запит
                 fund = ages.funder(w, age["oldest_sig"]) if age.get("exact") and age.get("oldest_sig") else None
-            except Exception as ex:  # noqa: BLE001
-                fund = None
-                if e.get("failed", 0) <= 3:
+            except Exception as ex:  # noqa: BLE001 — 429 від ноди: гаманець не перевірено, наступний прохід спробує ще
+                ok = False
+                e["funders_failed"] = e.get("funders_failed", 0) + 1
+                if e["funders_failed"] <= 3:
                     job.log.append(f"funder lookup failed for {w[:8]}…: {str(ex)[:60]}")
             if fund:
                 funders[w] = fund
-            checked.add(w)
+            if ok:
+                checked.add(w)
             e["funders_done"] = i
             if i % 25 == 0:
                 r["funder_checked"] = sorted(checked)
@@ -233,15 +246,22 @@ def _bundles(r, rows):
 
 def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/early", ages=None, assistant=None):
     app = web.Application(middlewares=[errors_mw, auth_mw])
+    app.on_response_prepare.append(_security_headers)
+    app.on_cleanup.append(_flush_on_exit)
     app["assistant"], app["assistant_cache"] = assistant, {}
     app["st"], app["s"], app["cfg"] = st, s, cfg or {}
     app["store_dir"] = store_dir
     app["runs"] = Throttle(max_fails=int(s.get("runs_per_hour", 20)), window_s=3600, block_s=3600)
+    # демо безкоштовне, але кожне програвання тримає потік 12 с: з однієї адреси — близько десяти за 10 хвилин
+    app["demo_runs"] = Throttle(max_fails=int(s.get("demo_replays_per_10min", 10)), window_s=600, block_s=600)
+    app["demo_replays"] = {}                                     # (адреса, діапазон) → id програвання, що ще йде
+    app["rows_memo"] = {}                                        # рядки масштабів 24h/48h: рахуються раз, не на кожен перегляд
+    app["age_saves"] = {"last": {}, "waiting": {}, "tasks": set()}   # картки: коли писали результат, відкладені записи
     app["st_slots"] = threading.BoundedSemaphore(max(1, int(s.get("st_concurrency", 1) or 1)) + 1)   # +1: сторінка не чекає за прогоном
     app["overview_cache"], app["overview_pending"] = {}, {}
     app["dex_cache"] = JsonCache(str(Path(store_dir) / "dexscreener.json"), ttl_hours=24)   # чужий безкоштовний ендпоінт: добу тримаємо відповідь
     app["profile_cache"] = JsonCache(str(Path(store_dir) / "wallet_profile.json"),             # картка гаманця: 1-5 запитів, добу з кешу
-                                     ttl_hours=float(s.get("wallet_profile_ttl_hours", 24)), flush_every=1)
+                                     ttl_hours=float(s.get("wallet_profile_ttl_hours", 24)), flush_every=25)   # решту допише зупинка сервера
     app["accounts"] = acct_mod.AccountStore(Path(out_dir).parent / "accounts")   # поруч з web/ і demo/ у output/early
     app["nonces"] = acct_mod.NonceStore()
     app["events"] = acct_mod.EventLog(Path(out_dir).parent / "accounts" / "_events.jsonl")
@@ -259,17 +279,29 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
         if job.replay:
             return _replay(job, page_size=int(s.get("page_size", 250)), budget_s=float(s.get("replay_s", 12)))
         with st.meter():                                   # стеля прогону рахує лише його власні запити
-            return pipeline.run(st, job.mint, job.t_from, job.t_to, dict(s, **(job.s_over or {})),   # стелі прогону залежать від того, хто запустив
-                                log=job.log.append, progress=job.set_progress, store_dir=store_dir)
+            req0 = st.requests_here()
+            try:
+                res = pipeline.run(st, job.mint, job.t_from, job.t_to, dict(s, **(job.s_over or {})),   # стелі прогону залежать від того, хто запустив
+                                   log=job.log.append, progress=job.set_progress, store_dir=store_dir)
+            finally:
+                job.spent = st.requests_here() - req0      # і для невдалого: від цього залежить, чи повертати день
+        res["rows_rev"] = ROWS_REV
+        return res
 
     def on_error(job):
-        """A live run that failed gives the wallet, the browser and the network their run back, and the site its slot."""
-        if job.owner and not job.replay:
-            app["accounts"].give_back_run(job.owner)
-            if job.owner not in app["admins"]:
-                app["runs_daily"].add("global", -1)
-                for key in job.charged or []:
-                    app["runs_daily"].add(key, -1)
+        """A live run that failed before it spent much, or was cut by a restart, gives the wallet, the browser and the
+        network their run back, and the site its slot. One that already spent real credits keeps the charge: otherwise
+        runs that fail late would be free, and the daily caps would not bound what is spent."""
+        if not job.owner or job.replay:
+            return
+        if job.spent is not None and job.spent >= int(s.get("refund_below_requests", 50)):
+            job.log.append(f"This run spent {job.spent:,} requests before it stopped, so it counts toward today's analyses.")
+            return
+        app["accounts"].give_back_run(job.owner)
+        if job.owner not in app["admins"]:
+            app["runs_daily"].add("global", -1)
+            for key in job.charged or []:
+                app["runs_daily"].add(key, -1)
 
     identify = st.identities if (hasattr(st, "identities") and s.get("st_identity", True)) else None
     app["jobs"] = JobQueue(runner, out_dir, enricher=make_enricher(ages, s) if ages else None, on_error=on_error,
@@ -312,6 +344,42 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_post("/job/{id}/delete", job_delete)
     app.router.add_static("/static", str(HERE / "static"))
     return app
+
+
+SECURITY_HEADERS = {
+    "Strict-Transport-Security": "max-age=31536000",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Content-Security-Policy": "frame-ancestors 'none'; object-src 'none'; base-uri 'self'",   # без script-src: у сторінках є вбудовані скрипти
+}
+
+
+async def _security_headers(request, response):
+    """Кожна відповідь (сторінка, редірект, помилка, статика) несе заголовки захисту сама, а не лише коли їх додав проксі;
+    Server не називає версію aiohttp."""
+    for k, v in SECURITY_HEADERS.items():
+        response.headers.setdefault(k, v)
+    response.headers["Server"] = "tracced"
+
+
+async def _flush_on_exit(app):
+    """Зупинка сервера: відкладені записи результатів і кеші — на диск. Сторінки більше не пишуть кеші щоразу."""
+    for job, task in list(app["age_saves"]["waiting"].values()):
+        task.cancel()
+        try:
+            await asyncio.to_thread(app["jobs"]._save, job, True)
+        except Exception as e:  # noqa: BLE001
+            log.warning("save on exit %s: %s", job.id, e)
+    fns = [app["profile_cache"].flush, app["dex_cache"].flush]
+    if hasattr(app["st"], "flush"):
+        fns.append(app["st"].flush)
+    if app.get("ages") is not None:
+        fns.append(app["ages"].flush)
+    for fn in fns:
+        try:
+            await asyncio.to_thread(fn)
+        except Exception as e:  # noqa: BLE001
+            log.warning("flush on exit: %s", e)
 
 
 _METER = contextvars.ContextVar("st_meter", default=None)
@@ -607,16 +675,19 @@ def _ip_key(ip):
 
 
 def _runs_left(app, pk, dev, ip):
-    """Скільки живих аналізів людині лишилось сьогодні: найменше з трьох лічильників. Гаманець і браузер мають
-    спільну стелю `runs_per_day`, тож інший гаманець у тому ж браузері нових спроб не дає; мережа має свою,
-    вищу, `runs_per_ip_per_day`: на неї натрапляє інкогніто з новим гаманцем, а люди в одному офісі — ні."""
+    """(скільки живих аналізів людині лишилось сьогодні, який лічильник це вирішив: "person" чи "network").
+
+    Найменше з трьох лічильників. Гаманець і браузер мають спільну стелю `runs_per_day`, тож інший гаманець у тому ж
+    браузері нових спроб не дає; мережа має свою, вищу, `runs_per_ip_per_day`: на неї натрапляє інкогніто з новим
+    гаманцем, а люди в одному офісі — рідко. "network" — лише коли людина свої ще має, а вичерпала мережа: тоді вікно
+    не каже «ви використали свої п'ять»."""
     s = app["s"]
     cap = int(s.get("runs_per_day", 1))
-    left = cap - app["accounts"].runs_today(pk)
+    person = cap - app["accounts"].runs_today(pk)
     if dev:
-        left = min(left, app["runs_daily"].left("dev:" + dev, cap))
-    left = min(left, app["runs_daily"].left(_ip_key(ip), int(s.get("runs_per_ip_per_day", 10))))
-    return max(0, left)
+        person = min(person, app["runs_daily"].left("dev:" + dev, cap))
+    net = app["runs_daily"].left(_ip_key(ip), int(s.get("runs_per_ip_per_day", 10)))
+    return max(0, min(person, net)), ("network" if net <= 0 < person else "person")
 
 
 def _next_midnight_ms(now=None):
@@ -786,7 +857,7 @@ async def me_add_wallets(request, pk):
         return _jerr("Pick at least one wallet.")
     if len(want) > acct_mod.MAX_WALLETS:
         return _jerr(f"At most {acct_mod.MAX_WALLETS} wallets per request.")
-    rows, _ = _rows(job.result, "all", app["s"])
+    rows, _ = await _rows_async(app, job.result, "all")
     by = {r["wallet"]: r for r in rows}
     items = [_wallet_snapshot(job, by[w]) for w in dict.fromkeys(str(w) for w in want) if w in by]
     if not items:
@@ -808,9 +879,10 @@ async def me_remove_wallet(request, pk):
     if body is None:
         return _jerr("Bad request body.")
     want = body.get("wallets") if isinstance(body.get("wallets"), list) else [body.get("wallet")]
-    want = [str(w) for w in want if w][: acct_mod.MAX_WALLETS]
+    want = [w for w in want[: acct_mod.MAX_WALLETS] if acct_mod.valid_pubkey(w)]   # сміття не доходить до файлу
     lid = str(body["list"]) if body.get("list") else None          # без списку — з усіх списків
-    removed = sum(1 for w in want if request.app["accounts"].remove_wallet(pk, w, lid))
+    # один запис файлу на весь вибір, і не в циклі подій: 500 адрес по запису на кожну вішали сайт на секунди
+    removed = await asyncio.to_thread(request.app["accounts"].remove_wallets, pk, want, lid) if want else 0
     if removed:
         request.app["events"].add(pk, "remove_wallet", n=removed)
     return web.json_response({"ok": bool(removed), "removed": removed})
@@ -862,7 +934,7 @@ async def me_add_analysis(request, pk):
     job, err = await _visible_job(request, body)
     if err:
         return err
-    rows, sm = _rows(job.result, "all", app["s"])
+    rows, sm = await _rows_async(app, job.result, "all")
     try:
         added, total = app["accounts"].add_analysis(pk, job.id, _analysis_snapshot(job, rows, sm))
     except acct_mod.AccountError as e:
@@ -943,8 +1015,11 @@ async def wallet_age_json(request):
     """Вік і перший спонсор одного гаманця, коли відкрили його картку.
 
     Сам аналіз перевіряє лише перших за PnL (age_lookups_max), бо кожен гаманець коштує кредитів RPC. Решта — тут, по
-    одному, коли хтось справді дивиться: 2-3 виклики ноди, тиждень у кеші, і відповідь лягає в результат для всіх."""
-    app = request.app
+    одному, коли хтось справді дивиться: 2-3 виклики ноди, тиждень у кеші, і відповідь лягає в результат для всіх.
+
+    `checked: false` — сервер цього гаманця не перевіряв (демо, пауза бюджету, денна стеля карток): сторінка каже
+    «не перевірено», а не «історії нема». Демо і його програвання спільні для всіх і лише читаються."""
+    app, s = request.app, request.app["s"]
     job = app["jobs"].get(request.query.get("job", ""))
     if not job or job.status != "done" or not job.result:
         raise web.HTTPNotFound(text="No result yet.")
@@ -956,25 +1031,43 @@ async def wallet_age_json(request):
     row = next((x for x in rows if x.get("wallet") == wallet), None)
     if row is None:
         raise web.HTTPNotFound(text="That wallet is not in this analysis.")
-    def known():
-        return {"age": (r.get("ages") or {}).get(wallet), "funder": (r.get("funders") or {}).get(wallet),
-                "bundle": (r.get("bundle") or {}).get(wallet), "fresh": "fresh" in (row.get("tag_list") or [])}
-    if wallet in (r.get("ages") or {}) or wallet in set(r.get("funder_checked") or []):
-        return web.json_response(known())
     ages = app.get("ages")
-    if ages is None or job.id in _demo_job_ids(app):
-        return web.json_response(known())
-    cached = ages.cached(wallet)
-    if cached is None and ages.paused():
-        return web.json_response(dict(known(), paused=True))
-    if cached is None and not request.get("acct"):
-        raise ConnectRequired(message="Connect a wallet to check this wallet's age and funder.")
-    settle = _browse_budget(request, 1) if cached is None else None
+    cached = ages.cached(wallet) if ages is not None else None   # вік з кешу нічого не коштує
 
-    def work():
+    def known(**extra):
+        age = (r.get("ages") or {}).get(wallet)
+        if age is None and cached and cached.get("oldest_ms"):
+            age = {"ms": cached["oldest_ms"], "exact": bool(cached.get("exact"))}
+        out = {"age": age, "funder": (r.get("funders") or {}).get(wallet), "bundle": (r.get("bundle") or {}).get(wallet),
+               "fresh": "fresh" in (row.get("tag_list") or []),
+               "checked": wallet in (r.get("ages") or {}) or cached is not None}
+        return web.json_response(dict(out, **extra))
+    demo_ids = _demo_job_ids(app)
+    if (wallet in (r.get("ages") or {}) or wallet in set(r.get("funder_checked") or []) or ages is None
+            or job.replay or job.id in demo_ids or (job.canon or "") in demo_ids):
+        return known()
+    pk = request.get("acct")
+    settle = None
+    if cached is None:                                  # платний шлях: 2-7 викликів ноди по 10 кредитів
+        if ages.paused():
+            return known(checked=False, paused=True)
+        if not pk:
+            raise ConnectRequired(message="Connect a wallet to check this wallet's age and funder.")
+        who = None
+        if pk not in app["admins"]:
+            # своя стеля для карток, окремо від графіків: одна одиниця бюджету графіків купувала до 70 кредитів RPC
+            daily, who = app["browse_daily"], "age:acct:" + pk
+            if (daily.left(who, s.get("age_card_per_day", 50)) <= 0
+                    or daily.left("age:global", s.get("age_card_global_per_day", 500)) <= 0):
+                return known(checked=False, capped=True)
+        settle = _browse_budget(request, 1)
+        if who:
+            daily.add(who, 1)
+            daily.add("age:global", 1)
+
+    def work():                                         # кеш віку пише себе кожні 25 записів і при зупинці сервера
         age = ages.oldest_tx(wallet)
         fund = ages.funder(wallet, age["oldest_sig"]) if age.get("exact") and age.get("oldest_sig") else None
-        ages.flush()
         return age, fund
     try:
         age, fund = await asyncio.to_thread(work)
@@ -989,15 +1082,40 @@ async def wallet_age_json(request):
         if tags.is_fresh(row.get("first_buy_ms"), age) and "fresh" not in (row.get("tag_list") or []):
             row["tag_list"] = tags.with_tag(row.get("tag_list"), "fresh")
             row["tags"] = "|".join(row["tag_list"])
+            fw = r.setdefault("fresh_wallets", [])       # як у збагаченні: звідси тег бачать експорт, агент і списки
+            if wallet not in fw:
+                fw.append(wallet)
     if fund:
         r.setdefault("funders", {})[wallet] = fund
         _bundles(r, rows)                                   # новий спонсор може замкнути бандл з уже відомими
     r["funder_checked"] = sorted(set(r.get("funder_checked") or []) | {wallet})
-    try:
-        await asyncio.to_thread(app["jobs"]._save, job, True)
-    except Exception as e:  # noqa: BLE001 — відповідь уже є в пам'яті; збережеться з наступним записом
-        log.warning("wallet age save %s: %s", job.id, e)
-    return web.json_response(known())
+    _save_soon(app, job)
+    return known(checked=True)
+
+
+AGE_SAVE_S = 30
+
+
+def _save_soon(app, job):
+    """Картка дописала вік у результат. Файл аналізу — мегабайти, тож з карток він пишеться не частіше ніж раз на
+    AGE_SAVE_S: перша зміна — одразу, решта вікна — одним записом у кінці (збагачення зберігає і саме)."""
+    saves = app["age_saves"]
+    if job.id in saves["waiting"]:
+        return                                              # запис уже чекає і візьме й цю зміну
+    delay = max(0.0, saves["last"].get(job.id, 0) + AGE_SAVE_S - time.monotonic())
+
+    async def later():
+        await asyncio.sleep(delay)
+        saves["waiting"].pop(job.id, None)                  # зміна під час запису замовить наступний
+        saves["last"][job.id] = time.monotonic()
+        try:
+            await asyncio.to_thread(app["jobs"]._save, job, True)
+        except Exception as e:  # noqa: BLE001 — відповідь уже є в пам'яті; збережеться з наступним записом
+            log.warning("wallet age save %s: %s", job.id, e)
+    task = asyncio.get_running_loop().create_task(later())
+    saves["waiting"][job.id] = (job, task)
+    saves["tasks"].add(task)                                # цикл подій тримає задачі лише слабко
+    task.add_done_callback(saves["tasks"].discard)
 
 
 async def admin_page(request):
@@ -1095,8 +1213,7 @@ async def _overview(app, mint, charge=None):
             req0 = st.requests_here()
             try:
                 info = pipeline.token(st, mint)
-                ov = pipeline.overview(st, mint, info, s, app["cfg"])
-                st.flush()
+                ov = pipeline.overview(st, mint, info, s, app["cfg"])   # кеш свічок пише себе сам і при зупинці сервера
                 return info, {"interval": ov["interval"], "hints": ov["hints"]}   # свічки не тримаємо: з кешу їх ніхто не читає
             finally:
                 if charge:
@@ -1141,8 +1258,11 @@ def _home_data(jobs):
 
 
 def _replay(job, page_size=250, budget_s=12.0):
-    """Demo: play a believable run built from the stored result's own numbers, then return that result (0 requests)."""
-    return replay.play(job, copy.deepcopy(job.replay["result"]), job.t_from, job.t_to, page_size=page_size, budget_s=budget_s)
+    """Demo: play a believable run built from the stored result's own numbers, then return that result (0 requests).
+
+    The replay shows the snapshot's own result object, not a copy: nothing writes to a replay (no enrichment, no names,
+    no saves, and the card treats it as read-only), and a copy per press cost 5-25 MB each."""
+    return replay.play(job, job.replay["result"], job.t_from, job.t_to, page_size=page_size, budget_s=budget_s)
 
 
 def _demo_ranges(snap):
@@ -1269,7 +1389,13 @@ async def token_page(request):
     detect_cfg = dict(CFG_DEFAULTS.get("detect") or {}, **((app["cfg"] or {}).get("detect") or {}))
     q = request.query
     preset = None
-    notice = q.get("notice") if q.get("notice") in ("limit", "sitecap") else None   # Analyze bounced off a daily cap
+    admin = bool(pk) and pk in app["admins"]
+    runs_left, runs_why = _runs_left(app, pk, _device_id(request), _client_ip(request)) if pk and not admin else (None, None)
+    notice = q.get("notice") if q.get("notice") in ("limit", "netcap", "sitecap") else None   # Analyze bounced off a daily cap
+    if notice in ("limit", "netcap") and not runs_left == 0:
+        notice = None                                   # стара адреса, чуже посилання чи гість: вікно лише тому, кому справді нема
+    # яке вікно показати: людина вичерпала свої, мережа — спільні, чи сайт — день
+    limit_kind = notice or (("netcap" if runs_why == "network" else "limit") if runs_left == 0 else None)
     if chart.from_input(q.get("from")) and chart.from_input(q.get("to")):
         preset = {"n": None, "label": "Your range" if notice else "From the result", "from": q.get("from"), "to": q.get("to")}
     done_jobs = sorted((j for j in app["jobs"].jobs.values() if j.mint == mint and j.status == "done"),
@@ -1287,10 +1413,8 @@ async def token_page(request):
                      "deletable": bool(pk) and (j.owner == pk or pk in app["admins"])})
     if not rows:
         rows = [{"n": 1, "label": "Range 1", "from": "", "to": ""}]
-    admin = bool(pk) and pk in app["admins"]
-    runs_left = _runs_left(app, pk, _device_id(request), _client_ip(request)) if pk and not admin else None
     return render("token.html", request, info=info, mint=mint, s=s, is_demo=bool(demo and demo["mint"] == mint),
-                  runs_left=runs_left, notice=notice, reset_ms=_next_midnight_ms(), demo_mint=(demo or {}).get("mint"),
+                  runs_left=runs_left, notice=notice, limit_kind=limit_kind, reset_ms=_next_midnight_ms(), demo_mint=(demo or {}).get("mint"),
                   n_demo=len(demo["ranges"]) if demo and demo["mint"] == mint else 0, bounced=q.get("notice") == "demo", created=info.get("created_time") or 0, now=int(time.time() * 1000),
                   rows_json=json.dumps(rows), jobs_json=json.dumps(jobs_done), preset_json=json.dumps(preset),
                   hints_json=json.dumps(hints), min_peak=int(detect_cfg.get("min_peak_mcap") or 1_000_000))
@@ -1318,6 +1442,12 @@ async def marks_json(request):
         out["migration"] = info["migration"]
     if info.get("pools") and (info.get("mint") == mint or job):
         out["pools"] = info["pools"]                          # де токен торгувався: для пояснення графіка
+    hit = app["overview_cache"].get(mint)
+    known = (_is_demo_mint(app, mint) or (hit and hit[1] is not None)
+             or any(j.mint == mint for j in list(app["jobs"].jobs.values())))
+    if not known:                                             # чужу адресу DexScreener за наш рахунок не питаємо
+        out.pop("paid")
+        return web.json_response(out, headers={"Cache-Control": "public, max-age=600"})
     out["paid"] = await asyncio.to_thread(dexscreener.orders, mint, app.get("dex_cache"))
     return web.json_response(out, headers={"Cache-Control": "public, max-age=600"})
 
@@ -1348,15 +1478,15 @@ async def candles_json(request):
     a = max(a, b - chart.TF_SEC[tf] * MAX_CANDLES)      # Solana Tracker truncates a huge span without saying so and
     if b <= a:                                          # returns only the newest slice; keep every request answerable
         return web.json_response([])
-    settle = _browse_budget(request, 1) if not st.chart_cached(mint, tf, a * 1000, b * 1000) else None   # шматок = 1 запит
+    # замок кешу клієнта буває зайнятий записом файлів з інших потоків: перевірка йде в потоці, не в циклі подій
+    cached = await asyncio.to_thread(st.chart_cached, mint, tf, a * 1000, b * 1000)
+    settle = _browse_budget(request, 1) if not cached else None   # шматок = 1 запит
 
     def load():
         with st.meter():
             req0 = st.requests_here()
             try:
-                c = pipeline._chart(st, mint, tf, a * 1000, b * 1000, info)
-                st.flush()
-                return c
+                return pipeline._chart(st, mint, tf, a * 1000, b * 1000, info)   # кеш запише себе сам і при зупинці
             finally:
                 if settle:
                     settle(st.requests_here() - req0)
@@ -1385,6 +1515,38 @@ def _trade_candles(app, mint):
     return data
 
 
+def _demo_replay(request, ip, mint, r, demo):
+    """Куди веде Analyze на записаному діапазоні демо: на програвання, а коли нове не на часі — на сам результат.
+
+    Програвання безкоштовне, але кожне тримає потік ~12 с і пам'ять, тож: та сама адреса з тим самим діапазоном, поки
+    її програвання ще йде, повертається до нього; нове — лише з цього сайту і не частіше за `demo_replays_per_10min`.
+    Інакше — збережений результат одразу, без програвання."""
+    app, jobs = request.app, request.app["jobs"]
+    mine, key = app["demo_replays"], (ip, r["job"])
+
+    def playing(jid):
+        j = jobs.get(jid or "")
+        return bool(j) and j.status in ("queued", "running")
+    if playing(mine.get(key)):
+        return f"/job/{mine[key]}"
+    stored = jobs.get(r["job"])
+    now, th = time.time(), app["demo_runs"]
+    if not _same_origin(request) or th.wait_s(ip, now):
+        if stored and stored.status == "done" and stored.result:
+            return f"/job/{stored.id}"
+        if not _same_origin(request):
+            raise WebError("Requests must come from this site.", 403)
+        raise WebError(_wait_text(th.wait_s(ip, now)), 429)
+    th.miss(ip, now)
+    job = jobs.submit(mint, r["from"], r["to"], symbol=demo["info"].get("symbol"),
+                      replay={"log": list(r.get("log") or []), "result": r["result"]})
+    if len(mine) > 1000:                                                # прибираємо ті, що вже відіграли
+        for k in [k for k, jid in mine.items() if not playing(jid)]:
+            mine.pop(k, None)
+    mine[key] = job.id
+    return f"/job/{job.id}"
+
+
 async def analyze(request):
     """Demo ranges replay for everyone and an existing result opens for everyone. A new live run needs a connected
     wallet: a token holds at most `ranges_per_token` analyses, a wallet gets `runs_per_day` runs a day, and one run
@@ -1398,15 +1560,18 @@ async def analyze(request):
     if demo and demo["mint"] == mint:
         for r in demo["ranges"]:                                        # демо: програємо збережений аналіз зі знімка
             if t_from and t_to and abs(t_from - r["from"]) <= 60_000 and abs(t_to - r["to"]) <= 60_000:
-                job = app["jobs"].submit(mint, r["from"], r["to"], symbol=demo["info"].get("symbol"),
-                                         replay={"log": list(r.get("log") or []), "result": r["result"]})
-                raise web.HTTPFound(f"/job/{job.id}")
+                raise web.HTTPFound(_demo_replay(request, ip, mint, r, demo))
         raise web.HTTPFound(f"/token?mint={mint}&notice=demo")           # інший діапазон — без живого (платного) прогону
-    cur = app["jobs"].get(make_id(mint, t_from, t_to)) if (t_from and t_to) else None
-    if cur and cur.mint != mint:                                        # id збігся у двох токенів з однаковим початком адреси
-        raise WebError("Another token with a similar address already holds this exact range. Shift a bound by a minute.")
-    if cur and (cur.status in ("queued", "running") or (cur.status == "done" and cur.result)):
-        raise web.HTTPFound(f"/job/{cur.id}")                           # той самий діапазон уже є: відкриваємо, без витрат і без гаманця
+
+    def same_range():
+        """Той самий діапазон уже є (іде чи готовий): відкриваємо його, без витрат і без гаманця."""
+        cur = app["jobs"].get(make_id(mint, t_from, t_to)) if (t_from and t_to) else None
+        if cur and cur.mint != mint:                                    # id збігся у двох токенів з однаковим початком адреси
+            raise WebError("Another token with a similar address already holds this exact range. Shift a bound by a minute.")
+        if cur and (cur.status in ("queued", "running") or (cur.status == "done" and cur.result)):
+            raise web.HTTPFound(f"/job/{cur.id}")
+        return cur
+    cur = same_range()
     pk = request.get("acct")
     admin = bool(pk) and pk in app["admins"]
     cap_tok = int(s.get("ranges_per_token", 3))                         # усе, що можна перевірити до гаманця, — до гаманця
@@ -1436,16 +1601,23 @@ async def analyze(request):
         # in a row could still spend five times the plan. A run starts only while the worst case of it leaves the reserve.
         left = await _credits_left(app)
         worst = int(s.get("run_cap_requests", 0) or 0)
-        if left is not None and left - worst < reserve:
+        # runs already queued or running have not spent their worst case yet, and the balance is up to 10 minutes old
+        in_flight = sum(1 for j in list(app["jobs"].jobs.values()) if j.status in ("queued", "running") and not j.replay
+                        and j.owner and j.owner not in app["admins"])
+        if left is not None and left - (in_flight + 1) * worst < reserve:
             if not admin:
                 raise WebError("This month's data budget is nearly used up, so new live analyses wait until it renews. "
                                "The demo and every saved result stay open.", 503)
             log.warning("admin run with %s credits left (reserve %s)", left, reserve)
+    same_range()                                                        # друге натискання, поки перше чекало огляд чи баланс: не платить удруге
     # one person, one day's runs: the wallet, the browser and the network are counted together, so connecting another
     # wallet in the same browser adds nothing. No awaits from here to submit: the check and the charge are one step.
     dev, new_dev, charged = _device_id(request), None, []
     if not admin:
-        if _runs_left(app, pk, dev, ip) <= 0 or not app["accounts"].take_run(pk, int(s.get("runs_per_day", 1))):
+        left_today, why = _runs_left(app, pk, dev, ip)
+        if left_today <= 0 and why == "network":
+            raise web.HTTPFound(back + "&notice=netcap")                # свої ще є, а мережа свої вичерпала: вікно каже саме це
+        if left_today <= 0 or not app["accounts"].take_run(pk, int(s.get("runs_per_day", 1))):
             raise web.HTTPFound(back + "&notice=limit")
         if not dev:
             dev = new_dev = secrets.token_hex(16)
@@ -1546,7 +1718,7 @@ async def job_page(request):
     status, result = job.status, job.result             # знімок: статус міняється з робочого потоку
     sm, sc = None, _scope(request, app["s"])
     if status == "done" and result:
-        rows, sm = _rows(result, sc, app["s"])
+        rows, sm = await _rows_async(app, result, sc)
         result = dict(result, rows=rows)
     else:
         result = None
@@ -1563,7 +1735,7 @@ async def job_page(request):
 
 # поля рядка таблиці результату в тому порядку, в якому їх віддає _table
 TABLE = ("w", "inv", "invsol", "tot", "totsol", "got", "gotsol", "real", "realsol", "unreal",
-         "mult", "sold", "buys", "sells", "hold", "exit", "entry", "etime", "exitcap", "tags")
+         "mult", "sold", "buys", "sells", "hold", "exit", "entry", "etime", "exitcap", "tags", "eavg")
 
 
 def _rnd(v, digits):
@@ -1600,7 +1772,8 @@ def _table(rows):
                     _rnd(r.get("entry_range_mcap") or r.get("entry_mcap_avg"), 0),
                     int(r.get("first_range_buy_ms") or r.get("first_buy_ms") or 0),
                     _rnd(r.get("exit_mcap_avg"), 0),
-                    " ".join(r.get("tag_list") or [])])
+                    " ".join(r.get("tag_list") or []),
+                    _rnd(r.get("entry_mcap_avg"), 0)])            # «Exit vs entry» ділить на середній вхід усіх купівель, а не на вхід у діапазоні
     return {"f": TABLE, "r": out}
 
 
@@ -1615,15 +1788,55 @@ def _scope(request, s):
     return sc if sc in scope.scopes_for(s) else "all"
 
 
-def _rows(result, sc, s):
-    """Рядки за масштабом з угод у результаті; старі результати без угод — як збережено."""
-    out = scope.rows_for(result, sc, s) if sc != "all" or result.get("wallet_trades") else None
-    if out:
-        return out
+def _stored_rows(result):
     rows = result.get("rows") or []
     for r in rows:                                          # результати до появи тегів
         r.setdefault("tag_list", (r.get("tags") or "").split("|") if r.get("tags") else [])
     return rows, {**report.summary(rows), **(result.get("summary") or {})}
+
+
+def _as_stored(result, sc):
+    """«Уся історія» результату без угод або знятого цим самим кодом (rows_rev) — це збережені рядки: прогін записав
+    саме rows_for(result, "all"), а збагачення дописує в них fresh і bundle. Перераховувати їх нема чого."""
+    return sc == "all" and (not result.get("wallet_trades") or result.get("rows_rev") == ROWS_REV)
+
+
+def _rows(result, sc, s):
+    """Рядки за масштабом з угод у результаті; старі результати без угод — як збережено."""
+    if _as_stored(result, sc):
+        return _stored_rows(result)
+    out = scope.rows_for(result, sc, s)
+    return out if out else _stored_rows(result)
+
+
+ROWS_MEMO_MAX = 12
+
+
+async def _rows_async(app, result, sc):
+    """_rows без блокування циклу подій: перерахунок усіх гаманців (0.2-1 с на великому результаті) іде в потоці і
+    пам'ятається, доки збагачення не додало тегів. Ключ — сам об'єкт результату: програвання демо ділять один."""
+    if _as_stored(result, sc):
+        return _stored_rows(result)
+    memo = app["rows_memo"]
+    key = (id(result), sc, len(result.get("fresh_wallets") or []), len(result.get("bundle") or {}),
+           len(result.get("funders") or {}))
+    hit = memo.get(key)
+    if hit and hit[0] is result:
+        return hit[1]
+    out = await asyncio.to_thread(_rows, result, sc, app["s"])
+    memo[key] = (result, out)                               # тримаємо й результат: інакше його id міг би дістатись іншому
+    while len(memo) > ROWS_MEMO_MAX:
+        memo.pop(next(iter(memo)))
+    return out
+
+
+def _csv_text(rows):
+    buf = io.StringIO()
+    w = csv.DictWriter(buf, fieldnames=report.COLUMNS, extrasaction="ignore")
+    w.writeheader()
+    for r in rows:
+        w.writerow({k: ("" if r.get(k) is None else r.get(k)) for k in report.COLUMNS})
+    return buf.getvalue()
 
 
 async def job_csv(request):
@@ -1631,13 +1844,8 @@ async def job_csv(request):
     if not job or job.status != "done" or not job.result:
         raise web.HTTPNotFound(text="No result yet.")
     sc = _scope(request, request.app["s"])
-    rows, _ = _rows(job.result, sc, request.app["s"])
-    buf = io.StringIO()
-    w = csv.DictWriter(buf, fieldnames=report.COLUMNS, extrasaction="ignore")
-    w.writeheader()
-    for r in rows:
-        w.writerow({k: ("" if r.get(k) is None else r.get(k)) for k in report.COLUMNS})
-    return web.Response(text=buf.getvalue(), content_type="text/csv",
+    rows, _ = await _rows_async(request.app, job.result, sc)
+    return web.Response(text=await asyncio.to_thread(_csv_text, rows), content_type="text/csv",
                         headers={"Content-Disposition": f'attachment; filename="{job.id}-{sc}.csv"'})
 
 
@@ -1648,9 +1856,10 @@ async def job_json(request):
         raise web.HTTPNotFound(text="No result yet.")
     r = job.result
     sc = _scope(request, request.app["s"])
-    rows, _ = _rows(r, sc, request.app["s"])
-    return web.json_response({"id": job.id, "mint": job.mint, "window": r["window"], "mode": r.get("mode"),
-                              "scope": sc, "coverage": r.get("coverage"), "columns": report.COLUMNS, "rows": rows})
+    rows, _ = await _rows_async(request.app, r, sc)
+    body = {"id": job.id, "mint": job.mint, "window": r["window"], "mode": r.get("mode"),
+            "scope": sc, "coverage": r.get("coverage"), "columns": report.COLUMNS, "rows": rows}
+    return web.Response(text=await asyncio.to_thread(json.dumps, body), content_type="application/json")
 
 
 async def job_assistant(request):
@@ -1669,16 +1878,11 @@ async def job_assistant(request):
     if body is None:
         return _jerr("Bad request body.")
     method = str(body.get("method") or "")[:2000]
-    want = body.get("wallets")
+    want = body.get("wallets") if isinstance(body.get("wallets"), list) else []
+    keep = set(str(w) for w in want)
     sc = body.get("scope") if body.get("scope") in scope.scopes_for(app["s"]) else "all"
-    rows, _ = _rows(job.result, sc, app["s"])
-    if isinstance(want, list) and want:
-        keep = set(str(w) for w in want)
-        rows = [r for r in rows if r["wallet"] in keep]
-    rows = rows[:assistant_mod.MAX_ROWS]
-    if not rows:
-        return web.json_response({"error": "No wallets to look at — clear the filters."}, status=400)
-    key = hashlib.sha1((job.id + sc + method + ",".join(r["wallet"] for r in rows)).encode()).hexdigest()
+    # ключ відповіді — з самого запиту, без рядків: повтор безкоштовний навіть понад стелю, а рядки рахуються лише після неї
+    key = hashlib.sha1("|".join([job.id, sc, method, ",".join(sorted(keep)) or "*"]).encode()).hexdigest()
     cached = app["assistant_cache"].get(key)
     if cached:
         return web.json_response(dict(cached, cached=True))
@@ -1690,11 +1894,24 @@ async def job_assistant(request):
     if not daily.take(who, cap):
         return _jerr(f"You have used today's {int(cap)} assistant asks" + ("" if pk else " — connect a wallet for more") + ". More tomorrow.", 429)
     daily.take("global", s.get("assistant_global_per_day", 45))
+
+    def give_back():
+        daily.add(who, -1)
+        daily.add("global", -1)
+    rows, _ = await _rows_async(app, job.result, sc)
+    if keep:
+        rows = [r for r in rows if r["wallet"] in keep]
+    rows = rows[:assistant_mod.MAX_ROWS]
+    if not rows:
+        give_back()                                                     # питати нема про що — спроба не рахується
+        return web.json_response({"error": "No wallets to look at — clear the filters."}, status=400)
     try:
         out = await asyncio.get_running_loop().run_in_executor(None, a.ask, rows, method)
     except assistant_mod.AssistantError as e:
-        daily.add(who, -1)                                              # відповіді нема — спроба не рахується
-        daily.add("global", -1)
+        # повертаємо спробу лише коли модель не відповіла зовсім (429, тайм-аут, HTTP): відповідь, з якої не вийшло
+        # списку, уже коштувала 2-3 виклики безкоштовного тарифу, і без ліку ними можна було б вичерпати його за всіх
+        if isinstance(e.__cause__, OSError):
+            give_back()
         return web.json_response({"error": str(e)}, status=502)
     out["n_rows"] = len(rows)
     out["left"] = daily.left(who, cap)
@@ -1737,8 +1954,13 @@ async def job_enrich_json(request):
 
     The page sends how many funders (`f`) and first transactions (`a`) it already holds and whether it has the names
     (`i=1`); the answer carries only the rest. The whole state every five seconds was 177 KB on a 2,500-wallet result.
-    Bundles are not sent: the page counts them from the funders by the same rule."""
-    job = request.app["jobs"].get(request.match_info["id"])
+    Bundles are not sent: the page counts them from the funders by the same rule.
+
+    Names count as done when nobody will ask for them: a demo or its replay (a snapshot), or a server without the
+    names lookup; otherwise a page polled forever for results made before names existed. `paused` holds only while the
+    RPC budget is paused right now: in a new month the paused enrichment is queued again instead."""
+    app = request.app
+    job = app["jobs"].get(request.match_info["id"])
     if not job or job.status != "done" or not job.result:
         raise web.HTTPNotFound(text="No result yet.")
     r = job.result
@@ -1752,10 +1974,16 @@ async def job_enrich_json(request):
     fresh = [row["wallet"] for row in r.get("rows") or [] if "fresh" in (row.get("tag_list") or [])]
     funders, n_funders = _tail(r.get("funders"), since("f"))
     ages, n_ages = _tail(r.get("ages"), since("a"))
+    demo_ids = _demo_job_ids(app)
+    snapshot = bool(job.replay) or job.id in demo_ids or (job.canon or "") in demo_ids
+    rpc = app.get("ages")
+    paused = e.get("paused") if rpc is not None and rpc.paused() else None
+    if e.get("paused") and not paused and not snapshot:
+        app["jobs"].resume_enrich(job)                  # бюджет відновився: доробляємо, не чекаючи рестарту
     out = {"done": e.get("done", 0), "total": e.get("total", 0), "fresh": fresh,
-           "funders_done": e.get("funders_done", 0), "paused": e.get("paused"),
+           "funders_done": e.get("funders_done", 0), "paused": paused,
            "funders": funders, "n_funders": n_funders, "ages": ages, "n_ages": n_ages,
-           "identities_done": bool(r.get("identities_done"))}
+           "identities_done": bool(r.get("identities_done")) or snapshot or app["jobs"].namer is None}
     if request.query.get("i") != "1":
         out["identities"] = r.get("identities") or {}
     return web.json_response(out, headers={"Cache-Control": "no-store"})
@@ -1809,11 +2037,36 @@ async def wallet_profile_json(request):
     return web.json_response(out)
 
 
+def _store_trades_of(store_dir, mint, wallet, a, b):
+    """Угоди одного гаманця з кешу угод токена, не вантажачи весь файл: TradeStore на 500 тисяч угод — це ~700 МБ
+    пам'яті на запит. Розбираємо лише рядки, де трапляється адреса; дублі відкидаємо так само, як сховище."""
+    path = os.path.join(store_dir, f"trades_{mint}.jsonl")
+    out, seen = [], set()
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                if wallet not in line:
+                    continue
+                try:
+                    tr = json.loads(line)
+                except ValueError:
+                    continue                                # обірваний рядок після збою
+                key = TradeStore._key(tr)
+                if tr.get("wallet") != wallet or key in seen or tr.get("time") is None or not a <= tr["time"] <= b:
+                    continue
+                seen.add(key)
+                out.append(tr)
+    except FileNotFoundError:
+        pass
+    return out
+
+
 async def wallet_trades_json(request):
     """One wallet's buys and sells on the analysed token, for the chart markers.
 
-    Full-trades mode: from the cached token feed (no requests). Per-wallet mode: the wallet's own
-    trades from Solana Tracker (1 request, cached). Exact trade times; market cap = price × supply."""
+    Stored in the result (every row since v0.3): no requests. An older full-trades result: this wallet's lines of the
+    cached token feed (no requests). An older per-wallet result: the wallet's own trades from Solana Tracker (1 request,
+    cached, needs a wallet and the chart budget). Exact trade times; market cap = price × supply."""
     app = request.app
     job = app["jobs"].get(request.query.get("job", ""))
     if not job or job.status != "done" or not job.result:
@@ -1826,19 +2079,23 @@ async def wallet_trades_json(request):
     supply = (job.result.get("info") or {}).get("supply") or 0
     stored = (job.result.get("wallet_trades") or {}).get(wallet)
     settle = None
-    if stored is None and job.result.get("mode") != "trades" and job.id not in _demo_job_ids(app):
+    if stored is None:
+        # чужі адреси не купуємо і не шукаємо ні в Solana Tracker, ні в сотнях мегабайт угод токена — у будь-якому режимі
         if wallet not in {r.get("wallet") for r in job.result.get("rows") or []}:
-            raise web.HTTPNotFound(text="That wallet is not in this analysis.")   # чужі адреси в Solana Tracker не купуємо
-        if not request.get("acct"):
-            raise ConnectRequired(message="Connect a wallet to load this wallet's trades.")   # цей шлях купує угоди гаманця…
-        settle = _browse_budget(request, 1)                            # …і платить за них з добового бюджету
+            raise web.HTTPNotFound(text="That wallet is not in this analysis.")
+        demo_ids = _demo_job_ids(app)
+        if job.replay or job.id in demo_ids or (job.canon or "") in demo_ids:   # демо живе без запитів
+            return web.json_response({"wallet": wallet, "n": 0, "truncated": False, "trades": [], "complete": False})
+        if job.result.get("mode") != "trades":
+            if not request.get("acct"):
+                raise ConnectRequired(message="Connect a wallet to load this wallet's trades.")   # цей шлях купує угоди гаманця…
+            settle = _browse_budget(request, 1)                        # …і платить за них з добового бюджету
 
     def work():
         if stored is not None:                                        # уся історія гаманця вже в результаті
             return scope.unpack(wallet, stored.get("trades") or [])
         if job.result.get("mode") == "trades":
-            trs = TradeStore(app["store_dir"], mint).between(a, b)
-            return [t for t in trs if t.get("wallet") == wallet]
+            return _store_trades_of(app["store_dir"], mint, wallet, a, b)
         with st.meter():                                  # run_in_executor не переносить контекст: лічильник відкриваємо тут
             req0 = st.requests_here()
             try:

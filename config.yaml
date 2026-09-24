@@ -45,6 +45,8 @@ early:
   # does and never throttles a series, while the public node answers 429 on deep pagination.
   # Note: that node returns short pages in the middle of a history, so wallet_age pages to an empty answer.
   rpc_pace_s: 0.2               # 5 requests a second, the free RPC tier's pace; lower it on Developer
+  rpc_tx_pace_s: 0.3            # funder lookups (getTransaction) go to the public api.mainnet-beta, which allows about
+                                # 40 calls per 10 s per method; at 0.2 about a quarter of them failed with 429 on dev (24.09)
   age_lookups_max: 200          # the first 200 by PnL get age and funder right after the table; any other wallet gets
                                 # them when its card is opened. Each lookup costs RPC credits, most cards are never opened
   rpc_credits_month: 500000     # the RPC plan's monthly pool (free tier; checked 24.09: under 500 used). 10 credits per

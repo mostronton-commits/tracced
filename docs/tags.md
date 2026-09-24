@@ -33,7 +33,7 @@ early buyer in **another analysis you saved**, and clicking it opens that list.
 Next to some wallets sit other pictures: a star for a known trader (KOL), the X logo when the wallet's X account is
 known, the logo of the app it trades through (Axiom, GMGN, Fomo, pump.fun, Terminal, Photon, Bloom, BullX), and a
 mark for an exchange, a known bot or a known exploit wallet. None of that is our judgement: it comes from Solana
-Tracker, and every tooltip and the card say so.
+Tracker's wallet data, and it is never mixed with the tags above.
 
 Every other wallet in the table is one nobody has labelled. That is most of them, and usually the interesting part.
 

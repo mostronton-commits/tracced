@@ -353,20 +353,26 @@ class AccountStore:
 
     def remove_wallet(self, pubkey, wallet, list_id=None):
         """З одного списку, або з усіх (list_id=None). Гаманець без жодного списку зникає зовсім."""
-        def fn(a):
-            cur = a["wallets"].get(wallet)
-            if cur is None:
-                return False
-            if list_id is None:
-                a["wallets"].pop(wallet)
-                return True
-            if list_id not in cur["lists"]:
-                return False
-            cur["lists"].remove(list_id)
-            if not cur["lists"]:
-                a["wallets"].pop(wallet)
-            return True
-        return self._update(pubkey, fn)
+        return self.remove_wallets(pubkey, [wallet], list_id) > 0
+
+    def remove_wallets(self, pubkey, wallets, list_id=None):
+        """Кілька гаманців одним записом файлу → скільки прибрано. Нічого не змінилось — файл не переписуємо."""
+        with self.lock:
+            a = self.load(pubkey)
+            n = 0
+            for w in dict.fromkeys(wallets):
+                cur = a["wallets"].get(w)
+                if cur is None or (list_id is not None and list_id not in cur["lists"]):
+                    continue
+                if list_id is not None:
+                    cur["lists"].remove(list_id)
+                if list_id is None or not cur["lists"]:
+                    a["wallets"].pop(w)
+                n += 1
+            if n:
+                a["last_seen_ms"] = _now_ms()
+                self.save(a)
+        return n
 
     def _clean_name(self, name):
         name = " ".join(str(name or "").split())[:MAX_LIST_NAME]

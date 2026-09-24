@@ -34,8 +34,7 @@
     })(t0);
   }
 
-  /* The token's own events as a legend above the chart: the same badge as on the price, what it means, when, and a
-     click that brings that moment into view. A line of «94 min» said nothing and could not be acted on. */
+  /* The token's own events for the chart's badges: what each one means and when, in its tooltip. */
   const DEX = '<img src="/static/brands/dexscreener.png" alt="">';
   function marks(d) {
     const out = [];
@@ -47,21 +46,6 @@
       title: 'DexScreener ' + (p.kind || 'profile') + ' paid' + when(p.ms) + ' (anyone can pay, not only the team)' }));
     return out;
   }
-  function marksLegend(el, d, jump) {
-    const ev = marks(d);
-    el.innerHTML = '';
-    el.hidden = !ev.length;
-    ev.forEach(e => {
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'mklegend'; b.title = e.title + ' · click to show it on the chart';
-      b.innerHTML = '<span class="evdot ' + e.kind + '">' + (e.html || e.badge) + '</span>' + e.label + ' · <span class="dtc" data-ms="' + e.ms + '">'
-        + (window.EarlyTZ ? EarlyTZ.fmt(e.ms, false) : '') + '</span>';
-      b.addEventListener('click', () => jump(e.ms));
-      el.appendChild(b);
-    });
-    return ev;
-  }
-
   /* <div class="menu"><button data-menu>…</button><div class="menu-panel" hidden>…</div></div> */
   function menus() {
     document.querySelectorAll('[data-menu]').forEach(btn => {
@@ -81,8 +65,12 @@
   }
   /* A product step for Umami, the privacy-friendly analytics on the live site: what people do, never who they are
      (no wallet addresses, at most one small property). Nothing happens where Umami is not loaded or is blocked. */
-  function track(name, data) { try { if (window.umami && typeof umami.track === 'function') umami.track(name, data); } catch (e) {} }
-  window.EarlyUI = { countUp, fmtShort, FMT, toast, menus, marks, marksLegend, track };
+  function track(name, data) {
+    // an inline script runs while the page is still parsed, before the deferred Umami script: wait for it
+    if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', () => track(name, data), { once: true }); return; }
+    try { if (window.umami && typeof umami.track === 'function') umami.track(name, data); } catch (e) {}
+  }
+  window.EarlyUI = { countUp, fmtShort, FMT, toast, menus, marks, track };
 })();
 
 /* home: the address field "types" a made-up base58 address until the user touches it */
@@ -159,7 +147,7 @@ window.EarlyTags = (function () {
     const t = el.dataset.tag; if (!t || !ICON[t] || el.classList.contains('ico')) return;
     const n = el.dataset.n;
     el.classList.add('ico'); el.setAttribute('aria-label', t);
-    el.innerHTML = ICON[t] + (n ? '<small>×' + n + '</small>' : '');
+    el.innerHTML = ICON[t] + (n ? '<small>×' + esc(n) + '</small>' : '');
   }
   /* who the wallet is, as pictures: KOL star, X account, the platforms it trades through, known roles */
   function idMarks(idn, opts) {

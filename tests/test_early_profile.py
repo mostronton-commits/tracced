@@ -119,6 +119,18 @@ class TestCardExtras(unittest.TestCase):
         self.assertEqual(seven["unbacked_tokens"], 2)              # TOKB (продаж рівно на межі тижня) і TOKD
         self.assertEqual(seven["open"], 1)                         # TOKC
 
+    def test_a_same_second_flip_given_newest_first_is_closed_with_its_pnl(self):
+        """/wallet/{owner}/trades приходить від нових до старих, а час — цілі секунди: бот купив і продав в одну
+        секунду. Продаж першим був би продажем без позиції, а купівля — відкритою позицією з нульовим PnL."""
+        newest_first = [swap(1, "TOKA", 1000, SOL, 1.5, 150.0, tx="sell"), swap(1, SOL, 1.0, "TOKA", 1000, 100.0, tx="buy"),
+                        swap(3, SOL, 0.5, "TOKC", 100, 50.0, tx="older")]
+        for raws in (newest_first, newest_first[::-1]):              # і від старих до нових — те саме
+            s = profile.summary(events(raws), W, NOW)
+            self.assertAlmostEqual(s["pnl_usd"], 50.0)
+            self.assertEqual((s["closed"], s["open"], s["unbacked_tokens"]), (1, 1, 0))
+            recent = {r["symbol"]: r for r in profile.recent_tokens(events(raws), NOW)}
+            self.assertEqual(recent["TOKA"]["state"], "closed")
+
     def test_heatmap_and_recent_tokens(self):
         c = profile.card(events(self.RAWS), W, NOW)
         self.assertEqual(sum(map(sum, c["heat"])), 6)              # шість обмінів з позицією за 30 днів
@@ -145,6 +157,9 @@ class TestIdentity(unittest.TestCase):
 class FakeCache(dict):
     def put(self, k, v):
         self[k] = v
+
+    def put_many(self, items):
+        self.update(items)
 
     def flush(self):
         pass

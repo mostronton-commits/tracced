@@ -46,7 +46,7 @@ class FakeST:
     def flush(self):
         self.flushed = True
 
-    def wallet_token_trades(self, wallet, mint, max_pages=4):
+    def wallet_token_trades(self, wallet, mint, max_pages=4, fresh=False):
         """The wallet's own trades on the token, as ST's by-wallet feed would return them."""
         self.requests += 1
         return [t for t in self.trades if t["wallet"] == wallet]
@@ -215,7 +215,7 @@ class SlowST(FakeST):
         self.cost, self.delay = cost, delay
         self.first_wallet_at = None
 
-    def wallet_token_trades(self, wallet, mint, max_pages=4):
+    def wallet_token_trades(self, wallet, mint, max_pages=4, fresh=False):
         import time as _t
         with self.lock:
             if self.first_wallet_at is None:
@@ -285,16 +285,29 @@ class TestParallelWallets(unittest.TestCase):
 
     def test_a_failing_wallet_stays_entry_only_and_the_rest_go_on(self):
         class Flaky(SlowST):
-            def wallet_token_trades(self, wallet, mint, max_pages=4):
+            def wallet_token_trades(self, wallet, mint, max_pages=4, fresh=False):
                 if wallet == "W3":
                     raise RuntimeError("boom")
-                return super().wallet_token_trades(wallet, mint, max_pages)
+                return super().wallet_token_trades(wallet, mint, max_pages, fresh)
         with tempfile.TemporaryDirectory() as d:
             st = Flaky(many_wallets(), delay=0.005)
             res, logs = self.run_fake(st, d)
             self.assertEqual(res["wallet_trades"]["W3"]["source"], "entry-only")
             self.assertEqual(res["coverage"]["exits_known"], 11)
             self.assertTrue(any("W3" in m and "unavailable" in m for m in logs))
+
+    def test_a_live_run_does_not_reuse_a_stale_copy_of_a_wallets_trades(self):
+        """Прогін бере історію до «зараз»: копія угод гаманця, закешована годину тому, не бачить його виходу."""
+        from tracced.cache import JsonCache
+        from tracced.early.st_client import EarlyST
+        feed = [{"wallet": "W1", "type": "buy", "time": T0 + MIN, "amount": 100, "volume": 100.0, "priceUsd": 1.0, "tx": "b"}]
+        st = EarlyST("k", pause=0, stats_cache=JsonCache(None, ttl_hours=24))
+        st._get = lambda path, body=None: {"trades": list(feed), "hasNextPage": False}
+        st.wallet_token_trades("W1", MINT)                              # картка або ранній аналіз закешували купівлю
+        feed.append({"wallet": "W1", "type": "sell", "time": T0 + 60 * MIN, "amount": 100, "volume": 300.0,
+                     "priceUsd": 3.0, "tx": "s"})
+        got, _ = pipeline.fetch_wallets(st, MINT, ["W1"], T0 + 2 * H, settings.load(), [], here=lambda: 0)
+        self.assertEqual([t[1] for t in got["W1"]], ["buy", "sell"])
 
 
 if __name__ == "__main__":

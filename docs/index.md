@@ -31,6 +31,6 @@ profit ranking. In a list of everyone who was present, they are obvious.
 | [How it works](/docs/how-it-works) | You want to know where a number came from |
 | [Tags](/docs/tags) | A row has a label and you want its exact rule |
 | [Limits](/docs/limits) | You hit a cap, or you want to know what is free |
-| [Your account](/docs/account) | Watchlist, your own tags, repeats across analyses |
+| [Your account](/docs/account) | Your lists, your own tags, repeats across analyses |
 | [Roadmap](/docs/roadmap) | You want to know what is coming, and what never will |
 | [The project](/docs/project) | You want the argument behind it, and what it refuses to do |

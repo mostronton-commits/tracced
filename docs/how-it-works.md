@@ -57,15 +57,15 @@ What a wallet still holds stays in dollars. It is a valuation at a later price, 
 ## What the token itself did
 
 Two events are marked on the price itself: **M** where trading left the launchpad, the DexScreener logo where
-someone paid DexScreener to show the token's profile. Above the chart each has a button with its time; press it and
-the chart goes there. **⇤ Launch** under the chart jumps to the first hours of trading. Together the two events often
-explain the timing of a run.
+someone paid DexScreener to show the token's profile. Each badge sits above the candle where the event happened;
+hover it for the time and the detail. **⇤ Launch** under the chart brings the first hours of trading into view.
+Together the two events often explain the timing of a run.
 
 The first comes from the token's own pools, which arrive in the response an analysis already pays for. The second
 comes from DexScreener's public order list, which is free and costs no requests at all.
 
 !!! warning "💸 Paid by someone, not necessarily the team"
-    Anyone can pay for a token's profile. The line says a payment happened and when, and nothing about who made
+    Anyone can pay for a token's profile. The badge says a payment happened and when, and nothing about who made
     it.
 
 ## Age and funding
@@ -73,7 +73,11 @@ comes from DexScreener's public order list, which is free and costs no requests 
 Two facts are not trades, so they do not come from the trade feed: when a wallet made its first transaction ever,
 and who sent it its first SOL. Those come from a Solana RPC node with the full signature index.
 
-They are what `fresh` and `bundle` are built from, and they fill in quietly after the table is already on screen.
+They are what `fresh` and `bundle` are built from. The first {{ s.age_lookups_max }} wallets by PnL are checked in
+the background, after the table is already on screen. Any other wallet is checked when someone with a connected
+wallet opens its card, and the answer then stays in the result for everyone. So `fresh`, `bundle` and the filters
+that hide them cover only the wallets checked so far.
+
 These lookups have a monthly budget of their own. When it runs out, the check pauses, the page says so, and it
 picks up again next month. A wallet checked before costs nothing.
 
@@ -81,7 +85,7 @@ picks up again next month. A wallet checked before costs nothing.
 
 Click a wallet's name. The card shows, top to bottom:
 
-1. who it is, when Solana Tracker names it: a KOL, an X account, the app it trades through, with the source named;
+1. who it is, when Solana Tracker knows: a star for a KOL, its X account, the app it trades through;
 2. its tags, ours and your own;
 3. how it trades on every token over the last 7 or 30 days: realized PnL and its curve, win rate with wins and
    losses, volume, buys and sells, best and worst day, drawdown, how its closed positions ended, the hours it

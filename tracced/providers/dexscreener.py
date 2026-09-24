@@ -7,21 +7,30 @@
 Важливе застереження, яке йде і в документацію: заплатити за профіль може будь-хто, не конче розробник. Ми
 показуємо факт оплати і час, а не автора.
 """
+import http.client
 import json
+import time
 import urllib.error
 import urllib.request
 
 API = "https://api.dexscreener.com/orders/v1/solana/"
-TIMEOUT = 6
+TIMEOUT = 3                  # прикраса графіка: довше тримати спільний потік сторінок не варто
+FAIL_TTL_S = 600             # збій теж кешуємо: лежачий сервіс не питаємо на кожен перегляд
 LABELS = {"tokenProfile": "profile", "tokenAd": "ad", "trendingBarAd": "trending ad",
           "communityTakeover": "takeover"}
 
 
 def orders(mint, cache=None):
-    """[{ms, kind}] за зростанням часу. Будь-яка помилка — порожній список: це прикраса, а не факт таблиці."""
+    """[{ms, kind}] за зростанням часу. Будь-яка помилка — порожній список: це прикраса, а не факт таблиці.
+
+    Збій лягає в кеш під тим самим ключем як {"failed": час}: десять хвилин відповідь порожня без запиту, далі
+    питаємо знову, і вдала відповідь його перезаписує."""
     if cache is not None:
         hit = cache.get(mint)
-        if hit is not None:
+        if isinstance(hit, dict):
+            if time.time() - (hit.get("failed") or 0) < FAIL_TTL_S:
+                return []
+        elif hit is not None:
             return hit
     out = []
     try:
@@ -35,8 +44,11 @@ def orders(mint, cache=None):
             if ms and (o.get("status") or "approved") == "approved":
                 out.append({"ms": int(ms), "kind": LABELS.get(kind, kind or "paid")})
         out.sort(key=lambda x: x["ms"])
-    except (urllib.error.URLError, ValueError, TimeoutError, OSError):
-        return []                                  # чужий сервіс лежить — графік просто без цих міток
+    except (urllib.error.URLError, ValueError, TimeoutError, OSError, http.client.HTTPException):
+        # чужий сервіс лежить — графік просто без цих міток
+        if cache is not None:
+            cache.put(mint, {"failed": time.time()})
+        return []
     if cache is not None:
         cache.put(mint, out)
     return out

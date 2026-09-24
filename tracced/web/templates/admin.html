@@ -49,7 +49,7 @@
         {% if e.event == 'signin' %}signed in{% if e.wallet %} · {{ e.wallet }}{% endif %}
         {% elif e.event == 'save_wallets' %}saved {{ e.n }} wallet{{ '' if e.n == 1 else 's' }} from <a href="/job/{{ e.job }}">{{ e.symbol or e.job }}</a>
         {% elif e.event == 'save_analysis' %}saved the analysis <a href="/job/{{ e.job }}">{{ e.symbol or e.job }}</a>
-        {% elif e.event == 'remove_wallet' %}removed a wallet from the watchlist
+        {% elif e.event == 'remove_wallet' %}removed a wallet from a list
         {% elif e.event == 'remove_analysis' %}removed an analysis
         {% elif e.event == 'analyze' %}ran an analysis: <a href="/job/{{ e.job }}">{{ e.symbol or e.job }}</a>
         {% elif e.event == 'delete_analysis' %}deleted the analysis {{ e.symbol or e.job }}

@@ -45,7 +45,7 @@
     const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     document.querySelectorAll('.acct-slot, .hero-acct').forEach(el => {   // the same menu a server-rendered page shows
       el.innerHTML = '<div class="menu acct"><button type="button" class="acct-pill" data-menu title="' + esc(v.pubkey) + '"><i class="dot"></i><span class="mono">' + esc(v.short) + '</span></button>'
-        + '<div class="menu-panel r" hidden><a href="/me">Watchlist</a><button type="button" data-wallet-signout>Sign out</button></div></div>';
+        + '<div class="menu-panel r" hidden><a href="/me">Lists</a><button type="button" data-wallet-signout>Sign out</button></div></div>';
     });
     if (window.EarlyUI && EarlyUI.menus) EarlyUI.menus();
   }

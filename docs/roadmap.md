@@ -5,8 +5,10 @@
 Paste a token, mark a range, get every wallet that bought there with facts you can check. Tags that are rules.
 Export. Repeats across your own saved analyses. Amounts in dollars or in SOL.
 
-A wallet card with the wallet's last 30 days on every token, counted from its swaps, and its name when it is a known
-one. Wallet histories fetched in parallel, so a busy token takes seconds. A result that reads on a phone.
+A wallet card with the wallet's last 7 or 30 days on every token, counted from its swaps, and a mark when it is a
+known one: a KOL, its X account, the app it trades through. Several named lists for the wallets you keep. A token's
+history and its wallets read in parallel, so a busy token takes seconds. A result that reads on a phone and stays
+light with thousands of wallets. New analyses counted per person a day, not per wallet.
 
 An AI agent that reads only the table in front of it and the method you describe, then returns a short list with
 a reason for each pick.{% if not assistant_on %}

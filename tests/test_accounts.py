@@ -166,6 +166,21 @@ class TestStore(unittest.TestCase):
         with self.assertRaises(A.AccountError):
             self.st.delete_list(self.pk, A.MAIN_LIST)
 
+    def test_removing_many_wallets_is_one_write(self):
+        # вибір з сотні гаманців прибирається одним записом файлу, а промах не пише нічого
+        from unittest import mock
+        ws = [addr(i) for i in range(40, 46)]
+        self.st.add_wallets(self.pk, [{"wallet": w} for w in ws])
+        lid, _ = self.st.create_list(self.pk, "Second")
+        self.st.add_wallets(self.pk, [{"wallet": ws[0]}], lid)
+        with mock.patch.object(self.st, "save", wraps=self.st.save) as save:
+            self.assertEqual(self.st.remove_wallets(self.pk, ws[:3] + ws[:3] + [addr(99)]), 3)   # дублі й чужі не рахуються
+            self.assertEqual(save.call_count, 1)
+            self.assertEqual(self.st.remove_wallets(self.pk, [addr(98), ws[0]]), 0)
+            self.assertEqual(save.call_count, 1)                                        # нічого не змінилось — файл той самий
+            self.assertEqual(self.st.remove_wallets(self.pk, ws[3:5], A.MAIN_LIST), 2)   # з одного списку: лише там і були
+        self.assertEqual(sorted(self.st.load(self.pk)["wallets"]), sorted([ws[5]]))
+
     def test_old_accounts_get_their_list_named(self):
         w = A.b58encode(b"\x23" * 32)
         a = self.st.load(self.pk)
