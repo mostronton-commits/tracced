@@ -26,6 +26,7 @@ DEFAULT_URL = "https://api.mainnet-beta.solana.com"
 HEAVY = {"getSignaturesForAddress", "getTransaction"}   # платна нода Solana Tracker бере за них по 10 кредитів
 LIMIT = 1000
 MAX_PAGES = 6            # 6 000 підписів: далі гаманець точно не «свіжий», а ходити глибше дорого
+DEEP_PAGES = 30          # картка, яку відкрили: до 30 000 підписів, щоб у зайнятого гаманця знайти справжній вік і спонсора
 RETRY_SLEEP = (2, 4, 8)
 RETRY_AFTER_MAX = 10     # Retry-After слухаємо, але картку, що чекає на відповідь, довше не тримаємо
 
@@ -216,6 +217,30 @@ class WalletAge:
         bt = last.get("blockTime") if last else None
         out = {"oldest_ms": int(bt) * 1000 if bt else None, "exact": pages < MAX_PAGES, "n": n,
                "oldest_sig": last.get("signature") if last else None}
+        if self.cache is not None:
+            self.cache.put(wallet, out)
+        return out
+
+    def oldest_tx_deep(self, wallet):
+        """Той самий вік, але для зайнятого гаманця: гортаємо далі, з того підпису, де зупинився звичайний підрахунок,
+        до DEEP_PAGES сторінок. Лише коли людина відкрила картку: для сотень гаманців аналізу це задовго і задорого.
+        Результат з `deep: True` лягає в кеш, тож друга спроба вже нічого не коштує, навіть якщо початку не видно."""
+        base = self.oldest_tx(wallet)
+        if base.get("exact") or base.get("deep") or not base.get("oldest_sig"):
+            return base
+        before, last, n = base["oldest_sig"], None, int(base.get("n") or 0)
+        pages, reached = -(-n // LIMIT), False
+        while pages < DEEP_PAGES:
+            sigs = self._call("getSignaturesForAddress", [wallet, {"limit": LIMIT, "before": before}]) or []
+            if not sigs:
+                reached = True
+                break
+            n += len(sigs)
+            last, before = sigs[-1], sigs[-1].get("signature")
+            pages += 1
+        bt = last.get("blockTime") if last else None
+        out = {"oldest_ms": int(bt) * 1000 if bt else base.get("oldest_ms"), "exact": reached, "n": n,
+               "oldest_sig": (last or {}).get("signature") or base.get("oldest_sig"), "deep": True}
         if self.cache is not None:
             self.cache.put(wallet, out)
         return out

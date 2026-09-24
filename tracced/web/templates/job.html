@@ -689,17 +689,25 @@
       const ageText = ms => { const d = (Date.now() - ms) / 86400000;
         return d >= 365 ? (d / 365).toFixed(d >= 3650 ? 0 : 1) + 'y' : d >= 1 ? Math.floor(d) + 'd' : Math.max(1, Math.floor(d * 24)) + 'h'; };
       function renderWalletInfo(w) {
-        const a = ages[w], fnd = funders[w], bn = bundle[w], st = ageTried.get(w), out = [];
+        const a = ages[w], fnd = funders[w], bn = bundle[w], out = [];
         const queued = !ageDone && (rankOf.get(w) ?? 1e9) < AGE_N;
-        if (!(a && a.ms) && !queued && !st && AGE_N) loadAge(w);
+        if ((!(a && a.ms) || !a.exact) && !queued && !ageTried.get(w) && AGE_N) loadAge(w);   // a busy wallet: the server reads deeper, once
+        const st = ageTried.get(w);                               // 'busy' from here on while that request runs
         if (a && a.ms && a.exact) {
           const young = Date.now() - a.ms < 86400000;
           out.push('<span class="dchip age' + (young ? ' young' : '') + '" title="Wallet age. First transaction ' + EarlyTZ.fmt(a.ms, true) + '">' + ageText(a.ms) + '</span>');
         } else if (a && a.ms) {
-          // a busy wallet: its latest transactions end before its first one, so the age is unknown, not "at least 12 days"
-          out.push('<span class="dchip age" title="More than ' + nf(AGE_READ) + ' transactions. tracced reads the latest ' + nf(AGE_READ)
-            + ', and they reach back only to ' + EarlyTZ.fmt(a.ms, true) + ': the first one, and the first funder, are older.">'
-            + Math.round(AGE_READ / 1000) + 'k+ tx</span>');
+          // a busy wallet: its latest transactions end before its first one, so the age is unknown, not "at least 12 days".
+          // Opening the card reads deeper; until that answers, or when it cannot, the count says why
+          const n = +a.n || AGE_READ, reading = st === 'busy';
+          const why = reading ? 'Reading its whole history to find its age and first funder…'
+            : 'More than ' + nf(n) + ' transactions. The latest ' + nf(n) + ' reach back only to ' + EarlyTZ.fmt(a.ms, true)
+              + ', so its first one and its first funder are older.'
+              + (st === 'connect' ? ' Connect a wallet to read its whole history.' : st === 'capped' ? ' Today\'s card checks are used up; more tomorrow.'
+                 : st === 'paused' ? ' Age checks are paused until next month.' : st === 'failed' ? ' The chain node did not answer; reopen the card to try again.' : '');
+          const text = reading ? '…' : Math.floor(n / 1000) + 'k+ tx';
+          out.push(st === 'connect' ? '<button type="button" class="dchip age" id="dagego" title="' + why + '">' + text + '</button>'
+            : '<span class="dchip age' + (reading ? ' q' : '') + '" title="' + why + '">' + text + '</span>');
         } else if (AGE_N) {
           const busy = queued || st === 'busy' || !st;
           const why = busy ? 'Checking the wallet\'s age…' : st === 'connect' ? 'Connect a wallet to check its age and funder'

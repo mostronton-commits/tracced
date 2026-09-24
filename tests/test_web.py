@@ -1402,6 +1402,12 @@ if AioHTTPTestCase:
             self.calls += 1
             return "F" * 44
 
+        def oldest_tx_deep(self, w):
+            """Зайнятий гаманець: глибше гортання доходить до першої транзакції."""
+            self.calls += 1
+            self.cache[w] = {"oldest_ms": 980_000_000_000, "exact": True, "n": 13_000, "oldest_sig": "first-" + w[:4], "deep": True}
+            return self.cache[w]
+
         def flush(self):
             pass
 
@@ -1445,6 +1451,35 @@ if AioHTTPTestCase:
             self.assertEqual(self.ages.calls, 2)
             d = await (await self.client.get(f"/wallet_age.json?job={jid}&wallet={w}")).json()   # тепер і гостю, з результату
             self.assertEqual(d["funder"], "F" * 44)
+            self.assertEqual(self.ages.calls, 2)
+
+        async def test_a_busy_wallet_gets_its_real_age_and_funder_when_its_card_opens(self):
+            # 6 000 останніх транзакцій не дійшли до першої: картка гортає глибше, раз, як одна з карток дня
+            jid, mint, w = "BUSYYY_20010909-0146_0206", "B" * 40, acct_mod.b58encode(b"\x51" * 32)
+            rows = [{"wallet": w, "first_buy_ms": 1000000060000, "tag_list": []}]
+            result = {"info": {"mint": mint, "symbol": "BSY", "supply": 1000000, "created_time": 999996400000},
+                      "window": {"from": 999999960000, "to": 1000001160000, "end": 1000003560000}, "mode": "trades",
+                      "counts": {}, "coverage": {}, "wallet_trades": {}, "rows": rows, "funder_checked": [w],
+                      "ages": {w: {"ms": 999_900_000_000, "exact": False, "n": 6000}}, "scope": "all", "requests": 0}
+            os.makedirs(self.tmp.name + "/web", exist_ok=True)
+            with open(f"{self.tmp.name}/web/{jid}.json", "w") as f:
+                json.dump({"id": jid, "mint": mint, "t_from": 999999960000, "t_to": 1000001160000, "status": "done",
+                           "created_ms": 1, "log": [], "result": result}, f)
+            self.app["jobs"]._load()
+            self.ages.cache[w] = {"oldest_ms": 999_900_000_000, "exact": False, "n": 6000, "oldest_sig": "s6000"}
+            r = await self.client.get(f"/wallet_age.json?job={jid}&wallet={w}")
+            self.assertEqual(r.status, 401)                                          # гість: глибше лише з гаманцем
+            self.assertEqual(self.ages.calls, 0)
+            me = {"Cookie": wallet_cookie(acct_mod.b58encode(b"\x52" * 32))}
+            d = await (await self.client.get(f"/wallet_age.json?job={jid}&wallet={w}", headers=me)).json()
+            self.assertEqual((d["age"]["ms"], d["age"]["exact"], d["age"]["n"]), (980_000_000_000, True, 13_000))
+            self.assertEqual(d["funder"], "F" * 44)                                  # спонсор знайшовся разом з віком
+            self.assertEqual(self.ages.calls, 2)
+            self.assertEqual(self.app["browse_daily"].left("age:acct:" + acct_mod.b58encode(b"\x52" * 32), 50), 49)   # одна картка з 50
+            res = self.app["jobs"].get(jid).result
+            self.assertEqual((res["ages"][w]["exact"], res["funders"][w]), (True, "F" * 44))   # у результаті — для всіх
+            d = await (await self.client.get(f"/wallet_age.json?job={jid}&wallet={w}")).json()
+            self.assertEqual((d["age"]["exact"], d["funder"]), (True, "F" * 44))     # тепер і гостю, без нових викликів
             self.assertEqual(self.ages.calls, 2)
 
         async def test_demo_cards_are_read_only_and_say_when_nothing_was_checked(self):

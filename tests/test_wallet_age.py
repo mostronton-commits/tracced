@@ -132,6 +132,25 @@ class TestWalletAge(unittest.TestCase):
                 self.assertEqual(wa.oldest_tx("W")["n"], 1)
                 self.assertEqual(slept, [want])                           # незрозумілий заголовок — звичайна пауза
 
+    def test_deep_read_continues_where_the_normal_one_stopped(self):
+        from tracced.early.wallet_age import MAX_PAGES
+        full = lambda k: [{"signature": f"s{k}-{i}", "blockTime": 1_790_000_000 - k * 100_000 - i} for i in range(1000)]  # noqa: E731
+        pages = [full(k) for k in range(MAX_PAGES)] + [full(MAX_PAGES), sigs(40), []]
+        class Cache(dict):
+            def get(self, k): return dict.get(self, k)
+            def put(self, k, v): self[k] = v
+            def flush(self): pass
+        post = FakePost(pages)
+        wa = WalletAge(post=post, cache=Cache(), sleep=lambda s: None, pace_s=0)
+        shallow = wa.oldest_tx("BUSY")
+        self.assertEqual((shallow["exact"], shallow["n"]), (False, MAX_PAGES * 1000))   # звичайний підрахунок не дійшов до першої
+        deep = wa.oldest_tx_deep("BUSY")
+        self.assertEqual((deep["exact"], deep["n"], deep["deep"]), (True, MAX_PAGES * 1000 + 1040, True))
+        self.assertEqual(deep["oldest_sig"], "39")                                  # найстаріший — останній з останньої сторінки
+        calls = len(post.calls)
+        self.assertEqual(wa.oldest_tx_deep("BUSY"), deep)                           # з кешу, без нових викликів
+        self.assertEqual(len(post.calls), calls)
+
     def test_funder_from_tx(self):
         keys = [{"pubkey": "FUNDER", "signer": True}, {"pubkey": "NEWWALLET", "signer": False}, {"pubkey": "11111111111111111111111111111111", "signer": False}]
         tx = {"transaction": {"message": {"accountKeys": keys}},

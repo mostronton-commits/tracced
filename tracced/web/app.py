@@ -176,7 +176,7 @@ def make_enricher(ages, s):
                     job.log.append(f"age lookup failed for {row['wallet'][:8]}…: {str(ex)[:60]}")
                 age = None
             if age and age.get("oldest_ms"):                # картка показує перший підпис гаманця
-                r.setdefault("ages", {})[row["wallet"]] = {"ms": age["oldest_ms"], "exact": bool(age.get("exact"))}
+                r.setdefault("ages", {})[row["wallet"]] = {"ms": age["oldest_ms"], "exact": bool(age.get("exact")), "n": age.get("n")}
             if age and tags.is_fresh(row.get("first_buy_ms"), age) and "fresh" not in (row.get("tag_list") or []):
                 row["tag_list"] = tags.with_tag(row.get("tag_list"), "fresh")
                 row["tags"] = "|".join(row["tag_list"])
@@ -1033,29 +1033,41 @@ async def wallet_age_json(request):
         raise web.HTTPNotFound(text="That wallet is not in this analysis.")
     ages = app.get("ages")
     cached = await asyncio.to_thread(ages.cached, wallet) if ages is not None else None   # вік з кешу нічого не коштує; замок кешу — не на циклі подій
+    stored = (r.get("ages") or {}).get(wallet)
+    demo_ids = _demo_job_ids(app)
+    shared = bool(job.replay) or job.id in demo_ids or (job.canon or "") in demo_ids   # демо спільне для всіх: лише читається
+
+    def age_of(a):
+        return {"ms": a["oldest_ms"], "exact": bool(a.get("exact")), "n": a.get("n")} if a and a.get("oldest_ms") else None
+
+    def best_age():
+        # точний вік кращий за «щонайменше»: кеш міг дочитати історію глибше, ніж пам'ятає результат
+        c = age_of(cached)
+        if stored and (stored.get("exact") or not (c and c["exact"])):
+            return stored
+        return c or stored
 
     def known(**extra):
-        age = (r.get("ages") or {}).get(wallet)
-        if age is None and cached and cached.get("oldest_ms"):
-            age = {"ms": cached["oldest_ms"], "exact": bool(cached.get("exact"))}
-        out = {"age": age, "funder": (r.get("funders") or {}).get(wallet), "bundle": (r.get("bundle") or {}).get(wallet),
-               "fresh": "fresh" in (row.get("tag_list") or []),
-               "checked": wallet in (r.get("ages") or {}) or cached is not None}
+        out = {"age": best_age(), "funder": (r.get("funders") or {}).get(wallet), "bundle": (r.get("bundle") or {}).get(wallet),
+               "fresh": "fresh" in (row.get("tag_list") or []), "checked": stored is not None or cached is not None}
         return web.json_response(dict(out, **extra))
-    demo_ids = _demo_job_ids(app)
-    if (wallet in (r.get("ages") or {}) or wallet in set(r.get("funder_checked") or []) or ages is None
-            or job.replay or job.id in demo_ids or (job.canon or "") in demo_ids):
+    if ages is None:
+        return known()
+    now_age = best_age()
+    # зайнятий гаманець: 6 000 останніх транзакцій не дійшли до першої. Картку відкрили — гортаємо глибше, один раз
+    busy = bool(now_age) and not now_age.get("exact") and not (cached or {}).get("deep")
+    if not busy and (stored is not None or wallet in set(r.get("funder_checked") or []) or shared):
         return known()
     pk = request.get("acct")
     settle = None
-    if cached is None:                                  # платний шлях: 2-7 викликів ноди по 10 кредитів
+    if cached is None or busy:                          # платний шлях: ці виклики ноди ще не робились
         if ages.paused():
             return known(checked=False, paused=True)
         if not pk:
             raise ConnectRequired(message="Connect a wallet to check this wallet's age and funder.")
         who = None
         if pk not in app["admins"]:
-            # своя стеля для карток, окремо від графіків: одна одиниця бюджету графіків купувала до 70 кредитів RPC
+            # своя стеля для карток, окремо від графіків: глибоке читання — одна картка з тих самих 50 на день
             daily, who = app["browse_daily"], "age:acct:" + pk
             if (daily.left(who, s.get("age_card_per_day", 50)) <= 0
                     or daily.left("age:global", s.get("age_card_global_per_day", 500)) <= 0):
@@ -1066,7 +1078,7 @@ async def wallet_age_json(request):
             daily.add("age:global", 1)
 
     def work():                                         # кеш віку пише себе кожні 25 записів і при зупинці сервера
-        age = ages.oldest_tx(wallet)
+        age = ages.oldest_tx_deep(wallet) if busy else ages.oldest_tx(wallet)
         fund = ages.funder(wallet, age["oldest_sig"]) if age.get("exact") and age.get("oldest_sig") else None
         return age, fund
     try:
@@ -1077,8 +1089,12 @@ async def wallet_age_json(request):
     finally:
         if settle:
             settle(1)
+    if shared:                                          # демо не змінюємо: відповідь — лише цій людині, кеш — для всіх
+        return web.json_response({"age": age_of(age), "funder": fund, "bundle": (r.get("bundle") or {}).get(wallet),
+                                  "fresh": "fresh" in (row.get("tag_list") or []), "checked": True})
     if age and age.get("oldest_ms"):
-        r.setdefault("ages", {})[wallet] = {"ms": age["oldest_ms"], "exact": bool(age.get("exact"))}
+        r.setdefault("ages", {})[wallet] = age_of(age)
+        stored = r["ages"][wallet]
         if tags.is_fresh(row.get("first_buy_ms"), age) and "fresh" not in (row.get("tag_list") or []):
             row["tag_list"] = tags.with_tag(row.get("tag_list"), "fresh")
             row["tags"] = "|".join(row["tag_list"])
