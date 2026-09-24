@@ -305,6 +305,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
 
     identify = st.identities if (hasattr(st, "identities") and s.get("st_identity", True)) else None
     app["jobs"] = JobQueue(runner, out_dir, enricher=make_enricher(ages, s) if ages else None, on_error=on_error,
+                           enrich_upto=int(s.get("age_lookups_max", 0) or 0) if ages else 0,
                            namer=make_namer(identify) if identify else None)
     app.router.add_get("/", index)
     app.router.add_get("/how", how)

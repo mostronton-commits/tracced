@@ -78,7 +78,7 @@ REPLAY_THREADS = 2                        # демо лише спить між 
 
 
 class JobQueue:
-    def __init__(self, runner, persist_dir, enricher=None, on_error=None, namer=None):
+    def __init__(self, runner, persist_dir, enricher=None, on_error=None, namer=None, enrich_upto=0):
         self.runner = runner
         self.enricher = enricher              # enricher(job, save) — повільне збагачення після done
         self.namer = namer                    # namer(job, save) — імена гаманців: секунди, окремий потік, без черги за віком
@@ -113,8 +113,11 @@ class JobQueue:
             self.ethread.start()
             for j in done:
                 e = j.result.get("enrich") or {}
+                # стелю збагачення підняли (ключ ноди з'явився, чи перевіряємо вже всіх): старі результати
+                # дозаповнюються у фоні, з того місця, де зупинились
+                upto = min(len(j.result.get("rows") or []), int(enrich_upto or 0))
                 if (not e or e.get("done", 0) < e.get("total", 0) or e.get("failed") or e.get("funders_failed")
-                        or e.get("funders_done", 0) < e.get("total", 0)):
+                        or e.get("funders_done", 0) < e.get("total", 0) or e.get("total", 0) < upto):
                     self.eq.put(j)
 
     def _load(self):

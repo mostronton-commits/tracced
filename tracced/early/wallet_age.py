@@ -24,6 +24,10 @@ import urllib.request
 
 DEFAULT_URL = "https://api.mainnet-beta.solana.com"
 HEAVY = {"getSignaturesForAddress", "getTransaction"}   # платна нода Solana Tracker бере за них по 10 кредитів
+# Helius: повна історія, по 1 кредиту за виклик, і свій метод «від найстарішої» (getTransactionsForAddress, 10 кредитів),
+# що знаходить першу транзакцію зайнятого гаманця одним викликом замість гортання (перевірено 24.09.2026: у гаманця
+# з 36 039 транзакціями — жовтень 2025, як в Axiom)
+HELIUS_HOST = "helius-rpc.com"
 LIMIT = 1000
 MAX_PAGES = 6            # 6 000 підписів: далі гаманець точно не «свіжий», а ходити глибше дорого
 DEEP_PAGES = 30          # картка, яку відкрили: до 30 000 підписів, щоб у зайнятого гаманця знайти справжній вік і спонсора
@@ -118,10 +122,12 @@ class WalletAge:
     def __init__(self, url=None, cache=None, pace_s=0.5, post=None, sleep=time.sleep, tx_url=None, budget=None,
                  tx_pace_s=0.3):
         self.url = url or os.getenv("SOLANA_RPC_URL") or DEFAULT_URL
+        self.helius = HELIUS_HOST in self.url
         # getTransaction і getSignaturesForAddress не конче живуть на одній ноді. Нода Solana Tracker віддає
         # повну історію підписів і не ріже серії, але на getTransaction відповідає Internal error (перевірено
         # 24.09.2026, усі варіанти параметрів). Тому одну транзакцію питаємо там, де вона працює.
-        self.tx_url = tx_url or os.getenv("SOLANA_RPC_TX_URL") or (DEFAULT_URL if self.url != DEFAULT_URL else self.url)
+        self.tx_url = tx_url or os.getenv("SOLANA_RPC_TX_URL") or (
+            self.url if self.helius else (DEFAULT_URL if self.url != DEFAULT_URL else self.url))   # Helius віддає й транзакції
         self.cache = cache
         self.pace_s = pace_s
         self.tx_pace_s = tx_pace_s
@@ -162,7 +168,7 @@ class WalletAge:
                     with self._count_lock:
                         self.requests += 1
                     if paid:
-                        self.budget.spend(10 if method in HEAVY else 1)   # невдала спроба теж оплачена
+                        self.budget.spend(self._credits(method, node))   # невдала спроба теж оплачена
                     d = self._post(payload, url) if url else self._post(payload)
                     slot["last"] = time.monotonic()
                 except urllib.error.HTTPError as e:
@@ -184,6 +190,14 @@ class WalletAge:
             self._sleep(pause)
         raise last_err  # pragma: no cover — цикл завжди або повертає, або кидає
 
+    @staticmethod
+    def _credits(method, node):
+        """Ціна виклику на цій ноді: Helius бере по 1 кредиту (метод «від найстарішої» — 10), Solana Tracker — 10 за
+        історію підписів і транзакцію, 1 за решту."""
+        if HELIUS_HOST in node:
+            return 10 if method == "getTransactionsForAddress" else 1
+        return 10 if method in HEAVY else 1
+
     def paused(self):
         """Бюджет платної ноди на цей місяць вичерпано (до резерву): нові гаманці чекають наступного місяця."""
         return bool(self.budget and self.budget.exhausted())
@@ -200,6 +214,17 @@ class WalletAge:
             if cached is not None:
                 self.cache_hits += 1
                 return cached
+        out = self._oldest_helius(wallet) if self.helius else self._oldest_paged(wallet)
+        if self.cache is not None:
+            self.cache.put(wallet, out)
+        return out
+
+    @staticmethod
+    def _age(sig, exact, n):
+        bt = (sig or {}).get("blockTime")
+        return {"oldest_ms": int(bt) * 1000 if bt else None, "exact": bool(exact), "n": n, "oldest_sig": (sig or {}).get("signature")}
+
+    def _oldest_paged(self, wallet):
         # Коротка сторінка НЕ означає кінець історії: нода Solana Tracker віддає першою сторінкою 7 підписів,
         # а далі ще двадцять дев'ять по тисячі. Тому гортаємо, доки відповідь не порожня, і лише вичерпавши
         # сторінки, зізнаємось, що точної дати не знаємо (exact=False, тег fresh не ставиться).
@@ -214,12 +239,23 @@ class WalletAge:
             n += len(sigs)
             last, before = sigs[-1], sigs[-1].get("signature")
             pages += 1
-        bt = last.get("blockTime") if last else None
-        out = {"oldest_ms": int(bt) * 1000 if bt else None, "exact": pages < MAX_PAGES, "n": n,
-               "oldest_sig": last.get("signature") if last else None}
-        if self.cache is not None:
-            self.cache.put(wallet, out)
-        return out
+        return self._age(last, pages < MAX_PAGES, n)
+
+    def _oldest_helius(self, wallet):
+        """Helius віддає повні сторінки до самого кінця історії, тож неповна перша сторінка — це вся історія (1 кредит).
+        Зайнятий гаманець не гортаємо: найстаріший підпис дає один виклик «від найстарішої» (10 кредитів)."""
+        sigs = self._call("getSignaturesForAddress", [wallet, {"limit": LIMIT}]) or []
+        if len(sigs) < LIMIT:
+            return self._age(sigs[-1] if sigs else None, True, len(sigs))
+        try:
+            res = self._call("getTransactionsForAddress",
+                             [wallet, {"sortOrder": "asc", "limit": 1, "transactionDetails": "signatures"}]) or {}
+        except RuntimeError:                              # план без цього методу: гортаємо, як на будь-якій ноді
+            return self._oldest_paged(wallet)
+        first = ((res.get("data") if isinstance(res, dict) else res) or [None])[0]
+        if not first:
+            return self._age(sigs[-1], False, len(sigs))
+        return self._age(first, True, None)               # скільки всього транзакцій — не рахуємо: це й було б гортання
 
     def oldest_tx_deep(self, wallet):
         """Той самий вік, але для зайнятого гаманця: гортаємо далі, з того підпису, де зупинився звичайний підрахунок,
@@ -257,9 +293,30 @@ class WalletAge:
         tx = self._call("getTransaction", [oldest_sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}],
                          url=self.tx_url, pace_s=self.tx_pace_s)
         out = {"funder": funder_from_tx(tx, wallet)}
+        if out["funder"] is None and HELIUS_HOST in self.tx_url:
+            out["funder"] = self._first_sol_in(wallet)
         if self.cache is not None:
             self.cache.put(key, out)
         return out["funder"]
+
+    def _first_sol_in(self, wallet):
+        """Гаманець застосунку (комісії за нього платить застосунок) починає не з SOL, а з токенів. Перший вхідний SOL
+        шукаємо серед його перших 100 транзакцій, одним викликом «від найстарішої» (10 кредитів). Далі — невідомо:
+        у гаманця Fomo з 36 тисяч транзакцій його не було і серед перших 1 500."""
+        try:
+            res = self._call("getTransactionsForAddress",
+                             [wallet, {"sortOrder": "asc", "limit": 100, "transactionDetails": "full",
+                                       "encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}],
+                             url=self.tx_url, pace_s=self.tx_pace_s) or {}
+        except RuntimeError:
+            return None
+        for t in (res.get("data") if isinstance(res, dict) else res) or []:
+            if (t.get("meta") or {}).get("err"):
+                continue
+            found = funder_from_tx(t, wallet)
+            if found:
+                return found
+        return None
 
     def flush(self):
         if self.cache is not None:

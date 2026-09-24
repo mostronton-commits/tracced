@@ -42,15 +42,14 @@ early:
   browse_per_day: 600           # was 150
   browse_global_per_day: 4000   # was 300
 
-  # Wallet age and first funder (tags `fresh` and `bundle`) come from a Solana RPC. That is a SEPARATE product
-  # with its own key and its own credit pool: Data API requests are not spent on it. The node must keep the full
-  # signature index. Checked 24.09.2026: rpc-mainnet.solanatracker.io returns exactly the history api.mainnet-beta
-  # does and never throttles a series, while the public node answers 429 on deep pagination.
-  # Note: that node returns short pages in the middle of a history, so wallet_age pages to an empty answer.
-  rpc_pace_s: 0.2               # 5 requests a second, the free RPC tier's pace; lower it on Developer
-  rpc_tx_pace_s: 0.3            # funder lookups (getTransaction) go to the public api.mainnet-beta, which allows about
-                                # 40 calls per 10 s per method; at 0.2 about a quarter of them failed with 429 on dev (24.09)
-  age_lookups_max: 200          # the first 200 by PnL get age and funder right after the table; any other wallet gets
-                                # them when its card is opened. Each lookup costs RPC credits, most cards are never opened
-  rpc_credits_month: 500000     # the RPC plan's monthly pool (free tier; checked 24.09: under 500 used). 10 credits per
-                                # signatures page; wallet age pauses at 90% and resumes next month. Cached wallets are free
+  # Wallet age and first funder (tags `fresh` and `bundle`) come from a Solana RPC, a product separate from the Data
+  # API. SOLANA_RPC_URL in .env points at Helius (checked 24.09.2026: free plan, full history, 1 credit a call, and its
+  # oldest-first method finds a busy wallet's first transaction in one call, where paging back took 37 pages). The
+  # Helius account is shared with the owner's other bots, so tracced keeps to about 3 calls a second and its own share
+  # of the month. Without SOLANA_RPC_URL the public api.mainnet-beta is used, which refuses long series (429).
+  rpc_pace_s: 0.35              # about 3 calls a second: the free plan allows 10 for the whole account
+  rpc_tx_pace_s: 0.35           # the same node answers the funder's transaction, so the same pace
+  age_lookups_max: 2000         # every wallet in the table, right after it appears (a server without SOLANA_RPC_URL
+                                # keeps to the first 200 by PnL: the public node refuses series)
+  rpc_credits_month: 250000     # tracced's share of the Helius month (1,000,000 for the whole account). About 2 credits
+                                # a wallet, 11 for a busy one; age checks pause at 90% and resume next month

@@ -29,6 +29,8 @@ def main():
                  stats_cache=JsonCache("cache/early/wallet_token.json", ttl_hours=s["wallet_stats_ttl_hours"],
                                        flush_every=200))   # великий файл: при паралельних гаманцях дамп кожні 25 записів гальмує всіх
     ages = None
+    if not os.getenv("SOLANA_RPC_URL"):                    # лише публічна нода: вона ріже серії, тож автоматично — перші 200 за PnL
+        s["age_lookups_max"] = min(int(s.get("age_lookups_max") or 0), int(s.get("age_lookups_public", 200)))
     if s.get("age_lookups_max", 0) > 0:
         budget = MonthBudget("output/early/daily/rpc-month.json", limit=s.get("rpc_credits_month", 0),   # поруч з добовими лічильниками
                              reserve_pct=s.get("rpc_reserve_pct", 10))

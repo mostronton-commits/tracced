@@ -102,13 +102,13 @@ chart and terminal and result, without a single request to the data provider.
   table. Who a wallet is comes from Solana Tracker's wallet summaries (`/v2/pnl/wallets/batch`, 100 wallets a
   request), asked in the background once the table is on screen; only the identity is used, for names and marks,
   never their PnL or tags.
-- Wallet age and funder: a Solana RPC node with the full signature index. `SOLANA_RPC_URL` walks signatures,
-  `SOLANA_RPC_TX_URL` reads the one transaction that names the funder; both fall back to
-  `api.mainnet-beta.solana.com`. They are split because a node can be good at one and useless at the other:
-  Solana Tracker's RPC returns full history and never throttles a series, and answers `Internal error` to every
-  `getTransaction`. The paid node's credits are counted per month (`rpc_credits_month`) and the check pauses
-  near the limit. The first `age_lookups_max` wallets by PnL are checked after the table; any other when its card
-  is opened.
+- Wallet age and funder: a Solana RPC node with full history, [Helius](https://www.helius.dev) in production
+  (`SOLANA_RPC_URL`). A wallet's first transaction is its age; the SOL that arrived in it names the funder. A busy
+  wallet's first transaction comes from Helius's oldest-first method in one call instead of paging back through
+  tens of thousands; a wallet an app pays fees for is searched for its first SOL among its first hundred
+  transactions. Every wallet in the table is checked in the background; the credits are counted per month
+  (`rpc_credits_month`, tracced's share of the account) and the check pauses near the limit. Without a node the
+  public `api.mainnet-beta` is used, and only the first 200 wallets by PnL are checked automatically.
 - Paid DexScreener profiles on the chart: DexScreener's public orders endpoint, free and without a key, kept a day.
 - The AI agent: any OpenAI-compatible endpoint (`ASSISTANT_*` in `.env`), with per-wallet, per-guest and site-wide daily limits.
 - Nothing else: no third-party PnL, scores or "smart money" labels.

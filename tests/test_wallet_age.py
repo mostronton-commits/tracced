@@ -151,6 +151,44 @@ class TestWalletAge(unittest.TestCase):
         self.assertEqual(wa.oldest_tx_deep("BUSY"), deep)                           # з кешу, без нових викликів
         self.assertEqual(len(post.calls), calls)
 
+    def test_helius_finds_the_first_transaction_without_paging(self):
+        from tracced.early.wallet_age import MonthBudget, LIMIT
+        H = "https://mainnet.helius-rpc.com/?api-key=x"
+        # звичайний гаманець: неповна перша сторінка — уся історія, 1 кредит
+        budget = MonthBudget(None, limit=10_000)
+        post = FakePost([sigs(40)])
+        wa = WalletAge(url=H, post=post, sleep=lambda s: None, pace_s=0, budget=budget)
+        age = wa.oldest_tx("A")
+        self.assertEqual((age["exact"], age["n"]), (True, 40))
+        self.assertEqual((len(post.calls), budget.spent), (1, 1))
+        # зайнятий: повна сторінка, тоді один виклик «від найстарішої» — 1 + 10 кредитів, без гортання
+        budget = MonthBudget(None, limit=10_000)
+        post = FakePost([sigs(LIMIT), {"data": [{"signature": "first", "blockTime": 1_761_516_360}], "paginationToken": "t"}])
+        wa = WalletAge(url=H, post=post, sleep=lambda s: None, pace_s=0, budget=budget)
+        age = wa.oldest_tx("BUSY")
+        self.assertEqual((age["exact"], age["oldest_sig"], age["oldest_ms"]), (True, "first", 1_761_516_360_000))
+        self.assertEqual(post.calls[1]["method"], "getTransactionsForAddress")
+        self.assertEqual(post.calls[1]["params"][1]["sortOrder"], "asc")
+        self.assertEqual(budget.spent, 11)
+        self.assertEqual(wa.tx_url, H)                                         # транзакцію теж віддає Helius
+
+    def test_an_app_wallets_funder_comes_from_its_first_hundred_transactions(self):
+        H = "https://mainnet.helius-rpc.com/?api-key=x"
+        def tx(wallet_gain, sender="SENDER"):
+            keys = [{"pubkey": "PAYER", "signer": True}, {"pubkey": sender, "signer": True}, {"pubkey": "APP", "signer": False}]
+            return {"meta": {"err": None, "preBalances": [5_000_000, 9_000_000_000, 0],
+                             "postBalances": [4_995_000, 9_000_000_000 - wallet_gain, wallet_gain]},
+                    "transaction": {"message": {"accountKeys": keys}}}
+        # перша транзакція — токени, SOL гаманця не змінився; вхідний SOL — третій серед перших ста
+        post = FakePost([tx(0), {"data": [tx(0), tx(0), tx(2_000_000, "REALFUNDER")], "paginationToken": None}])
+        wa = WalletAge(url=H, post=post, sleep=lambda s: None, pace_s=0)
+        self.assertEqual(wa.funder("APP", "sig1"), "REALFUNDER")
+        self.assertEqual(post.calls[1]["params"][1]["transactionDetails"], "full")
+        # інша нода не знає «від найстарішої»: лишається перша транзакція, як було
+        post = FakePost([tx(0)])
+        self.assertIsNone(WalletAge(url="https://rpc.example", post=post, sleep=lambda s: None, pace_s=0).funder("APP", "sig1"))
+        self.assertEqual(len(post.calls), 1)
+
     def test_funder_from_tx(self):
         keys = [{"pubkey": "FUNDER", "signer": True}, {"pubkey": "NEWWALLET", "signer": False}, {"pubkey": "11111111111111111111111111111111", "signer": False}]
         tx = {"transaction": {"message": {"accountKeys": keys}},

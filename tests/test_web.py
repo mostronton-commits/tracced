@@ -1701,6 +1701,20 @@ class TestJobQueue(unittest.TestCase):
             q.eq.join()
             self.assertEqual(seen, ["c", "a"])
 
+    def test_a_raised_limit_brings_older_results_back_for_the_rest_of_their_wallets(self):
+        from tracced.web.jobs import JobQueue
+        with tempfile.TemporaryDirectory() as d:
+            rows = [{"wallet": w} for w in ("A", "B", "C")]
+            full = {"done": 1, "total": 1, "funders_done": 1}                     # перевірено лише першого з трьох
+            self._file(d, "old", created_ms=1, result={"rows": rows, "enrich": dict(full)})
+            seen = []
+            q = JobQueue(lambda j: None, d, enricher=lambda job, save: seen.append(job.id), enrich_upto=1)
+            q.eq.join()
+            self.assertEqual(seen, [])                                           # стеля та сама: нічого не робимо
+            q = JobQueue(lambda j: None, d, enricher=lambda job, save: seen.append(job.id), enrich_upto=2000)
+            q.eq.join()
+            self.assertEqual(seen, ["old"])                                      # стелю підняли: решта гаманців у фоні
+
     def test_a_replay_never_reaches_the_disk_and_charges_survive_a_restart(self):
         from tracced.web.jobs import JobQueue
         with tempfile.TemporaryDirectory() as d:
