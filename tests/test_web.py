@@ -87,7 +87,14 @@ if AioHTTPTestCase:
 
         async def tearDownAsync(self):
             await asyncio.to_thread(self.app["jobs"].q.join)      # let the worker finish writing
+            await asyncio.to_thread(self.app["jobs"].rq.join)
+            await self.client.close()                             # зупинка пише кеші — поки тека ще є
             self.tmp.cleanup()
+
+        @property
+        def same_site(self):
+            """Origin цього сайту: нове програвання демо, як і записи акаунта, приймається лише з його сторінок."""
+            return {"Origin": f"http://{self.client.host}:{self.client.port}"}
 
         async def test_demo_token_replays_without_requests(self):
             # a stored analysis + a snapshot make the demo token replay the whole flow with zero ST requests
@@ -129,9 +136,11 @@ if AioHTTPTestCase:
             r = await self.client.get(f"/candles.json?mint={MINT}&tf=1m&a=999999900&b=1000002000")
             self.assertEqual(r.status, 200)
             self.assertTrue(len(await r.json()) > 5)
-            r = await self.client.post("/analyze", data={"mint": MINT, "from": "2001-09-09T01:46", "to": "2001-09-09T02:06"}, allow_redirects=False)
+            r = await self.client.post("/analyze", data={"mint": MINT, "from": "2001-09-09T01:46", "to": "2001-09-09T02:06"},
+                                       allow_redirects=False, headers=self.same_site)
             self.assertEqual(r.status, 302)
             loc = r.headers["Location"]
+            self.assertTrue(loc.startswith(f"/job/{jid}_r"), loc)                   # справжнє програвання, не збережений результат
             html = ""
             for _ in range(80):
                 r = await self.client.get(loc); html = await r.text()
@@ -175,7 +184,7 @@ if AioHTTPTestCase:
             self.assertIn("Pump 2", html)
             self.assertIn("2 pumps replayed without requests", html)      # текст знає, що діапазонів кілька
             for jid, a, b in (one, two):                                   # обидва програються
-                r = await self.client.post("/analyze", allow_redirects=False, data={
+                r = await self.client.post("/analyze", allow_redirects=False, headers=self.same_site, data={
                     "mint": MINT, "from": chart.to_input(a), "to": chart.to_input(b)})
                 self.assertTrue(r.headers["Location"].startswith(f"/job/{jid}_r"), r.headers["Location"])
             r = await self.client.post("/analyze", data={"mint": MINT, "from": "2001-09-09T06:00", "to": "2001-09-09T06:20"},
@@ -266,6 +275,9 @@ if AioHTTPTestCase:
             table = json.loads(m.group(1))                                 # рядки йдуть даними, малює їх браузер
             first = dict(zip(table["f"], table["r"][0]))
             self.assertIsNotNone(first["invsol"])                          # рядок таблиці несе суми в SOL
+            self.assertEqual(table["f"][-1], "eavg")                       # середній вхід — нове поле в кінці, старі на місці
+            self.assertEqual(table["f"][:3], ["w", "inv", "invsol"])
+            self.assertGreater(first["eavg"], 0)                           # «Exit vs entry» ділить саме на нього
             self.assertIsNone(re.search(r'<tr data-w="[1-9A-HJ-NP-Za-km-z]{20,}"', html))   # жодного рядка розміткою: 2 500 рядків вішали телефон
             self.assertIn("data-sol=", html)                               # плитка «Spent in range» теж у SOL
             self.assertNotIn('class="muted small solnote"', html)          # свіжий результат не виправдовується
@@ -390,7 +402,7 @@ if AioHTTPTestCase:
             r = await self.client.get(f"/candles.json?mint={other}&tf=1h&a=1&b=9999999999", headers=GUEST)
             self.assertEqual(r.status, 200)
             self.assertIsInstance(await r.json(), list)
-            r = await self.client.post("/analyze", allow_redirects=False, headers=GUEST, data={
+            r = await self.client.post("/analyze", allow_redirects=False, headers=dict(GUEST, **self.same_site), data={
                 "mint": MINT, "from": chart.to_input(a), "to": chart.to_input(b)})
             self.assertTrue(r.headers["Location"].startswith(f"/job/{jid}_r"), r.headers["Location"])      # демо програється без гаманця
             r = await self.client.post("/analyze", allow_redirects=False, headers=GUEST, data={
@@ -659,12 +671,10 @@ if AioHTTPTestCase:
             r = await run(b, 2)                                             # новий браузер з тієї ж мережі: ще один…
             self.assertTrue(r.headers["Location"].startswith("/job/"), r.headers["Location"])
             r = await run(c, 3)
-            self.assertIn("notice=limit", r.headers["Location"])           # …і три мережі витрачено
+            self.assertIn("notice=netcap", r.headers["Location"])          # …і три мережі витрачено: c свої ще має, вікно — про мережу
             html = await (await self.client.get(r.headers["Location"], headers={"Cookie": wallet_cookie(c)})).text()
             self.assertIn('id="limitsheet"', html)
-            self.assertIn("free analyses for today", html)
-            self.assertIn("midnight UTC", html)
-            self.assertIn("No free analyses left today", html)
+            self.assertIn("openLimit('netcap')", html)
             self.assertIn("Your range", html)                               # позначений діапазон на місці
             self.assertIsNone(r.cookies.get("early_dev"))                   # відмова нічого не ставить і не рахує
             self.assertEqual(self.app["runs_daily"].left(_ip_key("127.0.0.1"), 3), 0)
@@ -704,14 +714,14 @@ if AioHTTPTestCase:
 
         async def test_demo_replay_keeps_the_stored_analysis_in_place(self):
             jid, a, b = self._seed_one_demo()
-            r = await self.client.post("/analyze", allow_redirects=False, headers=GUEST,
+            r = await self.client.post("/analyze", allow_redirects=False, headers=dict(GUEST, **self.same_site),
                                        data={"mint": MINT, "from": chart.to_input(a), "to": chart.to_input(b)})
             rid = r.headers["Location"].split("/")[-1]
             self.assertTrue(rid.startswith(jid + "_r") and rid != jid, rid)
             self.assertEqual(self.app["jobs"].get(jid).status, "done")   # збережений аналіз нікуди не дівся…
             r = await self.client.get(f"/job/{jid}.csv", headers=GUEST)
             self.assertEqual(r.status, 200)                              # …і читається, поки демо програється
-            await asyncio.to_thread(self.app["jobs"].q.join)
+            await asyncio.to_thread(self.app["jobs"].rq.join)
             d = await (await self.client.get(f"/job/{rid}.state.json", headers=GUEST)).json()
             self.assertEqual((d["status"], d.get("open")), ("done", f"/job/{jid}"))   # термінал відкриє збережений результат
             r = await self.client.get(f"/job/{rid}", headers=GUEST)
@@ -1104,6 +1114,247 @@ if AioHTTPTestCase:
             r = await self.client.get("/health")
             self.assertEqual((await r.json())["ok"], True)
 
+        async def test_wallet_trades_answer_only_for_the_rows(self):
+            # чужа адреса — 404 у будь-якому режимі, до будь-якої роботи; старий результат повної історії читає лише рядки
+            # цього гаманця з файла угод; демо не купує угод навіть для своїх рядків
+            mint, jid, a, b = "K" * 40, "KKKKKK_20010909-0146_0206", 999999960000, 1000001160000
+            listed, foreign = acct_mod.b58encode(b"\x31" * 32), acct_mod.b58encode(b"\x32" * 32)
+            res = _result(mint, a, b, listed)
+            res.update(mode="trades", wallet_trades=None, rows=[{"wallet": listed}])   # результат до збережених угод
+            _job_file(self.tmp.name + "/web", jid, mint, a, b, res)
+            mine = {"tx": "t1", "wallet": listed, "type": "buy", "time": a + 60000, "qty": 10.0, "usd": 5.0, "price": 0.5, "sol": 0.02}
+            lines = [mine, dict(mine, tx="t2", wallet=foreign), mine, dict(mine, tx="t3", time=a - 60000)]   # чужий, дубль, до діапазону
+            os.makedirs(self.tmp.name + "/cache", exist_ok=True)
+            with open(f"{self.tmp.name}/cache/trades_{mint}.jsonl", "w") as f:
+                f.write("".join(json.dumps(x) + "\n" for x in lines) + "{broken\n")
+            self.app["jobs"]._load()
+            before, left0 = self.st.requests, self.app["browse_daily"].left("global", 300)
+            r = await self.client.get(f"/wallet_trades.json?job={jid}&wallet={foreign}", headers=GUEST)
+            self.assertEqual(r.status, 404)
+            d = await (await self.client.get(f"/wallet_trades.json?job={jid}&wallet={listed}", headers=GUEST)).json()
+            self.assertEqual([(t["t"], t["sol"]) for t in d["trades"]], [(a + 60000, 0.02)])
+            self.assertEqual((self.st.requests, self.app["browse_daily"].left("global", 300)), (before, left0))
+            djid, _, _ = self._seed_one_demo()
+            self.app["jobs"].get(djid).result["rows"] = [{"wallet": listed}]     # рядок демо без збережених угод
+            for w, code in ((foreign, 404), (listed, 200)):
+                r = await self.client.get(f"/wallet_trades.json?job={djid}&wallet={w}", headers=GUEST)
+                self.assertEqual(r.status, code, w)
+            self.assertEqual((await r.json())["trades"], [])
+            self.assertEqual((self.st.requests, self.app["browse_daily"].left("global", 300)), (before, left0))
+
+        async def test_demo_replays_do_not_wait_behind_a_live_run(self):
+            # програвання демо має свої потоки: натовп у демо не тримає платний прогін, а прогін — демо
+            import threading
+            jid, a, b = self._seed_one_demo()
+            gate, real = threading.Event(), self.st.trades_page
+
+            def slow(mint, cursor):
+                gate.wait(10)
+                return real(mint, cursor)
+            self.st.trades_page = slow
+            try:
+                r = await self.client.post("/analyze", allow_redirects=False,
+                                           data={"mint": "L" * 40, "from": "2001-09-09T01:46", "to": "2001-09-09T02:06"})
+                live = self.app["jobs"].get(r.headers["Location"].split("/")[-1])
+                r = await self.client.post("/analyze", allow_redirects=False, headers=self.same_site,
+                                           data={"mint": MINT, "from": chart.to_input(a), "to": chart.to_input(b)})
+                rid = r.headers["Location"].split("/")[-1]
+                await asyncio.to_thread(self.app["jobs"].rq.join)
+                self.assertEqual(self.app["jobs"].get(rid).status, "done")        # демо відіграло…
+                self.assertIn(live.status, ("queued", "running"))                  # …поки платний прогін ще чекає на угоди
+            finally:
+                gate.set()
+                self.st.trades_page = real
+            await asyncio.to_thread(self.app["jobs"].q.join)
+            self.assertEqual(live.status, "done", live.error)
+
+        async def test_demo_replays_are_reused_and_throttled(self):
+            # та сама адреса з тим самим діапазоном іде до свого програвання; понад стелю чи з чужого сайту — одразу
+            # збережений результат, без нового програвання
+            jid, a, b = self._seed_one_demo()
+            rng = {"mint": MINT, "from": chart.to_input(a), "to": chart.to_input(b)}
+
+            async def press(h):
+                return (await self.client.post("/analyze", allow_redirects=False, headers=h, data=rng)).headers["Location"]
+            first = await press(self.same_site)
+            self.assertEqual(await press(self.same_site), first)                  # ще грає: туди ж
+            await asyncio.to_thread(self.app["jobs"].rq.join)
+            self.app["demo_runs"].max_fails = 2                                    # стеля: друге нове програвання — останнє
+            second = await press(self.same_site)
+            self.assertTrue(second.startswith(f"/job/{jid}_r") and second != first, second)
+            await asyncio.to_thread(self.app["jobs"].rq.join)
+            n = sum(1 for j in self.app["jobs"].jobs.values() if j.replay)
+            self.assertEqual(await press(self.same_site), f"/job/{jid}")
+            self.app["demo_runs"].max_fails = 10
+            self.app["demo_runs"].fails.clear()
+            self.assertEqual(await press(GUEST), f"/job/{jid}")                    # без Origin: чужа сторінка не заводить програвань
+            self.assertEqual(sum(1 for j in self.app["jobs"].jobs.values() if j.replay), n)
+
+        async def test_a_run_that_spent_real_credits_keeps_its_charge(self):
+            # невдалий прогін, що вже витратив запити, лишається порахованим: інакше падіння були б безкоштовними
+            from tracced.web.app import _ip_key
+            self.app["admins"] = set()
+            self.app["s"]["refund_below_requests"] = 1                          # у тесті «дорогий» — уже з першого запиту
+            pk = acct_mod.b58encode(b"\x25" * 32)
+            g0 = self.app["runs_daily"].left("global", 40)
+            self.st.fail_trades = True
+            try:
+                r = await self.client.post("/analyze", allow_redirects=False, headers={"Cookie": wallet_cookie(pk)},
+                                           data={"mint": MINT, "from": "2001-09-09T01:50", "to": "2001-09-09T02:06"})
+                dev = r.cookies["early_dev"].value
+                await asyncio.to_thread(self.app["jobs"].q.join)
+            finally:
+                self.st.fail_trades = False
+                self.app["s"].pop("refund_below_requests")
+                self.app["admins"] = {TEST_PK}
+            j = self.app["jobs"].get(r.headers["Location"].split("/")[-1])
+            self.assertEqual(j.status, "error")
+            self.assertGreaterEqual(j.spent, 1)
+            self.assertEqual(self.app["accounts"].runs_today(pk), 1)
+            self.assertEqual(self.app["runs_daily"].left("dev:" + dev, 5), 4)
+            self.assertEqual(self.app["runs_daily"].left(_ip_key("127.0.0.1"), 10), 9)
+            self.assertEqual(self.app["runs_daily"].left("global", 40), g0 - 1)
+            self.assertTrue(any("counts toward today's analyses" in line for line in j.log), j.log)
+
+        async def test_a_restart_gives_back_every_count_of_the_cut_run(self):
+            # прогін, перерваний рестартом, повертає і день людини, і браузер, і мережу: вони тепер лежать у файлі
+            from tracced.web.app import _ip_key
+            pk, jid = acct_mod.b58encode(b"\x26" * 32), "MMMMMM_20010909-0146_0206"
+            charged = ["dev:" + "ab" * 16, _ip_key("10.0.0.9")]
+            self.app["accounts"].take_run(pk, 5)
+            for key in charged + ["global"]:
+                self.app["runs_daily"].add(key, 1)
+            with open(f"{self.tmp.name}/web/{jid}.json", "w") as f:
+                json.dump({"id": jid, "mint": "M" * 40, "t_from": 999999960000, "t_to": 1000001160000, "status": "running",
+                           "created_ms": 1, "owner": pk, "charged": charged, "log": [], "result": None}, f)
+            g0 = self.app["runs_daily"].left("global", 40)
+            self.app["jobs"]._load()
+            self.assertEqual(self.app["jobs"].get(jid).status, "error")
+            self.assertEqual(self.app["accounts"].runs_today(pk), 0)
+            self.assertEqual([self.app["runs_daily"].left(k, 5) for k in charged], [5, 5])
+            self.assertEqual(self.app["runs_daily"].left("global", 40), g0 + 1)
+
+        async def test_result_views_reuse_rows_instead_of_recounting(self):
+            # «уся історія» свіжого результату — це збережені рядки; масштаб рахується раз, доки збагачення не додало тегів
+            from unittest import mock
+            from tracced.early import scope as scope_mod
+            r = await self.client.post("/analyze", allow_redirects=False,
+                                       data={"mint": "N" * 40, "from": "2001-09-09T01:46", "to": "2001-09-09T02:06"})
+            loc = r.headers["Location"]
+            await asyncio.to_thread(self.app["jobs"].q.join)
+            job = self.app["jobs"].get(loc.split("/")[-1])
+            self.assertTrue(job.result.get("rows_rev"))
+            with mock.patch.object(scope_mod, "rows_for", wraps=scope_mod.rows_for) as rf:
+                for path in (loc, loc + ".json", loc + ".csv"):
+                    self.assertEqual((await self.client.get(path)).status, 200, path)
+                self.assertEqual(rf.call_count, 0)
+                for _ in range(2):
+                    self.assertEqual((await (await self.client.get(loc + ".json?scope=24h")).json())["rows"][0]["wallet"], "A")
+                self.assertEqual(rf.call_count, 1)
+                job.result.setdefault("fresh_wallets", []).append("A")
+                await self.client.get(loc + ".json?scope=24h")
+                self.assertEqual(rf.call_count, 2)
+                job.result.pop("rows_rev")                                         # результат іншої версії коду: перераховуємо, раз
+                for path in (loc + ".json", loc):
+                    self.assertEqual((await self.client.get(path)).status, 200, path)
+                self.assertEqual(rf.call_count, 3)
+
+        async def test_a_second_press_is_not_charged_and_the_month_counts_runs_in_flight(self):
+            from tracced.web.jobs import Job, make_id
+            s, real = self.app["s"], self.st.credits
+            self.app["admins"] = set()
+            s.update(credits_month=10_000, credits_reserve_pct=5, run_cap_requests=300)      # резерв 500
+            pk = acct_mod.b58encode(b"\x27" * 32)
+            rng = lambda m: {"mint": m, "from": "2001-09-09T01:46", "to": "2001-09-09T02:06"}  # noqa: E731
+            jid = make_id("P" * 40, chart.from_input(rng("")["from"]), chart.from_input(rng("")["to"]))
+
+            def first_press_lands():                    # поки друге натискання чекало баланс, перше вже поставило прогін
+                j = Job(jid, "P" * 40, chart.from_input(rng("")["from"]), chart.from_input(rng("")["to"]))
+                j.status = "running"
+                self.app["jobs"].jobs[jid] = j
+                return 50_000
+            self.st.credits = first_press_lands
+            try:
+                r = await self.client.post("/analyze", allow_redirects=False, headers={"Cookie": wallet_cookie(pk)}, data=rng("P" * 40))
+                self.assertEqual(r.headers["Location"], f"/job/{jid}")
+                self.assertEqual(self.app["accounts"].runs_today(pk), 0)                 # друге натискання нічого не списало
+                self.app["jobs"].jobs[jid].owner = acct_mod.b58encode(b"\x28" * 32)       # чужий прогін ще йде…
+                self.st.credits, self.app["credits"]["at"] = (lambda: 1_000), 0
+                r = await self.client.post("/analyze", allow_redirects=False, headers={"Cookie": wallet_cookie(pk)}, data=rng("Q" * 40))
+                self.assertEqual(r.status, 503, await r.text())                          # …і його найгірше ще попереду: 1000 − 2×300 < 500
+                self.app["jobs"].jobs.pop(jid)
+                self.app["credits"]["at"] = 0
+                r = await self.client.post("/analyze", allow_redirects=False, headers={"Cookie": wallet_cookie(pk)}, data=rng("Q" * 40))
+                self.assertEqual(r.status, 302, await r.text())                          # сам по собі вміщається: 1000 − 300 ≥ 500
+                await asyncio.to_thread(self.app["jobs"].q.join)
+            finally:
+                self.st.credits = real
+                s.update(credits_month=0, credits_reserve_pct=0)
+                self.app["admins"] = {TEST_PK}
+
+        async def test_a_limit_notice_shows_only_to_someone_who_is_out_of_runs(self):
+            # стара адреса з notice=limit, посилання від друга чи гість: вікна «ви використали свої» нема
+            self.app["admins"] = set()
+            try:
+                fresh = {"Cookie": wallet_cookie(acct_mod.b58encode(b"\x29" * 32))}
+                for h in (GUEST, fresh):
+                    for kind in ("limit", "netcap"):
+                        html = await (await self.client.get(f"/token?mint={MINT}&notice={kind}", headers=h)).text()
+                        self.assertNotIn('id="limitsheet"', html, (h, kind))
+                        self.assertNotIn("openLimit('", html)
+            finally:
+                self.app["admins"] = {TEST_PK}
+
+        async def test_marks_ask_dexscreener_only_about_known_tokens(self):
+            from unittest import mock
+            paid = [{"ms": 1, "kind": "profile"}]
+            with mock.patch("tracced.web.app.dexscreener.orders", return_value=paid) as orders:
+                d = await (await self.client.get("/marks.json?mint=" + "R" * 40, headers=GUEST)).json()
+                self.assertNotIn("paid", d)
+                self.assertEqual(orders.call_count, 0)                             # чужа адреса — жодного виклику
+                await self.client.get("/token?mint=" + "R" * 40)                   # токен відкрили: огляд у кеші
+                d = await (await self.client.get("/marks.json?mint=" + "R" * 40, headers=GUEST)).json()
+            self.assertEqual((d["paid"], orders.call_count), (paid, 1))
+
+        async def test_every_response_carries_the_security_headers(self):
+            for path, kw in (("/", {}), ("/job/nope.json", {}), ("/how", {"allow_redirects": False}), ("/static/style.css", {})):
+                r = await self.client.get(path, headers=GUEST, **kw)
+                self.assertEqual(r.headers.get("Server"), "tracced", path)          # версію aiohttp не називаємо
+                self.assertEqual(r.headers.get("X-Content-Type-Options"), "nosniff", path)
+                self.assertEqual(r.headers.get("Strict-Transport-Security"), "max-age=31536000", path)
+                self.assertEqual(r.headers.get("Referrer-Policy"), "strict-origin-when-cross-origin", path)
+                csp = r.headers.get("Content-Security-Policy", "")
+                self.assertIn("frame-ancestors 'none'", csp, path)
+                self.assertNotIn("script-src", csp)                                 # вбудовані скрипти сторінок працюють
+
+        async def test_an_ask_is_given_back_only_when_the_model_did_not_answer(self):
+            import urllib.error
+            from tracced.early.assistant import AssistantError
+            r = await self.client.post("/analyze", allow_redirects=False,
+                                       data={"mint": "S" * 40, "from": "2001-09-09T01:46", "to": "2001-09-09T02:06"})
+            loc = r.headers["Location"]
+            await asyncio.to_thread(self.app["jobs"].q.join)
+
+            class Flaky:
+                model = "fake"
+
+                def ask(self, rows, method):
+                    if method == "down":
+                        raise AssistantError("The free model is rate-limited right now.") from urllib.error.URLError("timed out")
+                    raise AssistantError("The assistant did not return a usable list.")
+            self.app["assistant"] = Flaky()
+            try:
+                who = f"acct:{TEST_PK}"
+                n0 = self.app["assistant_daily"].left(who, 10)
+                r = await self.client.post(loc + "/assistant", json={"method": "down"}, headers=self.same_site)
+                self.assertEqual(r.status, 502)
+                self.assertEqual(self.app["assistant_daily"].left(who, 10), n0)          # модель мовчала — спроба не рахується
+                r = await self.client.post(loc + "/assistant", json={"method": "prose"}, headers=self.same_site)
+                self.assertEqual(r.status, 502)
+                self.assertEqual(self.app["assistant_daily"].left(who, 10), n0 - 1)      # відповіла без списку — рахується
+            finally:
+                self.app["assistant"] = None
+
 
 if AioHTTPTestCase:
     class FakeAgesWeb:
@@ -1138,11 +1389,14 @@ if AioHTTPTestCase:
             self.ages = FakeAgesWeb()
             s = settings.load()
             s["age_lookups_max"] = 0                                      # аналіз сам нікого не перевіряє
+            s["replay_s"] = 0.6                                           # демо програється швидко
             self.st = FakeWebST(TRADES)
             return create_app(self.st, s, {}, out_dir=self.tmp.name + "/web", store_dir=self.tmp.name + "/cache", ages=self.ages)
 
         async def tearDownAsync(self):
             await asyncio.to_thread(self.app["jobs"].q.join)
+            await asyncio.to_thread(self.app["jobs"].rq.join)
+            await self.client.close()
             self.tmp.cleanup()
 
         async def test_age_on_card_open(self):
@@ -1168,6 +1422,87 @@ if AioHTTPTestCase:
             d = await (await self.client.get(f"/wallet_age.json?job={jid}&wallet={w}")).json()   # тепер і гостю, з результату
             self.assertEqual(d["funder"], "F" * 44)
             self.assertEqual(self.ages.calls, 2)
+
+        async def test_demo_cards_are_read_only_and_say_when_nothing_was_checked(self):
+            from tracced.web.app import _demo
+            seed_demo(self.tmp.name, self.app)
+            row = {"wallet": W1, "first_buy_ms": DEMO_A + 1000, "tag_list": []}
+            self.app["jobs"].get(DEMO_JID).result["rows"] = [dict(row)]
+            _demo(self.app)["ranges"][0]["result"]["rows"] = [dict(row)]          # те, що покаже програвання
+            me = {"Cookie": wallet_cookie(acct_mod.b58encode(b"\x0d" * 32))}
+            d = await (await self.client.get(f"/wallet_age.json?job={DEMO_JID}&wallet={W1}", headers=me)).json()
+            self.assertEqual((d["age"], d["checked"]), (None, False))              # не перевіряли — так і кажемо, а не «історії нема»
+            self.ages.cache[W1] = {"oldest_ms": 999_990_000_000, "exact": True, "n": 3, "oldest_sig": "s"}
+            d = await (await self.client.get(f"/wallet_age.json?job={DEMO_JID}&wallet={W1}")).json()
+            self.assertEqual((d["age"]["ms"], d["checked"]), (999_990_000_000, True))   # з кешу — будь-кому і безкоштовно
+            o = {"Origin": f"http://{self.client.host}:{self.client.port}"}
+            r = await self.client.post("/analyze", allow_redirects=False, headers=o,
+                                       data={"mint": MINT, "from": chart.to_input(DEMO_A), "to": chart.to_input(DEMO_B)})
+            rid = r.headers["Location"].split("/")[-1]
+            await asyncio.to_thread(self.app["jobs"].rq.join)
+            for cached in (True, False):
+                if not cached:
+                    del self.ages.cache[W1]
+                d = await (await self.client.get(f"/wallet_age.json?job={rid}&wallet={W1}", headers=me)).json()
+                self.assertEqual(d["checked"], cached)
+            self.assertEqual(self.ages.calls, 0)                                   # демо і програвання не платять ноді
+            self.assertFalse(os.path.exists(f"{self.tmp.name}/web/{rid}.json"))    # і не лягають на диск
+            self.assertNotIn("ages", _demo(self.app)["ranges"][0]["result"])        # спільний знімок не змінився
+
+        async def test_card_lookups_have_their_own_cap_and_keep_fresh(self):
+            jid, mint = "VVVVVV_20010909-0146_0206", "V" * 40
+            w1, w2, w3 = (acct_mod.b58encode(bytes([x]) * 32) for x in (0x41, 0x42, 0x43))
+            rows = [{"wallet": w, "first_buy_ms": 999_990_000_000 + 3_600_000, "tag_list": []} for w in (w1, w2, w3)]
+            result = {"info": {"mint": mint, "symbol": "VVV", "supply": 1000000, "created_time": 999996400000},
+                      "window": {"from": 999999960000, "to": 1000001160000, "end": 1000003560000}, "mode": "trades",
+                      "counts": {}, "coverage": {}, "wallet_trades": {}, "rows": rows, "funder_checked": [w3],
+                      "scope": "all", "requests": 0}
+            os.makedirs(self.tmp.name + "/web", exist_ok=True)
+            path = f"{self.tmp.name}/web/{jid}.json"
+            with open(path, "w") as f:
+                json.dump({"id": jid, "mint": mint, "t_from": 999999960000, "t_to": 1000001160000, "status": "done",
+                           "created_ms": 1, "log": [], "result": result}, f)
+            self.app["jobs"]._load()
+            self.ages.cache[w3] = {"oldest_ms": 999_000_000_000, "exact": True, "n": 5, "oldest_sig": "s3"}
+            d = await (await self.client.get(f"/wallet_age.json?job={jid}&wallet={w3}")).json()
+            self.assertEqual((d["age"]["ms"], d["checked"]), (999_000_000_000, True))   # спонсор перевірений, вік — з кешу
+            self.app["s"]["age_card_per_day"] = 1
+            me = {"Cookie": wallet_cookie(acct_mod.b58encode(b"\x0e" * 32))}
+            try:
+                d = await (await self.client.get(f"/wallet_age.json?job={jid}&wallet={w1}", headers=me)).json()
+                self.assertEqual((d["checked"], d["fresh"]), (True, True))
+                self.assertEqual(self.app["jobs"].get(jid).result["fresh_wallets"], [w1])   # тег бачать експорт і списки
+                d = await (await self.client.get(f"/wallet_age.json?job={jid}&wallet={w2}", headers=me)).json()
+                self.assertEqual((d["checked"], d.get("capped")), (False, True))           # своя денна стеля карток
+                self.assertEqual(self.ages.calls, 2)                                         # друга картка ноду не питала
+            finally:
+                self.app["s"].pop("age_card_per_day")
+            for _ in range(40):                                                   # запис результату — трохи згодом, одним разом
+                with open(path) as f:
+                    if w1 in (json.load(f)["result"].get("fresh_wallets") or []):
+                        break
+                await asyncio.sleep(0.05)
+            with open(path) as f:
+                self.assertIn(w1, json.load(f)["result"]["fresh_wallets"])
+
+        async def test_enrich_state_tells_what_is_really_pending(self):
+            seed_demo(self.tmp.name, self.app)
+            q = self.app["jobs"]
+            job = q.get(OTHER_JID)
+            job.result["enrich"] = {"done": 1, "total": 3, "fresh": 0, "paused": "rpc-budget"}
+            q.namer = lambda j, save: None                                        # сервер, що питає імена
+            try:
+                d = await (await self.client.get(f"/job/{OTHER_JID}.enrich.json")).json()
+                self.assertIsNone(d["paused"])                                    # бюджет уже не на паузі (новий місяць)…
+                self.assertFalse(d["identities_done"])
+                await asyncio.to_thread(q.eq.join)
+                self.assertNotIn("paused", job.result["enrich"])                  # …і збагачення пішло далі без рестарту
+                d = await (await self.client.get(f"/job/{DEMO_JID}.enrich.json")).json()
+                self.assertTrue(d["identities_done"])                             # демо — знімок: імен ніхто не чекає
+            finally:
+                q.namer = None
+            d = await (await self.client.get(f"/job/{OTHER_JID}.enrich.json")).json()
+            self.assertTrue(d["identities_done"])                                 # сервер без імен: чекати нема на що
 
 
 class TestSharedClient(unittest.TestCase):
@@ -1267,6 +1602,113 @@ class TestThreadSafeStores(unittest.TestCase):
             self.assertEqual(dc.left("global", 10_000), 10_000 - 800)
 
 
+class TestJobQueue(unittest.TestCase):
+    """Черга без сервера: що лягає на диск, що переживає рестарт і що після нього доганяється."""
+
+    @staticmethod
+    def _file(d, jid, **kw):
+        job = dict({"id": jid, "mint": "M" * 40, "t_from": 1, "t_to": 2, "status": "done", "created_ms": 1, "log": [],
+                    "result": {"rows": [{"wallet": "w"}]}}, **kw)
+        with open(os.path.join(d, jid + ".json"), "w") as f:
+            json.dump(job, f)
+
+    def test_results_without_names_are_named_once_newest_first(self):
+        from tracced.web.jobs import JobQueue
+        with tempfile.TemporaryDirectory() as d:
+            self._file(d, "old", created_ms=1)
+            self._file(d, "new", created_ms=5)
+            self._file(d, "named", created_ms=9, result={"rows": [], "identities_done": True})
+            order = []
+
+            def namer(job, save):
+                order.append(job.id)
+                job.result["identities_done"] = True
+                save(job)
+            q = JobQueue(lambda j: None, d, namer=namer)
+            q.nq.join()
+            self.assertEqual(order, ["new", "old"])                         # найсвіжіший — перший; названий — ні
+            with open(os.path.join(d, "old.json")) as f:
+                self.assertTrue(json.load(f)["result"]["identities_done"])
+
+    def test_enrichment_resumes_after_a_restart_newest_first(self):
+        from tracced.web.jobs import JobQueue
+        with tempfile.TemporaryDirectory() as d:
+            full = {"done": 1, "total": 1, "funders_done": 1}
+            self._file(d, "a", created_ms=1, result={"rows": [], "enrich": dict(full, funders_failed=2)})   # спонсори не відповіли
+            self._file(d, "b", created_ms=3, result={"rows": [], "enrich": dict(full)})                     # усе готове
+            self._file(d, "c", created_ms=5, result={"rows": [], "enrich": {"done": 0, "total": 1}})
+            seen = []
+            q = JobQueue(lambda j: None, d, enricher=lambda job, save: seen.append(job.id))
+            q.eq.join()
+            self.assertEqual(seen, ["c", "a"])
+
+    def test_a_replay_never_reaches_the_disk_and_charges_survive_a_restart(self):
+        from tracced.web.jobs import JobQueue
+        with tempfile.TemporaryDirectory() as d:
+            q = JobQueue(lambda j: {"rows": []}, d)
+            rep = q.submit("M" * 40, 1000, 2000, replay={"log": [], "result": {"rows": []}})
+            q.rq.join()
+            self.assertEqual(rep.status, "done")
+            self.assertFalse(q._save(rep))
+            live = q.submit("M" * 40, 1000, 2000, owner="pk", charged=["dev:x", "ip:y"])
+            q.q.join()
+            self.assertEqual(sorted(os.listdir(d)), [live.id + ".json"])       # лише справжній аналіз
+            self.assertEqual(JobQueue(lambda j: None, d).get(live.id).charged, ["dev:x", "ip:y"])
+
+    def test_delete_waits_for_a_save_in_flight(self):
+        # збереження, що вже пройшло перевірку, не має повернути видалений файл: видалення чекає на той самий замок
+        import threading
+        import time as _t
+        from tracced.web.jobs import JobQueue
+        with tempfile.TemporaryDirectory() as d:
+            q = JobQueue(lambda j: {"rows": []}, d)
+            job = q.submit("M" * 40, 1000, 2000)
+            q.q.join()
+            path = os.path.join(d, job.id + ".json")
+            with q._save_lock:
+                t = threading.Thread(target=q.remove, args=(job.id,))
+                t.start()
+                _t.sleep(0.1)
+                self.assertTrue(t.is_alive() and os.path.exists(path))
+            t.join(2)
+            self.assertFalse(os.path.exists(path))
+            self.assertIsNone(q.get(job.id))
+
+    def test_a_failed_funder_lookup_is_retried_not_marked_checked(self):
+        from types import SimpleNamespace
+        from tracced.web.app import make_enricher
+
+        class Ages:
+            fail = True
+
+            def cached(self, w):
+                return None
+
+            def paused(self):
+                return False
+
+            def oldest_tx(self, w, refresh=False):
+                return {"oldest_ms": 1000, "exact": True, "n": 2, "oldest_sig": "s-" + w}
+
+            def funder(self, w, sig):
+                if self.fail and w == "W2":
+                    raise RuntimeError("HTTP Error 429: Too Many Requests")
+                return "F" + w
+
+            def flush(self):
+                pass
+        ages = Ages()
+        job = SimpleNamespace(result={"rows": [{"wallet": w, "first_buy_ms": 5000, "tag_list": []} for w in ("W1", "W2")]}, log=[])
+        enrich = make_enricher(ages, {"age_lookups_max": 10})
+        enrich(job, lambda j: True)
+        r = job.result
+        self.assertEqual((r["funder_checked"], r["enrich"]["funders_failed"]), (["W1"], 1))   # не «перевірено без спонсора»
+        ages.fail = False
+        enrich(job, lambda j: True)                                          # наступний прохід (після рестарту) доганяє
+        self.assertEqual((r["funder_checked"], r["funders"]["W2"]), (["W1", "W2"], "FW2"))
+        self.assertNotIn("funders_failed", r["enrich"])
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -1329,6 +1771,8 @@ if AioHTTPTestCase:
 
         async def tearDownAsync(self):
             await asyncio.to_thread(self.app["jobs"].q.join)
+            await asyncio.to_thread(self.app["jobs"].rq.join)
+            await self.client.close()
             self.tmp.cleanup()
 
         @property
