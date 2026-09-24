@@ -112,6 +112,9 @@ class SolanaTracker(PumpDataSource):
             "deployer": p.get("deployer"),              # хто створив пул pools[0] — не обовʼязково творець токена
             "migration": _migration(pools),             # коли крива добігла і торгівля переїхала на біржу
             "launch_pool": _launch_pool(pools).get("poolId"),   # пул кривої: свічки до міграції живуть тільки в ньому
+            # усі пули коротко: де токен торгувався і коли кожен пул з'явився (у частини пулів дати нема)
+            "pools": [{"id": x.get("poolId"), "market": x.get("market"), "created": x.get("createdAt"),
+                       "curve": x.get("curvePercentage")} for x in pools[:8] if x.get("poolId")],
             "launchpad": tok.get("createdOn"),          # де запущено (pump.fun тощо)
             "market": p.get("market"),                  # на якій біржі пул
             "twitter": tok.get("twitter"),

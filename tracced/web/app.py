@@ -1134,6 +1134,8 @@ async def marks_json(request):
         info = (hit[1] if hit and hit[1] is not None else None) or {}
     if info.get("migration") and (info.get("mint") == mint or job):
         out["migration"] = info["migration"]
+    if info.get("pools") and (info.get("mint") == mint or job):
+        out["pools"] = info["pools"]                          # де токен торгувався: для пояснення графіка
     out["paid"] = await asyncio.to_thread(dexscreener.orders, mint, app.get("dex_cache"))
     return web.json_response(out, headers={"Cache-Control": "public, max-age=600"})
 
