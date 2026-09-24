@@ -159,6 +159,11 @@ class TestClient(unittest.TestCase):
         self.assertEqual(len(st.paths), 3)                        # відмова, повтор без параметра, далі одразу без нього
         self.assertNotIn("enrich", st.paths[2])
 
+    def test_history_pages_do_not_ask_who_the_wallets_are(self):
+        st = self.client([{"trades": [], "hasNextPage": False}])
+        st.trades_page("MINT", NOW - 1, identity=False)
+        self.assertNotIn("enrich", st.paths[0])
+
     def test_without_the_cache_nothing_is_asked(self):
         st = self.client([{"trades": [], "hasNextPage": False}], identity=False)
         st.trades_page("MINT", NOW - 1)

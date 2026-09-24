@@ -30,11 +30,11 @@ class EarlyST(SolanaTracker):
         # одночасні flush() ламались об os.replace того самого тимчасового файлу
         self._cache_lock = threading.Lock()
 
-    def _page(self, path):
+    def _page(self, path, identity=True):
         """Сторінка угод; з ідентичністю гаманців, якщо її збираємо. Параметр живцем ще не перевірений на всіх
         тарифах, тому відмова на нього (400/422) не валить аналіз: той самий запит повторюється без нього, і до
         перезапуску сервера ідентичність більше не просимо."""
-        if self.identity_cache is None or self._identity_off:
+        if not identity or self.identity_cache is None or self._identity_off:
             return self._get(path)
         try:
             return self._get(path + "&enrich=identity")
@@ -66,9 +66,12 @@ class EarlyST(SolanaTracker):
         with self._cache_lock:
             return self.identity_cache.get(wallet)
 
-    def trades_page(self, mint, cursor_ms):
-        """Одна сторінка угод від cursor_ms (ASC). Повертає нормалізовані угоди + курсор далі."""
-        d = self._page(f"/trades/{mint}?sortDirection=ASC&limit={PAGE}&cursor={int(cursor_ms)}")
+    def trades_page(self, mint, cursor_ms, identity=True):
+        """Одна сторінка угод від cursor_ms (ASC). Повертає нормалізовані угоди + курсор далі.
+
+        identity=False — для сторінок історії поза діапазоном: хто купував у діапазоні, той є на його сторінках,
+        а питати ідентичність для сотень сторінок решти історії — зайва робота джерела."""
+        d = self._page(f"/trades/{mint}?sortDirection=ASC&limit={PAGE}&cursor={int(cursor_ms)}", identity)
         self._harvest(d.get("trades") or [])
         return {
             "trades": [normalize(tr) for tr in (d.get("trades") or [])],

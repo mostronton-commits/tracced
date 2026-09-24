@@ -15,6 +15,7 @@
 Повідомлення журналу і помилок — англійською: вони йдуть на сторінку.
 """
 import contextvars
+import threading
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
@@ -26,6 +27,41 @@ HOUR = 3_600_000
 
 class EarlyError(Exception):
     """A reason to stop that a person can read (not a traceback)."""
+
+
+class Timing:
+    """How the requests of a run actually went: how many, how long each took, how many were in flight at once.
+
+    Speed is what the first trader complained about, so a run says where its time went instead of leaving it to
+    guesses. Thread-safe: pages and wallets are fetched from several threads."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self.n = self.now = self.peak = 0
+        self.busy = 0.0
+
+    def wrap(self, fn):
+        def timed(*a, **kw):
+            with self._lock:
+                self.now += 1
+                self.peak = max(self.peak, self.now)
+            t0 = time.monotonic()
+            try:
+                return fn(*a, **kw)
+            finally:
+                with self._lock:
+                    self.now -= 1
+                    self.n += 1
+                    self.busy += time.monotonic() - t0
+        return timed
+
+    def line(self, what, t0, unit="requests"):
+        """«whole history: 161 requests in 190 s, up to 8 at once, 9.4 s each on average»."""
+        took = time.monotonic() - t0
+        if not self.n:
+            return None
+        return (f"{what}: {self.n:,} {unit} in {took:.0f} s, up to {self.peak} at once, "
+                f"{self.busy / self.n:.1f} s each on average")
 
 
 def token(st, mint):
@@ -133,7 +169,10 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
         f"history until {_iso(t_end)}")
 
     store = TradeStore(store_dir, mint)
-    fetch = lambda c: st.trades_page(mint, c)  # noqa: E731
+    win_t, hist_t = Timing(), Timing()                    # де пішов час: сторінки діапазону і решти історії
+    fetch = win_t.wrap(lambda c: st.trades_page(mint, c))
+    fetch_hist = hist_t.wrap(lambda c: st.trades_page(mint, c, identity=False))   # ідентичність — лише з діапазону
+    t_win = time.monotonic()
     pages, est_full, est_win = 0, None, 0
     credits = {"seen": None, "at": None}
 
@@ -191,6 +230,9 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
     else:
         log("entry range is cached — no new requests for it")
 
+    if win_t.n:
+        log(win_t.line("entry range", t_win))
+
     # ── 2. гаманці, що купували в діапазоні ──
     repaired = ledger.repair_quantities(store.trades)     # джерело інколи ламає кількість токенів
     if repaired:
@@ -229,10 +271,11 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
     # ── 4. угоди кожного відібраного гаманця ──
     wallet_trades, counts_extra = {}, {}
     if mode == "trades" and choice.cost > 0:
-        pages_before = pages
+        pages_before, t_hist = pages, time.monotonic()
         try:
-            pages = store.ensure(created, t_end, fetch, max_pages, log=log, pages_done=pages,
+            pages = store.ensure(created, t_end, fetch_hist, max_pages, log=log, pages_done=pages,
                                  on_page=lambda n, t: progress("trades", n, max(n, pages_before + cost_full)), workers=workers)
+            log(hist_t.line("whole history", t_hist))
         except PageBudget as e:
             log(f"the history is denser than estimated: cap {e.pages} pages reached at {_iso(e.covered_to)} UTC — "
                 f"switching to per-wallet trades (fetched pages stay cached)")
@@ -260,8 +303,11 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
         rest = len(early) - len(lookups)
         log(f"fetching each wallet's trades for {len(lookups)}"
             + (f", {rest} left entry-only (cap {lookups_cap})" if rest else ""))
+        wal_t, t_wal = Timing(), time.monotonic()
         got, last_seen = fetch_wallets(st, mint, [l.wallet for l in lookups], t_end, s, store.trades,
-                                       here=here, req0=req0, run_cap=run_cap, log=log, progress=progress)
+                                       here=here, req0=req0, run_cap=run_cap, log=log, progress=progress, timing=wal_t)
+        if wal_t.n:
+            log(wal_t.line("wallets", t_wal, unit="lookups"))
         win_by = {}
         for tr in win:
             win_by.setdefault(tr["wallet"], []).append(tr)
@@ -310,7 +356,7 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
     return result
 
 
-def fetch_wallets(st, mint, wallets, t_end, s, trades, here, req0=0, run_cap=0, log=None, progress=None):
+def fetch_wallets(st, mint, wallets, t_end, s, trades, here, req0=0, run_cap=0, log=None, progress=None, timing=None):
     """Угоди кожного гаманця по токену, `st_concurrency` гаманців одночасно.
 
     Сторінки одного гаманця зчеплені курсором, а різні гаманці незалежні, тож паралелимо між гаманцями. Головний
@@ -327,8 +373,10 @@ def fetch_wallets(st, mint, wallets, t_end, s, trades, here, req0=0, run_cap=0, 
     per_wallet = max(1, int(s.get("max_wallet_trade_pages", 4) or 4))
     ref = ledger.price_reference(trades) if trades else None   # однакова для всіх гаманців: рахуємо один раз
 
+    lookup = timing.wrap(st.wallet_token_trades) if timing else st.wallet_token_trades
+
     def one(wallet):
-        wt = [tr for tr in st.wallet_token_trades(wallet, mint, per_wallet)
+        wt = [tr for tr in lookup(wallet, mint, per_wallet)
               if tr["time"] is not None and tr["time"] <= t_end]
         seen = max(((tr["time"], tr["price"]) for tr in wt if tr.get("price")), default=None)
         ledger.repair_quantities(wt, ref=ref)

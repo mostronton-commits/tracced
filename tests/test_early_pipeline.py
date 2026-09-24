@@ -32,7 +32,7 @@ class FakeST:
         return {"mint": mint, "symbol": "TST", "supply": SUPPLY, "created_time": T0 - H,
                 "mcap": 2_000_000, "price_usd": 2.0}
 
-    def trades_page(self, mint, cursor):
+    def trades_page(self, mint, cursor, identity=True):
         self.requests += 1
         chunk = [t for t in self.trades if t["time"] > cursor][:self.page]      # як у ST: курсор виключний
         has_next = bool(chunk) and chunk[-1]["time"] < self.trades[-1]["time"]
