@@ -17,7 +17,7 @@ PAGES = [
     ("how-it-works", "How it works", "⚙️", "Where every number on the page comes from"),
     ("tags", "Tags", "🏷️", "Ten rules, each one checkable on chain"),
     ("limits", "Limits", "⏳", "What is free, what needs a wallet, what it costs us"),
-    ("account", "Your account", "🔑", "Sign-in, watchlist, your own tags, repeats"),
+    ("account", "Your account", "🔑", "Sign-in, lists, your own tags, repeats"),
     ("roadmap", "Roadmap", "🗺️", "Shipped, next, and what we will not build"),
     ("project", "The project", "📌", "Why it exists and what it refuses to do"),
 ]

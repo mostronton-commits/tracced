@@ -318,7 +318,10 @@
       function refreshRows(nums) {
         [...tbody.rows].forEach((tr, k) => {
           const o = byW.get(tr.dataset.w); if (!o) return;
-          if (nums && tr.cells[1].textContent !== String(nums[k])) tr.cells[1].textContent = nums[k];   // a wallet pinned below the fold keeps its place in the count
+          if (nums && tr.cells[1].textContent !== String(nums[k])) {       // a wallet pinned below the fold keeps its place in the count
+            tr.cells[1].textContent = nums[k];
+            tr.cells[1].title = nums[k] === '' ? 'On the chart; the filters would hide it' : '';
+          }
           const c = cells.get(o.w) || {}, tg = tagsHtml(o), fd = fundHtml(o);
           if (c.tg !== tg) tr.querySelector('.tags').innerHTML = tg;
           if (c.fd !== fd) tr.querySelector('.fund').innerHTML = fd;
@@ -681,7 +684,7 @@
         if (d.funder) funders[w] = d.funder;
         const o = byW.get(w);
         if (d.fresh && o && !o.tags.includes('fresh')) o.tags.unshift('fresh');
-        ageTried.set(w, d.paused ? 'paused' : d.checked === false ? 'unchecked' : 'done');   // unchecked: the server did not look, which says nothing about the wallet
+        ageTried.set(w, d.paused ? 'paused' : d.capped ? 'capped' : d.checked === false ? 'unchecked' : 'done');   // unchecked: the server did not look, which says nothing about the wallet
         if (d.fresh || d.funder) fillFunders();
         if (drawer.dataset.w === w) renderWalletInfo(w);
       }
@@ -698,6 +701,7 @@
           : st === 'connect' ? '<button type="button" class="link" id="dagego">Connect a wallet</button> to check when this wallet was created and who funded it.'
           : st === 'paused' ? 'The age check is paused until next month: its budget is used up.'
           : st === 'failed' ? 'The chain node did not answer. Reopen the card to try again.'
+          : st === 'capped' ? 'Today\'s age checks from wallet cards are used up. More tomorrow.'
           : st === 'unchecked' ? 'Age and funder were not checked for this wallet.'
           : st === 'done' ? 'No transaction history found.' : (AGE_N ? 'Checking when this wallet was created and who funded it…' : '');
         const go = document.getElementById('dagego');
@@ -910,7 +914,11 @@
         const had = onChart.find(x => x.wallet === w);           // the row's ◉ and its name can both be in flight: one chart entry
         if (had) { if (story && lastAsked === w) openStory(had); return; }
         const o = { wallet: w, bundleColor: bundleColor(w), trades: d.trades, n: d.n, truncated: d.truncated, complete: d.complete };
-        if (onChart.length >= MAX_ON_CHART) { if (!story || lastAsked === w) openStory(o); return; }   // the chart keeps its ten; the card still opens
+        if (onChart.length >= MAX_ON_CHART) {                   // the chart keeps its ten; the card still opens, but only the one asked for last
+          if (story && lastAsked === w) openStory(o);
+          else if (!story) EarlyUI.toast(MAX_ON_CHART + ' wallets on the chart is the limit — remove one to add another');
+          return;
+        }
         onChart.push(o); renderOnChart(); if (story && lastAsked === w) openStory(o);
       }
       // every button in a row answers here, so a redrawn row needs no listeners of its own
@@ -1011,7 +1019,7 @@
         if (d.done < d.total) { en.textContent = 'wallet age ' + d.done + '/' + d.total + '…'; again(); }
         else {
           const nb = Object.keys(bundle).length;                // only the first d.total by PnL are checked: say so, or "checked" reads as every wallet
-          en.textContent = (busy ? 'funders ' + (d.funders_done || 0) + '/' + d.total + '…' : 'age checked for the top ' + d.total + ' by PnL')
+          en.textContent = (busy ? 'funders ' + (d.funders_done || 0) + '/' + d.total + '…' : (d.total >= all.length ? 'age checked for every wallet' : 'age checked for the top ' + d.total + ' by PnL'))
             + ((d.fresh || []).length ? ' · ' + d.fresh.length + ' fresh' : '') + (nb ? ' · ' + nb + ' in bundles' : '');
           if (busy) again(); else names();
         }

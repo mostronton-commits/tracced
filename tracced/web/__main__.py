@@ -33,7 +33,7 @@ def main():
         budget = MonthBudget("output/early/daily/rpc-month.json", limit=s.get("rpc_credits_month", 0),   # поруч з добовими лічильниками
                              reserve_pct=s.get("rpc_reserve_pct", 10))
         ages = WalletAge(cache=JsonCache("cache/early/wallet_age.json", ttl_hours=s["wallet_age_ttl_hours"]), budget=budget,
-                         pace_s=float(s.get("rpc_pace_s", 0.5)))
+                         pace_s=float(s.get("rpc_pace_s", 0.5)), tx_pace_s=float(s.get("rpc_tx_pace_s", 0.3)))
     assistant = None
     if os.getenv("ASSISTANT_KEY"):
         assistant = Assistant(os.getenv("ASSISTANT_KEY"), url=os.getenv("ASSISTANT_URL"), model=os.getenv("ASSISTANT_MODEL"),

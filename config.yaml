@@ -31,6 +31,9 @@ early:
   # sets credits_month 1,000,000 and credits_reserve_pct 5).
   runs_per_day: 5               # per person: the wallet and the browser both count, so another wallet adds nothing
   runs_per_ip_per_day: 10       # per network: incognito plus a fresh wallet stops here; above 5, as an office or a phone carrier shares one address
+  refund_below_requests: 50     # a failed run gives its analysis back only if it spent fewer requests than this
+  age_card_per_day: 50          # paid age/funder checks from wallet cards, per person a day (cached wallets are free)
+  age_card_global_per_day: 500  # and for the whole site: one check can cost up to ~70 RPC credits
   runs_global_per_day: 40       # was 20 (owner, 24.09): a run costs ~100-350 requests on Pro, the month guard stays
   ranges_per_token: 5           # was 3
 

@@ -103,7 +103,7 @@ document.addEventListener('click', e => {
 
 /* Markers that say what kind of wallet a row is, the way terminals do: a small picture per category, the rule or
    the source in the tooltip, the words in the card and in the filter legend. Our tags are rules computed from the
-   chain; KOL, the X account and the trading platform come from Solana Tracker and say so. */
+   chain; KOL, the X account and the trading platform are Solana Tracker's identification of the wallet. */
 window.EarlyTags = (function () {
   const S = d => '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
   const ICON = {

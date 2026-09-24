@@ -44,7 +44,6 @@
     </form>
   </template>
   <div class="rows" id="rows"></div>
-  {% set limit_kind = notice or ('limit' if runs_left == 0 else none) %}
   {% if limit_kind %}
   <div class="sheet" id="limitsheet" hidden role="dialog" aria-modal="true" aria-labelledby="limith">
     <div class="sheet-card">
@@ -162,6 +161,7 @@
   }
   // a daily cap: a window that says so and when it resets, and the range stays where it was
   const LIMIT = document.getElementById('limitsheet'), RUNS_LEFT = {{ runs_left if runs_left is not none else 'null' }}, RESET = {{ reset_ms }};
+  const LIMIT_KIND = {{ (limit_kind or 'limit')|tojson }};   // which count ran out: the server knows
   function openLimit(kind) {
     if (!LIMIT) return false;
     EarlyUI.track('limit-window', { kind: kind || 'limit' });
@@ -191,7 +191,7 @@
     const f0 = parse(r.from), t0 = parse(r.to);                  // say what is wrong with the range before asking for anything
     if (!(f0 && t0 && f0 < t0)) { e.preventDefault(); EarlyUI.toast('From must be earlier than To.'); return; }
     if (t0 - f0 > MAX_HOURS * 3600e3) { e.preventDefault(); EarlyUI.toast('Range up to ' + MAX_HOURS + ' h. Shorten it.'); return; }
-    if (ACCT && RUNS_LEFT === 0 && openLimit()) { e.preventDefault(); return; }   // nothing left today: say so before the round trip
+    if (ACCT && RUNS_LEFT === 0 && openLimit(LIMIT_KIND)) { e.preventDefault(); return; }   // nothing left today: say so before the round trip
     EarlyUI.track('analyze', { who: ACCT ? 'wallet' : 'guest' });
     if (ACCT) return;                                            // a new live run needs a wallet
     e.preventDefault();

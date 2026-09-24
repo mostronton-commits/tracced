@@ -1032,7 +1032,7 @@ async def wallet_age_json(request):
     if row is None:
         raise web.HTTPNotFound(text="That wallet is not in this analysis.")
     ages = app.get("ages")
-    cached = ages.cached(wallet) if ages is not None else None   # вік з кешу нічого не коштує
+    cached = await asyncio.to_thread(ages.cached, wallet) if ages is not None else None   # вік з кешу нічого не коштує; замок кешу — не на циклі подій
 
     def known(**extra):
         age = (r.get("ages") or {}).get(wallet)
@@ -1600,6 +1600,7 @@ async def analyze(request):
         # the month is what nothing else protected: a run has its cap, the day has its count, but thirty busy days
         # in a row could still spend five times the plan. A run starts only while the worst case of it leaves the reserve.
         left = await _credits_left(app)
+        same_range()                                                    # друге натискання під час цього очікування йде на перший прогін, а не в резерв
         worst = int(s.get("run_cap_requests", 0) or 0)
         # runs already queued or running have not spent their worst case yet, and the balance is up to 10 minutes old
         in_flight = sum(1 for j in list(app["jobs"].jobs.values()) if j.status in ("queued", "running") and not j.replay
@@ -1685,7 +1686,7 @@ async def job_delete(request, pk):
         return _jerr("Only the wallet that ran this analysis (or the admin) can delete it.", 403)
     if job.status in ("queued", "running"):
         return _jerr("This analysis is still running. Wait for it to finish.", 409)
-    app["jobs"].remove(job.id)
+    await asyncio.to_thread(app["jobs"].remove, job.id)                 # remove чекає на запис файлу, що йде: не на циклі подій
     app["events"].add(pk, "delete_analysis", job=job.id, symbol=job.symbol)
     return web.json_response({"ok": True})
 
@@ -2022,7 +2023,7 @@ async def wallet_profile_json(request):
             try:
                 now = int(time.time() * 1000)
                 raw, partial = st.wallet_swaps(wallet, now - days * 86_400_000, pages)
-                evs = [ev for r in raw for ev in profile.normalize_wallet_swap(r, wallet)]
+                evs = [ev for r in reversed(raw) for ev in profile.normalize_wallet_swap(r, wallet)]   # джерело віддає новіші першими
                 out = profile.card(evs, wallet, now, partial)
                 out["computed_ms"] = now
                 cache.put(key, out)

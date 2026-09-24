@@ -696,6 +696,30 @@ if AioHTTPTestCase:
             with mock.patch.dict(os.environ, {"UMAMI_WEBSITE_ID": ""}):
                 self.assertNotIn("umami.is", await (await self.client.get("/")).text())   # без id — жодного скрипта
 
+        async def test_the_network_window_and_export_for_a_signed_in_person(self):
+            # Export у підписаного не мовчить: панель експорту шукається за своїм id, а не першим меню на сторінці (меню акаунта)
+            await self.client.get(f"/token?mint={MINT}")
+            r = await self.client.post("/analyze", data={"mint": MINT, "from": "2001-09-09T01:46", "to": "2001-09-09T02:06"},
+                                       allow_redirects=False)
+            loc, html = r.headers["Location"], ""
+            for _ in range(80):
+                html = await (await self.client.get(loc)).text()
+                if "↓ Export" in html: break
+                await asyncio.sleep(0.1)
+            self.assertIn('id="xpanel"', html)
+            self.assertIn("getElementById('xpanel')", html)
+            self.assertNotIn("querySelector('.menu-panel')", html)
+            # мережа вичерпала свою стелю: вікно каже саме це, а не «ви використали свої п'ять»
+            self.app["admins"] = set()
+            self.app["s"]["runs_per_ip_per_day"] = 0
+            html = await (await self.client.get(f"/token?mint={MINT}&notice=netcap")).text()
+            self.assertIn("Your network has used today's 0 free analyses", html)
+            self.assertNotIn("Come back tomorrow", html)
+            self.app["s"]["runs_per_ip_per_day"] = 10
+            html = await (await self.client.get(f"/token?mint={MINT}&notice=limit")).text()
+            self.assertNotIn('id="limitsheet"', html)                        # спроби є: старе повідомлення в адресі вікна не відкриває
+            self.app["admins"] = {TEST_PK}
+
         async def test_a_failed_run_gives_the_browser_and_the_network_their_run_back(self):
             from tracced.web.app import _ip_key
             self.app["admins"] = set()
@@ -918,7 +942,7 @@ if AioHTTPTestCase:
             self.assertIsNone(CYRILLIC.search(html))
             lim = await (await self.client.get("/docs/limits")).text()
             self.assertIn(f">{self.app['s']['max_window_hours']} hours<", lim)   # числа ті самі, що в налаштуваннях
-            self.assertIn(f">{self.app['s']['max_wallet_lookups']}<", lim)
+            self.assertIn(">{:,}<".format(self.app['s']['max_wallet_lookups']), lim)
 
         async def test_index_english(self):
             r = await self.client.get("/")

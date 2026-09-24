@@ -35,8 +35,8 @@ independent too, and eight wallets are fetched at once.
 One run never spends more than its cap. A page or a wallet starts only when the most it could cost still fits, so
 reading in parallel cannot push a run past its limit.
 
-The result page stays light however many wallets it holds. The table arrives as numbers, the rows on screen are
-drawn a hundred at a time, and sorting, filters, selection and export work on the numbers, so a result with
+The result page stays light however many wallets it holds. The table arrives as numbers, the first hundred rows
+are drawn and more on request, and sorting, filters, selection and export work on the numbers, so a result with
 thousands of wallets opens and sorts at once, on a phone too.
 
 !!! warning "🔧 Two defects in the source, fixed on the way in"

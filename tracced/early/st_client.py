@@ -16,7 +16,8 @@ from ..util import to_ms
 from .ledger import normalize
 from .profile import compact_identity
 
-LIVE_EDGE_MS = 300_000       # шматок свічок, що закінчується ближче до «зараз», ще росте: його не кешуємо
+LIVE_EDGE_MS = 300_000       # шматок свічок, що закінчується ближче до «зараз», ще росте: у файловий кеш не йде
+LIVE_TTL_S = 60              # але хвилину його ділять усі глядачі: графік рухається, а перегляд не коштує кредиту щоразу
 
 
 class EarlyST(SolanaTracker):
@@ -28,6 +29,7 @@ class EarlyST(SolanaTracker):
         # Не з enrich=identity на сторінках угод: перевірено 24.09 на dev, сторінка з ним відповідає 11 с замість 0.2 с
         self.identity_cache = identity_cache
         self.chart_cache_hits = 0
+        self._live_chunks = {}      # ключ → (час, свічки): живий край у пам'яті на LIVE_TTL_S
         self.stats_cache_hits = 0
 
     def identity(self, wallet):
@@ -88,9 +90,22 @@ class EarlyST(SolanaTracker):
 
     def chart_cached(self, mint, interval, t_from_ms, t_to_ms):
         """Чи лежить цей шматок у кеші (тоді він нічого не коштує). Живий край — ніколи."""
-        if self.chart_cache is None or self._live(t_to_ms):
+        key = self._chart_key(mint, interval, t_from_ms, t_to_ms)
+        if self._live(t_to_ms):
+            return self._live_get(key) is not None
+        if self.chart_cache is None:
             return False
-        return self.chart_cache.get(self._chart_key(mint, interval, t_from_ms, t_to_ms)) is not None
+        return self.chart_cache.get(key) is not None
+
+    def _live_get(self, key):
+        hit = self._live_chunks.get(key)
+        return hit[1] if hit and time.time() - hit[0] <= LIVE_TTL_S else None
+
+    def _live_put(self, key, candles):
+        now = time.time()
+        if len(self._live_chunks) > 500:                  # старі живі шматки нікому не потрібні
+            self._live_chunks = {k: v for k, v in list(self._live_chunks.items()) if now - v[0] <= LIVE_TTL_S}
+        self._live_chunks[key] = (now, candles)
 
     def _candles(self, path, interval, a, b):
         q = urllib.parse.urlencode({"type": interval, "time_from": a, "time_to": b, "dynamicPools": "true"})
@@ -116,12 +131,12 @@ class EarlyST(SolanaTracker):
         застигав на першому перегляді, бо ключ шматка той самий ще багато годин."""
         a, b = int(t_from_ms // 1000), int(t_to_ms // 1000)
         key = self._chart_key(mint, interval, t_from_ms, t_to_ms)
-        cache = self.chart_cache if not self._live(t_to_ms) else None
-        if cache is not None:
-            cached = cache.get(key)
-            if cached is not None:
-                self.chart_cache_hits += 1
-                return cached
+        live = self._live(t_to_ms)
+        cache = self.chart_cache if not live else None
+        cached = self._live_get(key) if live else (cache.get(key) if cache is not None else None)
+        if cached is not None:
+            self.chart_cache_hits += 1
+            return cached
         mig = int(migrated_ms // 1000) if (launch_pool and migrated_ms) else None
         if mig and a < mig:
             out = [c for c in self._candles(f"/chart/{mint}/{launch_pool}", interval, a, min(b, mig)) if c["time"] < mig * 1000]
@@ -130,7 +145,9 @@ class EarlyST(SolanaTracker):
         else:
             out = self._candles(f"/chart/{mint}", interval, a, b)
         out.sort(key=lambda c: c["time"])
-        if cache is not None:
+        if live:
+            self._live_put(key, out)
+        elif cache is not None:
             cache.put(key, out)
         return out
 
@@ -153,9 +170,9 @@ class EarlyST(SolanaTracker):
             d = self._get(f"/trades/{mint}/by-wallet/{wallet}?sortDirection=ASC&limit={PAGE}"
                           + (f"&cursor={int(cursor)}" if cursor else ""))
             page = [normalize(tr) for tr in (d.get("trades") or [])]
-            fresh = [tr for tr in page if tr["tx"] not in seen]
-            seen.update(tr["tx"] for tr in fresh)
-            out.extend(fresh)
+            new = [tr for tr in page if tr["tx"] not in seen]
+            seen.update(tr["tx"] for tr in new)
+            out.extend(new)
             times = [tr["time"] for tr in page if tr["time"] is not None]
             if not d.get("hasNextPage") or not times:
                 break

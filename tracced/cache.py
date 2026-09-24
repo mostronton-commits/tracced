@@ -73,22 +73,28 @@ class JsonCache:
         if not self._write_lock.acquire(blocking=block):
             return
         try:
-            with self._lock:
-                if self._dirty == 0:
-                    return
-                self._prune(time.time())
-                snap, dirty = dict(self.data), self._dirty
-                self._dirty = 0
-            try:
-                text = json.dumps(snap)          # C-кодировщик, вне замка данных: записи заменяются, а не правятся
-                os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
-                tmp = self.path + ".tmp"
-                with open(tmp, "w") as f:
-                    f.write(text)
-                os.replace(tmp, self.path)   # атомарно — не бьём кэш при сбое записи
-            except BaseException:
+            for attempt in range(2):
                 with self._lock:
-                    self._dirty += dirty         # не записалось — следующий flush попробует снова
-                raise
+                    # второй круг — только если пока мы писали, put() пропустил свою запись и набралось на новую
+                    if self._dirty == 0 or (attempt and self._dirty < self.flush_every):
+                        return
+                    self._prune(time.time())
+                    snap, dirty = dict(self.data), self._dirty
+                    self._dirty = 0
+                try:
+                    os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+                    tmp = self.path + ".tmp"
+                    with open(tmp, "w") as f:
+                        # по одной записи: C-кодировщик держит GIL на время одной записи, а не всего файла, так что
+                        # цикл событий и потоки прогона не замирают на дампе в десятки мегабайт
+                        f.write("{")
+                        for i, (k, e) in enumerate(snap.items()):
+                            f.write(("," if i else "") + json.dumps(k) + ":" + json.dumps(e))
+                        f.write("}")
+                    os.replace(tmp, self.path)   # атомарно — не бьём кэш при сбое записи
+                except BaseException:
+                    with self._lock:
+                        self._dirty += dirty         # не записалось — следующий flush попробует снова
+                    raise
         finally:
             self._write_lock.release()

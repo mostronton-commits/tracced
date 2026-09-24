@@ -13,7 +13,7 @@ took out, how long it held. No scores, no "smart money" labels. Raw swaps only, 
 
 !!! tip "🎬 Nothing to sign to look around"
     The demo token replays a real analysis for anyone, no account. A wallet is asked for only when you analyze
-    something new — a signature, not a transaction, and no fee.
+    something new, or open wallet-card numbers nobody has loaded yet — a signature, not a transaction, and no fee.
 
 ## Why not just sort by profit
 

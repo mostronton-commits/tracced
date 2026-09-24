@@ -37,16 +37,23 @@ class TestChartLiveEdge(unittest.TestCase):
         st.chart(MINT, "1m", a, a + 12 * H)
         self.assertEqual(len(st.paths), 1)
 
-    def test_the_live_chunk_is_fetched_every_time_and_charged(self):
+    def test_the_live_chunk_is_shared_for_a_minute_then_fetched_again(self):
+        from unittest import mock
+        from tracced.early import st_client
         st = client(chart_cache=JsonCache(None))
         now = int(time.time() * 1000)
         for b in (now + H, now - 60_000):                            # у майбутньому і хвилину тому — обидва живі
             st.paths.clear()
             self.assertFalse(st.chart_cached(MINT, "1m", b - 12 * H, b))
             st.chart(MINT, "1m", b - 12 * H, b)
+            self.assertTrue(st.chart_cached(MINT, "1m", b - 12 * H, b))   # хвилину його ділять усі глядачі
             st.chart(MINT, "1m", b - 12 * H, b)
+            self.assertEqual(len(st.paths), 1)
+            self.assertEqual(st.chart_cache.get(st._chart_key(MINT, "1m", b - 12 * H, b)), None)   # у файл не йде
+            with mock.patch.object(st_client.time, "time", return_value=time.time() + st_client.LIVE_TTL_S + 1):
+                self.assertFalse(st.chart_cached(MINT, "1m", b - 12 * H, b))   # за хвилину — знову з джерела
+                st.chart(MINT, "1m", b - 12 * H, b)
             self.assertEqual(len(st.paths), 2)
-            self.assertFalse(st.chart_cached(MINT, "1m", b - 12 * H, b))
 
     def test_an_old_cached_copy_of_the_live_chunk_is_not_served(self):
         cache = JsonCache(None)
