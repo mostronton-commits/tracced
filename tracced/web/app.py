@@ -1713,5 +1713,6 @@ async def health(request):
     st = [j.status for j in jobs.jobs.values()]
     return web.json_response({"ok": ok, "jobs": len(st), "running": st.count("running"), "queued": st.count("queued"),
                               "demo": _demo(request.app) is not None,
-                              "credits": request.app["credits"]["left"]},          # лише кешоване число: /health не витрачає запитів
+                              "credits": request.app["credits"]["left"],          # лише кешоване число: /health не витрачає запитів
+                              "job_errors": jobs.load_errors[-5:]},              # файли аналізів, що не прочитались чи не записались
                              status=200 if ok else 503)

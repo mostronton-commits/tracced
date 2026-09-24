@@ -78,6 +78,7 @@ class JobQueue:
         self.on_error = on_error              # on_error(job) — прогін упав: повернути власнику день
         self.dir = persist_dir
         self.jobs = {}
+        self.load_errors = []                 # файли аналізів, які не вдалось прочитати при старті: видно в /health
         self.q = queue.Queue()
         self.eq = queue.Queue()
         self.nq = queue.Queue()
@@ -121,8 +122,9 @@ class JobQueue:
                         from ..early.report import upgrade_result
                         upgrade_result(j.result)              # файли до перейменування window → range
                     self.jobs[j.id] = j
-                except Exception:
-                    continue                          # битий файл не валить сторінку
+                except Exception as e:  # noqa: BLE001 — битий файл не валить сторінку, але й не зникає мовчки
+                    self.load_errors.append(f"{name}: {type(e).__name__}: {str(e)[:120]}")
+                    continue
 
     def _save(self, job, only_current=False):
         """Робочий потік і збагачення пишуть той самий <id>.json через той самий .tmp: по одному. Збагачення
@@ -207,6 +209,7 @@ class JobQueue:
                     self._save(job)
             except Exception as e:  # noqa: BLE001
                 job.log.append(f"could not save the result: {e}")
+                self.load_errors.append(f"{job.id}.json not saved: {type(e).__name__}: {str(e)[:120]}")
             if job.status == "done" and job.result and not job.replay:   # демо вже збагачене
                 if self.namer:
                     self.nq.put(job)
