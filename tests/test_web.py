@@ -1823,7 +1823,7 @@ class TestJobQueue(unittest.TestCase):
         ages = Ages()
         make_enricher(ages, {"age_lookups_max": 10})(job, lambda j: True)
         r = job.result
-        self.assertEqual((r["services"], sorted(r["bundle"]), r["bundle_rev"]), (["EXCH"], ["B1", "B2", "B3"], 2))
+        self.assertEqual((r["services"], sorted(r["bundle"]), r["bundle_rev"]), (["EXCH"], ["B1", "B2", "B3"], 3))
         self.assertEqual(sorted(ages.checked), ["EXCH", "PERSON"])                 # по разу на спонсора бандла
         self.assertEqual([row["wallet"] for row in rows if "bundle" in row["tag_list"]], ["B1", "B2", "B3"])
         old = {"funders": dict(funder_of), "rows": [dict(row, tag_list=["bundle"], tags="bundle") for row in rows]}
@@ -1838,13 +1838,19 @@ class TestJobQueue(unittest.TestCase):
         ages.update({"C1": {"ms": t0 - 30 * 86_400_000, "exact": True}, "C2": {"ms": t0 - 60 * 86_400_000, "exact": True}})
         res = {"funders": launch, "services": ["BUNDLER"], "ages": ages}
         _bundles(res, [])
-        self.assertEqual(sorted(res["bundle"]), [f"L{i}" for i in range(5)])      # давні гаманці того ж спонсора — ні
-        self.assertEqual(res["bundle"]["L0"]["n"], 5)
+        self.assertEqual(sorted(res["bundle"]), sorted([f"L{i}" for i in range(5)] + ["C1", "C2"]))   # 5 з 7 пачкою: бандлер, усі
+        self.assertEqual(res["bundle"]["C1"]["n"], 7)
+        exch = {f"E{i}": "EXCH" for i in range(10)}                                 # біржа: 3 з 10 випадково разом
+        ages = {f"E{i}": {"ms": t0 - i * 86_400_000, "exact": True} for i in range(10)}
+        ages.update({"E0": {"ms": t0, "exact": True}, "E1": {"ms": t0 + 60_000, "exact": True}, "E2": {"ms": t0 + 120_000, "exact": True}})
+        res = {"funders": exch, "services": ["EXCH"], "ages": ages}
+        _bundles(res, [])
+        self.assertEqual(sorted(res["bundle"]), ["E0", "E1", "E2"])
         with tempfile.TemporaryDirectory() as d:
             done = {"done": 1, "total": 1, "funders_done": 1}
             self._file(d, "unchecked", created_ms=1, result={"rows": [{"wallet": "w"}], "enrich": dict(done), "funders": {"w": "F"}})
             self._file(d, "checked", created_ms=2, result={"rows": [{"wallet": "w"}], "enrich": dict(done), "funders": {"w": "F"},
-                                                         "services": [], "bundle_rev": 2})
+                                                         "services": [], "bundle_rev": 3})
             seen = []
             q = JobQueue(lambda j: None, d, enricher=lambda job, save: seen.append(job.id), enrich_upto=1)
             q.eq.join()

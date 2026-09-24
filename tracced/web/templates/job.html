@@ -255,7 +255,11 @@
         Object.entries(funders).forEach(([w, x]) => { (groups[x] = groups[x] || []).push(w); });
         bundle = {};
         Object.entries(groups).forEach(([x, ws]) => {
-          const keep = services.has(x) ? burst(ws) : ws;
+          let keep = ws;
+          if (services.has(x)) {                                // most of them born together: a bundler here, so all of them
+            const b = burst(ws), dated = ws.filter(w => ages[w] && ages[w].exact && ages[w].ms).length;
+            keep = b.length * 2 > dated ? ws : b;
+          }
           if (keep.length >= BUNDLE_MIN) keep.forEach(w => { bundle[w] = { funder: x, n: keep.length }; });
         });
         palette = new Map([...new Set(Object.values(bundle).map(b => b.funder))].sort().map((x, i) => [x, BUNDLE_PAL[i % BUNDLE_PAL.length]]));

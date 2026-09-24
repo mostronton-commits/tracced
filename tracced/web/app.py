@@ -313,7 +313,12 @@ def _bundles(r, rows):
         groups[f].append(w)
     r["bundle"] = {}
     for f, ws in groups.items():
-        keep = _burst(ws, born) if f in services else ws
+        keep = ws
+        if f in services:
+            # більшість його гаманців тут народились пачкою — він тут бандлер, а не біржа: рахуються всі (на 52qkNp
+            # 274 з 299 були в пачках, решта 25 — ті самі гаманці бандлера); у біржі пачка — випадковий збіг, лише вона
+            burst, dated = _burst(ws, born), sum(1 for w in ws if born.get(w))
+            keep = ws if len(burst) * 2 > dated else burst
         if len(keep) >= tags.BUNDLE_MIN:
             r["bundle"].update({w: {"funder": f, "n": len(keep)} for w in keep})
     for row in rows:                                    # старі результати без угод: теги прямо в рядках
