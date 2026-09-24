@@ -507,8 +507,9 @@
         const h = String(idn.twitter || '').replace(/^@/, '').replace(/[^A-Za-z0-9_]/g, '');
         if (h) bits.push('<a href="https://x.com/' + h + '" target="_blank" rel="noopener">@' + h + '</a>');
         if (idn.sns) bits.push(esc(idn.sns));
-        const labels = [...new Set([idn.type].concat(idn.tags || [], idn.platforms || []).filter(Boolean))];
-        el.innerHTML = (bits.length ? 'Known as ' + bits.join(' · ') : 'Labelled')
+        const labels = [...new Set([idn.type].concat(idn.tags || [], idn.platforms || []).filter(l => l && l !== 'kol'))];
+        el.innerHTML = (isKol(idn) ? '<span class="tag t-known">KOL</span> ' : '')
+          + (bits.length ? 'Known as ' + bits.join(' · ') : 'Labelled')
           + (labels.length ? ' ' + labels.map(l => '<span class="tag">' + esc(l) + '</span>').join('') : '')
           + ' <span class="muted small">per Solana Tracker</span>';
         el.hidden = false;
@@ -687,15 +688,17 @@
       // The same poll brings who a wallet is (Solana Tracker's identity) and its first transaction, for the card.
       const en = document.getElementById('enrich');
       const defs = {{ TAGS|tojson }};
+      const isKol = idn => !!idn && (idn.type === 'kol' || (idn.tags || []).includes('kol'));
       function markKnown() {
-        // a wallet somebody has named gets its name in the row: the rest are the unlabelled ones this table is for
+        // a known trader (KOL) gets a mark in the row: the rest are the unlabelled wallets this table is for.
+        // Solana Tracker also knows app usernames and trading platforms for many wallets; those stay in the card
         rows.forEach(r => {
           const idn = idents[r.dataset.w], tg = r.querySelector('.tags');
-          if (!idn || !tg || tg.querySelector('.t-known')) return;
-          const h = String(idn.twitter || '').replace(/^@/, '');
+          if (!isKol(idn) || !tg || tg.querySelector('.t-known')) return;
+          const h = String(idn.twitter || '').replace(/^@/, '').replace(/[^A-Za-z0-9_]/g, '');
           const t = document.createElement('span'); t.className = 'tag t-known';
-          t.textContent = h ? '@' + h : (idn.name || idn.type || 'known');
-          t.title = 'Known wallet' + (idn.name ? ': ' + idn.name : '') + ' · per Solana Tracker';
+          t.textContent = 'KOL' + (h ? ' @' + h : (idn.name ? ' ' + idn.name : ''));
+          t.title = 'A known trader (KOL)' + (idn.name ? ': ' + idn.name : '') + ' · per Solana Tracker';
           tg.prepend(t);
         });
       }

@@ -182,18 +182,19 @@ class TestIdentityBatch(unittest.TestCase):
         self.assertEqual([len(c[1]) for c in st.calls], [100])    # збій не записався як «невідомий»: спитаємо ще
 
 
-class TestEnricherNames(unittest.TestCase):
-    def test_names_arrive_before_age_and_without_it(self):
+class TestNamer(unittest.TestCase):
+    def test_names_come_in_one_pass_and_are_not_asked_twice(self):
         from types import SimpleNamespace
-        from tracced.web.app import make_enricher
+        from tracced.web.app import make_namer
         rows = [{"wallet": "W1"}, {"wallet": "W2"}]
         job = SimpleNamespace(result={"rows": rows}, log=[])
-        saved = []
-        make_enricher(None, {}, identify=lambda ws: {"W2": {"name": "Cented"}})(job, saved.append)
-        self.assertEqual(job.result["identities"], {"W2": {"name": "Cented"}})
+        saved, asked = [], []
+        namer = make_namer(lambda ws: (asked.append(ws), {"W2": {"name": "Cented", "type": "kol"}})[1])
+        namer(job, saved.append)
+        self.assertEqual(job.result["identities"], {"W2": {"name": "Cented", "type": "kol"}})
         self.assertTrue(job.result["identities_done"])
-        self.assertEqual(len(saved), 1)
-        self.assertNotIn("enrich", job.result)                    # вік вимкнено: далі нічого
+        namer(job, saved.append)
+        self.assertEqual((len(asked), len(saved)), (1, 1))
 
 
 if __name__ == "__main__":

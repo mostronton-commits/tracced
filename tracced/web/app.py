@@ -95,22 +95,29 @@ class WebError(Exception):
         self.status = status
 
 
-def make_enricher(ages, s, identify=None):
-    """Після аналізу, у фоні: хто стоїть за гаманцями (пакетами, секунди), потім вік кожного гаманця з RPC → тег
-    `fresh` і перший спонсор → `bundle`; прогрес у result["enrich"]."""
+def make_namer(identify):
+    """Після аналізу, одразу: хто стоїть за гаманцями таблиці, пакетами по 100 (секунди). Власний потік, бо черга
+    збагачення зайнята віком гаманців попередніх аналізів хвилинами, а імена мають з'явитись, поки людина дивиться."""
+    def name(job, save):
+        r = job.result
+        if r.get("identities_done"):
+            return
+        try:
+            found = identify([row["wallet"] for row in r.get("rows") or []])
+            r["identities"] = dict(r.get("identities") or {}, **(found or {}))
+        except Exception as ex:  # noqa: BLE001
+            job.log.append(f"wallet names unavailable: {str(ex)[:60]}")
+        r["identities_done"] = True
+        save(job)
+    return name
+
+
+def make_enricher(ages, s):
+    """Після аналізу, у фоні: вік кожного гаманця з RPC → тег `fresh` і перший спонсор → `bundle`; прогрес у
+    result["enrich"]."""
     def enrich(job, save):
         r = job.result
         rows = r.get("rows") or []
-        if identify and not r.get("identities_done"):
-            try:
-                found = identify([row["wallet"] for row in rows])
-                r["identities"] = dict(r.get("identities") or {}, **(found or {}))
-            except Exception as ex:  # noqa: BLE001 — імена не мають зупиняти вік і спонсорів
-                job.log.append(f"wallet names unavailable: {str(ex)[:60]}")
-            r["identities_done"] = True
-            save(job)
-        if ages is None:
-            return
         n = min(len(rows), int(s.get("age_lookups_max", 0)))
         e = r.setdefault("enrich", {"done": 0, "total": n, "fresh": 0, "failed": 0})
         e["total"] = n
@@ -245,8 +252,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
                 app["runs_daily"].add("global", -1)
 
     identify = st.identities if (hasattr(st, "identities") and s.get("st_identity", True)) else None
-    app["jobs"] = JobQueue(runner, out_dir, enricher=make_enricher(ages, s, identify) if (ages or identify) else None,
-                           on_error=on_error)
+    app["jobs"] = JobQueue(runner, out_dir, enricher=make_enricher(ages, s) if ages else None, on_error=on_error,
+                           namer=make_namer(identify) if identify else None)
     app.router.add_get("/", index)
     app.router.add_get("/how", how)
     app.router.add_get("/docs", docs_page)

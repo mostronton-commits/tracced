@@ -71,20 +71,25 @@ def make_id(mint, t_from, t_to):
 
 
 class JobQueue:
-    def __init__(self, runner, persist_dir, enricher=None, on_error=None):
+    def __init__(self, runner, persist_dir, enricher=None, on_error=None, namer=None):
         self.runner = runner
         self.enricher = enricher              # enricher(job, save) — повільне збагачення після done
+        self.namer = namer                    # namer(job, save) — імена гаманців: секунди, окремий потік, без черги за віком
         self.on_error = on_error              # on_error(job) — прогін упав: повернути власнику день
         self.dir = persist_dir
         self.jobs = {}
         self.q = queue.Queue()
         self.eq = queue.Queue()
+        self.nq = queue.Queue()
         self.lock = threading.Lock()
         self._save_lock = threading.Lock()
         os.makedirs(persist_dir, exist_ok=True)
         self._load()                          # прогони, перервані рестартом, стають помилкою і повертають день
         self.thread = threading.Thread(target=self._worker, name="early-worker", daemon=True)
         self.thread.start()
+        if namer:
+            self.nthread = threading.Thread(target=self._name_worker, name="early-names", daemon=True)
+            self.nthread.start()
         if enricher:
             self.ethread = threading.Thread(target=self._enrich_worker, name="early-enrich", daemon=True)
             self.ethread.start()
@@ -201,13 +206,26 @@ class JobQueue:
                     self._save(job)
             except Exception as e:  # noqa: BLE001
                 job.log.append(f"could not save the result: {e}")
-            if self.enricher and job.status == "done" and job.result and not job.replay:   # демо вже збагачене
-                self.eq.put(job)
+            if job.status == "done" and job.result and not job.replay:   # демо вже збагачене
+                if self.namer:
+                    self.nq.put(job)
+                if self.enricher:
+                    self.eq.put(job)
             self.q.task_done()
 
     def _current(self, job):
         """Чи це ще той самий аналіз? Повторний запуск того ж діапазону кладе на його місце новий."""
         return self.jobs.get(job.id) is job
+
+    def _name_worker(self):
+        while True:
+            job = self.nq.get()
+            try:
+                if self._current(job):
+                    self.namer(job, lambda j: self._save(j, only_current=True))
+            except Exception as e:  # noqa: BLE001 — імена не мають валити результат
+                job.log.append(f"wallet names unavailable: {str(e)[:60]}")
+            self.nq.task_done()
 
     def _enrich_worker(self):
         while True:
