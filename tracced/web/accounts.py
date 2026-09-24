@@ -309,6 +309,12 @@ class AccountStore:
             return True
         return self._update(pubkey, fn)
 
+    def runs_today(self, pubkey, day=None):
+        """Скільки живих аналізів гаманець уже запустив сьогодні (нічого не змінює)."""
+        day = int(time.time() // 86400) if day is None else int(day)
+        r = self.load(pubkey).get("runs") or {}
+        return int(r.get("n") or 0) if r.get("day") == day else 0
+
     def give_back_run(self, pubkey, day=None):
         """Прогін упав без результату: повертаємо день (нижче нуля не йде)."""
         day = int(time.time() // 86400) if day is None else int(day)

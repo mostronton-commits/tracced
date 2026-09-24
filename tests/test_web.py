@@ -626,9 +626,69 @@ if AioHTTPTestCase:
             self.assertEqual(r.status, 302, await r.text())
             await asyncio.to_thread(self.app["jobs"].q.join)
             r = await self.client.post("/analyze", data=rng("01:52"), allow_redirects=False, headers=w3)
-            self.assertEqual(r.status, 429)                             # стеля сайту на добу
-            self.assertIn("whole site", await r.text())
+            self.assertIn("notice=sitecap", r.headers["Location"])      # стеля сайту на добу: назад до діапазону з вікном
+            self.assertIn("whole site", await (await self.client.get(r.headers["Location"], headers=w3)).text())
             self.app["s"]["runs_global_per_day"] = 10
+            self.app["admins"] = {TEST_PK}
+
+        async def test_one_person_gets_one_days_runs_whichever_wallet(self):
+            # правило власника: п'ять на людину; інший гаманець у тому ж браузері нових спроб не дає, новий браузер
+            # з тієї ж мережі впирається в стелю мережі, а сторінка каже це вікном, не сторінкою помилки
+            from tracced.web.app import _ip_key
+            self.app["admins"] = set()
+            s = self.app["s"]
+            s["runs_per_day"], s["runs_per_ip_per_day"] = 2, 3
+            starts = ["01:46", "01:50", "01:52", "01:54"]                  # діапазони, для яких у фейку є угоди
+            a, b, c = (acct_mod.b58encode(bytes([x]) * 32) for x in (0x21, 0x22, 0x23))
+
+            async def run(pk, i, dev=None):
+                cookie = wallet_cookie(pk) + (f"; early_dev={dev}" if dev else "")
+                return await self.client.post("/analyze", allow_redirects=False, headers={"Cookie": cookie},
+                                              data={"mint": MINT, "from": f"2001-09-09T{starts[i]}", "to": "2001-09-09T02:06"})
+            r = await run(a, 0)
+            self.assertTrue(r.headers["Location"].startswith("/job/"), await r.text())
+            dev = r.cookies["early_dev"].value                             # браузер отримує своє число з першим аналізом
+            self.assertRegex(dev, "^[0-9a-f]{32}$")
+            r = await run(a, 1, dev)
+            self.assertTrue(r.headers["Location"].startswith("/job/"))
+            r = await run(a, 2, dev)
+            self.assertIn("notice=limit", r.headers["Location"])           # два гаманця витрачено
+            self.assertIn("from=2001-09-09T01:52", r.headers["Location"])   # діапазон повертається разом із вікном
+            r = await run(b, 2, dev)
+            self.assertIn("notice=limit", r.headers["Location"])           # інший гаманець у тому ж браузері: нічого нового
+            r = await run(b, 2)                                             # новий браузер з тієї ж мережі: ще один…
+            self.assertTrue(r.headers["Location"].startswith("/job/"), r.headers["Location"])
+            r = await run(c, 3)
+            self.assertIn("notice=limit", r.headers["Location"])           # …і три мережі витрачено
+            html = await (await self.client.get(r.headers["Location"], headers={"Cookie": wallet_cookie(c)})).text()
+            self.assertIn('id="limitsheet"', html)
+            self.assertIn("free analyses for today", html)
+            self.assertIn("midnight UTC", html)
+            self.assertIn("No free analyses left today", html)
+            self.assertIn("Your range", html)                               # позначений діапазон на місці
+            self.assertIsNone(r.cookies.get("early_dev"))                   # відмова нічого не ставить і не рахує
+            self.assertEqual(self.app["runs_daily"].left(_ip_key("127.0.0.1"), 3), 0)
+            html = await (await self.client.get(f"/token?mint={MINT}", headers={"Cookie": wallet_cookie(a) + f"; early_dev={dev}"})).text()
+            self.assertIn("You've used your 2 free analyses for today", html)   # вікно чекає на Analyze і без повідомлення
+            self.assertIn("No free analyses left today", html)
+            await asyncio.to_thread(self.app["jobs"].q.join)
+            s["runs_per_day"], s["runs_per_ip_per_day"] = 1, 10
+            self.app["admins"] = {TEST_PK}
+
+        async def test_a_failed_run_gives_the_browser_and_the_network_their_run_back(self):
+            from tracced.web.app import _ip_key
+            self.app["admins"] = set()
+            pk = acct_mod.b58encode(b"\x24" * 32)
+            self.st.fail_trades = True
+            r = await self.client.post("/analyze", allow_redirects=False, headers={"Cookie": wallet_cookie(pk)},
+                                       data={"mint": MINT, "from": "2001-09-09T01:50", "to": "2001-09-09T02:06"})
+            dev = r.cookies["early_dev"].value
+            await asyncio.to_thread(self.app["jobs"].q.join)
+            self.st.fail_trades = False
+            self.assertEqual(self.app["jobs"].get(r.headers["Location"].split("/")[-1]).status, "error")
+            self.assertEqual(self.app["runs_daily"].left("dev:" + dev, 5), 5)
+            self.assertEqual(self.app["runs_daily"].left(_ip_key("127.0.0.1"), 10), 10)
+            self.assertEqual(self.app["accounts"].runs_today(pk), 0)
             self.app["admins"] = {TEST_PK}
 
         async def test_demo_replay_keeps_the_stored_analysis_in_place(self):
@@ -773,9 +833,9 @@ if AioHTTPTestCase:
             self.assertEqual(self.app["jobs"].get(jid1).owner, TEST_PK)
             self.assertEqual(self.app["jobs"].get(jid1).s_over, {"budget_guard_pct": 0, "run_cap_requests": 2000})
             r = await self.client.post("/analyze", data=rng(2), allow_redirects=False, headers=me)
-            self.assertEqual(r.status, 429)                              # друга за день — ні
-            body = await r.text()
-            self.assertIn("today", body)
+            self.assertIn("notice=limit", r.headers["Location"])         # друга за день — ні: назад до діапазону з вікном
+            body = await (await self.client.get(r.headers["Location"], headers=me)).text()
+            self.assertIn("free analyses for today", body)
             self.assertIn("limits are small", body)                      # і пояснення, що це рання стадія
             r = await self.client.post("/analyze", data=rng(1), allow_redirects=False, headers=me)
             self.assertEqual(r.headers["Location"], f"/job/{jid1}")     # готовий результат відкривається без витрат

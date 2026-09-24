@@ -31,6 +31,7 @@ class Job:
         self.owner = None                 # гаманець, який запустив аналіз (демо і старі — None)
         self.canon = None                 # програвання демо: id збереженого аналізу, який воно показує
         self.s_over = None                # стелі саме цього прогону (адмін — без стель), не зберігаються
+        self.charged = []                 # добові лічильники, з яких узято цей прогін (браузер, мережа), не зберігаються
         self.progress = {"phase": "queued", "done": 0, "total": None}
 
     def set_progress(self, phase, done=0, total=None):
@@ -140,7 +141,7 @@ class JobQueue:
             os.replace(tmp, path)
             return True
 
-    def submit(self, mint, t_from, t_to, symbol=None, replay=None, owner=None, s_over=None):
+    def submit(self, mint, t_from, t_to, symbol=None, replay=None, owner=None, s_over=None, charged=None):
         """Живий прогін живе під id діапазону. Програвання демо отримує свій id (…_r + 6 hex), щоб не витісняти
         збережений аналіз, який у цей час читають інші; старі програвання прибираються з пам'яті."""
         canon = make_id(mint, t_from, t_to)
@@ -157,7 +158,7 @@ class JobQueue:
             job.symbol_hint = symbol
             job.replay = replay
             job.canon = canon if replay else None
-            job.owner, job.s_over = owner, s_over
+            job.owner, job.s_over, job.charged = owner, s_over, list(charged or [])
             self.jobs[id] = job
         if not replay:
             try:

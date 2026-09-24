@@ -12,9 +12,16 @@ nothing and needs no account — that is what makes a shared link work.
 Running a **new** analysis. The wallet signs a message: no transaction, no fee. You are asked at the moment you
 press Analyze, not before, and the range you marked survives the sign-in.
 
+The daily count is per person, not per wallet: connecting another wallet in the same browser adds nothing. To know
+the browser again, the first analysis leaves a cookie holding a random number and nothing else; it is not used for
+analytics. One network has its own, higher count, because an office or a phone carrier puts many people behind one
+address. Every count resets at midnight UTC, and the page shows how many are left. A run that fails gives its
+analysis back.
+
 | Limit | Value |
 |---|---|
-| New analyses, per wallet, per day | {{ s.runs_per_day }} |
+| New analyses a day, per person: wallet and browser count together | {{ s.runs_per_day }} |
+| New analyses a day from one network | {{ s.runs_per_ip_per_day }} |
 | Ranges per token | {{ s.ranges_per_token }} |
 | Longest range | {{ s.max_window_hours }} hours |
 | Requests one run may spend | {{ '{:,}'.format(s.run_cap_requests) }} |

@@ -29,6 +29,7 @@
   <div class="chartbox" id="chart"><div class="charthint" id="charthint" hidden></div></div>
 
   <div class="stepbar small"><span class="stepn">03</span><div class="stepx"><b>Check the bounds and analyze</b>{% if is_demo %}<span>Press Analyze on a pump to watch the run.</span>{% elif not acct %}<span>Analyze needs a connected wallet: free, no transaction, {{ s.runs_per_day|per_day }}. {{ early_note }}</span>
+  {% elif runs_left is not none %}<span>{% if runs_left > 0 %}<span class="runsleft">{{ runs_left }} of {{ s.runs_per_day }}</span> free analyses left today{% else %}<span class="runsleft none">No free analyses left today</span>: the count resets at midnight UTC{% endif %} · up to {{ s.ranges_per_token }} ranges per token. {{ early_note }}</span>
   {% else %}<span>{{ (s.runs_per_day|per_day)|capitalize }}, up to {{ s.ranges_per_token }} ranges per token. {{ early_note }}</span>{% endif %}</div></div>
   <template id="row-tpl">
     <form class="wrow" method="post" action="/analyze">
@@ -43,6 +44,18 @@
     </form>
   </template>
   <div class="rows" id="rows"></div>
+  {% set limit_kind = notice or ('limit' if runs_left == 0 else none) %}
+  {% if limit_kind %}
+  <div class="sheet" id="limitsheet" hidden role="dialog" aria-modal="true" aria-labelledby="limith">
+    <div class="sheet-card">
+      <div class="sheet-head"><b id="limith">{% if limit_kind == 'sitecap' %}Today's live analyses are used up for the whole site{% else %}You've used your {{ s.runs_per_day }} free analyses for today{% endif %}</b><button type="button" class="ghost x" data-limit-close aria-label="Close">×</button></div>
+      <p>{% if limit_kind == 'sitecap' %}{{ early_note }}{% else %}Each person gets {{ s.runs_per_day }} a day, whichever wallet is connected.{% endif %}
+        Come back tomorrow: the count resets at midnight UTC, in <b data-reset></b>.</p>
+      <p class="muted small">Ready results and the demo stay open.</p>
+      <div class="row limitact">{% if demo_mint and demo_mint != mint %}<a class="button" href="/token?mint={{ demo_mint }}">Open the demo</a>{% endif %}<button type="button" class="primary" data-limit-close>OK</button></div>
+    </div>
+  </div>
+  {% endif %}
   <div class="row rowsfoot">{% if not is_demo %}
     <button type="button" class="ghost" id="add">+ Add range</button>
     <button type="button" class="ghost" id="reset" title="Back to the detected pumps">Reset</button>
@@ -147,6 +160,22 @@
     if (done) a.href = '/job/' + hit;
     a.classList.toggle('primary', done); a.classList.toggle('ghost', !done);
   }
+  // a daily cap: a window that says so and when it resets, and the range stays where it was
+  const LIMIT = document.getElementById('limitsheet'), RUNS_LEFT = {{ runs_left if runs_left is not none else 'null' }}, RESET = {{ reset_ms }};
+  function openLimit() {
+    if (!LIMIT) return false;
+    const m = Math.max(1, Math.round((RESET - Date.now()) / 60000));
+    const local = new Date().getTimezoneOffset() ? ' (' + new Date(RESET).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' your time)' : '';
+    LIMIT.querySelector('[data-reset]').textContent = (m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : m + ' min') + local;
+    LIMIT.hidden = false;
+    LIMIT.querySelector('.primary').focus();
+    return true;
+  }
+  if (LIMIT) {
+    LIMIT.addEventListener('click', e => { if (e.target === LIMIT || e.target.closest('[data-limit-close]')) LIMIT.hidden = true; });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') LIMIT.hidden = true; });
+    {% if notice %}openLimit();{% endif %}
+  }
   rowsEl.addEventListener('submit', e => {
     const f = e.target.closest('.wrow'), r = f && state.rows[+f.dataset.i], hit = r && hitFor(r);
     if (r) { f.querySelector('[name=from]').value = r.from || ''; f.querySelector('[name=to]').value = r.to || ''; }   // the server always receives UTC
@@ -155,6 +184,7 @@
     const f0 = parse(r.from), t0 = parse(r.to);                  // say what is wrong with the range before asking for anything
     if (!(f0 && t0 && f0 < t0)) { e.preventDefault(); EarlyUI.toast('From must be earlier than To.'); return; }
     if (t0 - f0 > MAX_HOURS * 3600e3) { e.preventDefault(); EarlyUI.toast('Range up to ' + MAX_HOURS + ' h. Shorten it.'); return; }
+    if (ACCT && RUNS_LEFT === 0 && openLimit()) { e.preventDefault(); return; }   // nothing left today: say so before the round trip
     if (ACCT) return;                                            // a new live run needs a wallet
     e.preventDefault();
     EarlyWallet.open(() => { ACCT = true; f.submit(); }, 'A live analysis needs a connected wallet: ' + RUNS + ', free, no transaction. Connect, and this range runs right away.');

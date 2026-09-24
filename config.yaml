@@ -29,8 +29,9 @@ early:
   # The month is guarded by the real balance: /credits is asked at most every 10 minutes, and a live run by anyone
   # but the owner starts only while the balance minus run_cap_requests stays above 5% of the plan (the Pro profile
   # sets credits_month 1,000,000 and credits_reserve_pct 5).
-  runs_per_day: 5               # was 1
-  runs_global_per_day: 20       # was 30: 30 × 6,000 worst-case runs a day was five times the plan over a month
+  runs_per_day: 5               # per person: the wallet and the browser both count, so another wallet adds nothing
+  runs_per_ip_per_day: 10       # per network: incognito plus a fresh wallet stops here; above 5, as an office or a phone carrier shares one address
+  runs_global_per_day: 40       # was 20 (owner, 25.09): a run costs ~100-350 requests on Pro, the month guard stays
   ranges_per_token: 5           # was 3
 
   # Charts of live tokens spend from the same budget (an overview is ~2 requests, a chunk of candles is 1).

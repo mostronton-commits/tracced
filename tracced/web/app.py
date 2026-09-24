@@ -46,6 +46,8 @@ HOUR = 3_600_000
 MINT_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 MAX_CANDLES = 1500          # скільки свічок має сенс просити за раз: більше — і джерело мовчки обріже відповідь
 ACCT_COOKIE = "early_acct"          # вхід гаманцем — єдиний вхід на сайті
+DEVICE_COOKIE = "early_dev"         # випадкове число браузера для добової стелі аналізів; нічого іншого в ньому нема
+DEVICE_DAYS = 365
 ACCT_DAYS = 30
 
 env = Environment(loader=FileSystemLoader(str(HERE / "templates")),
@@ -261,11 +263,13 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
                                 log=job.log.append, progress=job.set_progress, store_dir=store_dir)
 
     def on_error(job):
-        """A live run that failed gives the wallet its day back and the site its slot."""
+        """A live run that failed gives the wallet, the browser and the network their run back, and the site its slot."""
         if job.owner and not job.replay:
             app["accounts"].give_back_run(job.owner)
             if job.owner not in app["admins"]:
                 app["runs_daily"].add("global", -1)
+                for key in job.charged or []:
+                    app["runs_daily"].add(key, -1)
 
     identify = st.identities if (hasattr(st, "identities") and s.get("st_identity", True)) else None
     app["jobs"] = JobQueue(runner, out_dir, enricher=make_enricher(ages, s) if ages else None, on_error=on_error,
@@ -470,7 +474,7 @@ class DailyCount:
             rec = self.n.get(key)
             if not rec or rec[0] != day:
                 rec = [day, 0]
-            rec[1] += int(n)
+            rec[1] = max(0, rec[1] + int(n))
             self.n[key] = rec
             self._flush()
 
@@ -589,6 +593,35 @@ async def auth_mw(request, handler):
 
 def _acct_secret():
     return os.getenv("WEB_SECRET") or _RUNTIME_SECRET
+
+
+def _device_id(request):
+    """Число браузера з куки, якщо воно наше за формою; інакше None (кука з'явиться з першим аналізом)."""
+    v = request.cookies.get(DEVICE_COOKIE) or ""
+    return v if re.fullmatch(r"[0-9a-f]{32}", v) else None
+
+
+def _ip_key(ip):
+    """Ключ мережі в добовому лічильнику: хеш адреси з секретом сайту, щоб у файлах не лежали самі адреси."""
+    return "ip:" + hashlib.sha256(f"{_acct_secret()}|{ip}".encode()).hexdigest()[:16]
+
+
+def _runs_left(app, pk, dev, ip):
+    """Скільки живих аналізів людині лишилось сьогодні: найменше з трьох лічильників. Гаманець і браузер мають
+    спільну стелю `runs_per_day`, тож інший гаманець у тому ж браузері нових спроб не дає; мережа має свою,
+    вищу, `runs_per_ip_per_day`: на неї натрапляє інкогніто з новим гаманцем, а люди в одному офісі — ні."""
+    s = app["s"]
+    cap = int(s.get("runs_per_day", 1))
+    left = cap - app["accounts"].runs_today(pk)
+    if dev:
+        left = min(left, app["runs_daily"].left("dev:" + dev, cap))
+    left = min(left, app["runs_daily"].left(_ip_key(ip), int(s.get("runs_per_ip_per_day", 10))))
+    return max(0, left)
+
+
+def _next_midnight_ms(now=None):
+    """Коли обнуляються добові лічильники: наступна північ за UTC."""
+    return (int((time.time() if now is None else now) // 86400) + 1) * 86_400_000
 
 
 def _acct(request):
@@ -1235,8 +1268,9 @@ async def token_page(request):
     detect_cfg = dict(CFG_DEFAULTS.get("detect") or {}, **((app["cfg"] or {}).get("detect") or {}))
     q = request.query
     preset = None
+    notice = q.get("notice") if q.get("notice") in ("limit", "sitecap") else None   # Analyze bounced off a daily cap
     if chart.from_input(q.get("from")) and chart.from_input(q.get("to")):
-        preset = {"n": None, "label": "From the result", "from": q.get("from"), "to": q.get("to")}
+        preset = {"n": None, "label": "Your range" if notice else "From the result", "from": q.get("from"), "to": q.get("to")}
     done_jobs = sorted((j for j in app["jobs"].jobs.values() if j.mint == mint and j.status == "done"),
                        key=lambda j: j.t_from or 0)
     jobs_done = [j.id for j in done_jobs]
@@ -1252,7 +1286,10 @@ async def token_page(request):
                      "deletable": bool(pk) and (j.owner == pk or pk in app["admins"])})
     if not rows:
         rows = [{"n": 1, "label": "Range 1", "from": "", "to": ""}]
+    admin = bool(pk) and pk in app["admins"]
+    runs_left = _runs_left(app, pk, _device_id(request), _client_ip(request)) if pk and not admin else None
     return render("token.html", request, info=info, mint=mint, s=s, is_demo=bool(demo and demo["mint"] == mint),
+                  runs_left=runs_left, notice=notice, reset_ms=_next_midnight_ms(), demo_mint=(demo or {}).get("mint"),
                   n_demo=len(demo["ranges"]) if demo and demo["mint"] == mint else 0, bounced=q.get("notice") == "demo", created=info.get("created_time") or 0, now=int(time.time() * 1000),
                   rows_json=json.dumps(rows), jobs_json=json.dumps(jobs_done), preset_json=json.dumps(preset),
                   hints_json=json.dumps(hints), min_peak=int(detect_cfg.get("min_peak_mcap") or 1_000_000))
@@ -1388,10 +1425,10 @@ async def analyze(request):
     wait = runs.wait_s(ip, time.time())
     if wait:
         raise WebError(f"Too many analyses from this address. Try again in {max(1, round(wait / 60))} min.", 429)
+    back = f"/token?mint={mint}&from={chart.to_input(t_from)}&to={chart.to_input(t_to)}"   # the range survives the notice
     gcap = int(s.get("runs_global_per_day", 10))
     if not admin and app["runs_daily"].left("global", gcap) <= 0:
-        raise WebError("Today's live analyses are used up for the whole site. " + EARLY_NOTE
-                       + " The demo is always open; more tomorrow.", 429)
+        raise web.HTTPFound(back + "&notice=sitecap")
     reserve = _credits_reserve(s)
     if reserve:
         # the month is what nothing else protected: a run has its cap, the day has its count, but thirty busy days
@@ -1403,17 +1440,27 @@ async def analyze(request):
                 raise WebError("This month's data budget is nearly used up, so new live analyses wait until it renews. "
                                "The demo and every saved result stay open.", 503)
             log.warning("admin run with %s credits left (reserve %s)", left, reserve)
-    cap_day = int(s.get("runs_per_day", 1))
-    if not admin and not app["accounts"].take_run(pk, cap_day):
-        raise WebError(f"You have used today's {'analysis' if cap_day == 1 else str(cap_day) + ' analyses'}. "
-                       + EARLY_NOTE + " The demo is always open; more tomorrow.", 429)
+    # one person, one day's runs: the wallet, the browser and the network are counted together, so connecting another
+    # wallet in the same browser adds nothing. No awaits from here to submit: the check and the charge are one step.
+    dev, new_dev, charged = _device_id(request), None, []
+    if not admin:
+        if _runs_left(app, pk, dev, ip) <= 0 or not app["accounts"].take_run(pk, int(s.get("runs_per_day", 1))):
+            raise web.HTTPFound(back + "&notice=limit")
+        if not dev:
+            dev = new_dev = secrets.token_hex(16)
+        charged = ["dev:" + dev, _ip_key(ip)]
+        for key in charged:
+            app["runs_daily"].add(key, 1)
     runs.miss(ip, time.time())                                          # звідси починаються витрати — рахуємо цей запуск
     if not admin:
         app["runs_daily"].add("global", 1)
     over = {"budget_guard_pct": 0, "run_cap_requests": 0 if admin else int(s.get("run_cap_requests", 2000))}
-    job = app["jobs"].submit(mint, t_from, t_to, symbol=info.get("symbol"), owner=pk, s_over=over)
+    job = app["jobs"].submit(mint, t_from, t_to, symbol=info.get("symbol"), owner=pk, s_over=over, charged=charged)
     app["events"].add(pk, "analyze", job=job.id, symbol=info.get("symbol") or mint[:6])
-    raise web.HTTPFound(f"/job/{job.id}")
+    resp = web.HTTPFound(f"/job/{job.id}")
+    if new_dev:
+        resp.set_cookie(DEVICE_COOKIE, new_dev, httponly=True, samesite="Lax", secure=True, max_age=DEVICE_DAYS * 86400)
+    raise resp
 
 
 @_acct_route
