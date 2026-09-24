@@ -357,6 +357,23 @@ class WalletAge:
             self.cache.put(key, out)
         return found
 
+    def is_service(self, address):
+        """Біржа чи застосунок, а не одна людина: 1 000 останніх транзакцій адреси вмістились у добу (1 кредит,
+        кешовано). Такий спонсор роздає SOL тисячам не знайомих між собою гаманців (перевірено 24.09.2026: у демо
+        «бандл ×154» — службовий гаманець застосунку, 1,66 млн транзакцій на добу; ×33 — Coinbase), тож гаманці, які
+        він поповнив, — не бандл. Справжні групи в тих самих даних робили від 3 до 1 000 транзакцій на добу."""
+        key = f"svc:{address}"
+        cached = self._get(key)
+        if cached is not None:
+            self.cache_hits += 1
+            return bool(cached.get("service"))
+        sigs = self._call("getSignaturesForAddress", [address, {"limit": LIMIT}]) or []
+        newest, oldest = (sigs[0].get("blockTime"), sigs[-1].get("blockTime")) if len(sigs) >= LIMIT else (None, None)
+        out = {"service": bool(newest and oldest and newest - oldest < 86_400)}
+        if self.cache is not None:
+            self.cache.put(key, out)
+        return out["service"]
+
     def funder_pending(self, wallet):
         """Дешева перевірка прочитала лише першу транзакцію, і спонсора там не було: пошук серед перших 100 ще не
         робився. Картка, яку відкрили, його доробляє."""

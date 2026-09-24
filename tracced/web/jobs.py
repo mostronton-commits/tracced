@@ -119,7 +119,8 @@ class JobQueue:
                 upto = (enrich_upto(j.result) if callable(enrich_upto)
                         else min(len(j.result.get("rows") or []), int(enrich_upto or 0)))
                 if (not e or e.get("done", 0) < e.get("total", 0) or e.get("failed") or e.get("funders_failed")
-                        or e.get("funders_done", 0) < e.get("total", 0) or e.get("total", 0) < upto):
+                        or e.get("funders_done", 0) < e.get("total", 0) or e.get("total", 0) < upto
+                        or (j.result.get("funders") and "services" not in j.result)):   # бандли без перевірки на біржі
                     self.eq.put(j)
 
     def _load(self):

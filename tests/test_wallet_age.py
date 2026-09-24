@@ -275,6 +275,20 @@ class TestWalletAge(unittest.TestCase):
         self.assertIsNone(cache.get("funder:W"))                                  # спонсор з тієї «першої» — забутий
         self.assertEqual(wa.cached("W"), age)                                     # новий запис — з довірою
 
+    def test_an_exchange_or_an_app_sends_a_thousand_transactions_a_day(self):
+        class Cache(dict):
+            def get(self, k): return dict.get(self, k)
+            def put(self, k, v): self[k] = v
+            def flush(self): pass
+        HX = "https://mainnet.helius-rpc.com/?api-key=x"
+        busy = [{"signature": str(i), "blockTime": 1_790_000_000 - i * 3} for i in range(1000)]          # 1 000 за 50 хв
+        slow = [{"signature": str(i), "blockTime": 1_790_000_000 - i * 400} for i in range(1000)]        # 1 000 за 4,6 доби
+        b = MonthBudget(None, limit=1000)
+        post = FakePost([busy, slow, sigs(40)])
+        wa = WalletAge(url=HX, post=post, sleep=lambda s: None, pace_s=0, budget=b, cache=Cache())
+        self.assertEqual([wa.is_service(a) for a in ("EXCHANGE", "PERSON", "NEW")], [True, False, False])
+        self.assertEqual((wa.is_service("EXCHANGE"), len(post.calls), b.spent), (True, 3, 3))   # вдруге — з кешу
+
     def test_could_be_fresh(self):
         buy = 100 * H
         self.assertTrue(tags.could_be_fresh(buy, {"oldest_ms": buy - 2 * H, "exact": True}))

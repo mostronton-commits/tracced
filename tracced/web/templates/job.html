@@ -221,6 +221,7 @@
 
       // what arrives after the page: the background checks (funders, ages, names) and the account (repeats, lists)
       let funders = {}, bundle = {}, crossings = {}, idents = {}, ages = {}, ageDone = false, palette = new Map();
+      let services = new Set();                                  // funders that are exchanges or apps: they make no bundle
       const onChart = [], MAX_ON_CHART = 10, BUY_C = '#34D399', SELL_C = '#F87171';
       const BUNDLE_PAL = ['#C4B5FD', '#FDBA74', '#7DD3FC', '#F9A8D4', '#FCD34D', '#A5B4FC', '#5EEAD4', '#FDA4AF', '#D8B4FE', '#BEF264'];
       const BUNDLE_MIN = {{ bundle_min }}, TAGDEF = {{ TAGS|tojson }};
@@ -236,9 +237,10 @@
       const SOLON = !!(window.EarlyCur && EarlyCur.get() === 'sol');
       const MAXR = all.reduce((m, o) => Math.max(m, Math.abs(o.real || 0)), 0);     // the PnL bar is scaled to the largest one
       function rebundle() {
-        // wallets whose first SOL came from one funder shared by BUNDLE_MIN or more wallets here; one colour per funder
+        // wallets whose first SOL came from one funder shared by BUNDLE_MIN or more wallets here; one colour per funder.
+        // An exchange or an app funds thousands of strangers, so its wallets are not a bundle
         const cnt = {};
-        Object.values(funders).forEach(x => { cnt[x] = (cnt[x] || 0) + 1; });
+        Object.values(funders).forEach(x => { if (!services.has(x)) cnt[x] = (cnt[x] || 0) + 1; });
         bundle = {};
         Object.entries(funders).forEach(([w, x]) => { if (cnt[x] >= BUNDLE_MIN) bundle[w] = { funder: x, n: cnt[x] }; });
         palette = new Map([...new Set(Object.values(bundle).map(b => b.funder))].sort().map((x, i) => [x, BUNDLE_PAL[i % BUNDLE_PAL.length]]));
@@ -266,8 +268,8 @@
       function fundHtml(o) {
         // who sent the wallet its first SOL; the full address in the tooltip, since two short ones can look alike
         const fnd = funders[o.w]; if (!fnd) return '';
-        const b = bundle[o.w], col = bundleColor(o.w);
-        return '<button type="button" class="link mono fundb" data-fund="' + fnd + '" title="' + fnd + ' · click to show every wallet it funded">'
+        const b = bundle[o.w], col = bundleColor(o.w), svc = services.has(fnd) ? ' · an exchange or an app (1,000+ transactions a day), not one operator' : '';
+        return '<button type="button" class="link mono fundb' + (svc ? ' svc' : '') + '" data-fund="' + fnd + '" title="' + fnd + svc + ' · click to show every wallet it funded">'
           + (col ? '<i class="dot" style="--c:' + col + '"></i>' : '') + short(fnd) + '</button>' + (b ? '<small class="muted"> ×' + b.n + '</small>' : '');
       }
       const cells = new Map();                                   // wallet → the tags and funder markup last drawn for it
@@ -720,7 +722,8 @@
             : '<span class="dchip age q" title="' + why + '">' + (busy ? '…' : '?') + '</span>');
         }
         if (fnd) out.push('<a class="dchip fund mono" href="https://solscan.io/account/' + fnd + '" target="_blank" rel="noopener" title="First SOL came from '
-          + fnd + (bn && bn.n > 1 ? ', which funded ' + bn.n + ' wallets here (bundle)' : '') + '">↘ ' + short(fnd) + (bn && bn.n > 1 ? '<small>×' + bn.n + '</small>' : '') + '</a>');
+          + fnd + (bn && bn.n > 1 ? ', which funded ' + bn.n + ' wallets here (bundle)' : services.has(fnd) ? ', an exchange or an app: over 1,000 transactions a day, so the wallets it funded are not a bundle' : '')
+          + '">↘ ' + short(fnd) + (bn && bn.n > 1 ? '<small>×' + bn.n + '</small>' : '') + '</a>');
         document.getElementById('dchips').innerHTML = out.join('');
         const go = document.getElementById('dagego');
         if (go) go.addEventListener('click', () => EarlyWallet.open(() => { acctOn = true; ageTried.delete(w); loadMe().then(() => loadAge(w)); }));
@@ -1018,10 +1021,16 @@
         Object.assign(ages, d.ages || {}); if (d.n_ages != null) nA = d.n_ages;
         const newF = Object.keys(d.funders || {}).length;
         Object.assign(funders, d.funders || {}); if (d.n_funders != null) nF = d.n_funders;
+        const svcs = d.services || [], newS = svcs.length !== services.size;   // a funder found to be an exchange unmakes its bundle
+        if (newS) services = new Set(svcs);
         (d.fresh || []).forEach(w => { const o = byW.get(w); if (o && !o.tags.includes('fresh')) { o.tags.unshift('fresh'); added++; } });
-        if (newF) {
+        if (newF || newS) {
           rebundle();
-          Object.keys(bundle).forEach(w => { const o = byW.get(w); if (o && !o.tags.includes('bundle')) { o.tags.unshift('bundle'); added++; } });
+          byW.forEach((o, w) => {                               // the tag follows the recount both ways
+            const has = o.tags.includes('bundle');
+            if (bundle[w] && !has) { o.tags.unshift('bundle'); added++; }
+            else if (!bundle[w] && has && funders[w]) { o.tags.splice(o.tags.indexOf('bundle'), 1); added++; }
+          });
           let rings = 0;                                        // bundles arrive after the page: ring the wallets already on the chart
           onChart.forEach(o => { const c = bundleColor(o.wallet); if (c !== o.bundleColor) { o.bundleColor = c; rings++; } });
           if (rings) renderOnChart();

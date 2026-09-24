@@ -176,6 +176,7 @@ td.bar.neg { background-image: linear-gradient(to right, #FEE2E2 var(--w, 0%), t
 /* who funded the wallet: filled in after the background check, click filters to that group */
 td.fund { white-space: nowrap; font-size: 12px; }
 td.fund .fundb { padding: 0; height: auto; font-size: 12px; }
+td.fund .fundb.svc { color: var(--muted); }              /* an exchange or an app: a fact, not a bundle */
 td.fund .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); display: inline-block; margin-right: 4px; vertical-align: 0; }
 th.fundh { font-weight: 500; }
 .pos { color: #059669; }

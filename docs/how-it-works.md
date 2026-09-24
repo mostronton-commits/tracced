@@ -89,6 +89,11 @@ among its first hundred transactions, since such a wallet often starts with toke
 wallet gets the same the moment its card is opened, and the answer stays in the result for everyone. When the first
 SOL came later than the first hundred transactions, the funder stays empty instead of guessed.
 
+A `bundle` is three or more wallets here whose first SOL came from the same wallet. An exchange or an app funds
+thousands of wallets that have nothing to do with each other, so a funder whose latest 1,000 transactions fit into a
+single day does not make a bundle. Its address stays in "Funded by", greyed out. In the PAID demo this was most of
+what looked like bundles: one app's service wallet had funded 154 of the buyers, Coinbase 33.
+
 Until the check reaches a wallet, `fresh`, `bundle` and the filters that hide them do not know about it yet. Results
 made before this check existed had only their first {{ s.age_full_top }} checked; their other wallets are checked
 when a card is opened.

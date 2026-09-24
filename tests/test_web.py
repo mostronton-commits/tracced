@@ -571,7 +571,7 @@ if AioHTTPTestCase:
                       "result": {"info": {"mint": mint, "symbol": "FFF", "supply": 1000000, "created_time": 999996400000},
                                  "window": {"from": 999999960000, "to": 1000001160000, "end": 1000003560000}, "mode": "wallet-trades",
                                  "counts": {}, "coverage": {}, "wallet_trades": {}, "rows": [{"wallet": w}], "scope": "all", "requests": 0,
-                                 "ages": {w: {"ms": 999000000000, "exact": True}},
+                                 "ages": {w: {"ms": 999000000000, "exact": True}}, "services": ["EXCH"],
                                  "identities": {w: {"name": "Cented", "twitter": "@Cented7", "type": "kol"}}}}
             with open(f"{self.tmp.name}/web/{jid}.json", "w") as f:
                 json.dump(stored, f)
@@ -579,7 +579,7 @@ if AioHTTPTestCase:
             d = await (await self.client.get(f"/job/{jid}.enrich.json")).json()
             self.assertEqual(d["ages"][w]["ms"], 999000000000)
             self.assertEqual(d["identities"][w]["twitter"], "@Cented7")
-            self.assertEqual(d["n_ages"], 1)
+            self.assertEqual((d["n_ages"], d["services"]), (1, ["EXCH"]))     # біржі йдуть разом зі спонсорами
             # наступне опитування несе лише нове: вік уже є, імена вже є
             d = await (await self.client.get(f"/job/{jid}.enrich.json?f=0&a=1&i=1")).json()
             self.assertEqual(d["ages"], {})
@@ -1784,6 +1784,56 @@ class TestJobQueue(unittest.TestCase):
                          enrich_upto=lambda r: enrich_target(r, s))
             q.eq.join()
             self.assertEqual(seen, ["new"])                                      # старий уже має свої перші два
+
+    def test_an_exchange_makes_no_bundle(self):
+        """Троє гаманців зі спонсором-біржею — не бандл; троє від однієї людини — бандл. Тег, поставлений раніше,
+        знімається, коли спонсор виявився біржею; результат, де бандли ще не перевіряли на біржі, стає в чергу."""
+        from types import SimpleNamespace
+        from tracced.web.app import make_enricher, _bundles
+        from tracced.web.jobs import JobQueue
+        funder_of = {"A1": "EXCH", "A2": "EXCH", "A3": "EXCH", "B1": "PERSON", "B2": "PERSON", "B3": "PERSON"}
+
+        class Ages:
+            checked = []
+
+            def cached(self, w):
+                return None
+
+            def paused(self):
+                return False
+
+            def oldest_tx(self, w, refresh=False, full=True, before=None):
+                return {"oldest_ms": 1000, "exact": True, "n": 2, "oldest_sig": "s-" + w}
+
+            def funder(self, w, sig, scan=True):
+                return funder_of[w]
+
+            def is_service(self, a):
+                self.checked.append(a)
+                return a == "EXCH"
+
+            def flush(self):
+                pass
+        rows = [{"wallet": w, "first_buy_ms": 5000, "tag_list": []} for w in funder_of]
+        job = SimpleNamespace(result={"rows": rows}, log=[])
+        ages = Ages()
+        make_enricher(ages, {"age_lookups_max": 10})(job, lambda j: True)
+        r = job.result
+        self.assertEqual((r["services"], sorted(r["bundle"])), (["EXCH"], ["B1", "B2", "B3"]))
+        self.assertEqual(sorted(ages.checked), ["EXCH", "PERSON"])                 # по разу на спонсора бандла
+        self.assertEqual([row["wallet"] for row in rows if "bundle" in row["tag_list"]], ["B1", "B2", "B3"])
+        old = {"funders": dict(funder_of), "rows": [dict(row, tag_list=["bundle"], tags="bundle") for row in rows]}
+        old["services"] = ["EXCH"]
+        _bundles(old, old["rows"])
+        self.assertEqual([row["wallet"] for row in old["rows"] if "bundle" in row["tag_list"]], ["B1", "B2", "B3"])
+        with tempfile.TemporaryDirectory() as d:
+            done = {"done": 1, "total": 1, "funders_done": 1}
+            self._file(d, "unchecked", created_ms=1, result={"rows": [{"wallet": "w"}], "enrich": dict(done), "funders": {"w": "F"}})
+            self._file(d, "checked", created_ms=2, result={"rows": [{"wallet": "w"}], "enrich": dict(done), "funders": {"w": "F"}, "services": []})
+            seen = []
+            q = JobQueue(lambda j: None, d, enricher=lambda job, save: seen.append(job.id), enrich_upto=1)
+            q.eq.join()
+            self.assertEqual(seen, ["unchecked"])
 
     def test_a_replay_never_reaches_the_disk_and_charges_survive_a_restart(self):
         from tracced.web.jobs import JobQueue

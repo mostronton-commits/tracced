@@ -218,6 +218,13 @@ def make_enricher(ages, s):
                 if save(job) is False:
                     return                                 # аналіз видалили: кредити RPC на нього більше не йдуть
                 ages.flush()
+        def services():
+            """Біржі й застосунки серед спонсорів бандлів: одна сторінка підписів на спонсора, решта з кешу."""
+            try:
+                _check_services(r, ages)
+            except Exception as ex:  # noqa: BLE001 — бандл лишається бандлом, наступний прохід перевірить ще раз
+                job.log.append(f"exchange check failed: {str(ex)[:60]}")
+
         # другий прохід: хто дав перший SOL (вік уже в кеші → 1 запит getTransaction на гаманець)
         funders, checked = r.setdefault("funders", {}), set(r.get("funder_checked") or [])
         for i, row in enumerate(rows[:n], 1):
@@ -227,6 +234,7 @@ def make_enricher(ages, s):
             if is_paused() and getattr(ages, "cache", None) is not None and ages.cache.get(f"funder:{w}") is None:
                 e["paused"] = "rpc-budget"
                 r["funder_checked"] = sorted(checked)
+                services()
                 _bundles(r, rows)
                 save(job)
                 ages.flush()
@@ -250,12 +258,14 @@ def make_enricher(ages, s):
             e["funders_done"] = i
             if i % 25 == 0:
                 r["funder_checked"] = sorted(checked)
+                services()
                 _bundles(r, rows)
                 if save(job) is False:
                     return
                 ages.flush()
         r["funder_checked"] = sorted(checked)
         e["funders_done"] = n
+        services()
         _bundles(r, rows)
         save(job)
         ages.flush()
@@ -269,15 +279,33 @@ def _after_buy(age, row):
 
 
 def _bundles(r, rows):
-    """Гаманці зі спільним спонсором (≥ BUNDLE_MIN у цьому списку) → тег bundle."""
+    """Гаманці зі спільним спонсором (≥ BUNDLE_MIN у цьому списку) → тег bundle. Спонсор-біржа чи застосунок
+    (r["services"], див. WalletAge.is_service) бандла не робить: гаманці, які він поповнив, не знайомі між собою."""
     from collections import Counter
-    funders = r.get("funders") or {}
-    cnt = Counter(funders.values())
+    funders, services = r.get("funders") or {}, set(r.get("services") or [])
+    cnt = Counter(f for f in funders.values() if f not in services)
     r["bundle"] = {w: {"funder": f, "n": cnt[f]} for w, f in funders.items() if cnt[f] >= tags.BUNDLE_MIN}
     for row in rows:                                    # старі результати без угод: теги прямо в рядках
-        if row["wallet"] in r["bundle"] and "bundle" not in (row.get("tag_list") or []):
-            row["tag_list"] = tags.with_tag(row.get("tag_list"), "bundle")
+        tl = row.get("tag_list") or []
+        if row["wallet"] in r["bundle"] and "bundle" not in tl:
+            row["tag_list"] = tags.with_tag(tl, "bundle")
             row["tags"] = "|".join(row["tag_list"])
+        elif row["wallet"] not in r["bundle"] and "bundle" in tl:   # спонсор виявився біржею: тег знімається
+            row["tag_list"] = [t for t in tl if t != "bundle"]
+            row["tags"] = "|".join(row["tag_list"])
+
+
+def _check_services(r, ages):
+    """Спонсор, що зібрав бандл, — біржа чи застосунок? 1 кредит на спонсора, далі з кешу. r["services"] з'являється
+    навіть порожнім: так видно, що результат цю перевірку вже пройшов."""
+    check = getattr(ages, "is_service", None)
+    services = set(r.get("services") or [])
+    if check is not None and not (getattr(ages, "paused", None) or (lambda: False))():
+        from collections import Counter
+        for f, n in Counter((r.get("funders") or {}).values()).items():
+            if n >= tags.BUNDLE_MIN and f not in services and check(f):
+                services.add(f)
+    r["services"] = sorted(services)
 
 
 def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/early", ages=None, assistant=None):
@@ -1126,9 +1154,12 @@ async def wallet_age_json(request):
     def work():                                         # кеш віку пише себе кожні 25 записів і при зупинці сервера
         age = ages.oldest_tx_deep(wallet) if busy else ages.oldest_tx(wallet, refresh=bad_cached)
         fund = ages.funder(wallet, age["oldest_sig"]) if age.get("exact") and age.get("oldest_sig") else None
-        return age, fund
+        svc = None                                      # цей спонсор замикає бандл: біржа чи застосунок?
+        if fund and hasattr(ages, "is_service") and list((r.get("funders") or {}).values()).count(fund) + 1 >= tags.BUNDLE_MIN:
+            svc = ages.is_service(fund)
+        return age, fund, svc
     try:
-        age, fund = await asyncio.to_thread(work)
+        age, fund, svc = await asyncio.to_thread(work)
     except Exception as e:  # noqa: BLE001
         log.warning("wallet age %s: %s", wallet[:8], e)
         raise WebError("The chain node did not answer. Try again in a minute.", 502)
@@ -1149,6 +1180,8 @@ async def wallet_age_json(request):
                 fw.append(wallet)
     if fund:
         r.setdefault("funders", {})[wallet] = fund
+        if svc:
+            r["services"] = sorted(set(r.get("services") or []) | {fund})
         _bundles(r, rows)                                   # новий спонсор може замкнути бандл з уже відомими
     r["funder_checked"] = sorted(set(r.get("funder_checked") or []) | {wallet})
     _save_soon(app, job)
@@ -2046,7 +2079,7 @@ async def job_enrich_json(request):
         app["jobs"].resume_enrich(job)                  # бюджет відновився: доробляємо, не чекаючи рестарту
     out = {"done": e.get("done", 0), "total": e.get("total", 0), "fresh": fresh,
            "funders_done": e.get("funders_done", 0), "paused": paused,
-           "funders": funders, "n_funders": n_funders, "ages": ages, "n_ages": n_ages,
+           "funders": funders, "n_funders": n_funders, "ages": ages, "n_ages": n_ages, "services": r.get("services") or [],
            "identities_done": bool(r.get("identities_done")) or snapshot or app["jobs"].namer is None}
     if request.query.get("i") != "1":
         out["identities"] = r.get("identities") or {}
