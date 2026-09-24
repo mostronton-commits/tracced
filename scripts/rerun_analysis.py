@@ -5,7 +5,7 @@ this is how an older analysis is brought up to date — the demo's, for one. The
 starts: restart it afterwards, and it checks the new results' wallets in the background.
 
     docker compose run --rm --no-deps -v "$PWD/scripts:/app/scripts" web \
-        python scripts/rerun_analysis.py <analysis id>... [--every-wallet] [--check-only]
+        python scripts/rerun_analysis.py <analysis id>... [--every-wallet] [--check-only] [--top N]
     docker compose restart web
 
 --every-wallet gives every wallet of the result the full age and funder check, not only the first `age_full_top` by
@@ -14,6 +14,9 @@ costs about 8 RPC credits a wallet instead of 2.
 
 --check-only keeps the analysis and forgets only its age and funder check (ages, funders, `fresh` and `bundle`), so the
 app checks the wallets again after the restart: for results checked from a cache that could not be trusted.
+
+--top N keeps everything and only widens the full check to the first N wallets by PnL; after the restart the app
+checks the ones it has not checked yet. For an older result whose check covered more wallets than it does now.
 
 The script keeps no caches of its own and writes none of the app's, so the running app is not raced for them.
 """
@@ -57,6 +60,7 @@ def main():
     p.add_argument("jobs", nargs="+", metavar="analysis", help="ids of finished analyses, e.g. 98kfF7_20260915-1930_1950")
     p.add_argument("--every-wallet", action="store_true", help="the full age and funder check for every wallet (the demo)")
     p.add_argument("--check-only", action="store_true", help="do not run the analysis again, only forget its age check")
+    p.add_argument("--top", type=int, default=0, metavar="N", help="do not run the analysis again, only check the first N fully")
     p.add_argument("--jobs-dir", default="output/early/web")
     a = p.parse_args()
     s = settings.load(load_config(os.getenv("EARLY_CONFIG", "config.yaml")))
@@ -67,10 +71,14 @@ def main():
             old = Job.from_dict(json.load(f))
         if old.status != "done":
             sys.exit(f"{jid} is {old.status}: only a finished analysis is run again")
-        if a.check_only:
-            forget_check(old.result, every=a.every_wallet)
+        if a.check_only or a.top:
+            if a.check_only:
+                forget_check(old.result, every=a.every_wallet)
+            if a.top:
+                old.result["age_full_top"] = min(a.top, len(old.result.get("rows") or []))
             write(old, path)
-            print(f"── {jid}: its age and funder check starts over after the restart")
+            print(f"── {jid}: " + ("its age and funder check starts over" if a.check_only else
+                                  f"the first {old.result['age_full_top']} get the full check") + " after the restart")
             continue
         job = Job(old.id, old.mint, old.t_from, old.t_to)
         job.owner, job.created_ms, job.symbol_hint = old.owner, old.created_ms, old.symbol_hint
