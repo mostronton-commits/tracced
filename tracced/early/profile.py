@@ -1,7 +1,7 @@
 """Картка гаманця: його угоди по всіх токенах за останні дні → підсумок нашим леджером.
 
 Джерело — `GET /wallet/{owner}/trades` Solana Tracker: кожен запис є обміном з двома ногами, `from` (що гаманець
-віддав) і `to` (що отримав). Гроші (SOL, WSOL, USDC, USDT) позицією не є. Обмін гроші→токен — купівля токена,
+віддав) і `to` (що отримав). Гроші (SOL, стейблкоїни, стейкнутий SOL; список CASH) позицією не є. Обмін гроші→токен — купівля токена,
 токен→гроші — продаж, токен→токен — продаж одного і купівля іншого одночасно.
 
 Далі той самий леджер, що й у таблиці аналізу: середня собівартість, прибуток лише з того, що справді куплено.
@@ -15,13 +15,23 @@ from . import ledger
 
 DAY = 86_400_000
 WSOL = "So11111111111111111111111111111111111111112"
+# Гроші, а не позиції: через них купують і в них продають. Без стейблкоїнів, у яких котирують частину пулів (USD1 на
+# Bonk), кожна купівля через них виглядала б як «продаж USD1 без купівлі» — на dev 24.09 таких було 24–99 на гаманець.
+# Адреси звірені з DexScreener 24.09.2026.
 CASH = {
     WSOL,
     "So11111111111111111111111111111111111111111",          # нативний SOL, якщо джерело так його позначить
     "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",         # USDC
     "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",         # USDT
+    "USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB",          # USD1 (World Liberty Financial)
+    "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo",         # PYUSD
+    "USDSwr9ApdHk5bvJKMjzff41FfuX8bSxdKcR81vTwcA",          # USDS
+    "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn",         # JitoSOL
+    "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",          # mSOL
+    "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1",          # bSOL
 }
 CLOSED_SHARE = 99.0          # позиція закрита, коли продано стільки відсотків купленого
+VERSION = 2                  # змінився порахунок — нова версія, і картки з кешу рахуються заново
 
 
 def _num(v):
@@ -129,7 +139,7 @@ def summary(events, wallet, now_ms, days=30, partial=False):
         "days": days,
         "since_ms": since,
         "oldest_ms": oldest,
-        "swaps": len(evs),
+        "swaps": len({e.get("tx") or id(e) for e in evs}),   # обмін токена на токен — дві події, але один обмін
         "tokens": closed + open_,
         "pnl_usd": pnl,
         "pnl_sol": pnl_sol if (sol_ok and (closed + open_)) else None,

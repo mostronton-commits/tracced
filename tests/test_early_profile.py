@@ -40,6 +40,15 @@ class TestNormalize(unittest.TestCase):
     def test_money_for_money_is_not_a_position(self):
         self.assertEqual(events([swap(1, SOL, 1.0, USDC, 150.0, 150.0)]), [])
 
+    def test_a_buy_through_usd1_is_a_buy_not_a_sale_of_usd1(self):
+        usd1 = "USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB"
+        [e] = events([swap(1, usd1, 100.0, "TOKA", 1000, 100.0)])
+        self.assertEqual((e["type"], e["mint"]), ("buy", "TOKA"))
+
+    def test_token_for_token_counts_as_one_swap(self):
+        raws = [swap(3, SOL, 1.0, "TOKA", 1000, 100.0), swap(2, "TOKA", 1000, "TOKB", 50, 120.0, give_px=0.12, get_px=2.4)]
+        self.assertEqual(profile.summary(events(raws), W, NOW)["swaps"], 2)
+
     def test_broken_rows_are_skipped(self):
         self.assertEqual(events([{"tx": "x", "wallet": W}]), [])
         self.assertEqual(events([swap(1, SOL, 1.0, "TOKA", 0, 100.0)]), [])

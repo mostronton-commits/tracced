@@ -1485,8 +1485,8 @@ async def wallet_profile_json(request):
         raise WebError("That does not look like a wallet address.")
     if wallet not in {r.get("wallet") for r in job.result.get("rows") or []}:
         raise web.HTTPNotFound(text="That wallet is not in this analysis.")
-    cache = app["profile_cache"]
-    hit = cache.get(wallet)
+    cache, key = app["profile_cache"], f"v{profile.VERSION}:{wallet}"
+    hit = cache.get(key)
     if hit is not None:
         return web.json_response(hit)
     if not request.get("acct"):
@@ -1506,7 +1506,7 @@ async def wallet_profile_json(request):
                 evs = [ev for r in raw for ev in profile.normalize_wallet_swap(r, wallet)]
                 out = profile.summary(evs, wallet, now, days, partial)
                 out["computed_ms"] = now
-                cache.put(wallet, out)
+                cache.put(key, out)
                 return out
             finally:
                 settle(st.requests_here() - req0)
