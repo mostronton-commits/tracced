@@ -220,6 +220,9 @@ class TestTradeCandles(unittest.TestCase):
             self.assertEqual([c["time"] for c in out], [m0, m0 + 60, m0 + 120])
             self.assertEqual(out[1]["close"], 9)                                    # свічка джерела лишається своєю
             self.assertEqual((out[0]["close"], out[0]["src"]), (2000.0, "trades"))  # ціна × supply
+            st.add([{"wallet": "b", "type": "buy", "time": B + 30_000, "qty": 1e-9, "usd": 10.0, "price": 1e10, "tx": "broken", "program": "p"}])
+            st.save_candles()
+            self.assertEqual(load_candles(d, MINT)["c"][0][2], 3.0)                 # бита ціна не стає тінню свічки
             st.covered = []
             st.mark_covered(B, B + 60_000)                                          # покрита лише перша хвилина
             st.save_candles()

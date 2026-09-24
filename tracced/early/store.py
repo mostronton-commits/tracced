@@ -136,19 +136,19 @@ class TradeStore:
         У частини токенів після міграції Solana Tracker не знає пулу, де йшла торгівля (у SI 24.09 — PumpSwap), і
         графік має діру якраз на пампі. Угоди ми вже купили під час аналізу, тож свічки з них нічого не коштують.
         Разом зі свічками зберігаємо покриття: заповнювати можна лише там, де угоди відомі повністю."""
-        by = {}
-        for tr in self.trades:
+        minutes = {}
+        for tr in self.trades:                          # уже за часом
             t, pr = tr.get("time"), tr.get("price")
             if t is None or not pr or pr <= 0:
                 continue
-            m = int(t // 60000) * 60
-            usd = float(tr.get("usd") or 0)
-            c = by.get(m)
-            if c is None:
-                by[m] = [m, pr, pr, pr, pr, usd]
-            else:
-                c[2], c[3], c[4] = max(c[2], pr), min(c[3], pr), pr
-                c[5] += usd
+            minutes.setdefault(int(t // 60000) * 60, []).append((float(pr), float(tr.get("usd") or 0)))
+        by = {}
+        for m, xs in minutes.items():
+            # окрема угода з битою ціною дала б тінь у тисячу разів вищу за ринок і сплющила б увесь графік:
+            # ціни хвилини беремо лише в межах утричі від її медіани (джерело свічок так само прибирає викиди)
+            med = sorted(p_ for p_, _ in xs)[len(xs) // 2]
+            ok = [x for x in xs if med / 3 <= x[0] <= med * 3] or xs
+            by[m] = [m, ok[0][0], max(x[0] for x in ok), min(x[0] for x in ok), ok[-1][0], sum(v for _, v in xs)]
         os.makedirs(self.dir, exist_ok=True)
         tmp = candles_path(self.dir, self.mint) + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
