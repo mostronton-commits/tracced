@@ -1,4 +1,5 @@
 """Реализация источника на Solana Tracker Data API. Эндпоинты проверены живьём."""
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -50,6 +51,7 @@ class SolanaTracker(PumpDataSource):
         self.cache_hits = 0
         self.cache = cache
         self._last = 0.0
+        self._lock = threading.Lock()   # темп і лічильник спільні для всіх потоків; сам HTTP-виклик іде поза замком
 
     def flush(self):
         if self.cache:
@@ -63,11 +65,13 @@ class SolanaTracker(PumpDataSource):
             return None
 
     def _get(self, path):
-        wait = self.pause - (time.monotonic() - self._last)  # держим темп ≤3 req/s
-        if wait > 0:
-            time.sleep(wait)
-        self._last = time.monotonic()
-        self.requests += 1
+        with self._lock:
+            if self.pause > 0:                                   # free: темп ≤3 req/s на всі потоки разом
+                wait = self.pause - (time.monotonic() - self._last)
+                if wait > 0:
+                    time.sleep(wait)
+                self._last = time.monotonic()
+            self.requests += 1
         last = None
         for attempt in range(self.retries):
             try:

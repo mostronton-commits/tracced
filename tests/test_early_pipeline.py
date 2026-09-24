@@ -200,5 +200,102 @@ class TestPipeline(unittest.TestCase):
                              store_dir=d, now_ms=T0 + 2 * H)
 
 
+
+class SlowST(FakeST):
+    """Угоди гаманця приходять із затримкою; рахуємо, скільки викликів ідуть одночасно.
+
+    Затримка тим довша, чим вище гаманець у рейтингу: потоки завершуються в зворотному порядку, і таблиця
+    мусить однаково лишитись у порядку рейтингу. `cost` — скільки запитів коштує один гаманець."""
+
+    def __init__(self, trades, page=2, cost=1, delay=0.05):
+        super().__init__(trades, page=page)
+        import threading
+        self.lock = threading.Lock()
+        self.in_flight = self.max_in_flight = 0
+        self.cost, self.delay = cost, delay
+        self.first_wallet_at = None
+
+    def wallet_token_trades(self, wallet, mint, max_pages=4):
+        import time as _t
+        with self.lock:
+            if self.first_wallet_at is None:
+                self.first_wallet_at = self.requests
+            self.requests += self.cost
+            self.in_flight += 1
+            self.max_in_flight = max(self.max_in_flight, self.in_flight)
+        try:
+            rank = int(wallet[1:])                          # W0 вклав найбільше, отже він перший у рейтингу
+            _t.sleep(self.delay * (1 + (12 - rank) / 12))
+            return [t for t in self.trades if t["wallet"] == wallet]
+        finally:
+            with self.lock:
+                self.in_flight -= 1
+
+
+def many_wallets(n=12):
+    """n гаманців купують у діапазоні різні суми (W0 найбільше) і продають після нього."""
+    return [tr(1 + i, "buy", f"W{i}", 100 + 10 * (n - i), 1.0) for i in range(n)] + \
+           [tr(30 + i, "sell", f"W{i}", 50, 2.0) for i in range(n)]
+
+
+class TestParallelWallets(unittest.TestCase):
+    """Pro не обмежує швидкість: угоди різних гаманців тягнемо кількома потоками одночасно."""
+
+    def run_fake(self, st, d, **over):
+        s = settings.load({"early": dict({"max_window_pages": 50, "max_wallet_lookups": 50, "st_concurrency": 4}, **over)})
+        logs = []
+        res = pipeline.run(st, MINT, T0, T0 + 20 * MIN, s, log=logs.append, store_dir=d,
+                           max_pages=1, now_ms=T0 + 2 * H)      # max_pages=1: повна історія не влазить → по гаманцях
+        return res, logs
+
+    def test_wallets_are_fetched_in_parallel_and_kept_in_rank_order(self):
+        with tempfile.TemporaryDirectory() as d:
+            st = SlowST(many_wallets())
+            res, _ = self.run_fake(st, d)
+            self.assertEqual(res["mode"], "wallet-trades")
+            self.assertGreaterEqual(st.max_in_flight, 2)
+            self.assertLessEqual(st.max_in_flight, 4)
+            self.assertEqual(res["coverage"]["exits_known"], 12)
+            self.assertEqual(list(res["wallet_trades"]), [f"W{i}" for i in range(12)])   # рейтинг, не завершення
+            self.assertTrue(all(v["source"] == "wallet-trades" for v in res["wallet_trades"].values()))
+
+    def test_one_thread_is_the_old_sequential_path(self):
+        with tempfile.TemporaryDirectory() as d:
+            st = SlowST(many_wallets(), delay=0.005)
+            res, _ = self.run_fake(st, d, st_concurrency=1)
+            self.assertEqual(st.max_in_flight, 1)
+            self.assertEqual(res["coverage"]["exits_known"], 12)
+
+    def test_run_cap_never_overshoots_under_concurrency(self):
+        # кожен гаманець коштує 4 запити; стеля — 16 запитів понад те, що пішло до гаманців
+        with tempfile.TemporaryDirectory() as d:
+            probe = SlowST(many_wallets(), cost=4, delay=0.001)
+            self.run_fake(probe, d, max_wallet_trade_pages=4)
+            base = probe.first_wallet_at
+        with tempfile.TemporaryDirectory() as d:
+            st = SlowST(many_wallets(), cost=4, delay=0.02)
+            cap = base + 16
+            res, logs = self.run_fake(st, d, max_wallet_trade_pages=4, run_cap_requests=cap)
+            self.assertLessEqual(st.requests, cap)                # стеля не перевищена навіть на один запит
+            self.assertEqual(res["coverage"]["exits_known"], 4)   # рівно 16 / 4 гаманці
+            self.assertEqual(res["counts"]["entry_only"], 8)
+            self.assertTrue(any("request cap" in m for m in logs))
+            fetched = [w for w, v in res["wallet_trades"].items() if v["source"] == "wallet-trades"]
+            self.assertEqual(fetched, ["W0", "W1", "W2", "W3"])          # стартують найвищі в рейтингу
+
+    def test_a_failing_wallet_stays_entry_only_and_the_rest_go_on(self):
+        class Flaky(SlowST):
+            def wallet_token_trades(self, wallet, mint, max_pages=4):
+                if wallet == "W3":
+                    raise RuntimeError("boom")
+                return super().wallet_token_trades(wallet, mint, max_pages)
+        with tempfile.TemporaryDirectory() as d:
+            st = Flaky(many_wallets(), delay=0.005)
+            res, logs = self.run_fake(st, d)
+            self.assertEqual(res["wallet_trades"]["W3"]["source"], "entry-only")
+            self.assertEqual(res["coverage"]["exits_known"], 11)
+            self.assertTrue(any("W3" in m and "unavailable" in m for m in logs))
+
+
 if __name__ == "__main__":
     unittest.main()

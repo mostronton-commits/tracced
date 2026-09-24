@@ -2,9 +2,10 @@
 токену (уся історія до моменту аналізу) → таблиця за масштабом.
 
 Два шляхи до угод кожного гаманця (обидва — сирі свопи Solana Tracker):
-- "trades": уся історія токена від створення до зараз сторінками по 250 — дешево для молодих токенів;
+- "trades": уся історія токена від створення до зараз сторінками по 500 — дешево для молодих токенів;
 - "wallet-trades": угоди кожного відібраного гаманця окремим запитом (1 запит/гаманець) — для старих
-  або дуже активних токенів. Гаманці поза стелею запитів — entry-only (тег no-exits).
+  або дуже активних токенів. Гаманці незалежні, тож їх тягнуть `st_concurrency` потоків одночасно.
+  Гаманці поза стелею запитів — entry-only (тег no-exits).
 Який шлях — вирішує чистий `budget.choose_mode` ПІСЛЯ того, як діапазон витягнуто і кількість гаманців
 відома: повний, якщо покриває всіх там, де по-гаманцевий не покрив би, або просто дешевший.
 Перед витратами — охоронець квоти (`/credits`). Рядки таблиці рахує `scope.rows_for` з угод, збережених
@@ -13,7 +14,9 @@
 Усі числа рахують чисті модулі; тут лише порядок кроків, ліміти і журнал ходу.
 Повідомлення журналу і помилок — англійською: вони йдуть на сторінку.
 """
+import contextvars
 import time
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
 from . import budget, ledger, report, scope, window
 from .store import PageBudget, TradeStore
@@ -248,36 +251,23 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
         counts_extra = {"lookups": 0, "entry_only": 0}
         covered = len(early)
     else:
-        lookups, rest = early[:lookups_cap], early[lookups_cap:]
+        lookups = early[:lookups_cap]
+        rest = len(early) - len(lookups)
         log(f"fetching each wallet's trades for {len(lookups)}"
-            + (f", {len(rest)} left entry-only (cap {lookups_cap})" if rest else ""))
-        n_ok, last_seen = 0, (0, None)
-        progress("wallets", 0, len(lookups))
-        for i, l in enumerate(lookups, 1):
-            if run_cap and here() - req0 >= run_cap:                  # стеля рахується по факту: гаманець може коштувати до 4 сторінок
-                log(f"request cap {run_cap:,} reached: {len(lookups) - i + 1} wallets stay entry-only")
-                rest = lookups[i - 1:] + rest
-                break
-            try:
-                wt = [tr for tr in st.wallet_token_trades(l.wallet, mint, s.get("max_wallet_trade_pages", 4))
-                      if tr["time"] is not None and tr["time"] <= t_end]
-                for tr in wt:
-                    if tr.get("price") and tr["time"] > last_seen[0]:
-                        last_seen = (tr["time"], tr["price"])
-                ledger.repair_quantities(wt, ref=ledger.price_reference(store.trades) if store.trades else None)
-                wallet_trades[l.wallet] = {"trades": scope.pack(wt), "source": "wallet-trades"}
-                n_ok += 1
-            except Exception as e:  # noqa: BLE001 — one wallet must not sink the run
-                log(f"  {l.wallet[:8]}…: trades unavailable ({str(e)[:60]})")
-                wallet_trades[l.wallet] = {"trades": scope.pack([tr for tr in win if tr["wallet"] == l.wallet]), "source": "entry-only"}
-            if i % 25 == 0:
-                log(f"  exits: {i}/{len(lookups)}")
-                st.flush()
-            progress("wallets", i, len(lookups))
-        for l in rest:
-            wallet_trades[l.wallet] = {"trades": scope.pack([tr for tr in win if tr["wallet"] == l.wallet]), "source": "entry-only"}
-        if price_end is None and last_seen[1]:
+            + (f", {rest} left entry-only (cap {lookups_cap})" if rest else ""))
+        got, last_seen = fetch_wallets(st, mint, [l.wallet for l in lookups], t_end, s, store.trades,
+                                       here=here, req0=req0, run_cap=run_cap, log=log, progress=progress)
+        win_by = {}
+        for tr in win:
+            win_by.setdefault(tr["wallet"], []).append(tr)
+        for l in early:                                    # порядок ранжування, а не порядок завершення потоків
+            if l.wallet in got:
+                wallet_trades[l.wallet] = {"trades": got[l.wallet], "source": "wallet-trades"}
+            else:
+                wallet_trades[l.wallet] = {"trades": scope.pack(win_by.get(l.wallet, [])), "source": "entry-only"}
+        if price_end is None and last_seen:
             price_end = last_seen[1]
+        n_ok = len(got)
         counts_extra = {"lookups": n_ok, "entry_only": len(early) - n_ok}
         covered = n_ok
 
@@ -310,6 +300,69 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
         f"requests {result['requests']}")
     progress("done", 1, 1)
     return result
+
+
+def fetch_wallets(st, mint, wallets, t_end, s, trades, here, req0=0, run_cap=0, log=None, progress=None):
+    """Угоди кожного гаманця по токену, `st_concurrency` гаманців одночасно.
+
+    Сторінки одного гаманця зчеплені курсором, а різні гаманці незалежні, тож паралелимо між гаманцями. Головний
+    потік тримає не більше K задач у польоті, сам веде журнал і прогрес (робочі потоки лише тягнуть угоди).
+    Стеля прогону резервується наперед: новий гаманець стартує, лише якщо витрачене плюс найгірша ціна всіх, хто
+    вже в польоті, і його самого вміщається в `run_cap`, тож паралельність стелю не перевищує. Кожна задача
+    стартує в копії контексту: так лічильник запитів цього прогону бачить і запити робочих потоків.
+
+    Повертає ({гаманець: упаковані угоди}, (час, ціна) останньої угоди або None). Гаманця, чиї угоди не
+    прийшли або не влізли під стелю, у словнику нема: він лишається entry-only."""
+    log = log or (lambda m: None)
+    progress = progress or (lambda phase, done=0, total=None: None)
+    k = max(1, int(s.get("st_concurrency", 1) or 1))
+    per_wallet = max(1, int(s.get("max_wallet_trade_pages", 4) or 4))
+    ref = ledger.price_reference(trades) if trades else None   # однакова для всіх гаманців: рахуємо один раз
+
+    def one(wallet):
+        wt = [tr for tr in st.wallet_token_trades(wallet, mint, per_wallet)
+              if tr["time"] is not None and tr["time"] <= t_end]
+        seen = max(((tr["time"], tr["price"]) for tr in wt if tr.get("price")), default=None)
+        ledger.repair_quantities(wt, ref=ref)
+        return scope.pack(wt), seen
+
+    got, last_seen, done = {}, None, 0
+    pending, nxt, capped = {}, 0, False
+    progress("wallets", 0, len(wallets))
+    pool = ThreadPoolExecutor(max_workers=k, thread_name_prefix="early-wallet")
+    clean = False
+    try:
+        while True:
+            while nxt < len(wallets) and len(pending) < k:
+                if run_cap and (here() - req0) + (len(pending) + 1) * per_wallet > run_cap:
+                    capped = True                           # не вміщається: чекаємо, поки звільниться резерв
+                    break
+                capped = False
+                f = pool.submit(contextvars.copy_context().run, one, wallets[nxt])   # одна копія контексту на задачу
+                pending[f] = wallets[nxt]
+                nxt += 1
+            if not pending:
+                break
+            finished, _ = wait(pending, return_when=FIRST_COMPLETED)
+            for f in finished:
+                w = pending.pop(f)
+                try:
+                    packed, seen = f.result()
+                    got[w] = packed
+                    if seen and (last_seen is None or seen > last_seen):
+                        last_seen = seen
+                except Exception as e:  # noqa: BLE001 — one wallet must not sink the run
+                    log(f"  {w[:8]}…: trades unavailable ({str(e)[:60]})")
+                done += 1
+                if done % 25 == 0:
+                    log(f"  exits: {done}/{len(wallets)}")
+                progress("wallets", done, len(wallets))
+        clean = True
+    finally:
+        pool.shutdown(wait=clean, cancel_futures=not clean)  # виняток чи зупинка: черга не доганяє в порожнечу
+    if capped and nxt < len(wallets):
+        log(f"request cap {run_cap:,} reached: {len(wallets) - nxt} wallets stay entry-only")
+    return got, last_seen
 
 
 def _iso(ms):

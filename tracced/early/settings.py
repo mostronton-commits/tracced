@@ -15,10 +15,13 @@ DEFAULTS = {
     "budget_guard_pct": 25,      # один прогін ≤ стільки % залишку кредитів (0 = вимкнено)
     "full_fetch_margin": 1.15,   # запас до оцінки сторінок повного діапазону
     "pause_s": 0.35,             # пауза між запитами до ST (free: 3 req/s)
+    # скільки запитів до ST іде одночасно: угоди різних гаманців незалежні, тож їх тягнемо паралельно.
+    # free тримає темп 3 req/s, і паралельність там нічого не дає; Pro обмеження швидкості не має
+    "st_concurrency": 1,
     # людські ліміти (показуються як повідомлення, не як «сторінки»)
     "max_window_hours": 24,      # вікно входу не довше
     "wallet_stats_ttl_hours": 24,
-    "max_wallet_trade_pages": 4,  # угоди одного гаманця по токену: сторінок по 250 (боти)
+    "max_wallet_trade_pages": 4,  # угоди одного гаманця по токену: сторінок по 500 (боти)
     # тег `fresh`: вік гаманця з публічного RPC у фоні після аналізу (0 = вимкнено)
     "age_lookups_max": 300,
     "rpc_pace_s": 0.5,           # пауза між запитами до публічної ноди (ріже серії без пауз)
@@ -53,9 +56,11 @@ DEFAULTS = {
 
 PLAN_CAPS = {
     "free":     {"max_trade_pages": 300, "max_wallet_lookups": 500, "max_window_pages": 60,
-                 "budget_guard_pct": 25, "pause_s": 0.35},
+                 "budget_guard_pct": 25, "pause_s": 0.35, "st_concurrency": 1},
+    # pause_s 0: спільний темп між потоками інакше тримав би стелю 1/pause запитів на секунду, скільки б
+    # потоків не було. Швидкість тримає st_concurrency, а не пауза
     "advanced": {"max_trade_pages": 2000, "max_wallet_lookups": 3000, "max_window_pages": 400,
-                 "budget_guard_pct": 0, "pause_s": 0.05},
+                 "budget_guard_pct": 0, "pause_s": 0.0, "st_concurrency": 8},
 }
 
 

@@ -1,6 +1,10 @@
-"""Простой JSON-кэш ключ→значение с TTL. Экономит запросы к платным API."""
+"""Простой JSON-кэш ключ→значение с TTL. Экономит запросы к платным API.
+
+Потокобезопасный: запись файла обходит словарь, который другой поток в этот момент дополняет, а два
+одновременных flush() писали бы в один и тот же .tmp."""
 import os
 import json
+import threading
 import time
 
 
@@ -10,6 +14,7 @@ class JsonCache:
         self.ttl = ttl_hours * 3600
         self.flush_every = flush_every
         self._dirty = 0
+        self._lock = threading.RLock()   # реентерабельный: put() сам вызывает flush()
         self.data = {}
         if path and os.path.exists(path):
             try:
@@ -19,7 +24,8 @@ class JsonCache:
                 self.data = {}   # битый кэш не должен ронять прогон
 
     def get(self, key):
-        e = self.data.get(key)
+        with self._lock:
+            e = self.data.get(key)
         if not e:
             return None
         if self.ttl and (time.time() - e.get("ts", 0)) > self.ttl:
@@ -27,17 +33,19 @@ class JsonCache:
         return e.get("value")
 
     def put(self, key, value):
-        self.data[key] = {"value": value, "ts": time.time()}
-        self._dirty += 1
-        if self._dirty >= self.flush_every:
-            self.flush()
+        with self._lock:
+            self.data[key] = {"value": value, "ts": time.time()}
+            self._dirty += 1
+            if self._dirty >= self.flush_every:
+                self.flush()
 
     def flush(self):
-        if not self.path or self._dirty == 0:
-            return
-        os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
-        tmp = self.path + ".tmp"
-        with open(tmp, "w") as f:
-            json.dump(self.data, f)
-        os.replace(tmp, self.path)   # атомарно — не бьём кэш при сбое записи
-        self._dirty = 0
+        with self._lock:
+            if not self.path or self._dirty == 0:
+                return
+            os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+            tmp = self.path + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(self.data, f)
+            os.replace(tmp, self.path)   # атомарно — не бьём кэш при сбое записи
+            self._dirty = 0

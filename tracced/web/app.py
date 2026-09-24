@@ -1,10 +1,13 @@
 """Pages: / (paste a token) → /token (chart + pump windows) → /job/<id> (progress, table) → CSV.
 
-Blocking Solana Tracker calls run in threads (asyncio.to_thread); the client itself is wrapped in a
-lock so the worker thread and page requests share the 3 req/s budget. No tracebacks in the browser:
-one plain sentence for the user, details in the container log.
+Blocking Solana Tracker calls run in threads (asyncio.to_thread). The client is shared: at most
+st_concurrency + 1 calls are in flight across the analysis and the pages, and every caller counts its own
+calls through a meter carried in the context. No tracebacks in the browser: one plain sentence for the user,
+details in the container log.
 """
 import asyncio
+import contextlib
+import contextvars
 import csv
 import copy
 import hashlib
@@ -40,7 +43,6 @@ DOCS_DIR = HERE.parent.parent / "docs"      # сторінки документ�
 HOUR = 3_600_000
 MINT_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 MAX_CANDLES = 1500          # скільки свічок має сенс просити за раз: більше — і джерело мовчки обріже відповідь
-          # скільки свічок має сенс просити за раз: більше — і джерело мовчки обріже відповідь
 ACCT_COOKIE = "early_acct"          # вхід гаманцем — єдиний вхід на сайті
 ACCT_DAYS = 30
 
@@ -174,7 +176,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["st"], app["s"], app["cfg"] = st, s, cfg or {}
     app["store_dir"] = store_dir
     app["runs"] = Throttle(max_fails=int(s.get("runs_per_hour", 20)), window_s=3600, block_s=3600)
-    app["st_lock"] = threading.Lock()
+    app["st_slots"] = threading.BoundedSemaphore(max(1, int(s.get("st_concurrency", 1) or 1)) + 1)   # +1: сторінка не чекає за прогоном
     app["overview_cache"], app["overview_pending"] = {}, {}
     app["dex_cache"] = JsonCache(str(Path(store_dir) / "dexscreener.json"), ttl_hours=24)   # чужий безкоштовний ендпоінт: добу тримаємо відповідь
     app["accounts"] = acct_mod.AccountStore(Path(out_dir).parent / "accounts")   # поруч з web/ і demo/ у output/early
@@ -186,13 +188,14 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["assistant_daily"] = DailyCount(daily_dir / "assistant.json")
     app["browse_daily"] = DailyCount(daily_dir / "browse.json")   # запити на графіки живих токенів: на адресу, на гаманець, на сайт
     app["runs_daily"] = DailyCount(daily_dir / "runs.json")       # живі прогони на весь сайт за добу (будь-який ключ підписує безкоштовно)
-    _lock_st(st, app["st_lock"])
+    _share_st(st, app["st_slots"])
 
     def runner(job):
         if job.replay:
             return _replay(job, page_size=int(s.get("page_size", 250)), budget_s=float(s.get("replay_s", 12)))
-        return pipeline.run(st, job.mint, job.t_from, job.t_to, dict(s, **(job.s_over or {})),   # стелі прогону залежать від того, хто запустив
-                            log=job.log.append, progress=job.set_progress, store_dir=store_dir)
+        with st.meter():                                   # стеля прогону рахує лише його власні запити
+            return pipeline.run(st, job.mint, job.t_from, job.t_to, dict(s, **(job.s_over or {})),   # стелі прогону залежать від того, хто запустив
+                                log=job.log.append, progress=job.set_progress, store_dir=store_dir)
 
     def on_error(job):
         """A live run that failed gives the wallet its day back and the site its slot."""
@@ -237,24 +240,44 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     return app
 
 
-def _lock_st(st, lock):
-    """Every client request under one lock: the 3 req/s pace is shared across threads. Requests are also counted
-    per thread (st.requests_here()), so a page's charge and a run's cap see their own calls, not the worker's."""
+_METER = contextvars.ContextVar("st_meter", default=None)
+_METER_LOCK = threading.Lock()
+
+
+def _share_st(st, slots):
+    """One client for the analysis and every page: at most `slots` calls in flight at once.
+
+    Each caller counts its own calls. `with st.meter():` opens a counter that lives in the context, so the worker
+    threads of one analysis (started with contextvars.copy_context()) add to the same counter, and a chart page
+    running at the same moment keeps its own. A run's cap and a page's charge read st.requests_here(); a delta of
+    the global st.requests would count other people's calls as soon as two things run together. A call is
+    counted before it is made: a failed request is paid for too."""
     orig = getattr(st, "_get", None)
-    if orig is None:                      # fake client in tests: single-threaded, the global count is the thread's
+    if orig is None:                      # fake client in tests: single-threaded, the global count is the caller's
+        st.meter = contextlib.nullcontext
         st.requests_here = lambda: st.requests
         return
-    st.local = threading.local()
-    st.requests_here = lambda: getattr(st.local, "n", 0)
 
-    def locked(path):
-        with lock:
-            before = st.requests
-            try:
-                return orig(path)
-            finally:
-                st.local.n = getattr(st.local, "n", 0) + (st.requests - before)
-    st._get = locked
+    @contextlib.contextmanager
+    def meter():
+        token = _METER.set({"n": 0})
+        try:
+            yield
+        finally:
+            _METER.reset(token)
+
+    def here():
+        m = _METER.get()
+        return m["n"] if m is not None else st.requests
+
+    def shared(path):
+        with slots:
+            m = _METER.get()
+            if m is not None:
+                with _METER_LOCK:
+                    m["n"] += 1
+            return orig(path)
+    st.meter, st.requests_here, st._get = meter, here, shared
 
 
 # ───────────────────────── middleware ─────────────────────────
@@ -323,9 +346,13 @@ class Throttle:
 
 class DailyCount:
     """Скільки разів ключ (гаманець, IP або «global») щось зробив сьогодні; скидається опівночі UTC. З файлом —
-    переживає перезапуск і деплой (інакше кожен пуш дарував би сайту нову добу)."""
+    переживає перезапуск і деплой (інакше кожен пуш дарував би сайту нову добу).
+
+    Під замком: settle() кличеться з робочих потоків у той самий час, коли обробник сторінки резервує, а запис
+    файлу обходить словник, який інший потік у цю мить перебудовує."""
 
     def __init__(self, path=None):
+        self._lock = threading.RLock()
         self.n = {}                           # key -> [day, count]
         self.path = Path(path) if path else None
         if self.path and self.path.exists():
@@ -352,33 +379,36 @@ class DailyCount:
     def take(self, key, cap, now=None):
         """True і +1, якщо стеля ще не досягнута; False — коли досягнута."""
         day = int((time.time() if now is None else now) // 86400)
-        self._prune(day)
-        rec = self.n.get(key)
-        if not rec or rec[0] != day:
-            rec = [day, 0]
-        if rec[1] >= int(cap):
+        with self._lock:
+            self._prune(day)
+            rec = self.n.get(key)
+            if not rec or rec[0] != day:
+                rec = [day, 0]
+            if rec[1] >= int(cap):
+                self.n[key] = rec
+                return False
+            rec[1] += 1
             self.n[key] = rec
-            return False
-        rec[1] += 1
-        self.n[key] = rec
-        self._flush()
-        return True
+            self._flush()
+            return True
 
     def add(self, key, n, now=None):
         """+n без стелі: коли ціна відома лише після дії (скільки запитів справді пішло в мережу)."""
         day = int((time.time() if now is None else now) // 86400)
-        self._prune(day)
-        rec = self.n.get(key)
-        if not rec or rec[0] != day:
-            rec = [day, 0]
-        rec[1] += int(n)
-        self.n[key] = rec
-        self._flush()
+        with self._lock:
+            self._prune(day)
+            rec = self.n.get(key)
+            if not rec or rec[0] != day:
+                rec = [day, 0]
+            rec[1] += int(n)
+            self.n[key] = rec
+            self._flush()
 
     def left(self, key, cap, now=None):
         day = int((time.time() if now is None else now) // 86400)
-        rec = self.n.get(key)
-        return int(cap) - (rec[1] if rec and rec[0] == day else 0)
+        with self._lock:
+            rec = self.n.get(key)
+            return int(cap) - (rec[1] if rec and rec[0] == day else 0)
 
 
 def _client_ip(request):
@@ -804,15 +834,16 @@ async def _overview(app, mint, charge=None):
     st, s = app["st"], app["s"]
 
     def load():
-        req0 = st.requests_here()
-        try:
-            info = pipeline.token(st, mint)
-            ov = pipeline.overview(st, mint, info, s, app["cfg"])
-            st.flush()
-            return info, {"interval": ov["interval"], "hints": ov["hints"]}   # свічки не тримаємо: з кешу їх ніхто не читає
-        finally:
-            if charge:
-                charge(st.requests_here() - req0)
+        with st.meter():                                  # лічильник саме цієї сторінки, не прогону поруч
+            req0 = st.requests_here()
+            try:
+                info = pipeline.token(st, mint)
+                ov = pipeline.overview(st, mint, info, s, app["cfg"])
+                st.flush()
+                return info, {"interval": ov["interval"], "hints": ov["hints"]}   # свічки не тримаємо: з кешу їх ніхто не читає
+            finally:
+                if charge:
+                    charge(st.requests_here() - req0)
     try:
         try:
             info, ov = await asyncio.to_thread(load)
@@ -1055,14 +1086,15 @@ async def candles_json(request):
     settle = _browse_budget(request, 1) if not st.chart_cached(mint, tf, a * 1000, b * 1000) else None   # шматок = 1 запит
 
     def load():
-        req0 = st.requests_here()
-        try:
-            c = st.chart(mint, tf, a * 1000, b * 1000)
-            st.flush()
-            return c
-        finally:
-            if settle:
-                settle(st.requests_here() - req0)
+        with st.meter():
+            req0 = st.requests_here()
+            try:
+                c = st.chart(mint, tf, a * 1000, b * 1000)
+                st.flush()
+                return c
+            finally:
+                if settle:
+                    settle(st.requests_here() - req0)
     candles = await asyncio.to_thread(load)
     return web.json_response(chart.candles_mcap(candles, info["supply"]))
 
@@ -1375,13 +1407,14 @@ async def wallet_trades_json(request):
         if job.result.get("mode") == "trades":
             trs = TradeStore(app["store_dir"], mint).between(a, b)
             return [t for t in trs if t.get("wallet") == wallet]
-        req0 = st.requests_here()
-        try:
-            return [t for t in st.wallet_token_trades(wallet, mint, s.get("max_wallet_trade_pages", 4))
-                    if t["time"] is not None and a <= t["time"] <= b]
-        finally:
-            if settle:
-                settle(st.requests_here() - req0)
+        with st.meter():                                  # run_in_executor не переносить контекст: лічильник відкриваємо тут
+            req0 = st.requests_here()
+            try:
+                return [t for t in st.wallet_token_trades(wallet, mint, s.get("max_wallet_trade_pages", 4))
+                        if t["time"] is not None and a <= t["time"] <= b]
+            finally:
+                if settle:
+                    settle(st.requests_here() - req0)
     trs = await asyncio.get_running_loop().run_in_executor(None, work)
     trs.sort(key=lambda t: t["time"] or 0)
     cap = int(s.get("markers_max", 200))

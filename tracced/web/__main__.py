@@ -24,7 +24,8 @@ def main():
     cfg = load_config(os.getenv("EARLY_CONFIG", "config.yaml"))
     s = settings.load(cfg)
     st = EarlyST(key, pause=float(s.get("pause_s", 0.35)), chart_cache=JsonCache("cache/early/chart.json", ttl_hours=72),
-                 stats_cache=JsonCache("cache/early/wallet_token.json", ttl_hours=s["wallet_stats_ttl_hours"]))
+                 stats_cache=JsonCache("cache/early/wallet_token.json", ttl_hours=s["wallet_stats_ttl_hours"],
+                                       flush_every=200))   # великий файл: при паралельних гаманцях дамп кожні 25 записів гальмує всіх
     ages = None
     if s.get("age_lookups_max", 0) > 0:
         ages = WalletAge(cache=JsonCache("cache/early/wallet_age.json", ttl_hours=s["wallet_age_ttl_hours"]),

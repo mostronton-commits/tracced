@@ -1,6 +1,7 @@
 """Черга аналізів: один робочий потік, стан у пам'яті, результати на диску.
 
-Один потік — бо ліміт Solana Tracker спільний і два аналізи паралельно нічого не пришвидшать.
+Аналізи йдуть по одному. Паралельність живе всередині аналізу (угоди гаманців тягнуться кількома потоками), а
+слоти запитів до Solana Tracker спільні: два аналізи поруч ділили б ті самі слоти і обидва йшли б повільніше.
 Файл output/early/web/<id>.json пишеться після завершення; при старті список минулих
 аналізів читається з диска, тож перезапуск контейнера їх не втрачає.
 """
@@ -79,6 +80,7 @@ class JobQueue:
         self.q = queue.Queue()
         self.eq = queue.Queue()
         self.lock = threading.Lock()
+        self._save_lock = threading.Lock()
         os.makedirs(persist_dir, exist_ok=True)
         self._load()                          # прогони, перервані рестартом, стають помилкою і повертають день
         self.thread = threading.Thread(target=self._worker, name="early-worker", daemon=True)
@@ -117,12 +119,18 @@ class JobQueue:
                 except Exception:
                     continue                          # битий файл не валить сторінку
 
-    def _save(self, job):
-        path = os.path.join(self.dir, job.id + ".json")
-        tmp = path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(job.to_dict(), f, ensure_ascii=False, default=str)
-        os.replace(tmp, path)
+    def _save(self, job, only_current=False):
+        """Робочий потік і збагачення пишуть той самий <id>.json через той самий .tmp: по одному. Збагачення
+        старого аналізу, який уже перезапустили, пише лише поки він ще поточний, і перевірка йде під тим самим
+        замком, що й запис, інакше старий результат міг би лягти поверх нового."""
+        with self._save_lock:
+            if only_current and not self._current(job):
+                return
+            path = os.path.join(self.dir, job.id + ".json")
+            tmp = path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(job.to_dict(), f, ensure_ascii=False, default=str)
+            os.replace(tmp, path)
 
     def submit(self, mint, t_from, t_to, symbol=None, replay=None, owner=None, s_over=None):
         """Живий прогін живе під id діапазону. Програвання демо отримує свій id (…_r + 6 hex), щоб не витісняти
@@ -208,7 +216,7 @@ class JobQueue:
                 if not self._current(job):
                     self.eq.task_done()          # аналіз перезапустили: старе збагачення не чіпає новий результат
                     continue
-                self.enricher(job, lambda j: self._current(j) and self._save(j))
+                self.enricher(job, lambda j: self._save(j, only_current=True))
             except Exception as e:  # noqa: BLE001 — збагачення не має валити результат
                 job.log.append(f"enrichment stopped: {e}")
             self.eq.task_done()

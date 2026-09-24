@@ -913,6 +913,103 @@ if AioHTTPTestCase:
             self.assertEqual((await r.json())["ok"], True)
 
 
+class TestSharedClient(unittest.TestCase):
+    """Один клієнт на аналіз і на сторінки: кілька запитів одночасно, і кожен рахує лише свої."""
+
+    def make(self):
+        import threading
+        import time as _t
+
+        class Real:
+            def __init__(self):
+                self.requests, self.in_flight, self.max_in_flight = 0, 0, 0
+                self.lock = threading.Lock()
+
+            def _get(self, path):
+                with self.lock:
+                    self.requests += 1
+                    self.in_flight += 1
+                    self.max_in_flight = max(self.max_in_flight, self.in_flight)
+                _t.sleep(0.02)
+                with self.lock:
+                    self.in_flight -= 1
+                return {}
+        return Real()
+
+    def test_each_caller_counts_its_own_calls_while_they_run_together(self):
+        import contextvars
+        import threading
+        from concurrent.futures import ThreadPoolExecutor
+        from tracced.web.app import _share_st
+        st = self.make()
+        _share_st(st, threading.BoundedSemaphore(4))
+        seen = {}
+
+        def run():
+            with st.meter():
+                with ThreadPoolExecutor(8) as pool:
+                    fs = [pool.submit(contextvars.copy_context().run, st._get, f"/w/{i}") for i in range(40)]
+                    for f in fs:
+                        f.result()
+                seen["run"] = st.requests_here()
+
+        def page():
+            with st.meter():
+                for i in range(3):
+                    st._get(f"/chart/{i}")
+                seen["page"] = st.requests_here()
+        a, b = threading.Thread(target=run), threading.Thread(target=page)
+        a.start(); b.start(); a.join(); b.join()
+        self.assertEqual(seen, {"run": 40, "page": 3})
+        self.assertEqual(st.requests, 43)
+        self.assertGreaterEqual(st.max_in_flight, 2)
+        self.assertLessEqual(st.max_in_flight, 4)             # слоти тримають стелю одночасних запитів
+
+    def test_a_fake_client_without_http_counts_globally(self):
+        import threading
+        from tracced.web.app import _share_st
+        st = FakeST(TRADES)
+        _share_st(st, threading.BoundedSemaphore(2))
+        with st.meter():
+            st.token_info("x")
+        self.assertEqual(st.requests_here(), 1)
+
+
+class TestThreadSafeStores(unittest.TestCase):
+    def test_json_cache_survives_writers_and_flushes_together(self):
+        import threading
+        from tracced.cache import JsonCache
+        with tempfile.TemporaryDirectory() as d:
+            c = JsonCache(os.path.join(d, "c.json"), ttl_hours=1, flush_every=3)
+
+            def put(k):
+                for i in range(200):
+                    c.put(f"{k}:{i}", list(range(20)))
+            ts = [threading.Thread(target=put, args=(k,)) for k in range(6)]
+            for t in ts:
+                t.start()
+            for t in ts:
+                t.join()
+            c.flush()
+            self.assertEqual(len(json.load(open(os.path.join(d, "c.json")))), 1200)
+
+    def test_daily_count_adds_from_many_threads(self):
+        import threading
+        from tracced.web.app import DailyCount
+        with tempfile.TemporaryDirectory() as d:
+            dc = DailyCount(os.path.join(d, "n.json"))
+
+            def add():
+                for _ in range(100):
+                    dc.add("global", 1)
+            ts = [threading.Thread(target=add) for _ in range(8)]
+            for t in ts:
+                t.start()
+            for t in ts:
+                t.join()
+            self.assertEqual(dc.left("global", 10_000), 10_000 - 800)
+
+
 if __name__ == "__main__":
     unittest.main()
 

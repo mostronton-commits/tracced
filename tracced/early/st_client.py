@@ -1,13 +1,14 @@
 """Клієнт Solana Tracker для early: сирі сторінки угод (з кількістю) і свічки з відрізком.
 
-Наслідує темп ≤3 req/s, ретраї 429/5xx і token_info з providers/solana_tracker.py.
+Наслідує темп, ретраї 429/5xx і token_info з providers/solana_tracker.py. Безпечний для кількох потоків:
+кеші під `_cache_lock`, темп і лічильник запитів під замком у `_get`.
 stats_cache тепер тримає угоди гаманця по токену (ключ trades:<mint>:<wallet>).
 Поля перевірені живцем 16.09.2026 (docs/early_spike.md).
 """
 import threading
 import urllib.parse
 
-from ..providers.solana_tracker import SolanaTracker
+from ..providers.solana_tracker import PAGE, SolanaTracker
 from ..util import to_ms
 from .ledger import normalize
 
@@ -25,7 +26,7 @@ class EarlyST(SolanaTracker):
 
     def trades_page(self, mint, cursor_ms):
         """Одна сторінка угод від cursor_ms (ASC). Повертає нормалізовані угоди + курсор далі."""
-        d = self._get(f"/trades/{mint}?sortDirection=ASC&cursor={int(cursor_ms)}")
+        d = self._get(f"/trades/{mint}?sortDirection=ASC&limit={PAGE}&cursor={int(cursor_ms)}")
         return {
             "trades": [normalize(tr) for tr in (d.get("trades") or [])],
             "hasNextPage": bool(d.get("hasNextPage")),
@@ -82,7 +83,7 @@ class EarlyST(SolanaTracker):
                 return cached
         out, seen, cursor = [], set(), None
         for _ in range(max_pages):
-            q = f"/trades/{mint}/by-wallet/{wallet}?sortDirection=ASC&limit=500" + (f"&cursor={int(cursor)}" if cursor else "")
+            q = f"/trades/{mint}/by-wallet/{wallet}?sortDirection=ASC&limit={PAGE}" + (f"&cursor={int(cursor)}" if cursor else "")
             d = self._get(q)
             page = [normalize(tr) for tr in (d.get("trades") or [])]
             fresh = [tr for tr in page if tr["tx"] not in seen]
