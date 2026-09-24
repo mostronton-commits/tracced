@@ -19,8 +19,9 @@ people behind one address. Every count resets at midnight UTC, and the page show
 fails before it has fetched much, or is cut short by a server restart, gives its analysis back; one that fails after
 it already spent {{ s.refund_below_requests }} requests or more counts toward the day.
 
-Loading what a result does not hold yet in a wallet card: the wallet's last 30 days on every token, its age and
-first funder when it is not among the first {{ s.age_lookups_max }} by PnL that the analysis checks itself. What
+Loading what a result does not hold yet in a wallet card: the wallet's last 30 days on every token, and the rest
+of its age and first funder when it is not among the first {{ s.age_full_top }} by PnL that the analysis reads to
+the start (a busy wallet's first transaction, an app wallet's first SOL). What
 someone has already loaded is free for everyone: the 30 days are kept
 for a day, and the age and funder stay in the result.
 
@@ -33,7 +34,7 @@ for a day, and the age and funder stay in the result.
 | Requests one run may spend | {{ '{:,}'.format(s.run_cap_requests) }} |
 | Wallets that get exact exits | {{ '{:,}'.format(s.max_wallet_lookups) }} |
 | Smallest position in the table | ${{ s.min_invested_usd }} bought inside the range |
-| Wallets whose age is checked with the analysis, first by PnL | {{ s.age_lookups_max }} |
+| Wallets whose age is checked with the analysis, first by PnL | {{ '{:,}'.format(s.age_lookups_max) }}, the first {{ s.age_full_top }} read to their first transaction |
 | Other wallets checked from their cards, per person a day | {{ s.age_card_per_day }} |
 | Requests a day: charts (guest) / charts and wallet cards (wallet) / the whole site | {{ '{:,}'.format(s.browse_per_day_guest) }} / {{ '{:,}'.format(s.browse_per_day) }} / {{ '{:,}'.format(s.browse_global_per_day) }} |
 | New analyses on the whole site, per day | {{ s.runs_global_per_day }} |

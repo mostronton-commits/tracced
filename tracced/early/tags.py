@@ -38,6 +38,17 @@ def is_fresh(first_buy_ms, age):
     return 0 <= first_buy_ms - age["oldest_ms"] <= FRESH_MS
 
 
+def could_be_fresh(first_buy_ms, age):
+    """Чи може гаманець ще виявитись `fresh`. Точний вік відповідає сам. Неточний (прочитано лише найновішу частину
+    історії) каже «ні», коли навіть найстаріша прочитана транзакція була більш як за добу до першої покупки: перша
+    транзакція гаманця ще старша. Інакше — «може», і вік треба дочитати."""
+    if not age or not age.get("oldest_ms") or not first_buy_ms:
+        return False
+    if age.get("exact"):
+        return is_fresh(first_buy_ms, age)
+    return first_buy_ms - age["oldest_ms"] <= FRESH_MS
+
+
 def with_tag(tag_list, tag):
     """Список тегів у порядку DEFS з доданим тегом."""
     have = set(tag_list or []) | {tag}

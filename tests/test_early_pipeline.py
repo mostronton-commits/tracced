@@ -80,6 +80,7 @@ class TestPipeline(unittest.TestCase):
             a = res["rows"][0]
             self.assertAlmostEqual(a["realized_usd"], 100)
             self.assertTrue(a["bought_after_range"])
+            self.assertEqual(a["entry_tx"], "tx-A-1-buy")              # перша покупка в діапазоні: від неї читається вік
             self.assertEqual(res["price_at_end"], 4.0)              # остання угода до «зараз»
             self.assertGreater(res["pages_fetched"], 0)
             self.assertTrue(st.flushed)

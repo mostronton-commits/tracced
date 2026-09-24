@@ -357,6 +357,13 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
     }
     rows, sm = scope.rows_for(result, "all", s)
     result["rows"], result["summary"] = rows, sm
+    entry = {}                                            # підпис першої покупки в діапазоні: від неї перевірка віку
+    for tr in win:                                        # читає історію гаманця назад (одна сторінка до покупки)
+        if tr.get("type") == "buy" and tr.get("tx"):
+            entry.setdefault(tr["wallet"], tr["tx"])
+    for row in rows:
+        if row["wallet"] in entry:
+            row["entry_tx"] = entry[row["wallet"]]
     who = getattr(st, "identity", None)                  # хто стоїть за гаманцем: те, що вже в кеші; решту допитує збагачення
     if who:
         result["identities"] = {r["wallet"]: idn for r in rows if (idn := who(r["wallet"]))}

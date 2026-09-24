@@ -670,7 +670,8 @@
       const rankOf = new Map(all.map((o, i) => [o.w, i])), AGE_N = {{ s.age_lookups_max or 0 }}, ageTried = new Map();
       const AGE_READ = {{ age_read or 6000 }};                   // the age check reads this many of a wallet's latest transactions
       async function loadAge(w) {
-        // the analysis checks the first AGE_N wallets by PnL; any other wallet is checked when its card is opened
+        // the analysis checks every wallet cheaply and the first ones by PnL fully; what the cheap check left open
+        // (a busy wallet's age, an app wallet's first SOL) and the wallets of older results are read when a card opens
         if (ageTried.has(w)) return;
         ageTried.set(w, 'busy');
         let r, d = {};
@@ -691,7 +692,7 @@
       function renderWalletInfo(w) {
         const a = ages[w], fnd = funders[w], bn = bundle[w], out = [];
         const queued = !ageDone && (rankOf.get(w) ?? 1e9) < AGE_N;
-        if ((!(a && a.ms) || !a.exact) && !queued && !ageTried.get(w) && AGE_N) loadAge(w);   // a busy wallet: the server reads deeper, once
+        if ((!(a && a.ms) || !a.exact || !fnd) && !queued && !ageTried.get(w) && AGE_N) loadAge(w);   // the server reads deeper, once, or answers from what it has
         const st = ageTried.get(w);                               // 'busy' from here on while that request runs
         if (a && a.ms && a.exact) {
           const young = Date.now() - a.ms < 86400000;
@@ -701,7 +702,7 @@
           // Opening the card reads deeper; until that answers, or when it cannot, the count says why
           const n = +a.n || AGE_READ, reading = st === 'busy';
           const why = reading ? 'Reading its whole history to find its age and first funder…'
-            : 'More than ' + nf(n) + ' transactions. The latest ' + nf(n) + ' reach back only to ' + EarlyTZ.fmt(a.ms, true)
+            : 'More than ' + nf(n) + ' transactions. The ' + nf(n) + ' read so far reach back only to ' + EarlyTZ.fmt(a.ms, true)
               + ', so its first one and its first funder are older.'
               + (st === 'connect' ? ' Connect a wallet to read its whole history.' : st === 'capped' ? ' Today\'s card checks are used up; more tomorrow.'
                  : st === 'paused' ? ' Age checks are paused until next month.' : st === 'failed' ? ' The chain node did not answer; reopen the card to try again.' : '');

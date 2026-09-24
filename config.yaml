@@ -49,7 +49,12 @@ early:
   # of the month. Without SOLANA_RPC_URL the public api.mainnet-beta is used, which refuses long series (429).
   rpc_pace_s: 0.35              # about 3 calls a second: the free plan allows 10 for the whole account
   rpc_tx_pace_s: 0.35           # the same node answers the funder's transaction, so the same pace
-  age_lookups_max: 200          # the first 200 by PnL, right after the table appears; the rest when someone opens their
-                                # card (checking every wallet cost about 10 credits each, 20,000 for a big analysis)
+  age_lookups_max: 2000         # every wallet in the table gets the cheap check right after the table appears: one page
+                                # of its history before its first buy here (1 credit) and its first transaction (1 more).
+                                # That settles `fresh` exactly and finds the funders that make bundles. A server without
+                                # SOLANA_RPC_URL keeps to the first 200 by PnL: the public node refuses series
+  age_full_top: 200             # the first 200 by PnL also get the full check: a busy wallet's real age (10 credits) and an
+                                # app wallet's first SOL among its first 100 transactions (10). Any other wallet gets the
+                                # same when its card is opened. About 5,000 credits for a 2,000-wallet table, not 20,000
   rpc_credits_month: 250000     # tracced's share of the Helius month (1,000,000 for the whole account). About 2 credits
                                 # a wallet, 11 for a busy one; age checks pause at 90% and resume next month

@@ -1384,7 +1384,7 @@ if AioHTTPTestCase:
     class FakeAgesWeb:
         """Вік і спонсор без мережі: рахує виклики, як нода рахувала б кредити."""
         def __init__(self):
-            self.calls, self.cache = 0, {}
+            self.calls, self.cache, self.pending = 0, {}, set()
 
         def cached(self, w):
             return self.cache.get(w)
@@ -1392,15 +1392,21 @@ if AioHTTPTestCase:
         def paused(self):
             return False
 
-        def oldest_tx(self, w, refresh=False):
+        def oldest_tx(self, w, refresh=False, full=True, before=None):
             if w not in self.cache:
                 self.calls += 1
                 self.cache[w] = {"oldest_ms": 999_990_000_000, "exact": True, "n": 3, "oldest_sig": "sig-" + w[:4]}
             return self.cache[w]
 
-        def funder(self, w, sig):
+        def funder(self, w, sig, scan=True):
             self.calls += 1
+            if w in self.pending and scan:                    # дешева перевірка лишила пошук серед перших ста
+                self.pending.discard(w)
+                return "A" * 44
             return "F" * 44
+
+        def funder_pending(self, w):
+            return w in self.pending
 
         def oldest_tx_deep(self, w):
             """Зайнятий гаманець: глибше гортання доходить до першої транзакції."""
@@ -1452,6 +1458,29 @@ if AioHTTPTestCase:
             d = await (await self.client.get(f"/wallet_age.json?job={jid}&wallet={w}")).json()   # тепер і гостю, з результату
             self.assertEqual(d["funder"], "F" * 44)
             self.assertEqual(self.ages.calls, 2)
+
+        async def test_a_card_finishes_the_funder_search_the_cheap_check_skipped(self):
+            # гаманець поза першими за PnL: перша транзакція не дала спонсора, пошук серед перших ста — з картки
+            jid, mint, w = "APPWAL_20010909-0146_0206", "P" * 40, acct_mod.b58encode(b"\x61" * 32)
+            rows = [{"wallet": w, "first_buy_ms": 1000000060000, "tag_list": []}]
+            result = {"info": {"mint": mint, "symbol": "APP", "supply": 1000000, "created_time": 999996400000},
+                      "window": {"from": 999999960000, "to": 1000001160000, "end": 1000003560000}, "mode": "trades",
+                      "counts": {}, "coverage": {}, "wallet_trades": {}, "rows": rows, "funder_checked": [w],
+                      "ages": {w: {"ms": 999_990_000_000, "exact": True, "n": 12}}, "scope": "all", "requests": 0}
+            os.makedirs(self.tmp.name + "/web", exist_ok=True)
+            with open(f"{self.tmp.name}/web/{jid}.json", "w") as f:
+                json.dump({"id": jid, "mint": mint, "t_from": 999999960000, "t_to": 1000001160000, "status": "done",
+                           "created_ms": 1, "log": [], "result": result}, f)
+            self.app["jobs"]._load()
+            self.ages.cache[w] = {"oldest_ms": 999_990_000_000, "exact": True, "n": 12, "oldest_sig": "s12"}
+            self.ages.pending.add(w)
+            r = await self.client.get(f"/wallet_age.json?job={jid}&wallet={w}")
+            self.assertEqual(r.status, 401)                               # пошук платний: гість його не запускає
+            me = {"Cookie": wallet_cookie(acct_mod.b58encode(b"\x62" * 32))}
+            d = await (await self.client.get(f"/wallet_age.json?job={jid}&wallet={w}", headers=me)).json()
+            self.assertEqual((d["funder"], self.ages.calls), ("A" * 44, 1))   # лише пошук: вік уже був
+            d = await (await self.client.get(f"/wallet_age.json?job={jid}&wallet={w}")).json()
+            self.assertEqual((d["funder"], self.ages.calls), ("A" * 44, 1))   # далі — з результату, для всіх
 
         async def test_a_busy_wallet_gets_its_real_age_and_funder_when_its_card_opens(self):
             # 6 000 останніх транзакцій не дійшли до першої: картка гортає глибше, раз, як одна з карток дня
@@ -1715,6 +1744,26 @@ class TestJobQueue(unittest.TestCase):
             q.eq.join()
             self.assertEqual(seen, ["old"])                                      # стелю підняли: решта гаманців у фоні
 
+    def test_each_result_is_brought_back_to_its_own_target(self):
+        """Скільки рядків перевіряти, вирішує сам результат: з підписами покупок — усі, старший — лише перші за PnL."""
+        from tracced.web.app import enrich_target
+        from tracced.web.jobs import JobQueue
+        s = {"age_lookups_max": 2000, "age_full_top": 2}
+        old_rows = [{"wallet": w} for w in "ABCDE"]
+        new_rows = [{"wallet": w, "entry_tx": "tx" + w} for w in "ABCDE"]
+        self.assertEqual(enrich_target({"rows": old_rows}, s), 2)
+        self.assertEqual(enrich_target({"rows": new_rows}, s), 5)
+        self.assertEqual(enrich_target({"rows": old_rows, "age_full_top": 5}, s), 5)      # демо: повна перевірка всім
+        with tempfile.TemporaryDirectory() as d:
+            two = {"done": 2, "total": 2, "funders_done": 2}
+            self._file(d, "old", created_ms=1, result={"rows": old_rows, "enrich": dict(two)})
+            self._file(d, "new", created_ms=5, result={"rows": new_rows, "enrich": dict(two)})
+            seen = []
+            q = JobQueue(lambda j: None, d, enricher=lambda job, save: seen.append(job.id),
+                         enrich_upto=lambda r: enrich_target(r, s))
+            q.eq.join()
+            self.assertEqual(seen, ["new"])                                      # старий уже має свої перші два
+
     def test_a_replay_never_reaches_the_disk_and_charges_survive_a_restart(self):
         from tracced.web.jobs import JobQueue
         with tempfile.TemporaryDirectory() as d:
@@ -1760,10 +1809,10 @@ class TestJobQueue(unittest.TestCase):
             def paused(self):
                 return False
 
-            def oldest_tx(self, w, refresh=False):
+            def oldest_tx(self, w, refresh=False, full=True, before=None):
                 return {"oldest_ms": 1000, "exact": True, "n": 2, "oldest_sig": "s-" + w}
 
-            def funder(self, w, sig):
+            def funder(self, w, sig, scan=True):
                 if self.fail and w == "W2":
                     raise RuntimeError("HTTP Error 429: Too Many Requests")
                 return "F" + w

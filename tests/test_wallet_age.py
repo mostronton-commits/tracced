@@ -189,6 +189,83 @@ class TestWalletAge(unittest.TestCase):
         self.assertIsNone(WalletAge(url="https://rpc.example", post=post, sleep=lambda s: None, pace_s=0).funder("APP", "sig1"))
         self.assertEqual(len(post.calls), 1)
 
+    def test_helius_reads_the_history_before_the_first_buy(self):
+        from tracced.early.wallet_age import LIMIT
+
+        class Cache(dict):
+            def get(self, k): return dict.get(self, k)
+            def put(self, k, v): self[k] = v
+            def flush(self): pass
+        HX = "https://mainnet.helius-rpc.com/?api-key=x"
+        # уся передісторія гаманця — одна неповна сторінка до покупки: точний вік за 1 кредит, і в дешевій перевірці
+        b, post = MonthBudget(None, limit=10_000), FakePost([sigs(12)])
+        wa = WalletAge(url=HX, post=post, sleep=lambda s: None, pace_s=0, budget=b, cache=Cache())
+        age = wa.oldest_tx("A", full=False, before="BUY")
+        self.assertEqual((age["exact"], age["n"], b.spent), (True, 12, 1))
+        self.assertEqual(post.calls[0]["params"][1]["before"], "BUY")
+        # тисяча транзакцій до покупки: дешева перевірка зупиняється на «старший за найстарішу прочитану»
+        b, post = MonthBudget(None, limit=10_000), FakePost([sigs(LIMIT), {"data": [{"signature": "first", "blockTime": 900_000}]}])
+        wa = WalletAge(url=HX, post=post, sleep=lambda s: None, pace_s=0, budget=b, cache=Cache())
+        age = wa.oldest_tx("BUSY", full=False, before="BUY")
+        self.assertEqual((age["exact"], age["n"], len(post.calls), b.spent), (False, LIMIT, 1, 1))
+        self.assertIs(wa.oldest_tx("BUSY", full=False), age)                    # вдруге дешевій перевірці — з кешу
+        # повна перевірка (перші за PnL, картка) дочитує з кешу одним викликом «від найстарішої», без першої сторінки
+        age = wa.oldest_tx("BUSY")
+        self.assertEqual((age["exact"], age["oldest_sig"]), (True, "first"))
+        self.assertEqual((post.calls[-1]["method"], len(post.calls), b.spent), ("getTransactionsForAddress", 2, 11))
+        self.assertEqual(wa.oldest_tx_deep("BUSY"), age)                        # картка: уже точний, нічого не коштує
+        self.assertEqual(len(post.calls), 2)
+        # до покупки порожньо: застосунок заплатив за гаманець, і покупка — його перша транзакція. Читаємо від найновішої
+        post = FakePost([[], sigs(3)])
+        age = WalletAge(url=HX, post=post, sleep=lambda s: None, pace_s=0).oldest_tx("APP", full=False, before="BUY")
+        self.assertEqual((age["exact"], age["n"], len(post.calls)), (True, 3, 2))
+        self.assertNotIn("before", post.calls[1]["params"][1])
+        # нода не знає підпису покупки: так само
+        calls = []
+
+        def unknown_sig(payload, url=None):
+            calls.append(payload)
+            if "before" in payload["params"][1]:
+                return {"jsonrpc": "2.0", "error": {"code": -32602, "message": "Invalid param: not a signature"}}
+            return {"jsonrpc": "2.0", "result": sigs(3)}
+        age = WalletAge(url=HX, post=unknown_sig, sleep=lambda s: None, pace_s=0).oldest_tx("APP", full=False, before="??")
+        self.assertEqual((age["exact"], age["n"], len(calls)), (True, 3, 2))
+
+    def test_the_cheap_funder_check_leaves_the_search_for_later(self):
+        class Cache(dict):
+            def get(self, k): return dict.get(self, k)
+            def put(self, k, v): self[k] = v
+            def flush(self): pass
+        HX = "https://mainnet.helius-rpc.com/?api-key=x"
+
+        def tx(gain, sender="SENDER"):
+            keys = [{"pubkey": "PAYER", "signer": True}, {"pubkey": sender, "signer": True}, {"pubkey": "APP", "signer": False}]
+            return {"meta": {"err": None, "preBalances": [5_000_000, 9_000_000_000, 0],
+                             "postBalances": [4_995_000, 9_000_000_000 - gain, gain]},
+                    "transaction": {"message": {"accountKeys": keys}}}
+        b, post = MonthBudget(None, limit=10_000), FakePost([tx(0), {"data": [tx(0), tx(2_000_000, "REALFUNDER")]}])
+        wa = WalletAge(url=HX, post=post, sleep=lambda s: None, pace_s=0, budget=b, cache=Cache())
+        self.assertIsNone(wa.funder("APP", "sig1", scan=False))                  # лише перша транзакція: 1 кредит
+        self.assertEqual((len(post.calls), b.spent, wa.funder_pending("APP")), (1, 1, True))
+        self.assertIsNone(wa.funder("APP", "sig1", scan=False))                  # дешевій перевірці вдруге — з кешу
+        self.assertEqual(wa.funder("APP", "sig1"), "REALFUNDER")                 # картка: лише пошук, 10 кредитів
+        self.assertEqual((post.calls[-1]["method"], len(post.calls), b.spent), ("getTransactionsForAddress", 2, 11))
+        self.assertFalse(wa.funder_pending("APP"))
+        old = Cache()
+        old["funder:OLD"] = {"funder": None}                                     # записаний до цієї позначки: дочитаний
+        wa = WalletAge(url=HX, post=FakePost([]), sleep=lambda s: None, pace_s=0, cache=old)
+        self.assertEqual((wa.funder("OLD", "s"), wa.funder_pending("OLD")), (None, False))
+
+    def test_could_be_fresh(self):
+        buy = 100 * H
+        self.assertTrue(tags.could_be_fresh(buy, {"oldest_ms": buy - 2 * H, "exact": True}))
+        self.assertFalse(tags.could_be_fresh(buy, {"oldest_ms": buy - 30 * H, "exact": True}))
+        # неточний: найстаріша прочитана транзакція — за 30 годин до покупки, отже перша ще старша: точно не fresh
+        self.assertFalse(tags.could_be_fresh(buy, {"oldest_ms": buy - 30 * H, "exact": False}))
+        self.assertTrue(tags.could_be_fresh(buy, {"oldest_ms": buy - 2 * H, "exact": False}))   # може: дочитати
+        self.assertTrue(tags.could_be_fresh(buy, {"oldest_ms": buy + 5 * H, "exact": False}))   # прочитане — після покупки
+        self.assertFalse(tags.could_be_fresh(None, {"oldest_ms": 1, "exact": False}))
+
     def test_funder_from_tx(self):
         keys = [{"pubkey": "FUNDER", "signer": True}, {"pubkey": "NEWWALLET", "signer": False}, {"pubkey": "11111111111111111111111111111111", "signer": False}]
         tx = {"transaction": {"message": {"accountKeys": keys}},
@@ -271,6 +348,55 @@ class TestRpcBudget(unittest.TestCase):
         self.assertTrue(any("paused" in m for m in job.log))
         self.assertTrue(saved)
 
+
+    def test_the_top_gets_the_full_check_and_the_rest_the_cheap_one(self):
+        """Перший за PnL: точний вік зайнятого гаманця і пошук спонсора застосунку. Решта: сторінка до покупки й перша
+        транзакція; вік дочитується лише тому, хто ще може виявитись `fresh`, — тег лишається точним."""
+        from types import SimpleNamespace
+        from tracced.web.app import make_enricher
+        from tracced.early.wallet_age import LIMIT
+
+        class Cache(dict):
+            def get(self, k): return dict.get(self, k)
+            def put(self, k, v): self[k] = v
+            def flush(self): pass
+        HX = "https://mainnet.helius-rpc.com/?api-key=x"
+        buy_s = 1_790_000_000
+
+        def tx(wallet, gain, sender):
+            keys = [{"pubkey": "PAYER", "signer": True}, {"pubkey": sender, "signer": True}, {"pubkey": wallet, "signer": False}]
+            return {"meta": {"err": None, "preBalances": [5_000_000, 9_000_000_000, 0],
+                             "postBalances": [4_995_000, 9_000_000_000 - gain, gain]},
+                    "transaction": {"message": {"accountKeys": keys}}}
+        post = FakePost([
+            # вік: TOP — повна сторінка, тоді «від найстарішої»
+            sigs(LIMIT, oldest_s=buy_s - 90 * 86400), {"data": [{"signature": "t1", "blockTime": buy_s - 400 * 86400}]},
+            # OLD — тисяча транзакцій, найстаріша прочитана за 30 годин до покупки: точно не fresh, далі не читаємо
+            sigs(LIMIT, oldest_s=buy_s - 30 * 3600),
+            # BOT — тисяча транзакцій за останню годину до покупки: може бути свіжим, дочитуємо (вийшло: 2 години)
+            sigs(LIMIT, oldest_s=buy_s - 3600), {"data": [{"signature": "b1", "blockTime": buy_s - 2 * 3600}]},
+            # NEW — уся історія на одній сторінці
+            sigs(5, oldest_s=buy_s - 3 * 86400),
+            # спонсори: TOP — перша транзакція без SOL, пошук серед перших ста; BOT — перша транзакція; NEW — лише перша
+            tx("TOP", 0, "X"), {"data": [tx("TOP", 3_000_000, "EXCHANGE")]},
+            tx("BOT", 2_000_000, "BUNDLER"),
+            tx("NEW", 0, "X"),
+        ])
+        b = MonthBudget(None, limit=100_000)
+        wa = WalletAge(url=HX, post=post, sleep=lambda s: None, pace_s=0, budget=b, cache=Cache())
+        rows = [{"wallet": w, "first_buy_ms": buy_s * 1000, "tag_list": [], "entry_tx": "buy-" + w}
+                for w in ("TOP", "OLD", "BOT", "NEW")]
+        job = SimpleNamespace(result={"rows": rows}, log=[])
+        make_enricher(wa, {"age_lookups_max": 10, "age_full_top": 1})(job, lambda j: True)
+        r = job.result
+        self.assertFalse(post.answers)                                        # рівно ці виклики, не більше
+        self.assertEqual([c["params"][1].get("before") for c in post.calls[:1]], ["buy-TOP"])
+        self.assertEqual((r["ages"]["TOP"]["exact"], r["ages"]["OLD"]["exact"], r["ages"]["BOT"]["exact"]), (True, False, True))
+        self.assertEqual(r["fresh_wallets"], ["BOT"])
+        self.assertEqual(r["funders"], {"TOP": "EXCHANGE", "BOT": "BUNDLER"})
+        self.assertTrue(wa.funder_pending("NEW"))                             # пошук для NEW — з картки, якщо відкриють
+        self.assertEqual(b.spent, (1 + 10 + 1 + 10) + 1 + (1 + 10 + 1) + (1 + 1))
+        self.assertEqual((r["enrich"]["done"], r["enrich"]["funders_done"], r["enrich"]["total"]), (4, 4, 4))
 
     def test_enrichment_stops_when_the_analysis_is_deleted(self):
         from types import SimpleNamespace

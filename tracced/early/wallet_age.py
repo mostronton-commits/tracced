@@ -207,14 +207,26 @@ class WalletAge:
         return self.cache.get(wallet) if self.cache is not None else None
 
     # ── факт ──
-    def oldest_tx(self, wallet, refresh=False):
-        """{"oldest_ms": ms|None, "exact": bool, "n": кількість підписів, "oldest_sig"} (кешовано)."""
+    def oldest_tx(self, wallet, refresh=False, full=True, before=None):
+        """{"oldest_ms": ms|None, "exact": bool, "n": кількість підписів, "oldest_sig"} (кешовано).
+
+        `before` — підпис першої покупки гаманця в аналізі. Helius читає сторінку історії ДО неї, і в більшості
+        гаманців уся їхня передісторія влазить в одну сторінку: це точний вік за 1 кредит. `full=False` на цьому й
+        зупиняється: гаманець з тисячею транзакцій до покупки лишається «старший за найстарішу прочитану» (для
+        тега `fresh` цього майже завжди досить, див. tags.could_be_fresh). `full=True` дочитує такий гаманець одним
+        викликом «від найстарішої» (10 кредитів), зокрема той, що в кеші лишила дешева перевірка."""
+        cached = None
         if self.cache is not None and not refresh:
             cached = self.cache.get(wallet)
-            if cached is not None:
+            if cached is not None and (cached.get("exact") or cached.get("deep") or not full or not self.helius):
                 self.cache_hits += 1
                 return cached
-        out = self._oldest_helius(wallet) if self.helius else self._oldest_paged(wallet)
+        if cached is not None:                            # неточний вік з дешевої перевірки: лишився один виклик
+            out = self._oldest_first(wallet, cached)
+        elif self.helius:
+            out = self._oldest_helius(wallet, full, before)
+        else:
+            out = self._oldest_paged(wallet)
         if self.cache is not None:
             self.cache.put(wallet, out)
         return out
@@ -241,20 +253,36 @@ class WalletAge:
             pages += 1
         return self._age(last, pages < MAX_PAGES, n)
 
-    def _oldest_helius(self, wallet):
-        """Helius віддає повні сторінки до самого кінця історії, тож неповна перша сторінка — це вся історія (1 кредит).
+    def _oldest_helius(self, wallet, full=True, before=None):
+        """Helius віддає повні сторінки до самого кінця історії, тож неповна сторінка — це вся історія (1 кредит).
+        З `before` сторінка — лише те, що було до першої покупки: у зайнятого сьогодні гаманця там часто кілька
+        десятків транзакцій. Порожня сторінка до покупки (застосунок заплатив за гаманець, і покупка — його перша
+        транзакція) і підпис, якого нода не знає, — читаємо від найновішої, як без `before`.
         Зайнятий гаманець не гортаємо: найстаріший підпис дає один виклик «від найстарішої» (10 кредитів)."""
-        sigs = self._call("getSignaturesForAddress", [wallet, {"limit": LIMIT}]) or []
+        sigs = None
+        if before:
+            try:
+                sigs = self._call("getSignaturesForAddress", [wallet, {"limit": LIMIT, "before": before}]) or []
+            except RuntimeError:
+                sigs = None
+        if not sigs:
+            sigs = self._call("getSignaturesForAddress", [wallet, {"limit": LIMIT}]) or []
         if len(sigs) < LIMIT:
             return self._age(sigs[-1] if sigs else None, True, len(sigs))
+        inexact = self._age(sigs[-1], False, len(sigs))  # «старший за цю»: дешева перевірка на цьому зупиняється
+        return self._oldest_first(wallet, inexact) if full else inexact
+
+    def _oldest_first(self, wallet, fallback):
+        """Перша транзакція зайнятого гаманця одним викликом «від найстарішої» (10 кредитів). План без цього методу —
+        гортаємо, як на будь-якій ноді; порожня відповідь — лишається `fallback`."""
         try:
             res = self._call("getTransactionsForAddress",
                              [wallet, {"sortOrder": "asc", "limit": 1, "transactionDetails": "signatures"}]) or {}
-        except RuntimeError:                              # план без цього методу: гортаємо, як на будь-якій ноді
+        except RuntimeError:
             return self._oldest_paged(wallet)
         first = ((res.get("data") if isinstance(res, dict) else res) or [None])[0]
         if not first:
-            return self._age(sigs[-1], False, len(sigs))
+            return fallback
         return self._age(first, True, None)               # скільки всього транзакцій — не рахуємо: це й було б гортання
 
     def oldest_tx_deep(self, wallet):
@@ -281,23 +309,37 @@ class WalletAge:
             self.cache.put(wallet, out)
         return out
 
-    def funder(self, wallet, oldest_sig):
+    def funder(self, wallet, oldest_sig, scan=True):
         """Хто дав гаманцю перший SOL: підписант найстарішої транзакції, чий баланс зменшився, коли баланс
-        гаманця зріс. None, якщо перша транзакція не була вхідним переказом (кешовано)."""
+        гаманця зріс. None, якщо перша транзакція не була вхідним переказом (кешовано).
+
+        `scan=False` — дешева перевірка: лише перша транзакція (1 кредит), без пошуку серед перших 100 (10 кредитів).
+        Такий порожній результат кеш пам'ятає як `scanned: False`, і наступний виклик зі `scan=True` (картка,
+        перша двісті) робить лише пошук. Записи, старші за цю позначку, вважаються дочитаними."""
         key = f"funder:{wallet}"
-        if self.cache is not None:
-            cached = self.cache.get(key)
-            if cached is not None:
-                self.cache_hits += 1
-                return cached.get("funder")
-        tx = self._call("getTransaction", [oldest_sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}],
-                         url=self.tx_url, pace_s=self.tx_pace_s)
-        out = {"funder": funder_from_tx(tx, wallet)}
-        if out["funder"] is None and HELIUS_HOST in self.tx_url:
-            out["funder"] = self._first_sol_in(wallet)
+        can_scan = HELIUS_HOST in self.tx_url
+        cached = self.cache.get(key) if self.cache is not None else None
+        if cached is not None and (cached.get("funder") or not scan or cached.get("scanned", True) or not can_scan):
+            self.cache_hits += 1
+            return cached.get("funder")
+        if cached is not None:                            # перша транзакція вже прочитана і спонсора не дала
+            found = self._first_sol_in(wallet)
+        else:
+            tx = self._call("getTransaction", [oldest_sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}],
+                            url=self.tx_url, pace_s=self.tx_pace_s)
+            found = funder_from_tx(tx, wallet)
+            if found is None and can_scan and scan:
+                found = self._first_sol_in(wallet)
+        out = {"funder": found, "scanned": bool(found) or scan or not can_scan}
         if self.cache is not None:
             self.cache.put(key, out)
-        return out["funder"]
+        return found
+
+    def funder_pending(self, wallet):
+        """Дешева перевірка прочитала лише першу транзакцію, і спонсора там не було: пошук серед перших 100 ще не
+        робився. Картка, яку відкрили, його доробляє."""
+        c = self.cache.get(f"funder:{wallet}") if self.cache is not None else None
+        return bool(c) and not c.get("funder") and c.get("scanned") is False and HELIUS_HOST in self.tx_url
 
     def _first_sol_in(self, wallet):
         """Гаманець застосунку (комісії за нього платить застосунок) починає не з SOL, а з токенів. Перший вхідний SOL

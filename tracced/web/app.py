@@ -137,13 +137,35 @@ def make_namer(identify):
     return name
 
 
+def full_top(r, s):
+    """Скільки перших за PnL гаманців отримують повну перевірку віку і спонсора. Результат може мати свою (демо — усі)."""
+    return int(r.get("age_full_top") or s.get("age_full_top", 200) or 0)
+
+
+def enrich_target(r, s):
+    """Скільки рядків (за PnL) перевіряє фон. Рядки з підписом першої покупки — до age_lookups_max: дешева перевірка
+    читає історію гаманця до цієї покупки і коштує 1-2 кредити. Результати, зняті до цього підпису, — лише перші
+    full_top: решта їхніх гаманців дочитується з картки, коли її відкривають."""
+    rows = r.get("rows") or []
+    cap = int(s.get("age_lookups_max", 0) or 0)
+    if not any(row.get("entry_tx") for row in rows):
+        cap = min(cap, full_top(r, s))
+    return min(len(rows), cap)
+
+
 def make_enricher(ages, s):
     """Після аналізу, у фоні: вік кожного гаманця з RPC → тег `fresh` і перший спонсор → `bundle`; прогрес у
-    result["enrich"]."""
+    result["enrich"].
+
+    Перші full_top за PnL — повна перевірка: точний вік і зайнятого гаманця (10 кредитів), спонсор і в гаманця
+    застосунку (пошук серед перших 100 транзакцій, 10 кредитів). Решта — дешева: сторінка історії до першої покупки
+    і перша транзакція. Теги від цього не змінюються: `fresh` дешева перевірка вирішує точно (коли не може — дочитує
+    вік, див. tags.could_be_fresh), а в бандлах живуть нові гаманці, у яких уся історія на одній сторінці. Чого
+    дешева перевірка не дочитала — вік зайнятого гаманця, спонсора застосунку — дочитує картка, коли її відкривають."""
     def enrich(job, save):
         r = job.result
         rows = r.get("rows") or []
-        n = min(len(rows), int(s.get("age_lookups_max", 0)))
+        n, top = enrich_target(r, s), full_top(r, s)
         e = r.setdefault("enrich", {"done": 0, "total": n, "fresh": 0, "failed": 0})
         e["total"] = n
         if e.get("failed"):
@@ -154,9 +176,10 @@ def make_enricher(ages, s):
         is_paused = getattr(ages, "paused", None) or (lambda: False)
         cached = getattr(ages, "cached", None) or (lambda w: None)
 
-        def pause(w):
+        def pause(w, full):
             """Місячний бюджет платної ноди вичерпано: гаманець, якого нема в кеші, чекає нового місяця."""
-            if not is_paused() or cached(w) is not None:
+            c = cached(w) if is_paused() else None
+            if not is_paused() or (c is not None and (c.get("exact") or c.get("deep") or not full)):
                 return False
             e["paused"] = "rpc-budget"
             job.log.append("wallet age paused: this month's RPC budget is used up; it resumes next month")
@@ -166,10 +189,13 @@ def make_enricher(ages, s):
         for i, row in enumerate(rows[:n], 1):
             if i <= e.get("done", 0):
                 continue                                   # продовження після перезапуску
-            if pause(row["wallet"]):
+            full = i <= top
+            if pause(row["wallet"], full):
                 return
             try:
-                age = ages.oldest_tx(row["wallet"])
+                age = ages.oldest_tx(row["wallet"], full=full, before=row.get("entry_tx"))
+                if not full and not age.get("exact") and tags.could_be_fresh(row.get("first_buy_ms"), age):
+                    age = ages.oldest_tx(row["wallet"], full=True)   # тисяча транзакцій за добу до покупки: дочитуємо
             except Exception as ex:  # noqa: BLE001 — одна нода/гаманець не має зупиняти решту
                 e["failed"] = e.get("failed", 0) + 1
                 if e["failed"] <= 3:
@@ -204,10 +230,11 @@ def make_enricher(ages, s):
                 return
             fund, ok = None, True
             try:
-                age = ages.oldest_tx(w)
+                age = ages.oldest_tx(w, full=False)                # те, що лишив перший прохід, без нових викликів
                 if age.get("exact") and age.get("n") and not age.get("oldest_sig"):
                     age = ages.oldest_tx(w, refresh=True)          # кеш віку з часів без підпису → 1 запит
-                fund = ages.funder(w, age["oldest_sig"]) if age.get("exact") and age.get("oldest_sig") else None
+                fund = (ages.funder(w, age["oldest_sig"], scan=i <= top)
+                        if age.get("exact") and age.get("oldest_sig") else None)
             except Exception as ex:  # noqa: BLE001 — 429 від ноди: гаманець не перевірено, наступний прохід спробує ще
                 ok = False
                 e["funders_failed"] = e.get("funders_failed", 0) + 1
@@ -305,7 +332,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
 
     identify = st.identities if (hasattr(st, "identities") and s.get("st_identity", True)) else None
     app["jobs"] = JobQueue(runner, out_dir, enricher=make_enricher(ages, s) if ages else None, on_error=on_error,
-                           enrich_upto=int(s.get("age_lookups_max", 0) or 0) if ages else 0,
+                           enrich_upto=(lambda r: enrich_target(r, s)) if ages else 0,
                            namer=make_namer(identify) if identify else None)
     app.router.add_get("/", index)
     app.router.add_get("/how", how)
@@ -1015,8 +1042,10 @@ async def admin_demo(request):
 async def wallet_age_json(request):
     """Вік і перший спонсор одного гаманця, коли відкрили його картку.
 
-    Сам аналіз перевіряє лише перших за PnL (age_lookups_max), бо кожен гаманець коштує кредитів RPC. Решта — тут, по
-    одному, коли хтось справді дивиться: 2-3 виклики ноди, тиждень у кеші, і відповідь лягає в результат для всіх.
+    Сам аналіз перевіряє повністю лише перших за PnL (age_full_top), решту — дешево, бо кожен виклик коштує кредитів
+    RPC. Чого дешева перевірка не дочитала (вік зайнятого гаманця, спонсора гаманця застосунку) і гаманці старших
+    результатів — тут, по одному, коли хтось справді дивиться: 1-3 виклики ноди, тиждень у кеші, і відповідь лягає
+    в результат для всіх.
 
     `checked: false` — сервер цього гаманця не перевіряв (демо, пауза бюджету, денна стеля карток): сторінка каже
     «не перевірено», а не «історії нема». Демо і його програвання спільні для всіх і лише читаються."""
@@ -1034,6 +1063,7 @@ async def wallet_age_json(request):
         raise web.HTTPNotFound(text="That wallet is not in this analysis.")
     ages = app.get("ages")
     cached = await asyncio.to_thread(ages.cached, wallet) if ages is not None else None   # вік з кешу нічого не коштує; замок кешу — не на циклі подій
+    pending = await asyncio.to_thread(ages.funder_pending, wallet) if ages is not None else False   # дешева перевірка не шукала далі першої транзакції
     stored = (r.get("ages") or {}).get(wallet)
     demo_ids = _demo_job_ids(app)
     shared = bool(job.replay) or job.id in demo_ids or (job.canon or "") in demo_ids   # демо спільне для всіх: лише читається
@@ -1057,11 +1087,11 @@ async def wallet_age_json(request):
     now_age = best_age()
     # зайнятий гаманець: 6 000 останніх транзакцій не дійшли до першої. Картку відкрили — гортаємо глибше, один раз
     busy = bool(now_age) and not now_age.get("exact") and not (cached or {}).get("deep")
-    if not busy and (stored is not None or wallet in set(r.get("funder_checked") or []) or shared):
+    if not busy and not pending and (stored is not None or wallet in set(r.get("funder_checked") or []) or shared):
         return known()
     pk = request.get("acct")
     settle = None
-    if cached is None or busy:                          # платний шлях: ці виклики ноди ще не робились
+    if cached is None or busy or pending:               # платний шлях: ці виклики ноди ще не робились
         if ages.paused():
             return known(checked=False, paused=True)
         if not pk:

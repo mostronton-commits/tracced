@@ -114,8 +114,10 @@ class JobQueue:
             for j in done:
                 e = j.result.get("enrich") or {}
                 # стелю збагачення підняли (ключ ноди з'явився, чи перевіряємо вже всіх): старі результати
-                # дозаповнюються у фоні, з того місця, де зупинились
-                upto = min(len(j.result.get("rows") or []), int(enrich_upto or 0))
+                # дозаповнюються у фоні, з того місця, де зупинились. enrich_upto(result) каже, скільки рядків
+                # саме цьому результату належить перевірити (у старших, без підпису покупки, — лише перші за PnL)
+                upto = (enrich_upto(j.result) if callable(enrich_upto)
+                        else min(len(j.result.get("rows") or []), int(enrich_upto or 0)))
                 if (not e or e.get("done", 0) < e.get("total", 0) or e.get("failed") or e.get("funders_failed")
                         or e.get("funders_done", 0) < e.get("total", 0) or e.get("total", 0) < upto):
                     self.eq.put(j)
