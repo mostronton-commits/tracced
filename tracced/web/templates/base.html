@@ -23,7 +23,7 @@ window.EarlyTZ = (function () {
     const hh = u ? d.getUTCHours() : d.getHours(), mm = u ? d.getUTCMinutes() : d.getMinutes();
     return M[mo] + ' ' + day + (long ? ', ' + y + ' ' : ', ') + p(hh) + ':' + p(mm);   // no zone suffix: the footer switch already says which one is on
   }
-  function apply() { document.querySelectorAll('.dtc[data-ms]').forEach(el => { if (+el.dataset.ms) el.textContent = fmt(el.dataset.ms, el.dataset.long === '1'); }); const b = document.getElementById('tz'); if (b) b.querySelectorAll('b').forEach((x, i) => x.classList.toggle('on', i === (tz === 'utc' ? 0 : 1))); }
+  function apply() { document.querySelectorAll('.dtc[data-ms]').forEach(el => { if (+el.dataset.ms) el.textContent = el.dataset.short === '1' ? fmt(el.dataset.ms).replace(/^.*, /, '') : fmt(el.dataset.ms, el.dataset.long === '1'); }); const b = document.getElementById('tz'); if (b) b.querySelectorAll('b').forEach((x, i) => x.classList.toggle('on', i === (tz === 'utc' ? 0 : 1))); }
   function toggle() { tz = tz === 'utc' ? 'local' : 'utc'; try { localStorage.setItem(KEY, tz); } catch (e) {} location.reload(); }
   document.addEventListener('DOMContentLoaded', apply);
   return { get: () => tz, fmt, apply, toggle };

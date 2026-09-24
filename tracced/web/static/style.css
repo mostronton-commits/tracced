@@ -693,10 +693,9 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
   .facts td.wcell { grid-column: 1 / -1; order: 0; padding-right: 40px; }
   .facts td.wcell .tags { display: block; margin-top: 4px; }
   .facts td.wcell .tag:first-child { margin-left: 0; }
-  .facts td.c-inv { order: 1; } .facts td.c-pnl { order: 2; } .facts td.c-sold { order: 3; }
-  .facts td.c-mult { order: 4; } .facts td.c-held { order: 5; } .facts td.c-entry { order: 6; }
-  .facts td.c-exit { order: 7; } .facts td.fund { order: 8; grid-column: span 4; }
-  .facts td.c-inv, .facts td.c-pnl, .facts td.c-sold, .facts td.c-mult, .facts td.c-held, .facts td.c-entry, .facts td.c-exit { grid-column: span 2; }
+  .facts td.c-inv { order: 1; } .facts td.c-sold { order: 2; } .facts td.c-pnl { order: 3; }
+  .facts td.c-held { order: 4; } .facts td.fund { order: 5; grid-column: span 4; }
+  .facts td.c-inv, .facts td.c-pnl, .facts td.c-sold, .facts td.c-held { grid-column: span 2; }
   .facts td.fund:empty { display: none; }
   .facts td.two b, .facts td.num b { font-size: 13.5px; }
   tr.picked { background: #F6FEF9; } tr.picked td { background: transparent; }
@@ -824,3 +823,19 @@ td.wcell .tags .tag { margin-left: 0; }
   .dhero .big { font-size: 21px; }
 }
 @media (prefers-reduced-motion: reduce) { .dskel i { animation: none; } }
+/* ── simpler result table: one header row, sort from a list, filters in plain words ── */
+table.facts thead tr th { top: 0; }          /* one header row now: the old 22 px offset for the group row pushed it onto the first wallet */
+.sortby { display: inline-flex; align-items: center; gap: 6px; }
+.sortby select { height: 30px; font-size: 12.5px; padding: 0 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); }
+.filters input[type=number] { width: 72px; min-width: 0; }
+.filters input::placeholder { color: #94A3B8; }
+.fchip { height: 26px; padding: 0 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 12px; color: var(--ink); cursor: pointer; }
+.fchip:hover { border-color: #CBD5E1; }
+.fchip.on { background: var(--navy); border-color: var(--navy); color: var(--mint); }
+td.c-inv small, td.c-sold small { white-space: nowrap; }
+/* the token's events sit above the candles and are big enough to find, like a terminal draws them */
+.chartbox .overlay .evdot { width: 26px; height: 26px; margin: -13px 0 0 -13px; font: 700 12.5px/1 var(--sans);
+  box-shadow: 0 0 0 2px rgba(9, 13, 22, .85), 0 2px 8px rgba(0, 0, 0, .45); z-index: 6; }
+.chartbox .overlay .evdot.mig { background: #4F46E5; color: #EEF2FF; }
+.chartbox .overlay .evdot.paid { background: #0B0B0B; box-shadow: 0 0 0 2px #10B981, 0 2px 8px rgba(0, 0, 0, .45); }
+.chartbox .overlay .evdot img { width: 18px; height: 18px; border-radius: 4px; }

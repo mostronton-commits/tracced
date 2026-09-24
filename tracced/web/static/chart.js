@@ -211,13 +211,14 @@
     /* Vertical position of an event: the close of the candle it falls into, so the badge sits on the price the
        way it does on a terminal. No candle yet, no coordinate — the caller drops it near the bottom instead. */
     function yOf(sec) {
+      // above the candle's high, like a terminal draws it: on the body a badge got lost among the candles
       if (!times.length) return null;
       let lo = 0, hi = times.length - 1;
       if (sec < times[0] || sec > times[hi] + 1e6) return null;
       while (lo < hi) { const m = (lo + hi + 1) >> 1; if (times[m] <= sec) lo = m; else hi = m - 1; }
       const c = data.get(times[lo]); if (!c) return null;
-      const y = series.priceToCoordinate(c.close);
-      return y == null ? null : y;
+      const y = series.priceToCoordinate(c.high != null ? c.high : c.close);
+      return y == null ? null : y - 24;
     }
     function place() {
       layer.innerHTML = '';
@@ -236,14 +237,18 @@
       // lines, because trade markers already live next to the candles and must not compete with these.
       // A badge at the point where it happened, not a line through the whole chart: these events sit within a
       // minute of each other in a token's first hour, and three full-height lines there are unreadable.
-      const drawn = {};                         // дві оплати за хвилину одна від одної — один значок, обидві в підказці
+      const drawn = {}, placed = [];           // дві оплати за хвилину одна від одної — один значок, обидві в підказці
       events.forEach(e => {
         if (!e.sec || e.sec < v.a || e.sec > v.b) return;
         const x = xOf(e.sec); if (x == null || x > W) return;
         const kind = e.kind || 'ev', prev = drawn[kind];
         if (prev && Math.abs(x - prev.x) < 16) { prev.n++; prev.el.title += '\n' + (e.title || ''); prev.el.dataset.n = prev.n; return; }
+        let y = Math.max(18, yOf(e.sec) ?? 40);
+        while (placed.some(q => Math.abs(q.x - x) < 30 && Math.abs(q.y - y) < 30)) y = Math.max(18, y - 32);   // two kinds side by side stack up
+        if (placed.some(q => Math.abs(q.x - x) < 30 && Math.abs(q.y - y) < 30)) y += 64;                           // no room above: go below
+        placed.push({ x, y });
         const d = document.createElement('div'); d.className = 'evdot ' + kind;
-        d.style.left = x + 'px'; d.style.top = (yOf(e.sec) ?? (box.clientHeight - 74)) + 'px';
+        d.style.left = x + 'px'; d.style.top = y + 'px';
         if (e.html) d.innerHTML = e.html; else d.textContent = e.badge || '•';
         d.title = e.title || '';
         layer.appendChild(d);

@@ -529,6 +529,24 @@ if AioHTTPTestCase:
             self.app["admins"] = {TEST_PK}
             s.update(credits_month=0, credits_reserve_pct=0)
 
+        async def test_only_the_owner_makes_a_finished_analysis_the_demo(self):
+            rng = {"mint": "H" * 40, "from": "2001-09-09T01:46", "to": "2001-09-09T02:06"}
+            r = await self.client.post("/analyze", data=rng, allow_redirects=False)
+            jid = r.headers["Location"].rsplit("/", 1)[-1]
+            await asyncio.to_thread(self.app["jobs"].q.join)
+            origin = {"Origin": f"http://{self.client.host}:{self.client.port}"}
+            other = acct_mod.b58encode(b"\x0b" * 32)
+            r = await self.client.post("/admin/demo", json={"job": jid}, headers=dict(origin, Cookie=wallet_cookie(other)))
+            self.assertEqual(r.status, 403)                              # не власник — не вибирає демо
+            r = await self.client.post("/admin/demo", json={"job": jid}, headers=origin)
+            self.assertEqual(r.status, 200, await r.text())
+            self.assertEqual((await r.json())["job"], jid)
+            html = await (await self.client.get(f"/token?mint={'H' * 40}")).text()
+            self.assertIn('class="chip demo"', html)                     # токен тепер демо і програється зі знімка
+            before = self.st.requests
+            await self.client.get(f"/candles.json?mint={'H' * 40}&tf=1m&a=999999900&b=1000002000")
+            self.assertEqual(self.st.requests, before)                    # свічки демо — зі знімка, без запитів
+
         async def test_enrich_json_carries_ages_and_identities(self):
             jid, mint = "FFFFFF_20010909-0146_0206", "F" * 40
             w = acct_mod.b58encode(b"\x04" * 32)
@@ -896,7 +914,7 @@ if AioHTTPTestCase:
             self.assertNotIn("Copy addresses", html)
             self.assertIn('class="sortable"', html)
             self.assertIn('data-count=', html)                          # count-up tiles
-            self.assertIn("Hide tags:", html)
+            self.assertIn(">Hide:<", html)
             self.assertIn("Exits known for", html)                       # coverage line
             self.assertIn("Whole history", html)                         # scope switch
             self.assertIn("Trades up to", html)
@@ -1003,6 +1021,71 @@ if AioHTTPTestCase:
         async def test_health(self):
             r = await self.client.get("/health")
             self.assertEqual((await r.json())["ok"], True)
+
+
+if AioHTTPTestCase:
+    class FakeAgesWeb:
+        """Вік і спонсор без мережі: рахує виклики, як нода рахувала б кредити."""
+        def __init__(self):
+            self.calls, self.cache = 0, {}
+
+        def cached(self, w):
+            return self.cache.get(w)
+
+        def paused(self):
+            return False
+
+        def oldest_tx(self, w, refresh=False):
+            if w not in self.cache:
+                self.calls += 1
+                self.cache[w] = {"oldest_ms": 999_990_000_000, "exact": True, "n": 3, "oldest_sig": "sig-" + w[:4]}
+            return self.cache[w]
+
+        def funder(self, w, sig):
+            self.calls += 1
+            return "F" * 44
+
+        def flush(self):
+            pass
+
+    class TestLazyWalletAge(AioHTTPTestCase):
+        """Вік і спонсор гаманця поза першими за PnL перевіряються, коли відкрили його картку, і лишаються в результаті."""
+
+        async def get_application(self):
+            self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+            self.ages = FakeAgesWeb()
+            s = settings.load()
+            s["age_lookups_max"] = 0                                      # аналіз сам нікого не перевіряє
+            self.st = FakeWebST(TRADES)
+            return create_app(self.st, s, {}, out_dir=self.tmp.name + "/web", store_dir=self.tmp.name + "/cache", ages=self.ages)
+
+        async def tearDownAsync(self):
+            await asyncio.to_thread(self.app["jobs"].q.join)
+            self.tmp.cleanup()
+
+        async def test_age_on_card_open(self):
+            jid, mint, w = "JJJJJJ_20010909-0146_0206", "J" * 40, acct_mod.b58encode(b"\x0c" * 32)
+            stored = {"id": jid, "mint": mint, "t_from": 999999960000, "t_to": 1000001160000, "t_exit": None, "status": "done", "error": None,
+                      "created_ms": 1, "started_ms": 1, "finished_ms": 2, "symbol_hint": "JJJ", "progress": {"phase": "done", "done": 1, "total": 1}, "log": [],
+                      "result": {"info": {"mint": mint, "symbol": "JJJ", "supply": 1000000, "created_time": 999996400000},
+                                 "window": {"from": 999999960000, "to": 1000001160000, "end": 1000003560000}, "mode": "trades",
+                                 "counts": {}, "coverage": {}, "wallet_trades": {}, "rows": [{"wallet": w, "first_buy_ms": 1000000060000, "tag_list": []}],
+                                 "scope": "all", "requests": 0}}
+            os.makedirs(self.tmp.name + "/web", exist_ok=True)
+            with open(f"{self.tmp.name}/web/{jid}.json", "w") as f:
+                json.dump(stored, f)
+            self.app["jobs"]._load()
+            r = await self.client.get(f"/wallet_age.json?job={jid}&wallet={w}")
+            self.assertEqual(r.status, 401)                               # гість не витрачає кредити ноди
+            self.assertEqual(self.ages.calls, 0)
+            me = {"Cookie": wallet_cookie(acct_mod.b58encode(b"\x0d" * 32))}
+            d = await (await self.client.get(f"/wallet_age.json?job={jid}&wallet={w}", headers=me)).json()
+            self.assertEqual(d["age"]["ms"], 999_990_000_000)
+            self.assertEqual(d["funder"], "F" * 44)
+            self.assertEqual(self.ages.calls, 2)
+            d = await (await self.client.get(f"/wallet_age.json?job={jid}&wallet={w}")).json()   # тепер і гостю, з результату
+            self.assertEqual(d["funder"], "F" * 44)
+            self.assertEqual(self.ages.calls, 2)
 
 
 class TestSharedClient(unittest.TestCase):

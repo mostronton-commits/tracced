@@ -22,7 +22,7 @@ class TestReport(unittest.TestCase):
     def test_csv_header_and_sort(self):
         rows = report.sort_rows([report.to_row(fact("A" * 44, 10)), report.to_row(fact("B" * 44, 50)),
                                  report.to_row(fact("C" * 44, 0, 70))])
-        self.assertEqual([r["wallet"][0] for r in rows], ["C", "B", "A"])
+        self.assertEqual([r["wallet"][0] for r in rows], ["B", "A", "C"])      # за реалізованим, як показує колонка
         with tempfile.TemporaryDirectory() as d:
             p = os.path.join(d, "x.csv")
             report.write_csv(rows, p)

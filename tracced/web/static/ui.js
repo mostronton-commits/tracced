@@ -39,11 +39,12 @@
   const DEX = '<img src="/static/brands/dexscreener.png" alt="">';
   function marks(d) {
     const out = [];
+    const when = ms => (window.EarlyTZ ? ' · ' + EarlyTZ.fmt(ms, false) : '');
     if (d && d.migration && d.migration.ms) out.push({ ms: d.migration.ms, kind: 'mig', badge: 'M',
       label: 'Migrated to ' + (d.migration.market || 'a DEX'),
-      title: 'Trading moved from ' + (d.migration.from || 'the launchpad') + ' to ' + (d.migration.market || 'a DEX') });
+      title: 'Migration: trading moved from ' + (d.migration.from || 'the launchpad') + ' to ' + (d.migration.market || 'a DEX') + when(d.migration.ms) });
     ((d && d.paid) || []).forEach(p => out.push({ ms: p.ms, kind: 'paid', html: DEX, label: 'DexScreener ' + (p.kind || 'profile') + ' paid',
-      title: 'Someone paid DexScreener for this token\'s ' + (p.kind || 'profile') + ' at this moment (anyone can pay, not only the team)' }));
+      title: 'DexScreener ' + (p.kind || 'profile') + ' paid' + when(p.ms) + ' (anyone can pay, not only the team)' }));
     return out;
   }
   function marksLegend(el, d, jump) {

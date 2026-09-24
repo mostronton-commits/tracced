@@ -14,6 +14,7 @@
     <div class="h-right">
       {% if jstatus != 'done' or not result %}<span class="chip st-{{ jstatus }}">{{ {'queued':'Queued','running':'Running','done':'Done','error':'Error'}[jstatus] }}</span>{% endif %}
       {% if jstatus == 'done' and result %}<button type="button" class="ghost savejob" id="savejob" title="Keep this analysis under My analyses">☆ Save analysis</button>{% endif %}
+      {% if is_admin and jstatus == 'done' and result and not is_demo %}<button type="button" class="ghost" id="mkdemo" data-job="{{ job.id }}" title="Replace the demo token with this analysis (owner only)">Make it the demo</button>{% endif %}
       <a class="button" href="{{ back }}"><span class="long">← Adjust the range</span><span class="short">← Range</span></a>
     </div>
   </div>
@@ -36,7 +37,6 @@
     </div>
   {% else %}
     {% set r = result %}{% set c = r.counts %}
-    <div class="marksline" id="marksline" hidden></div>
     <div class="chartbox" id="chart" data-mint="{{ job.mint }}" data-created="{{ created }}" data-now="{{ now }}"
          data-from="{{ job.t_from }}" data-to="{{ job.t_to }}" data-exit="{{ scope_end or 0 }}" data-symbol="{{ job.symbol }}"></div>
     <div class="onchart-bar" id="onchart" hidden></div>
@@ -68,9 +68,11 @@
     <div class="row toolbar">
       <button type="button" id="ftoggle" aria-expanded="true">Filters</button>
       <span class="muted small" id="shown"></span>
-      <label class="msort muted small">Sort <select id="msort" aria-label="Sort the wallets">
-        <option value="">As ranked</option><option value="inv">In range</option><option value="real">PnL</option><option value="got">Sold</option>
-        <option value="mult">Multiple</option><option value="hold">Held</option><option value="entry">Entry cap</option></select></label>
+      <label class="sortby muted small">Sort <select id="msort" aria-label="Sort the wallets">
+        <option value="real" selected>PnL, highest first</option><option value="inv">Bought the most</option>
+        <option value="etime" data-dir="1">Bought first</option><option value="got">Sold for the most</option>
+        <option value="mult">Sold highest vs entry</option><option value="entry" data-dir="1">Lowest entry cap</option>
+        <option value="hold">Held longest</option></select></label>
       <label class="chk"><input type="checkbox" id="pickall"> Select all</label>
       <span class="muted small" id="selinfo" hidden><b id="nsel">0</b> selected · <button type="button" class="link" id="clearsel">Clear</button></span>
       <button type="button" class="tzseg" id="cur" title="Show every amount in dollars or in SOL" aria-label="Money unit" onclick="EarlyCur.toggle()"><b class="on">USD</b><b>SOL</b></button>
@@ -95,16 +97,18 @@
     </div>
 
     <div class="filters compact" id="filters">
-      <label title="Spent inside the range, at least">In range ≥ $<input type="number" data-f="inv" value="0" min="0" step="10"></label>
-      <label title="Exit cap ÷ entry cap, at least">Multiple ≥ <input type="number" data-f="mult" value="0" min="0" step="0.5"></label>
-      <label title="Share of bought tokens sold, at least">Sold share ≥ <input type="number" data-f="sold" value="0" min="0" max="100" step="5">%</label>
-      <label title="Buys on this token, at most">Buys ≤ <input type="number" data-f="buysMax" min="1" step="1" placeholder="any"></label>
-      <label title="Minutes from entry to the first sell, at least">Held ≥ <input type="number" data-f="hold" value="0" min="0" step="5"> min</label>
-      <label class="chk" title="Only wallets that have sold"><input type="checkbox" data-f="exits"> exits only</label>
-      <label class="chk" id="fseenwrap" hidden title="Only wallets that were also early in another analysis you saved"><input type="checkbox" data-f="repeat"> seen before only</label>
+      <label title="Bought inside the range, at least this many dollars">Bought, $ <input type="number" data-f="inv" min="0" step="10" placeholder="min"></label>
+      <label title="Realized profit, at least this many dollars (a loss is a negative number)">PnL, $ <input type="number" data-f="pnl" step="10" placeholder="min"></label>
+      <label title="Sold at least this share of the tokens it bought">Sold, % <input type="number" data-f="sold" min="0" max="100" step="5" placeholder="min"></label>
+      <label title="At most this many buys on this token">Buys <input type="number" data-f="buysMax" min="1" step="1" placeholder="max"></label>
+      <label title="At least this many minutes from its entry to its first sale">Held, min <input type="number" data-f="hold" min="0" step="5" placeholder="min"></label>
       <span class="sep"></span>
-      <span class="muted small">Hide tags:</span>
-      {% for k, d in TAGS.items() %}<button type="button" class="tagchip t-{{ k }}" data-hide="{{ k }}" title="{{ d }}">{{ k }}</button>{% endfor %}
+      <button type="button" class="fchip" data-t="exits" title="Only wallets that have sold something">Has sold</button>
+      <button type="button" class="fchip" data-t="profit" title="Only wallets with a realized profit">In profit</button>
+      <button type="button" class="fchip" data-t="repeat" id="fseenwrap" hidden title="Only wallets that were also early in another analysis you saved">Seen before</button>
+      <span class="sep"></span>
+      <span class="muted small">Hide:</span>
+      {% for k, d in TAGS.items() %}<button type="button" class="tagchip t-{{ k }}" data-hide="{{ k }}" title="Hide wallets tagged {{ k }}: {{ d }}">{{ k }}</button>{% endfor %}
       {% if s.age_lookups_max %}<span class="muted small" id="enrich" title="{{ TAGS.fresh }}">wallet age…</span>{% endif %}
       <button type="button" class="ghost" id="fclear">Reset</button>
     </div>
@@ -113,39 +117,33 @@
     <div class="tablewrap">
     <table class="facts" id="facts" data-id="{{ save_id }}">
       <thead>
-      <tr class="grp"><th colspan="3"></th><th colspan="2" class="g">Entry (in range)</th><th colspan="2" class="g">Exit</th><th colspan="3" class="g">Result ({{ 'whole history' if scope == 'all' else scope[:-1] ~ ' h after range' }})</th></tr>
       <tr>
         <th></th><th>#</th><th class="sortable" data-key="w" data-type="text">Wallet</th>
-        <th class="num sortable" data-key="entry" title="Market cap at the first buy inside the range · its time">Entry cap</th>
+        <th class="num sortable" data-key="inv" title="How much it bought inside the range · the market cap and the time of its first buy there">Bought</th>
+        <th class="num sortable" data-key="got" title="What it received from selling · its average exit market cap and the share of its tokens sold">Sold</th>
+        <th class="num sortable desc" data-key="real" title="Profit on what it sold: received minus what those tokens cost · below it, the paper result on what it still holds">PnL</th>
+        <th class="num sortable" data-key="hold" title="From its entry to its first sale · how many buys and sells">Held</th>
         <th class="sortable fundh" data-key="funder" data-type="text" title="Who sent this wallet its first SOL — click a funder to see everyone it paid for">Funded by</th>
-        <th class="num sortable" data-key="inv" title="Bought inside the range · total on this token in this scope">In range</th>
-        <th class="num sortable" data-key="exitcap" title="Average exit market cap · first sell time">Exit cap</th>
-        <th class="num sortable" data-key="real" title="Profit on what was sold: received minus what those tokens cost · below it, the paper result on what is still held">PnL</th>
-        <th class="num sortable" data-key="got" title="Everything the wallet received from selling, before costs · share of what it bought that is sold">Sold</th>
-        <th class="num sortable" data-key="mult" title="Average exit cap ÷ average entry cap">×</th>
-        <th class="num sortable" data-key="hold" title="From the entry to the first sell after it · buys / sells">Held</th>
       </tr></thead>
       <tbody>
       {% for w in r.rows %}
         {% set diff = (w.invested_usd or 0) > (w.invested_in_range_usd or 0) + 0.01 %}
         {% set ecap = w.entry_range_mcap if w.entry_range_mcap else w.entry_mcap_avg %}
         {% set etime = w.first_range_buy_ms or w.first_buy_ms %}
+        {% set vs = ((w.multiple - 1) * 100)|round|int if w.multiple else none %}
         <tr data-w="{{ w.wallet }}" data-inv="{{ w.invested_in_range_usd or 0 }}" data-tot="{{ w.invested_usd or 0 }}"
             data-mult="{{ w.multiple or 0 }}" data-sold="{{ w.sold_share_pct or 0 }}" data-buys="{{ w.buys or 0 }}"
             data-hold="{{ w.hold_minutes or 0 }}" data-exit="{{ 1 if w.first_sell_ms else 0 }}" data-real="{{ w.realized_usd or 0 }}"
-            data-entry="{{ ecap or 0 }}" data-exitcap="{{ w.exit_mcap_avg or 0 }}" data-got="{{ w.proceeds_usd or 0 }}"
+            data-entry="{{ ecap or 0 }}" data-etime="{{ etime or 0 }}" data-exitcap="{{ w.exit_mcap_avg or 0 }}" data-got="{{ w.proceeds_usd or 0 }}"
             data-tags="{{ w.tag_list|join(' ') }}"{% if w.invested_in_range_sol is not none %} data-invsol="{{ w.invested_in_range_sol }}" data-gotsol="{{ w.proceeds_sol or 0 }}" data-realsol="{{ w.realized_sol or 0 }}" data-totsol="{{ w.invested_sol or 0 }}"{% endif %}{% if loop.index0 < 40 %} style="--i: {{ loop.index0 }}"{% endif %}>
           <td class="pk"><input type="checkbox" class="pick" aria-label="Select this wallet"></td>
           <td class="muted n">{{ loop.index }}</td>
-          <td class="wcell"><span class="wid"><button type="button" class="mk" title="Show on the chart">◉</button><button type="button" class="wname mono" title="Open the story">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</button><button type="button" class="ghost wcopy" data-copy="{{ w.wallet }}" title="Copy the address" aria-label="Copy the address"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.8"/><path d="M10.5 5.5V4.3A1.8 1.8 0 0 0 8.7 2.5H4.3a1.8 1.8 0 0 0-1.8 1.8v4.4a1.8 1.8 0 0 0 1.8 1.8h1.2"/></svg></button></span><span class="tags">{% for t in w.tag_list %}<span class="tag t-{{ t }}" data-tag="{{ t }}" title="{{ TAGS.get(t, t) }}">{{ t }}</span>{% endfor %}</span></td>
-          <td class="num two c-entry" data-h="Entry cap"><b class="mono">{{ ecap|mcap }}</b><small class="dtc" data-ms="{{ etime or 0 }}">{{ etime|dt }}</small></td>
+          <td class="wcell"><span class="wid"><button type="button" class="mk" title="Show on the chart">◉</button><button type="button" class="wname mono" title="Open the wallet's card">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</button><button type="button" class="ghost wcopy" data-copy="{{ w.wallet }}" title="Copy the address" aria-label="Copy the address"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.8"/><path d="M10.5 5.5V4.3A1.8 1.8 0 0 0 8.7 2.5H4.3a1.8 1.8 0 0 0-1.8 1.8v4.4a1.8 1.8 0 0 0 1.8 1.8h1.2"/></svg></button></span><span class="tags">{% for t in w.tag_list %}<span class="tag t-{{ t }}" data-tag="{{ t }}" title="{{ TAGS.get(t, t) }}">{{ t }}</span>{% endfor %}</span></td>
+          <td class="num two c-inv" data-h="Bought" title="Bought in the range at a {{ ecap|mcap }} market cap{% if diff %} · {{ w.invested_usd|usd }} in total on this token{% endif %}"><b class="mono amt" data-usd="{{ w.invested_in_range_usd or 0 }}"{% if w.invested_in_range_sol is not none %} data-sol="{{ w.invested_in_range_sol }}"{% endif %}>{{ w.invested_in_range_usd|usd }}</b><small>{{ ecap|mcap }} · <span class="dtc" data-ms="{{ etime or 0 }}" data-short="1">{{ etime|dt }}</span></small></td>
+          <td class="num two c-sold" data-h="Sold"{% if w.exit_mcap_avg %} title="Sold at a {{ w.exit_mcap_avg|mcap }} market cap on average{% if vs is not none %}, {{ '+' if vs > 0 else '' }}{{ vs }}% against its entry{% endif %} · {{ w.sold_share_pct|num }}% of its tokens sold"{% endif %}><b class="mono amt" data-usd="{{ w.proceeds_usd or 0 }}"{% if w.proceeds_sol is not none %} data-sol="{{ w.proceeds_sol }}"{% endif %}>{{ w.proceeds_usd|usd if w.proceeds_usd else '—' }}</b><small>{% if w.exit_mcap_avg %}{{ w.exit_mcap_avg|mcap }} · {{ w.sold_share_pct|num }}%{% endif %}</small></td>
+          <td class="num two bar c-pnl{{ ' neg' if (w.realized_usd or 0) < 0 else '' }}" data-h="PnL" style="--w: {{ (100 * (w.realized_usd or 0)|abs / sm.max_abs_realized)|round|int if sm.max_abs_realized else 0 }}%"><b class="mono amt {{ 'pos' if (w.realized_usd or 0) > 0 else ('neg' if (w.realized_usd or 0) < 0 else '') }}" data-usd="{{ w.realized_usd or 0 }}"{% if w.realized_sol is not none %} data-sol="{{ w.realized_sol }}"{% endif %}>{{ w.realized_usd|usd }}</b><small class="{{ 'pos' if (w.unrealized_usd or 0) > 0 else ('neg' if (w.unrealized_usd or 0) < 0 else '') }}">{% if w.unrealized_usd %}{{ w.unrealized_usd|usd }} still held{% endif %}</small></td>
+          <td class="num two c-held" data-h="Held"><b class="mono">{{ w.hold_minutes|holdt }}</b><small>{{ w.buys }} buy{{ '' if w.buys == 1 else 's' }} · {{ w.sells if w.sells is not none else '—' }} sell{{ '' if w.sells == 1 else 's' }}</small></td>
           <td class="fund" data-h="Funded by"></td>
-          <td class="num two c-inv" data-h="In range"><b class="mono amt" data-usd="{{ w.invested_in_range_usd or 0 }}"{% if w.invested_in_range_sol is not none %} data-sol="{{ w.invested_in_range_sol }}"{% endif %}>{{ w.invested_in_range_usd|usd }}</b><small>{% if diff %}of <span class="amt" data-usd="{{ w.invested_usd or 0 }}"{% if w.invested_sol is not none %} data-sol="{{ w.invested_sol }}"{% endif %}>{{ w.invested_usd|usd }}</span> total{% endif %}</small></td>
-          <td class="num two c-exit" data-h="Exit cap"><b class="mono">{{ w.exit_mcap_avg|mcap }}</b><small class="dtc" data-ms="{{ w.first_sell_ms or 0 }}">{{ w.first_sell_ms|dt if w.first_sell_ms else '' }}</small></td>
-          <td class="num two bar c-pnl{{ ' neg' if (w.realized_usd or 0) < 0 else '' }}" data-h="PnL" style="--w: {{ (100 * (w.realized_usd or 0)|abs / sm.max_abs_realized)|round|int if sm.max_abs_realized else 0 }}%"><b class="mono amt {{ 'pos' if (w.realized_usd or 0) > 0 else ('neg' if (w.realized_usd or 0) < 0 else '') }}" data-usd="{{ w.realized_usd or 0 }}"{% if w.realized_sol is not none %} data-sol="{{ w.realized_sol }}"{% endif %}>{{ w.realized_usd|usd }}</b><small class="{{ 'pos' if (w.unrealized_usd or 0) > 0 else ('neg' if (w.unrealized_usd or 0) < 0 else '') }}">{% if w.unrealized_usd %}{{ w.unrealized_usd|usd }} unrealized{% endif %}</small></td>
-          <td class="num two c-sold" data-h="Sold"><b class="mono amt" data-usd="{{ w.proceeds_usd or 0 }}"{% if w.proceeds_sol is not none %} data-sol="{{ w.proceeds_sol }}"{% endif %}>{{ w.proceeds_usd|usd }}</b><small>{{ (w.sold_share_pct|num ~ '% sold') if w.sold_share_pct is not none else '' }}</small></td>
-          <td class="num c-mult" data-h="Multiple"><b class="mono">{{ (w.multiple ~ '×') if w.multiple else '—' }}</b></td>
-          <td class="num two c-held" data-h="Held"><b class="mono">{{ (w.hold_minutes|num ~ ' min') if w.hold_minutes is not none else '—' }}</b><small>{{ w.buys }} / {{ w.sells if w.sells is not none else '—' }}</small></td>
         </tr>
       {% endfor %}
       </tbody>
@@ -222,16 +220,18 @@
       const SKEY = 'early:sel:' + jobId, FKEY = 'early:filters:' + jobId;
       try { JSON.parse(localStorage.getItem(SKEY) || '[]').forEach(w => selected.add(w)); } catch (e) {}
       const saveSel = () => { try { localStorage.setItem(SKEY, JSON.stringify([...selected])); } catch (e) {} };
-      const f = { inv: 0, mult: 0, sold: 0, buysMax: 0, hold: 0, exits: false, hide: [], funder: '', repeat: false };
-      try { Object.assign(f, JSON.parse(localStorage.getItem(FKEY) || '{}')); } catch (e) {}
+      const FDEF = { inv: 0, pnl: null, sold: 0, buysMax: 0, hold: 0, exits: false, profit: false, hide: [], funder: '', repeat: false };
+      const f = Object.assign({}, FDEF);
+      try { const saved = JSON.parse(localStorage.getItem(FKEY) || '{}'); Object.keys(FDEF).forEach(k => { if (k in saved) f[k] = saved[k]; }); } catch (e) {}
       const saveF = () => { try { localStorage.setItem(FKEY, JSON.stringify(f)); } catch (e) {} };
       const panel = document.getElementById('filters'), ftoggle = document.getElementById('ftoggle'), clearsel = document.getElementById('clearsel');
       const watch = document.getElementById('watch');
       function syncInputs() {
-        panel.querySelectorAll('[data-f]').forEach(i => { const k = i.dataset.f; if (i.type === 'checkbox') i.checked = !!f[k]; else i.value = f[k] ? f[k] : (k === 'buysMax' ? '' : '0'); });
+        panel.querySelectorAll('[data-f]').forEach(i => { const k = i.dataset.f; i.value = (f[k] === null || f[k] === 0 || f[k] === undefined) ? '' : f[k]; });
+        panel.querySelectorAll('[data-t]').forEach(b => { b.classList.toggle('on', !!f[b.dataset.t]); b.setAttribute('aria-pressed', String(!!f[b.dataset.t])); });
         panel.querySelectorAll('[data-hide]').forEach(b => b.classList.toggle('off', f.hide.includes(b.dataset.hide)));
       }
-      function nActive() { return [f.inv, f.mult, f.sold, f.buysMax, f.hold, f.exits, f.funder, f.repeat].filter(Boolean).length + f.hide.length; }
+      function nActive() { return [f.inv, f.pnl !== null, f.sold, f.buysMax, f.hold, f.exits, f.profit, f.funder, f.repeat].filter(Boolean).length + f.hide.length; }
       // the page shows a window of the rows that pass the filters (LIMIT, then "Show more"); every action — Select all,
       // Export, the agent — works on all passing rows, shown or not
       const LIMIT = 100; let limit = LIMIT; const passing = new Set();
@@ -242,7 +242,7 @@
         let n = 0; passing.clear();
         rows.forEach(r => {
           const d = r.dataset, tg = d.tags ? d.tags.split(' ') : [];
-          const ok = +d.inv >= f.inv && (!f.mult || +d.mult >= f.mult) && +d.sold >= f.sold &&
+          const ok = +d.inv >= f.inv && (f.pnl === null || +d.real >= f.pnl) && +d.sold >= f.sold && (!f.profit || +d.real > 0) &&
                      (!f.buysMax || +d.buys <= f.buysMax) && (!f.hold || +d.hold >= f.hold) && (!f.exits || d.exit === '1') &&
                      (!f.funder || d.funder === f.funder) && (!f.repeat || !!crossings[d.w]) && !f.hide.some(t => tg.includes(t));
           if (ok || pinned.has(d.w)) { passing.add(d.w); n++; r.querySelector('.n').textContent = n; r.hidden = n > limit && !pinned.has(d.w); }
@@ -270,9 +270,19 @@
       const na = nActive;
       if (window.matchMedia && matchMedia('(max-width: 640px)').matches) { panel.hidden = true; ftoggle.setAttribute('aria-expanded', 'false'); }
       ftoggle.addEventListener('click', () => { panel.hidden = !panel.hidden; ftoggle.setAttribute('aria-expanded', String(!panel.hidden)); });
-      panel.addEventListener('input', e => { if (!e.target.dataset.f) return; const k = e.target.dataset.f; f[k] = e.target.type === 'checkbox' ? e.target.checked : (+e.target.value || 0); saveF(); apply(); });
-      panel.addEventListener('click', e => { const b = e.target.closest('[data-hide]'); if (!b) return; const t = b.dataset.hide; f.hide = f.hide.includes(t) ? f.hide.filter(x => x !== t) : [...f.hide, t]; saveF(); syncInputs(); apply(); });
-      document.getElementById('fclear').addEventListener('click', () => { Object.assign(f, { inv: 0, mult: 0, sold: 0, buysMax: 0, hold: 0, exits: false, hide: [], funder: '', repeat: false }); saveF(); syncInputs(); apply(); });
+      panel.addEventListener('input', e => {
+        const k = e.target.dataset.f; if (!k) return;
+        const v = e.target.value.trim();
+        f[k] = v === '' ? FDEF[k] : +v;                           // an empty field is no filter
+        saveF(); apply();
+      });
+      panel.addEventListener('click', e => {
+        const t = e.target.closest('[data-t]');
+        if (t) { f[t.dataset.t] = !f[t.dataset.t]; saveF(); syncInputs(); apply(); return; }
+        const b = e.target.closest('[data-hide]'); if (!b) return;
+        const h = b.dataset.hide; f.hide = f.hide.includes(h) ? f.hide.filter(x => x !== h) : [...f.hide, h]; saveF(); syncInputs(); apply();
+      });
+      document.getElementById('fclear').addEventListener('click', () => { Object.assign(f, FDEF, { hide: [] }); saveF(); syncInputs(); apply(); });
       clearsel.addEventListener('click', () => { selected.clear(); saveSel(); syncChecks(); });
       tbody.addEventListener('change', e => { if (!e.target.classList.contains('pick')) return; const w = e.target.closest('tr').dataset.w; e.target.checked ? selected.add(w) : selected.delete(w); saveSel(); syncChecks(); });
       document.getElementById('pickall').addEventListener('change', e => { visible().forEach(r => e.target.checked ? selected.add(r.dataset.w) : selected.delete(r.dataset.w)); saveSel(); syncChecks(); });
@@ -344,23 +354,37 @@
       sjob.addEventListener('click', () => { const saved = !!(me && me.analyses && me.analyses[jobId]); withAcct(() => saved ? removeJob() : saveJob()); });
       tbody.addEventListener('click', e => { const s = e.target.closest('.saved'); if (s) removeWallets([s.closest('tr').dataset.w]); });
       loadMe();
+      const mkdemo = document.getElementById('mkdemo');
+      if (mkdemo) mkdemo.addEventListener('click', async () => {
+        if (!confirm('Replace the demo token with this analysis? Its chart is captured now, about a dozen requests.')) return;
+        mkdemo.disabled = true; mkdemo.textContent = 'Capturing…';
+        try {
+          const d = await EarlyWallet.post('/admin/demo', { job: mkdemo.dataset.job });
+          mkdemo.textContent = 'This is the demo';
+          EarlyUI.toast('The demo is now this analysis · <a href="/token?mint=' + d.mint + '">Open it →</a>', 8000);
+        } catch (e) { mkdemo.disabled = false; mkdemo.textContent = 'Make it the demo'; EarlyUI.toast(e.message); }
+      });
 
-      let sortKey = null, sortDir = -1;
-      const ranked = rows.slice();                               // the order the analysis gave: the phone's «As ranked»
-      function sortBy(th) {
-        table.querySelectorAll('th.sortable').forEach(x => x.classList.remove('asc', 'desc'));
-        if (!th) { sortKey = null; rows.sort((a, b) => ranked.indexOf(a) - ranked.indexOf(b)); rows.forEach(r => tbody.appendChild(r)); apply(); return; }
-        const k = th.dataset.key; sortDir = (sortKey === k) ? -sortDir : -1; sortKey = k;
-        const text = th.dataset.type === 'text';
-        rows.sort((a, b) => text ? a.dataset[k].localeCompare(b.dataset[k]) * sortDir : ((+a.dataset[k] || 0) - (+b.dataset[k] || 0)) * sortDir);
+      let sortKey = 'real', sortDir = -1;                         // the server already sends the rows by PnL, highest first
+      const msort = document.getElementById('msort');
+      function sortBy(k, dir, text) {
+        sortKey = k; sortDir = dir;
+        rows.sort((a, b) => text ? (a.dataset[k] || '').localeCompare(b.dataset[k] || '') * dir
+          : ((+a.dataset[k] || 0) - (+b.dataset[k] || 0)) * dir);
         rows.forEach(r => tbody.appendChild(r));
-        th.classList.add(sortDir > 0 ? 'asc' : 'desc');
+        table.querySelectorAll('th.sortable').forEach(x => x.classList.toggle('desc', x.dataset.key === k && dir < 0));
+        table.querySelectorAll('th.sortable').forEach(x => x.classList.toggle('asc', x.dataset.key === k && dir > 0));
+        msort.value = [...msort.options].some(o => o.value === k) ? k : msort.value;
         apply();
       }
-      table.tHead.addEventListener('click', e => { const th = e.target.closest('th.sortable'); if (th) sortBy(th); });
-      document.getElementById('msort').addEventListener('change', e => {
-        sortKey = null;                                          // a choice in the list always starts from the largest
-        sortBy(e.target.value ? table.querySelector('th.sortable[data-key="' + e.target.value + '"]') : null);
+      table.tHead.addEventListener('click', e => {
+        const th = e.target.closest('th.sortable'); if (!th) return;
+        const k = th.dataset.key;
+        sortBy(k, sortKey === k ? -sortDir : -1, th.dataset.type === 'text');
+      });
+      msort.addEventListener('change', () => {
+        const o = msort.selectedOptions[0];
+        sortBy(o.value, +(o.dataset.dir || -1), false);        // a choice in the list starts from its natural end
       });
 
       const SCOPE = new URLSearchParams(location.search).get('scope') || 'all';
@@ -389,7 +413,6 @@
           .then(r => r.ok ? r.json() : null).then(d => {
             if (!d) return;
             chart.setEvents(EarlyUI.marks(d));
-            EarlyUI.marksLegend(document.getElementById('marksline'), d, ms => chart.focus(ms - 20 * 60000, ms + 40 * 60000, null));
           }).catch(function () {});
       }
       const ch = EarlyChart(el, { mint: el.dataset.mint, created: +el.dataset.created, now: +el.dataset.now, interactive: false, symbol: el.dataset.symbol,
@@ -535,13 +558,39 @@
         el.innerHTML = bits.join(' · ') + ' <span class="muted small">per Solana Tracker</span>';
         el.hidden = false;
       }
+      const rankOf = new Map(rows.map((r, i) => [r.dataset.w, i])), AGE_N = {{ s.age_lookups_max or 0 }}, ageTried = new Map();
+      async function loadAge(w) {
+        // the analysis checks the first AGE_N wallets by PnL; any other wallet is checked when its card is opened
+        if (ageTried.has(w)) return;
+        ageTried.set(w, 'busy');
+        let r, d = {};
+        try { r = await fetch('/wallet_age.json?' + new URLSearchParams({ job: jobId, wallet: w }), { credentials: 'same-origin' }); d = await r.json(); }
+        catch (e) { ageTried.set(w, 'failed'); if (drawer.dataset.w === w) renderWalletInfo(w); return; }
+        if (r.status === 401) { ageTried.set(w, 'connect'); if (drawer.dataset.w === w) renderWalletInfo(w); return; }
+        if (!r.ok) { ageTried.set(w, 'failed'); if (drawer.dataset.w === w) renderWalletInfo(w); return; }
+        if (d.age) ages[w] = d.age;
+        if (d.funder) funders[w] = d.funder;
+        if (d.bundle) bundle[w] = d.bundle;
+        ageTried.set(w, d.paused ? 'paused' : 'done');
+        if (d.fresh || d.funder) fillFunders();
+        if (drawer.dataset.w === w) renderWalletInfo(w);
+      }
       function renderWalletInfo(w) {
         const a = ages[w], fnd = funders[w], bn = bundle[w], out = [];
         if (a && a.ms) out.push((a.exact ? 'First transaction ' : 'First transaction before ') + '<span class="dtc" data-ms="' + a.ms + '" data-long="1">' + EarlyTZ.fmt(a.ms, true) + '</span>.');
         if (fnd) out.push('First SOL from <a class="mono" href="https://solscan.io/account/' + fnd + '" target="_blank" rel="noopener" title="' + fnd + '">' + short(fnd) + '</a>'
           + (bn && bn.n > 1 ? ', which also funded ' + (bn.n - 1) + ' other wallet' + (bn.n === 2 ? '' : 's') + ' in this list (bundle).' : '.'));
-        const el = document.getElementById('dwinfo');
-        el.innerHTML = out.length ? out.join(' ') : (ageDone ? '' : 'Age and funder are still being checked…');
+        const el = document.getElementById('dwinfo'), st = ageTried.get(w);
+        const queued = !ageDone && (rankOf.get(w) ?? 1e9) < AGE_N;
+        if (!out.length && !queued && !st && AGE_N) loadAge(w);
+        el.innerHTML = out.length ? out.join(' ')
+          : queued ? 'Age and funder are still being checked…'
+          : st === 'connect' ? '<button type="button" class="link" id="dagego">Connect a wallet</button> to check when this wallet was created and who funded it.'
+          : st === 'paused' ? 'The age check is paused until next month: its budget is used up.'
+          : st === 'failed' ? 'The chain node did not answer. Reopen the card to try again.'
+          : st === 'done' ? 'No transaction history found.' : (AGE_N ? 'Checking when this wallet was created and who funded it…' : '');
+        const go = document.getElementById('dagego');
+        if (go) go.addEventListener('click', () => EarlyWallet.open(() => { acctOn = true; ageTried.delete(w); loadMe().then(() => loadAge(w)); }));
         document.getElementById('dwsec').hidden = !el.innerHTML && !document.getElementById('dcross').innerHTML;
       }
       const holdText = m => m == null ? '—' : m < 60 ? Math.round(m) + ' min' : m < 1440 ? (m / 60).toFixed(m < 600 ? 1 : 0) + ' h' : Math.round(m / 1440) + ' d';
@@ -669,7 +718,7 @@
         const cls = +d.real > 0 ? 'pos' : (+d.real < 0 ? 'neg' : '');
         return '<div class="dhero"><div><span class="lbl">PnL on this token</span><b class="big ' + cls + '">' + amt(d.real, d.realsol) + '</b>'
           + '<span class="sub">sold ' + Math.round(+d.sold || 0) + '% of it' + (+d.hold ? ' · first sale after ' + holdText(+d.hold) : '') + '</span></div>'
-          + '<div class="r"><span class="lbl">Multiple</span><b class="big">' + (+d.mult ? (+d.mult).toFixed(+d.mult >= 10 ? 0 : 1) + '×' : '—') + '</b>'
+          + '<div class="r"><span class="lbl">Exit vs entry</span><b class="big">' + (+d.mult ? ((+d.mult - 1) * 100 >= 0 ? '+' : '') + Math.round((+d.mult - 1) * 100) + '%' : '—') + '</b>'
           + '<span class="sub">' + plural(+d.buys || 0, 'buy') + ' · ' + plural(o.trades.filter(t => t.side === 'sell').length, 'sell') + '</span></div></div>'
           + '<div class="dgrid">'
           + '<div><span>Entry cap</span><b>' + ch.fmtMcap(+d.entry) + '</b></div>'

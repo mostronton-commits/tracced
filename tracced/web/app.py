@@ -34,6 +34,7 @@ from ..providers import dexscreener
 from . import accounts as acct_mod
 from . import docs as docs_mod
 from . import chart
+from . import demo as demo_mod
 from . import replay
 from .jobs import JobQueue, make_id
 
@@ -85,6 +86,18 @@ env.filters["usd"] = _usd
 env.filters["num"] = _num
 env.filters["per_day"] = lambda n: "one live analysis a day" if int(n or 0) == 1 else f"{int(n or 0)} live analyses a day"
 env.filters["log10"] = lambda v: math.log10(v) if (v and float(v) > 0) else 0.0
+
+
+def _hold_text(m):
+    """Хвилини утримання людською мовою: 48 min, 5.2 h, 3 d."""
+    try:
+        m = float(m)
+    except (TypeError, ValueError):
+        return "—"
+    return f"{m:.0f} min" if m < 60 else (f"{m / 60:.1f} h" if m < 600 else (f"{m / 60:.0f} h" if m < 1440 else f"{m / 1440:.0f} d"))
+
+
+env.filters["holdt"] = _hold_text
 
 
 class WebError(Exception):
@@ -286,6 +299,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_post("/me/analyses", me_add_analysis)
     app.router.add_post("/me/analyses/remove", me_remove_analysis)
     app.router.add_get("/admin", admin_page)
+    app.router.add_post("/admin/demo", admin_demo)
+    app.router.add_get("/wallet_age.json", wallet_age_json)
     app.router.add_get("/job/{id}/crossings.json", job_crossings_json)
     app.router.add_post("/job/{id}/delete", job_delete)
     app.router.add_static("/static", str(HERE / "static"))
@@ -829,6 +844,99 @@ async def me_page(request):
                   demo_mint=(demo or {}).get("mint"))
 
 
+async def admin_demo(request):
+    """Адмін робить готовий аналіз демо-токеном: знімок свічок і результату, і демо перемикається одразу.
+
+    Свічки за все життя токена — десяток запитів, один раз. Далі демо програється без жодного запиту, як і раніше."""
+    app = request.app
+    if not _same_origin(request):
+        return _jerr("Requests must come from this site.", 403)
+    pk = request.get("acct")
+    if not pk or pk not in app["admins"]:
+        return _jerr("Only the owner's wallet can choose the demo.", 403)
+    body = await _json_body(request) or {}
+    job = app["jobs"].get(str(body.get("job") or ""))
+    if not job or job.status != "done" or not job.result or job.replay:
+        return _jerr("Choose a finished analysis.", 400)
+    st, d = app["st"], str(Path(app["jobs"].dir).parent / "demo")
+
+    def work():
+        with st.meter():
+            _, first = demo_mod.capture(st, [job.to_dict()], d, chart_fn=pipeline._chart, log=lambda m: log.info("demo: %s", m))
+            demo_mod.write_override(d, first)
+            st.flush()
+            return first
+    try:
+        first = await asyncio.to_thread(work)
+    except Exception as e:  # noqa: BLE001
+        log.warning("demo capture %s: %s", job.id, e)
+        return _jerr("Could not make the demo: " + str(e)[:120], 502)
+    app.pop("demo", None)                                   # наступна сторінка прочитає новий знімок
+    app["events"].add(pk, "set_demo", job=first, symbol=job.symbol)
+    return web.json_response({"ok": True, "job": first, "mint": job.mint})
+
+
+async def wallet_age_json(request):
+    """Вік і перший спонсор одного гаманця, коли відкрили його картку.
+
+    Сам аналіз перевіряє лише перших за PnL (age_lookups_max), бо кожен гаманець коштує кредитів RPC. Решта — тут, по
+    одному, коли хтось справді дивиться: 2-3 виклики ноди, тиждень у кеші, і відповідь лягає в результат для всіх."""
+    app = request.app
+    job = app["jobs"].get(request.query.get("job", ""))
+    if not job or job.status != "done" or not job.result:
+        raise web.HTTPNotFound(text="No result yet.")
+    wallet = request.query.get("wallet", "")
+    if not MINT_RE.match(wallet):
+        raise WebError("That does not look like a wallet address.")
+    r = job.result
+    rows = r.get("rows") or []
+    row = next((x for x in rows if x.get("wallet") == wallet), None)
+    if row is None:
+        raise web.HTTPNotFound(text="That wallet is not in this analysis.")
+    def known():
+        return {"age": (r.get("ages") or {}).get(wallet), "funder": (r.get("funders") or {}).get(wallet),
+                "bundle": (r.get("bundle") or {}).get(wallet), "fresh": "fresh" in (row.get("tag_list") or [])}
+    if wallet in (r.get("ages") or {}) or wallet in set(r.get("funder_checked") or []):
+        return web.json_response(known())
+    ages = app.get("ages")
+    if ages is None or job.id in _demo_job_ids(app):
+        return web.json_response(known())
+    cached = ages.cached(wallet)
+    if cached is None and ages.paused():
+        return web.json_response(dict(known(), paused=True))
+    if cached is None and not request.get("acct"):
+        raise ConnectRequired(message="Connect a wallet to check this wallet's age and funder.")
+    settle = _browse_budget(request, 1) if cached is None else None
+
+    def work():
+        age = ages.oldest_tx(wallet)
+        fund = ages.funder(wallet, age["oldest_sig"]) if age.get("exact") and age.get("oldest_sig") else None
+        ages.flush()
+        return age, fund
+    try:
+        age, fund = await asyncio.to_thread(work)
+    except Exception as e:  # noqa: BLE001
+        log.warning("wallet age %s: %s", wallet[:8], e)
+        raise WebError("The chain node did not answer. Try again in a minute.", 502)
+    finally:
+        if settle:
+            settle(1)
+    if age and age.get("oldest_ms"):
+        r.setdefault("ages", {})[wallet] = {"ms": age["oldest_ms"], "exact": bool(age.get("exact"))}
+        if tags.is_fresh(row.get("first_buy_ms"), age) and "fresh" not in (row.get("tag_list") or []):
+            row["tag_list"] = tags.with_tag(row.get("tag_list"), "fresh")
+            row["tags"] = "|".join(row["tag_list"])
+    if fund:
+        r.setdefault("funders", {})[wallet] = fund
+        _bundles(r, rows)                                   # новий спонсор може замкнути бандл з уже відомими
+    r["funder_checked"] = sorted(set(r.get("funder_checked") or []) | {wallet})
+    try:
+        await asyncio.to_thread(app["jobs"]._save, job, True)
+    except Exception as e:  # noqa: BLE001 — відповідь уже є в пам'яті; збережеться з наступним записом
+        log.warning("wallet age save %s: %s", job.id, e)
+    return web.json_response(known())
+
+
 async def admin_page(request):
     """Хто підключився і що робив. Лише для гаманців з ADMIN_WALLETS; без них сторінки не існує."""
     app = request.app
@@ -988,8 +1096,8 @@ def _demo(app):
     if "demo" in app:
         return app["demo"]
     app["demo"] = None
-    jid = app["s"].get("demo_job")
     d = Path(app["jobs"].dir).parent / "demo"
+    jid = demo_mod.read_override(str(d)).get("demo_job") or app["s"].get("demo_job")   # вибір адміна сильніший за конфіг
     if jid and d.is_dir():
         from ..early.report import upgrade_result
         for path in sorted(d.glob("*.json")):
@@ -1043,7 +1151,8 @@ async def index(request):
     jobs = app["jobs"].recent(60)
     jobs = [j for j in jobs if j.status != "error"]                    # помилки на головній — шум
     totals, sample, lines = _home_data(jobs)
-    want = (app["s"].get("example_job") or "")
+    want = (demo_mod.read_override(str(Path(app["jobs"].dir).parent / "demo")).get("example_job")
+            or app["s"].get("example_job") or "")
     example = app["jobs"].get(want) if want else None
     if not example or example.status != "done":
         done = [j for j in jobs if j.status == "done" and j.result and j.result.get("rows")]
@@ -1156,7 +1265,8 @@ async def candles_json(request):
     demo = _demo(app)
     if demo and demo["mint"] == mint:
         cs = [c for c in (demo.get("candles") or {}).get(tf) or [] if a * 1000 <= c["time"] <= b * 1000]
-        return web.json_response(chart.candles_mcap(cs, demo["info"]["supply"]))
+        ours = await asyncio.to_thread(_trade_candles, app, mint)
+        return web.json_response(chart.fill_gaps(chart.candles_mcap(cs, demo["info"]["supply"]), ours, a, b, tf, demo["info"]["supply"]))
     st = app["st"]
     info, _ = await _overview(app, mint, _browse_budget(request, 2) if not _overview_cached(app, mint) else None)
     now = int(time.time())
@@ -1358,7 +1468,8 @@ async def job_page(request):
     else:
         result = None
     return render("job.html", request, job=job, save_id=job.canon or job.id, jstatus=status, result=result, s=app["s"], back=_back_link(job),
-                  max_my_tags=acct_mod.MAX_MY_TAGS,
+                  max_my_tags=acct_mod.MAX_MY_TAGS, is_admin=bool(request.get("acct")) and request.get("acct") in app["admins"],
+                  is_demo=job.id in _demo_job_ids(app) or (job.canon or "") in _demo_job_ids(app),
                   sm=sm, TAGS=tags.DEFS, created=created or (job.t_from - 24 * HOUR), now=int(time.time() * 1000),
                   cov_text=report.coverage_text((result or {}).get("coverage")), default_method=assistant_mod.DEFAULT_METHOD, presets=assistant_mod.PRESETS,
                   assistant_on=app.get("assistant") is not None,

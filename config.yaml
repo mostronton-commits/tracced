@@ -44,6 +44,7 @@ early:
   # does and never throttles a series, while the public node answers 429 on deep pagination.
   # Note: that node returns short pages in the middle of a history, so wallet_age pages to an empty answer.
   rpc_pace_s: 0.2               # 5 requests a second, the free RPC tier's pace; lower it on Developer
-  age_lookups_max: 2000         # was 600: every wallet with exits gets its age and funder. The guard is the budget below
+  age_lookups_max: 200          # the first 200 by PnL get age and funder right after the table; any other wallet gets
+                                # them when its card is opened. Each lookup costs RPC credits, most cards are never opened
   rpc_credits_month: 500000     # the RPC plan's monthly pool (free tier; checked 24.09: under 500 used). 10 credits per
                                 # signatures page; wallet age pauses at 90% and resumes next month. Cached wallets are free
