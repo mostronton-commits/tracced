@@ -77,8 +77,6 @@ h2.sec .muted { font-weight: 400; margin-left: 8px; }
 .chartbox .overlay .win .lbl { position: absolute; top: 6px; left: 4px; font: 10px/1 var(--mono); color: var(--mint); background: #0F172A; border: 1px solid #1E293B; border-radius: 4px; padding: 3px 5px; pointer-events: auto; cursor: pointer; }
 .chartbox .overlay .exitline { position: absolute; top: 0; bottom: 26px; width: 0; border-left: 1px dashed #CBD5E1; }
 .chartbox .overlay .marker { position: absolute; top: 0; bottom: 26px; width: 0; border-left: 1px solid var(--mint); }
-/* Події життя токена: переїзд з лаунчпада і оплати за видимість. Підпис унизу, щоб не лізти до міток угод. */
-.marksline { margin: 0 0 8px; }
 /* Підказка просто на графіку: текст збоку від нього на кастдеві не прочитали жодного разу. */
 .chartbox .charthint { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); z-index: 6; pointer-events: none;
   font: 500 12.5px/1 var(--sans); color: var(--navy); background: var(--mint); border-radius: 999px; padding: 7px 14px;
@@ -507,6 +505,8 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .ai-r li { color: #E2E8F0; } .ai-r li::first-letter { color: var(--mint); }
 .ai-soon { position: absolute; top: 12px; right: 14px; font: 600 10px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--mint); border: 1px solid #1E293B; padding: 4px 7px; border-radius: 999px; }
 @media (max-width: 720px) { .ai { grid-template-columns: 1fr; } }
+/* a narrow phone: the corner badge sat on the heading, so it goes above it, in the flow */
+@media (max-width: 560px) { .ai-soon { position: static; order: -1; justify-self: start; margin-bottom: -12px; } }
 .wrow { grid-template-columns: 26px minmax(120px, 1fr) auto auto auto auto 26px; }
 .wrow label.fld { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 .wrow label.fld span { text-transform: none; }
@@ -725,10 +725,30 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
   .wrow .n { grid-column: span 1; }
   .wrow .label { grid-column: span 10; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .wrow .del { grid-row: 1; grid-column: 12; justify-self: end; min-width: 34px; min-height: 34px; }
-  .wrow label.fld { grid-column: span 6; flex-direction: column; align-items: stretch; gap: 3px; }
-  .wrow label.fld input { min-width: 0; width: 100%; box-sizing: border-box; font-size: 13px; }
+  /* From and To one under the other, each across the row: side by side, a field was too narrow for its minutes */
+  .wrow label.fld { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 8px; }
+  .wrow label.fld span { flex: 0 0 34px; }
+  .wrow label.fld input { flex: 1; min-width: 0; width: 100%; box-sizing: border-box; font-size: 13px; }
   .wrow button[type=submit] { grid-column: 1 / -1; justify-self: stretch; justify-content: center; min-height: 40px; }
   .wrow .result, .wrow a.result { grid-column: 1 / -1; justify-self: stretch; text-align: center; }
+}
+/* ── tablet: the eight result columns need about 810 px, and below that an inner scroll hid Funded by, the column that
+   shows bundles. Between a phone and a laptop each wallet is the phone's card: the wallet on top, five facts under it ── */
+@media (min-width: 641px) and (max-width: 960px) {
+  .colhelp { display: block; margin: 6px 0 8px; }
+  .tablewrap:has(> #facts) { overflow: visible; border: 0; border-radius: 0; background: none; }
+  #facts, #facts tbody { display: block; width: 100%; }
+  #facts thead { display: none; }
+  #facts tbody tr { position: relative; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px 14px;
+                    padding: 10px 12px 12px; margin: 0 0 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  #facts td { border: 0; padding: 0; white-space: normal; text-align: left; min-width: 0; }
+  #facts td.bar, #facts td.bar.neg { background-image: none; }
+  #facts td[data-h]::before { content: attr(data-h); display: block; margin-bottom: 2px; font: 600 9.5px/1.3 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+  #facts td.n, #facts td.fund:empty { display: none; }
+  #facts td.pk { position: absolute; top: 8px; right: 8px; }
+  #facts td.wcell { grid-column: 1 / -1; padding-right: 36px; }
+  #facts tr.picked { background: #F6FEF9; } #facts tr.picked td { background: transparent; }
+  #facts tr.onchart td:first-child { box-shadow: none; } #facts tr.onchart { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 }
 /* ── category markers as pictures (rules of ours, identity from Solana Tracker), one bar metric, copy in rows ── */
 .tag.ico { display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-width: 20px; height: 20px; padding: 0 3px;
@@ -746,7 +766,7 @@ td.wcell .tags .tag { margin-left: 0; }
 .idm { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 6px; border: 1px solid var(--line);
        background: var(--surface); cursor: help; vertical-align: middle; }
 .idm img { width: 14px; height: 14px; border-radius: 3px; display: block; flex: none; }
-.idm svg, .tag.ico svg, .evdot img, .mklegend .evdot { flex: none; }
+.idm svg, .tag.ico svg, .evdot img { flex: none; }
 .idm svg { width: 12px; height: 12px; }
 .idm.kol { color: #B45309; border-color: #FCD34D; background: #FFFBEB; }
 .idm.xacc { color: #0F172A; cursor: pointer; border-bottom: 1px solid var(--line); }
@@ -757,12 +777,6 @@ td.wcell .tags .tag { margin-left: 0; }
 .wcopy { width: 24px; height: 24px; padding: 0; border: 0; color: #64748B; background: transparent; vertical-align: -6px; margin-left: 2px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; }
 .wcopy svg { width: 15px; height: 15px; flex: none; }
 .wcopy:hover { color: var(--ink); background: #F1F5F9; }
-/* the token's own events above the chart: the badge from the price, what it is, when, and a click that goes there */
-.marksline { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
-.mklegend { display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 10px 0 4px; border-radius: 999px; border: 1px solid var(--line);
-            background: var(--surface); font-size: 12.5px; color: var(--ink); cursor: pointer; }
-.mklegend:hover { border-color: #CBD5E1; background: #F8FAFC; }
-.mklegend .evdot { position: static; margin: 0; }
 .evdot { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; font: 700 10.5px/1 var(--sans); }
 .evdot.mig { background: #7C3AED; color: #F5F3FF; }
 .evdot.paid { background: #0B0B0B; }

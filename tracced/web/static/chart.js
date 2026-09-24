@@ -136,7 +136,7 @@
           const shift = firstBefore == null ? 0 : Math.max(0, times.indexOf(firstBefore));   // bars that arrived on the left
           chart.timeScale().setVisibleLogicalRange({ from: keepL.from + shift, to: keepL.to + shift });
         }
-      } finally { busy = false; el.classList.remove('loading'); place(); }
+      } finally { busy = false; el.classList.remove('loading'); place(); placeSoon(); }
     }
     function visible() { const r = chart.timeScale().getVisibleRange(); return r ? { a: r.from, b: r.to } : null; }
     function center() { const v = visible(); return v ? (v.a + v.b) / 2 : (created + now) / 2; }
@@ -188,7 +188,12 @@
       if (info.barsBefore < 40 && !edge.left && loaded.a > created + 1) await load(loaded.a - CHUNK[tf], loaded.a, 'left');
       else if (info.barsAfter < 40 && !edge.right && loaded.b < now - TF_SEC[tf]) await load(loaded.b, loaded.b + CHUNK[tf], 'right');
     }, 120));
-    chart.timeScale().subscribeVisibleTimeRangeChange(() => place());
+    /* The price axis re-fits to the new candles on the library's next paint, after this range change: a badge placed
+       now uses the old scale and lands under the toolbar or off the chart (⇤ Launch did that). So place again once
+       the library has painted, at most once per frame pair. */
+    let soon = 0;
+    function placeSoon() { if (!soon) soon = requestAnimationFrame(() => { soon = requestAnimationFrame(() => { soon = 0; place(); }); }); }
+    chart.timeScale().subscribeVisibleTimeRangeChange(() => { place(); placeSoon(); });
     let pickedW = 0;
     new ResizeObserver(() => {
       place();
@@ -256,7 +261,7 @@
         const x = xOf(e.sec); if (x == null || x > W) return;
         const kind = e.kind || 'ev', prev = drawn[kind];
         if (prev && Math.abs(x - prev.x) < 16) { prev.n++; prev.el.title += '\n' + (e.title || ''); prev.el.dataset.n = prev.n; return; }
-        const y = stackY(x, Math.max(18, yOf(e.sec) ?? 40), placed, box.clientHeight - 30);
+        const y = stackY(x, Math.min(Math.max(18, yOf(e.sec) ?? 40), box.clientHeight - 30), placed, box.clientHeight - 30);   // never below the box, whatever the scale says
         placed.push({ x, y });
         const d = document.createElement('div'); d.className = 'evdot ' + kind;
         d.style.left = x + 'px'; d.style.top = y + 'px';

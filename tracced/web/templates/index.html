@@ -40,7 +40,7 @@
   <ul class="ai-r">
     <li>✦ Three ready methods, or your own words</li>
     <li>✦ Every pick explained with the numbers in the table</li>
-    <li>✦ Picks go straight to your watchlist</li>
+    <li>✦ Picks go straight to your lists</li>
   </ul>
   <span class="ai-soon">{{ 'Live on every result' if assistant_on else 'Coming next' }}</span>
 </section>
@@ -49,7 +49,7 @@
 
 {% if tokens %}
 <section class="card" id="recent">
-  <div class="row mehead"><h2>Recently analysed on tracced</h2>{% if acct %}<a class="right small" href="/me#analyses">My analyses ({{ my_n }}) →</a>{% endif %}</div>
+  <div class="row mehead"><h2>Recently analyzed on tracced</h2>{% if acct %}<a class="right small" href="/me#analyses">My analyses ({{ my_n }}) →</a>{% endif %}</div>
   <p class="muted small">Everyone's analyses, not only yours. A finished one opens for anyone, which is why a link you
     share works and why opening one costs nothing. Who ran it is never shown.</p>
   <div class="recent">
@@ -58,7 +58,7 @@
         <span class="sym">{{ t.symbol }}</span>
         <span class="mono muted win"><span class="dtc" data-ms="{{ t.t_from }}">{{ t.t_from|dt }}</span> → <span class="dtc" data-ms="{{ t.t_to }}">{{ t.t_to|dt }}</span></span>
         <span class="mono n">{{ t.ranges }} range{{ '' if t.ranges == 1 else 's' }}</span>
-        <span class="mono n">{% if t.best %}best {{ t.best|round(1) }}×{% endif %}</span>
+        <span class="mono n"{% if t.best %} title="Highest average exit cap ÷ average entry cap among its wallets, buys before the range included"{% endif %}>{% if t.best %}best {{ t.best|round(1) }}×{% endif %}</span>
         {% if t.example %}<span class="chip ex" title="Recorded token — press Analyze on a pump to replay the run, no requests">Demo</span>{% else %}<span class="chip st-{{ t.status }}">{{ {'running':'Running','done':'Done','error':'Error'}[t.status] }}</span>{% endif %}
         <span class="open">Open →</span>
       </a>

@@ -48,9 +48,9 @@
   {% if limit_kind %}
   <div class="sheet" id="limitsheet" hidden role="dialog" aria-modal="true" aria-labelledby="limith">
     <div class="sheet-card">
-      <div class="sheet-head"><b id="limith">{% if limit_kind == 'sitecap' %}Today's live analyses are used up for the whole site{% else %}You've used your {{ s.runs_per_day }} free analyses for today{% endif %}</b><button type="button" class="ghost x" data-limit-close aria-label="Close">×</button></div>
-      <p>{% if limit_kind == 'sitecap' %}{{ early_note }}{% else %}Each person gets {{ s.runs_per_day }} a day, whichever wallet is connected.{% endif %}
-        Come back tomorrow: the count resets at midnight UTC, in <b data-reset></b>.</p>
+      <div class="sheet-head"><b id="limith">{% if limit_kind == 'sitecap' %}Today's live analyses are used up for the whole site{% elif limit_kind == 'netcap' %}Your network has used today's {{ s.runs_per_ip_per_day }} free analyses{% else %}You've used your {{ s.runs_per_day }} free analyses for today{% endif %}</b><button type="button" class="ghost x" data-limit-close aria-label="Close">×</button></div>
+      <p>{% if limit_kind == 'sitecap' %}{{ early_note }}{% elif limit_kind == 'netcap' %}An office or a phone carrier can share one address, so analyses run by others on it count here too.{% else %}Each person gets {{ s.runs_per_day }} a day, whichever wallet is connected.{% endif %}
+        The count resets at midnight UTC, in <b data-reset></b>.</p>
       <p class="muted small">Ready results and the demo stay open.</p>
       <div class="row limitact">{% if demo_mint and demo_mint != mint %}<a class="button" href="/token?mint={{ demo_mint }}">Open the demo</a>{% endif %}<button type="button" class="primary" data-limit-close>OK</button></div>
     </div>
@@ -175,11 +175,17 @@
   if (LIMIT) {
     LIMIT.addEventListener('click', e => { if (e.target === LIMIT || e.target.closest('[data-limit-close]')) LIMIT.hidden = true; });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') LIMIT.hidden = true; });
-    {% if notice %}openLimit('{{ notice }}');{% endif %}
+    {% if notice %}openLimit('{{ notice }}');
+    // the window is about that one bounce: a reload, a shared link or tomorrow's visit must not show it again
+    try { history.replaceState(history.state, '', location.pathname + location.search.replace(/([?&])notice=[^&]*(&|$)/, '$1').replace(/[?&]$/, '') + location.hash); } catch (e) {}{% endif %}
   }
+  /* The server always receives UTC: the sent values are swapped in the form data, never in the fields, which keep
+     showing the footer's time zone when a check or a window stops the submit. `formdata` also fires for f.submit(). */
+  const utcOf = f => f && f.classList && f.classList.contains('wrow') && state.rows[+f.dataset.i];
+  rowsEl.addEventListener('formdata', e => { const r = utcOf(e.target); if (r) { e.formData.set('from', r.from || ''); e.formData.set('to', r.to || ''); } });
   rowsEl.addEventListener('submit', e => {
     const f = e.target.closest('.wrow'), r = f && state.rows[+f.dataset.i], hit = r && hitFor(r);
-    if (r) { f.querySelector('[name=from]').value = r.from || ''; f.querySelector('[name=to]').value = r.to || ''; }   // the server always receives UTC
+    if (r && !window.FormDataEvent) { f.querySelector('[name=from]').value = r.from || ''; f.querySelector('[name=to]').value = r.to || ''; }   // a browser without the event: the old way
     if (DEMO) { if (hit) { try { localStorage.setItem(RAN + hit, '1'); } catch (x) {} } return; }
     if (hit) return;                                             // a finished result opens for anyone
     const f0 = parse(r.from), t0 = parse(r.to);                  // say what is wrong with the range before asking for anything
