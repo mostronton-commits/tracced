@@ -12,11 +12,16 @@ nothing and needs no account — that is what makes a shared link work.
 Running a **new** analysis. The wallet signs a message: no transaction, no fee. You are asked at the moment you
 press Analyze, not before, and the range you marked survives the sign-in.
 
-The daily count is per person, not per wallet: connecting another wallet in the same browser adds nothing. To know
-the browser again, the first analysis leaves a cookie holding a random number and nothing else; it is not used for
-analytics. One network has its own, higher count, because an office or a phone carrier puts many people behind one
-address. Every count resets at midnight UTC, and the page shows how many are left. A run that fails gives its
-analysis back.
+The daily count of new analyses is per person, not per wallet: connecting another wallet in the same browser adds
+nothing. To know the browser again, the first analysis leaves a cookie holding a random number and nothing else; it
+is not used for analytics. One network has its own, higher count, because an office or a phone carrier puts many
+people behind one address. Every count resets at midnight UTC, and the page shows how many are left. A run that
+fails gives its analysis back.
+
+Loading what a result does not hold yet in a wallet card: the wallet's last 30 days on every token, its age and
+first funder when it is not among the first {{ s.age_lookups_max }} by PnL that the analysis checks itself, and the
+trades of a wallet without exact exits. What someone has already loaded is free for everyone: the 30 days are kept
+for a day, and the age and funder stay in the result.
 
 | Limit | Value |
 |---|---|
@@ -25,10 +30,11 @@ analysis back.
 | Ranges per token | {{ s.ranges_per_token }} |
 | Longest range | {{ s.max_window_hours }} hours |
 | Requests one run may spend | {{ '{:,}'.format(s.run_cap_requests) }} |
-| Wallets that get exact exits | {{ s.max_wallet_lookups }} |
+| Wallets that get exact exits | {{ '{:,}'.format(s.max_wallet_lookups) }} |
 | Smallest position in the table | ${{ s.min_invested_usd }} bought inside the range |
-| Wallets whose age is checked | {{ s.age_lookups_max }} |
-| Chart and wallet-card requests a day: guest / wallet / site | {{ s.browse_per_day_guest }} / {{ s.browse_per_day }} / {{ s.browse_global_per_day }} |
+| Wallets whose age is checked with the analysis, first by PnL | {{ s.age_lookups_max }} |
+| Other wallets checked from their cards, per person a day | {{ s.get('age_card_per_day', 50) }} |
+| Requests a day: charts (guest) / charts and wallet cards (wallet) / the whole site | {{ '{:,}'.format(s.browse_per_day_guest) }} / {{ '{:,}'.format(s.browse_per_day) }} / {{ '{:,}'.format(s.browse_global_per_day) }} |
 | New analyses on the whole site, per day | {{ s.runs_global_per_day }} |
 
 !!! info "📐 These numbers are the live settings"

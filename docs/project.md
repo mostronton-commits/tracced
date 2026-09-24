@@ -42,7 +42,9 @@ the market rate of their minute, and the count is shown with the results.
 
 ## What it refuses to do
 
-No wallet scores, no winrate, no "smart money" badge.
+No wallet scores and no "smart money" badge. The card's win rate is a count, not a score: the wallet's closed
+positions that made money, out of all its closed ones, counted from its own swaps by the rule in
+[How it works](/docs/how-it-works#the-wallet-card).
 
 Tags are facts with fixed definitions you can read: bought within 60 seconds of creation, wallet younger than 24
 hours, funded by the same wallet as others in the list. Each is derived from trades you can open yourself. The
