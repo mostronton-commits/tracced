@@ -194,6 +194,9 @@ def make_enricher(ages, s):
                 return
             try:
                 age = ages.oldest_tx(row["wallet"], full=full, before=row.get("entry_tx"))
+                if _after_buy(age, row):                   # перша транзакція пізніша за покупку: запис хибний, перечитуємо
+                    job.log.append(f"wallet {row['wallet'][:8]}…: its cached first transaction came after its buy — read again")
+                    age = ages.oldest_tx(row["wallet"], refresh=True, full=full, before=row.get("entry_tx"))
                 if not full and not age.get("exact") and tags.could_be_fresh(row.get("first_buy_ms"), age):
                     age = ages.oldest_tx(row["wallet"], full=True)   # тисяча транзакцій за добу до покупки: дочитуємо
             except Exception as ex:  # noqa: BLE001 — одна нода/гаманець не має зупиняти решту
@@ -257,6 +260,12 @@ def make_enricher(ages, s):
         save(job)
         ages.flush()
     return enrich
+
+
+def _after_buy(age, row):
+    """Точний вік, за яким гаманець народився після власної покупки, — неможливий: кеш бачив лише кінець історії."""
+    return bool(age and age.get("exact") and age.get("oldest_ms") and row.get("first_buy_ms")
+                and age["oldest_ms"] > row["first_buy_ms"] + 60_000)
 
 
 def _bundles(r, rows):
@@ -1072,11 +1081,15 @@ async def wallet_age_json(request):
         return {"ms": a["oldest_ms"], "exact": bool(a.get("exact")), "n": a.get("n")} if a and a.get("oldest_ms") else None
 
     def best_age():
-        # точний вік кращий за «щонайменше»: кеш міг дочитати історію глибше, ніж пам'ятає результат
+        # точний вік кращий за «щонайменше»: кеш міг дочитати історію глибше, ніж пам'ятає результат. Вік, за яким
+        # гаманець народився після власної покупки, хибний: його не показуємо, картка перечитає
         c = age_of(cached)
-        if stored and (stored.get("exact") or not (c and c["exact"])):
-            return stored
-        return c or stored
+        st = None if stored and _after_buy({"exact": stored.get("exact"), "oldest_ms": stored.get("ms")}, row) else stored
+        if c and _after_buy(cached, row):
+            c = None
+        if st and (st.get("exact") or not (c and c["exact"])):
+            return st
+        return c or st
 
     def known(**extra):
         out = {"age": best_age(), "funder": (r.get("funders") or {}).get(wallet), "bundle": (r.get("bundle") or {}).get(wallet),
@@ -1087,11 +1100,13 @@ async def wallet_age_json(request):
     now_age = best_age()
     # зайнятий гаманець: 6 000 останніх транзакцій не дійшли до першої. Картку відкрили — гортаємо глибше, один раз
     busy = bool(now_age) and not now_age.get("exact") and not (cached or {}).get("deep")
-    if not busy and not pending and (stored is not None or wallet in set(r.get("funder_checked") or []) or shared):
+    bad_cached = _after_buy(cached, row)                 # кеш каже «народився після покупки»: перечитати
+    reread = bad_cached or (cached is None and stored is not None and now_age is None)
+    if not busy and not pending and not reread and (stored is not None or wallet in set(r.get("funder_checked") or []) or shared):
         return known()
     pk = request.get("acct")
     settle = None
-    if cached is None or busy or pending:               # платний шлях: ці виклики ноди ще не робились
+    if cached is None or busy or pending or reread:     # платний шлях: ці виклики ноди ще не робились
         if ages.paused():
             return known(checked=False, paused=True)
         if not pk:
@@ -1109,7 +1124,7 @@ async def wallet_age_json(request):
             daily.add("age:global", 1)
 
     def work():                                         # кеш віку пише себе кожні 25 записів і при зупинці сервера
-        age = ages.oldest_tx_deep(wallet) if busy else ages.oldest_tx(wallet)
+        age = ages.oldest_tx_deep(wallet) if busy else ages.oldest_tx(wallet, refresh=bad_cached)
         fund = ages.funder(wallet, age["oldest_sig"]) if age.get("exact") and age.get("oldest_sig") else None
         return age, fund
     try:

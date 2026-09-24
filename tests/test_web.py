@@ -1393,7 +1393,7 @@ if AioHTTPTestCase:
             return False
 
         def oldest_tx(self, w, refresh=False, full=True, before=None):
-            if w not in self.cache:
+            if w not in self.cache or refresh:
                 self.calls += 1
                 self.cache[w] = {"oldest_ms": 999_990_000_000, "exact": True, "n": 3, "oldest_sig": "sig-" + w[:4]}
             return self.cache[w]
@@ -1481,6 +1481,27 @@ if AioHTTPTestCase:
             self.assertEqual((d["funder"], self.ages.calls), ("A" * 44, 1))   # лише пошук: вік уже був
             d = await (await self.client.get(f"/wallet_age.json?job={jid}&wallet={w}")).json()
             self.assertEqual((d["funder"], self.ages.calls), ("A" * 44, 1))   # далі — з результату, для всіх
+
+        async def test_a_card_reads_again_an_age_after_the_wallets_own_buy(self):
+            # кеш каже, що гаманець народився через п'ять днів після покупки: такого не буває, картка перечитує
+            jid, mint, w = "LATEAG_20010909-0146_0206", "L" * 40, acct_mod.b58encode(b"\x71" * 32)
+            rows = [{"wallet": w, "first_buy_ms": 1000000060000, "tag_list": []}]
+            result = {"info": {"mint": mint, "symbol": "LTE", "supply": 1000000, "created_time": 999996400000},
+                      "window": {"from": 999999960000, "to": 1000001160000, "end": 1000003560000}, "mode": "trades",
+                      "counts": {}, "coverage": {}, "wallet_trades": {}, "rows": rows, "scope": "all", "requests": 0}
+            os.makedirs(self.tmp.name + "/web", exist_ok=True)
+            with open(f"{self.tmp.name}/web/{jid}.json", "w") as f:
+                json.dump({"id": jid, "mint": mint, "t_from": 999999960000, "t_to": 1000001160000, "status": "done",
+                           "created_ms": 1, "log": [], "result": result}, f)
+            self.app["jobs"]._load()
+            self.ages.cache[w] = {"oldest_ms": 1000000060000 + 5 * 86_400_000, "exact": True, "n": 8, "oldest_sig": "spam"}
+            r = await self.client.get(f"/wallet_age.json?job={jid}&wallet={w}")
+            self.assertEqual(r.status, 401)                               # хибного віку гість не бачить: лише «підключи гаманець»
+            self.assertNotIn("age", await r.json())
+            me = {"Cookie": wallet_cookie(acct_mod.b58encode(b"\x72" * 32))}
+            d = await (await self.client.get(f"/wallet_age.json?job={jid}&wallet={w}", headers=me)).json()
+            self.assertEqual(d["age"]["ms"], 999_990_000_000)             # перечитано
+            self.assertEqual(self.ages.calls, 2)                          # вік і спонсор
 
         async def test_a_busy_wallet_gets_its_real_age_and_funder_when_its_card_opens(self):
             # 6 000 останніх транзакцій не дійшли до першої: картка гортає глибше, раз, як одна з карток дня

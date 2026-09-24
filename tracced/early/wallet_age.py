@@ -22,6 +22,8 @@ import time
 import urllib.error
 import urllib.request
 
+from ..cache import JsonCache
+
 DEFAULT_URL = "https://api.mainnet-beta.solana.com"
 HEAVY = {"getSignaturesForAddress", "getTransaction"}   # платна нода Solana Tracker бере за них по 10 кредитів
 # Helius: повна історія, по 1 кредиту за виклик, і свій метод «від найстарішої» (getTransactionsForAddress, 10 кредитів),
@@ -31,6 +33,11 @@ HELIUS_HOST = "helius-rpc.com"
 LIMIT = 1000
 MAX_PAGES = 6            # 6 000 підписів: далі гаманець точно не «свіжий», а ходити глибше дорого
 DEEP_PAGES = 30          # картка, яку відкрили: до 30 000 підписів, щоб у зайнятого гаманця знайти справжній вік і спонсора
+# Вік, записаний у кеш до 22.09.2026, брали й з ноди, що бачила лише останні години історії гаманця: у 993 з 1 991
+# гаманців демо «перша транзакція» виявилась на п'ять днів пізнішою за їхню покупку, і все одно «точна». Такий запис
+# вважається відсутнім і перечитується, а з ним і спонсор, знайдений за його першою транзакцією. З 29.09 (тиждень
+# кешу) ця межа вже нічого не зачіпає
+TRUSTED_FROM = 1_790_035_200
 RETRY_SLEEP = (2, 4, 8)
 RETRY_AFTER_MAX = 10     # Retry-After слухаємо, але картку, що чекає на відповідь, довше не тримаємо
 
@@ -202,9 +209,17 @@ class WalletAge:
         """Бюджет платної ноди на цей місяць вичерпано (до резерву): нові гаманці чекають наступного місяця."""
         return bool(self.budget and self.budget.exhausted())
 
+    def _get(self, key):
+        """Запис кешу, якому можна вірити (див. TRUSTED_FROM); None — треба питати ноду."""
+        if self.cache is None:
+            return None
+        if isinstance(self.cache, JsonCache):
+            return self.cache.get(key, since=TRUSTED_FROM)
+        return self.cache.get(key)
+
     def cached(self, wallet):
         """Вік з кешу без запиту; None — треба питати ноду."""
-        return self.cache.get(wallet) if self.cache is not None else None
+        return self._get(wallet)
 
     # ── факт ──
     def oldest_tx(self, wallet, refresh=False, full=True, before=None):
@@ -217,10 +232,13 @@ class WalletAge:
         викликом «від найстарішої» (10 кредитів), зокрема той, що в кеші лишила дешева перевірка."""
         cached = None
         if self.cache is not None and not refresh:
-            cached = self.cache.get(wallet)
+            cached = self._get(wallet)
             if cached is not None and (cached.get("exact") or cached.get("deep") or not full or not self.helius):
                 self.cache_hits += 1
                 return cached
+        # вік перечитується (попросили заново, або старий запис не вартий довіри): спонсора читали з тієї самої
+        # першої транзакції, тож він теж під питанням
+        stale = self.cache is not None and (refresh or (cached is None and self.cache.get(wallet) is not None))
         if cached is not None:                            # неточний вік з дешевої перевірки: лишився один виклик
             out = self._oldest_first(wallet, cached)
         elif self.helius:
@@ -229,6 +247,8 @@ class WalletAge:
             out = self._oldest_paged(wallet)
         if self.cache is not None:
             self.cache.put(wallet, out)
+            if stale:
+                self.cache.put(f"funder:{wallet}", None)
         return out
 
     @staticmethod
@@ -318,7 +338,7 @@ class WalletAge:
         перша двісті) робить лише пошук. Записи, старші за цю позначку, вважаються дочитаними."""
         key = f"funder:{wallet}"
         can_scan = HELIUS_HOST in self.tx_url
-        cached = self.cache.get(key) if self.cache is not None else None
+        cached = self._get(key)
         if cached is not None and (cached.get("funder") or not scan or cached.get("scanned", True) or not can_scan):
             self.cache_hits += 1
             return cached.get("funder")
@@ -340,7 +360,7 @@ class WalletAge:
     def funder_pending(self, wallet):
         """Дешева перевірка прочитала лише першу транзакцію, і спонсора там не було: пошук серед перших 100 ще не
         робився. Картка, яку відкрили, його доробляє."""
-        c = self.cache.get(f"funder:{wallet}") if self.cache is not None else None
+        c = self._get(f"funder:{wallet}")
         return bool(c) and not c.get("funder") and c.get("scanned") is False and HELIUS_HOST in self.tx_url
 
     def _first_sol_in(self, wallet):

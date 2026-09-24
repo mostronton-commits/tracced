@@ -257,6 +257,24 @@ class TestWalletAge(unittest.TestCase):
         wa = WalletAge(url=HX, post=FakePost([]), sleep=lambda s: None, pace_s=0, cache=old)
         self.assertEqual((wa.funder("OLD", "s"), wa.funder_pending("OLD")), (None, False))
 
+    def test_an_age_cached_before_it_could_be_trusted_is_read_again_with_its_funder(self):
+        """20.09 кеш наповнювала нода, що бачила лише останні години історії: «перша транзакція» гаманця виходила
+        на дні пізнішою за його покупку. Такий запис — як відсутній, і спонсор, знайдений за ним, теж."""
+        from tracced.cache import JsonCache
+        from tracced.early.wallet_age import TRUSTED_FROM
+        HX = "https://mainnet.helius-rpc.com/?api-key=x"
+        cache = JsonCache(None, ttl_hours=0)
+        cache.data["W"] = {"value": {"oldest_ms": 1_790_000_000_000, "exact": True, "n": 8, "oldest_sig": "spam"},
+                           "ts": TRUSTED_FROM - 3600}
+        cache.data["funder:W"] = {"value": {"funder": "SPAMMER", "scanned": True, "via": "first"}, "ts": TRUSTED_FROM + 3600}
+        post = FakePost([sigs(12, oldest_s=1_700_000_000)])
+        wa = WalletAge(url=HX, post=post, sleep=lambda s: None, pace_s=0, cache=cache)
+        self.assertIsNone(wa.cached("W"))                                         # не вартий довіри: як нема
+        age = wa.oldest_tx("W", full=False, before="BUY")
+        self.assertEqual((age["oldest_ms"], age["n"], len(post.calls)), (1_700_000_001_000, 12, 1))
+        self.assertIsNone(cache.get("funder:W"))                                  # спонсор з тієї «першої» — забутий
+        self.assertEqual(wa.cached("W"), age)                                     # новий запис — з довірою
+
     def test_could_be_fresh(self):
         buy = 100 * H
         self.assertTrue(tags.could_be_fresh(buy, {"oldest_ms": buy - 2 * H, "exact": True}))
@@ -338,7 +356,7 @@ class TestRpcBudget(unittest.TestCase):
         answers = [sigs(3), []] * 2
         wa = WalletAge(url="https://rpc.example/?k", post=FakePost(answers), sleep=lambda s: None, pace_s=0,
                        cache=cache, budget=b)
-        rows = [{"wallet": w, "first_buy_ms": 2000, "tag_list": []} for w in ("W1", "W2", "W3", "W9")]
+        rows = [{"wallet": w, "first_buy_ms": 2_000_000_000, "tag_list": []} for w in ("W1", "W2", "W3", "W9")]
         job = SimpleNamespace(result={"rows": rows}, log=[])
         saved = []
         make_enricher(wa, {"age_lookups_max": 10})(job, saved.append)
@@ -400,13 +418,36 @@ class TestRpcBudget(unittest.TestCase):
         self.assertEqual(b.spent, (1 + 10 + 1 + 10) + 1 + (1 + 10 + 1) + (1 + 1))
         self.assertEqual((r["enrich"]["done"], r["enrich"]["funders_done"], r["enrich"]["total"]), (4, 4, 4))
 
+    def test_an_age_after_the_wallets_own_buy_is_read_again(self):
+        from types import SimpleNamespace
+        from tracced.web.app import make_enricher
+
+        class Cache(dict):
+            def get(self, k): return dict.get(self, k)
+            def put(self, k, v): self[k] = v
+            def flush(self): pass
+        buy_ms = 1_790_000_000_000
+        cache = Cache()
+        cache["W"] = {"oldest_ms": buy_ms + 5 * 86_400_000, "exact": True, "n": 8, "oldest_sig": "spam"}   # «народився» після покупки
+        cache["funder:W"] = {"funder": "SPAMMER", "scanned": True}
+        keys = [{"pubkey": "REAL", "signer": True}, {"pubkey": "W", "signer": False}]
+        post = FakePost([sigs(12, oldest_s=1_700_000_000),
+                         {"meta": {"err": None, "preBalances": [9_000_000_000, 0], "postBalances": [8_000_000_000, 1_000_000_000]},
+                          "transaction": {"message": {"accountKeys": keys}}}])
+        wa = WalletAge(url="https://mainnet.helius-rpc.com/?api-key=x", post=post, sleep=lambda s: None, pace_s=0, cache=cache)
+        job = SimpleNamespace(result={"rows": [{"wallet": "W", "first_buy_ms": buy_ms, "tag_list": [], "entry_tx": "BUY"}]}, log=[])
+        make_enricher(wa, {"age_lookups_max": 10, "age_full_top": 10})(job, lambda j: True)
+        r = job.result
+        self.assertEqual((r["ages"]["W"]["ms"], r["funders"]["W"]), (1_700_000_001_000, "REAL"))
+        self.assertTrue(any("came after its buy" in m for m in job.log))
+
     def test_enrichment_stops_when_the_analysis_is_deleted(self):
         from types import SimpleNamespace
         from tracced.web.app import make_enricher
         answers = [sigs(3), []] * 60
         post = FakePost(answers)
         wa = WalletAge(post=post, sleep=lambda s: None, pace_s=0)
-        rows = [{"wallet": f"W{i}", "first_buy_ms": 2000, "tag_list": []} for i in range(60)]
+        rows = [{"wallet": f"W{i}", "first_buy_ms": 2_000_000_000, "tag_list": []} for i in range(60)]
         job = SimpleNamespace(result={"rows": rows}, log=[])
         make_enricher(wa, {"age_lookups_max": 100})(job, lambda j: False)   # save() каже: аналізу вже нема
         self.assertEqual(job.result["enrich"]["done"], 25)                    # зупинилось на першому збереженні

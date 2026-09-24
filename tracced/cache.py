@@ -33,13 +33,16 @@ class JsonCache:
             self.data = {k: e for k, e in self.data.items()
                          if isinstance(e, dict) and now - e.get("ts", 0) <= self.ttl}
 
-    def get(self, key):
+    def get(self, key, since=None):
+        """Значение или None. `since` (unix-время): запись, сделанная раньше, считается отсутствующей."""
         with self._lock:
             e = self.data.get(key)
         if not e:
             return None
         if self.ttl and (time.time() - e.get("ts", 0)) > self.ttl:
             return None          # протух
+        if since and e.get("ts", 0) < since:
+            return None          # записан до того, как источнику можно было верить
         return e.get("value")
 
     def put(self, key, value):

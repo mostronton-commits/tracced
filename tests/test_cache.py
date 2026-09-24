@@ -23,6 +23,12 @@ class TestCache(unittest.TestCase):
         c = JsonCache(self.path)
         self.assertIsNone(c.get("nope"))
 
+    def test_a_record_older_than_since_counts_as_missing(self):
+        c = JsonCache(self.path, ttl_hours=0)
+        c.data["OLD"] = {"value": 1, "ts": 1000.0}
+        c.data["NEW"] = {"value": 2, "ts": 3000.0}
+        self.assertEqual((c.get("OLD"), c.get("OLD", since=2000), c.get("NEW", since=2000)), (1, None, 2))
+
     def test_ttl_expiry(self):
         c = JsonCache(self.path, ttl_hours=1, flush_every=1)
         c.data["W"] = {"value": 1, "ts": time.time() - 7200}  # 2ч назад, TTL 1ч
