@@ -62,4 +62,5 @@ the owner can see how the product is used. None of it goes to anyone else:
 | The demo | [open it, no sign-up]({{ '/token?mint=' ~ demo_token if demo_token else '/' }}) |
 | The code | [github.com/mostronton-commits/tracced](https://github.com/mostronton-commits/tracced) |
 | Updates | [@tracced_xyz](https://x.com/tracced_xyz) |
+| A bug, an idea, a question | [Write to us](/feedback) |
 | Next to the terminals | [where this sits beside Axiom and GMGN](/docs/compare) |

@@ -30,7 +30,7 @@
     <span class="seg">{% for per in periods %}<a href="?p={{ per }}{% if include_team %}&team=1{% endif %}&tab={{ tab }}" class="{{ 'on' if per == period }}">{{ {'today': 'Today', '7d': '7 d', '30d': '30 d', 'all': 'All'}[per] }}</a>{% endfor %}</span>
     <a href="?p={{ period }}{% if not include_team %}&team=1{% endif %}&tab={{ tab }}" class="uteam{{ ' on' if include_team }}" title="Your wallets and the ones marked as test stay out of the numbers unless included">{{ 'Team included' if include_team else 'Include team' }}</a>
   </nav>
-  <nav class="utabs" aria-label="Sections">{% for k, name in tabs.items() %}<a href="{{ q }}&tab={{ k }}" class="{{ 'on' if k == tab }}">{{ name }}</a>{% endfor %}</nav>
+  <nav class="utabs" aria-label="Sections">{% for k, name in tabs.items() %}<a href="{{ q }}&tab={{ k }}" class="{{ 'on' if k == tab }}">{{ name }}{% if k == 'feedback' and feedback_new %} <b class="ucount">{{ feedback_new }}</b>{% endif %}</a>{% endfor %}</nav>
 </section>
 
 {% if tab == 'overview' %}
@@ -52,9 +52,10 @@
   {% set errs = u.errors|sum(attribute='times') %}{% set lims = u.limits|sum(attribute='times') %}
   {% set st_low = budget.credits_left is not none and budget.reserve and budget.credits_left < 2 * budget.reserve %}
   {% set rpc_high = budget.rpc and budget.rpc.limit and budget.rpc.spent > 0.8 * budget.rpc.limit %}
-  {% if p.runs_failed or errs or lims or u.ai.errors or st_low or rpc_high %}
+  {% if p.runs_failed or errs or lims or u.ai.errors or st_low or rpc_high or feedback_new %}
   <h3 class="small">Needs a look</h3>
   <ul class="uwatch">
+    {% if feedback_new %}<li><a href="{{ q }}&tab=feedback">{{ feedback_new }} new message{{ '' if feedback_new == 1 else 's' }}</a></li>{% endif %}
     {% if p.runs_failed %}<li><a href="{{ q }}&tab=analyses">{{ p.runs_failed }} analys{{ 'is' if p.runs_failed == 1 else 'es' }} failed</a></li>{% endif %}
     {% if errs %}<li><a href="{{ q }}&tab=behavior">{{ errs }} error{{ '' if errs == 1 else 's' }} seen by wallets</a></li>{% endif %}
     {% if lims %}<li><a href="{{ q }}&tab=behavior">{{ lims }} daily limit{{ '' if lims == 1 else 's' }} hit</a></li>{% endif %}
@@ -226,5 +227,27 @@
     {% for w in u.costs.by_who %}<tr><td>{{ w.label }}</td><td class="num mono">{{ n0(w.st) }}</td><td class="num mono">{{ n0(w.rpc) }}</td><td class="num mono">{{ dollars(w.ai_usd) }}</td></tr>{% endfor %}
     </tbody></table></div>
   </div>
+</section>
+{% endif %}
+
+{% if tab == 'feedback' %}
+<section class="card me usage">
+  {% if feedback %}
+  <div class="fblist">
+  {% for f in feedback %}
+    <article class="fbitem">
+      <div class="fbmeta small">
+        <span class="uflag fb-{{ f.kind }}">{{ f.kind }}</span>
+        <span class="dtc muted" data-ms="{{ f.ts_ms }}">{{ f.ts_ms|dt }}</span>
+        {% if f.pk %}<a class="mono" href="/admin/w/{{ f.pk }}">{{ short(f.pk) }}</a>{% else %}<span class="muted">guest</span>{% endif %}
+        {% if f.page %}<a class="muted" href="{{ f.page }}">{{ f.page[:40] }}</a>{% endif %}
+        <span class="muted">{{ {'m': 'phone', 'd': 'computer'}.get(f.dev, '') }}</span>
+      </div>
+      <p class="fbtext">{{ f.text }}</p>
+      {% if f.contact %}<p class="small">Reply to: <b>{{ f.contact }}</b></p>{% endif %}
+    </article>
+  {% endfor %}
+  </div>
+  {% else %}<p class="muted">No messages yet. They come from «Write to us» in the footer and on error pages.</p>{% endif %}
 </section>
 {% endif %}

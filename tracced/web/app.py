@@ -38,6 +38,7 @@ from . import demo as demo_mod
 from . import replay
 from . import usage as usage_mod
 from .agent_store import AgentStore
+from .feedback import FeedbackStore, KINDS as FEEDBACK_KINDS, MAX_CONTACT as FEEDBACK_CONTACT, MAX_PAGE as FEEDBACK_PAGE, MAX_TEXT as FEEDBACK_TEXT
 from .jobs import JobQueue, make_id, unnamed
 
 log = logging.getLogger("early.web")
@@ -413,6 +414,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["browse_daily"] = DailyCount(daily_dir / "browse.json")   # запити на графіки живих токенів: на адресу, на гаманець, на сайт
     app["runs_daily"] = DailyCount(daily_dir / "runs.json")       # живі прогони на весь сайт за добу (будь-який ключ підписує безкоштовно)
     app["usage_daily"] = DailyCount(daily_dir / "usage.json")     # рядків журналу (перегляди, кліки) на гаманець і на сайт за добу
+    app["feedback"] = FeedbackStore(Path(out_dir).parent / "feedback" / "feedback.jsonl")   # «Write to us»: листи власнику
+    app["feedback_throttle"] = Throttle(max_fails=5, window_s=3600, block_s=3600)       # п'ять листів на годину з однієї адреси
     app["usage_cache"], app["view_last"] = {}, {}                 # порахований дашборд на хвилину; останній перегляд сторінки
     app["credits"] = {"left": None, "at": 0}                     # залишок кредитів Data API: питаємо не частіше ніж раз на 10 хв
     app["ages"] = ages
@@ -481,6 +484,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_post("/auth/verify", auth_verify)
     app.router.add_post("/auth/logout", auth_logout)
     app.router.add_get("/me", me_page)
+    app.router.add_get("/feedback", feedback_page)
+    app.router.add_post("/feedback", feedback_post)
     app.router.add_get("/me.json", me_json)
     app.router.add_get("/me/wallets.csv", me_wallets_csv)
     app.router.add_post("/me/wallets", me_add_wallets)
@@ -1563,7 +1568,7 @@ def _team(app):
 
 USAGE_TTL = 60
 ADMIN_TABS = {"overview": "Overview", "analyses": "Analyses", "agent": "Agent", "wallets": "Wallets", "behavior": "Behavior",
-              "costs": "Costs", "log": "Log", "method": "Agent method"}
+              "costs": "Costs", "feedback": "Feedback", "log": "Log", "method": "Agent method"}
 
 
 async def _budget(app):
@@ -1606,8 +1611,10 @@ async def admin_page(request):
     budget = await _budget(app)
     u = await _usage_summary(app, period, include_team, budget)
     events = [dict(e, **usage_mod.label(e)) for e in app["events"].tail(100)] if tab == "log" else []
+    feedback = app["feedback"].recent(200)
     store = app["agent_store"]
     return render("admin.html", request, u=u, budget=budget, events=events, period=period, include_team=include_team, tab=tab, tabs=ADMIN_TABS,
+                  feedback=feedback, feedback_new=sum(1 for f in feedback if f.get("ts_ms", 0) >= u["since_ms"]),
                   usage_tz=app["s"].get("usage_tz") or "UTC", periods=list(usage_mod.PERIODS),
                   agent_cfg=store.config(), agent_history=store.history(10), agent_log=store.recent(50),
                   agent_on=app.get("agent") is not None, agent_model=getattr(app.get("assistant"), "model", ""),
@@ -1874,6 +1881,45 @@ async def docs_page(request):
     prev, nxt = docs_mod.around(DOCS_DIR, slug)
     _view(request, "docs", slug)
     return render("docs.html", request, body=body, title=title, nav=docs_mod.nav(DOCS_DIR, slug), prev=prev, nxt=nxt)
+
+
+async def feedback_page(request):
+    """«Write to us»: помилка, ідея, питання. Відкрито всім; зі сторінки помилки — одразу «Bug»."""
+    kind = request.query.get("kind") if request.query.get("kind") in FEEDBACK_KINDS else "idea"
+    _view(request, "feedback")
+    return render("feedback.html", request, kind=kind, kinds=FEEDBACK_KINDS, max_text=FEEDBACK_TEXT, max_contact=FEEDBACK_CONTACT)
+
+
+async def feedback_post(request):
+    """Лист власнику: у output/early/feedback/feedback.jsonl і на вкладку Feedback дашборда. Від спаму — поле-пастка,
+    яке людина не бачить, п'ять листів на годину з однієї адреси і спільна стеля на добу."""
+    app = request.app
+    if not _same_origin(request):
+        return _jerr("Requests must come from this site.", 403)
+    ip, now = _client_ip(request), time.time()
+    wait = app["feedback_throttle"].wait_s(ip, now)
+    if wait:
+        return _jerr(_wait_text(wait), 429)
+    body = await _json_body(request, limit=8192)
+    if body is None:
+        return _jerr("Bad request body.")
+    if body.get("website"):                                     # пастку заповнює лише бот: йому — «дякуємо», і нічого не пишемо
+        return web.json_response({"ok": True})
+    text = str(body.get("text") or "").strip()
+    if len(text) < 3:
+        return _jerr("Write a few words first.")
+    if len(text) > FEEDBACK_TEXT:
+        return _jerr(f"Keep it under {FEEDBACK_TEXT:,} characters.")
+    if not app["usage_daily"].take("feedback:global", int(app["s"].get("feedback_per_day", 200))):
+        return _jerr("Too many messages today. Try again tomorrow or write to us on X.", 429)
+    app["feedback_throttle"].miss(ip, now)
+    page = str(body.get("page") or "")
+    pk, kind = request.get("acct"), body.get("kind") if body.get("kind") in FEEDBACK_KINDS else "other"
+    app["feedback"].add({"ts_ms": int(now * 1000), "kind": kind, "text": text, "contact": str(body.get("contact") or "").strip()[:FEEDBACK_CONTACT],
+                         "page": page[:FEEDBACK_PAGE] if page.startswith("/") else "", "pk": pk, "dev": _device(request)})
+    if pk:
+        app["events"].add(pk, "feedback", kind=kind)
+    return web.json_response({"ok": True})
 
 
 async def how(request):

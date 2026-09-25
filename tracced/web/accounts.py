@@ -480,7 +480,7 @@ class AccountStore:
 # сировина для підрахунків дашборда, і в стрічці дій вона б утопила все інше
 ACTIONS = frozenset({"signin", "signout", "save_wallets", "remove_wallet", "list_create", "list_rename", "list_remove",
                      "save_analysis", "remove_analysis", "set_demo", "agent_method", "analyze", "delete_analysis",
-                     "agent", "tags", "export", "assistant", "waitlist"})   # assistant, waitlist — лише в старому файлі
+                     "agent", "tags", "export", "feedback", "assistant", "waitlist"})   # assistant, waitlist — лише в старому файлі
 MONTH_FILE = re.compile(r"^\d{4}-\d{2}\.jsonl$")
 
 

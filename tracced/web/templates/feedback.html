@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Write to us · tracced{% endblock %}
+{% block main_class %}center{% endblock %}
+{% block body %}
+<section class="card narrow fb">
+  <h2>Write to us</h2>
+  <p class="muted small">A bug, an idea, a question. Every message is read.</p>
+  <form id="fbform" novalidate>
+    <div class="fbkinds" role="radiogroup" aria-label="What is it about">
+      {% for k in kinds %}<label class="fbkind"><input type="radio" name="kind" value="{{ k }}"{% if k == kind %} checked{% endif %}><span>{{ {'bug': 'Bug', 'idea': 'Idea', 'question': 'Question', 'other': 'Other'}[k] }}</span></label>{% endfor %}
+    </div>
+    <textarea name="text" rows="6" maxlength="{{ max_text }}" required aria-label="Your message" placeholder="What happened, or what would you like to see?"></textarea>
+    <input type="text" name="contact" maxlength="{{ max_contact }}" aria-label="How to reach you" placeholder="Your X, Telegram or email (optional)">
+    <input type="text" name="website" class="fbhp" tabindex="-1" autocomplete="off" aria-hidden="true">
+    <div class="row"><button type="submit" class="primary">Send</button><span class="muted small" id="fbstat" role="status"></span></div>
+    <p class="muted small">Kept with the message: the page you came from{% if acct %} and your wallet{% endif %}. Only the owner reads them.</p>
+  </form>
+  <p class="fbdone" hidden>Thanks, it is with us. <a href="/">Back to tracced</a></p>
+</section>
+<script>
+(function () {
+  const f = document.getElementById('fbform'), stat = document.getElementById('fbstat');
+  const from = (() => { try { const u = new URL(document.referrer); return u.host === location.host ? u.pathname + u.search : ''; } catch (e) { return ''; } })();
+  f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const text = f.text.value.trim();
+    if (text.length < 3) { stat.textContent = 'Write a few words first.'; f.text.focus(); return; }
+    const btn = f.querySelector('button'); btn.disabled = true; stat.textContent = 'Sending…';
+    try {
+      const r = await fetch('/feedback', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: (f.querySelector('[name=kind]:checked') || {}).value, text, contact: f.contact.value.trim(), website: f.website.value, page: from }) });
+      let d = {}; try { d = await r.json(); } catch (x) {}
+      if (!r.ok) { stat.textContent = d.error || 'That did not go through. Try again in a minute.'; btn.disabled = false; return; }
+      f.hidden = true; document.querySelector('.fbdone').hidden = false;
+      if (window.EarlyUI) EarlyUI.track('feedback');
+    } catch (x) { stat.textContent = 'Could not reach the server.'; btn.disabled = false; }
+  });
+})();
+</script>
+{% endblock %}

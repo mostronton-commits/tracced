@@ -84,6 +84,8 @@ def page_of(referer, host):
         return "token", mint if MINT_RE.match(mint) else None
     if path == "/me":
         return "me", None
+    if path == "/feedback":
+        return "feedback", None
     if path == "/docs" or path.startswith("/docs/"):
         slug = path[6:] or "index"
         return "docs", slug if SLUG_RE.match(slug) else None
@@ -574,7 +576,8 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
 
 # ───────────────────────── події людською мовою ─────────────────────────
 
-PAGES = {"home": "the home page", "token": "a token", "job": "a result", "me": "their lists", "docs": "the docs", "other": "a page"}
+PAGES = {"home": "the home page", "token": "a token", "job": "a result", "me": "their lists", "docs": "the docs",
+         "feedback": "the Write to us form", "other": "a page"}
 SPEND_OF = {"st": "Solana Tracker requests", "rpc": "Helius credits"}
 
 
@@ -617,6 +620,8 @@ def label(e):
         return {"text": "asked the agent", **link}
     if ev == "waitlist":
         return {"text": "joined the waitlist"}
+    if ev == "feedback":
+        return {"text": f"wrote to us: {g('kind') or 'message'}"}
     if ev == "agent":
         usd = f" · ${float(g('ai_usd')):.4f}" if g("ai_usd") else ""
         if not g("ok", 1):

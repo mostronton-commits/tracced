@@ -301,6 +301,34 @@ if AioHTTPTestCase:
             self.assertEqual([(e["pubkey"], e["where"], e["status"]) for e in errs], [(user, "job", 404), (user, "token", 400)])
             self.assertIn("Solana token address", errs[1]["msg"])
 
+        async def test_write_to_us_reaches_the_owners_inbox(self):
+            r = await self.client.get("/feedback?kind=bug", headers=GUEST)
+            html = await r.text()
+            self.assertEqual(r.status, 200)
+            self.assertIn('value="bug" checked', html)
+            msg = {"kind": "bug", "text": "The chart is empty on my phone", "contact": "@trader", "page": "/job/X?scope=all"}
+            r = await self.client.post("/feedback", json=msg, headers=GUEST)
+            self.assertEqual(r.status, 403)                                  # лише з цього сайту
+            r = await self.client.post("/feedback", json=dict(msg, website="spam.example"), headers=dict(GUEST, **self.origin))
+            self.assertEqual((r.status, self.app["feedback"].recent()), (200, []))   # бот заповнив пастку: «дякуємо», і нічого
+            r = await self.client.post("/feedback", json=dict(msg, text="hi"), headers=dict(GUEST, **self.origin))
+            self.assertEqual(r.status, 400)
+            r = await self.client.post("/feedback", json=msg, headers=dict(GUEST, **self.origin))
+            self.assertEqual(r.status, 200)
+            r = await self.client.post("/feedback", json=dict(msg, kind="idea", text="Add alerts", page="https://evil/x"), headers=self.origin)
+            self.assertEqual(r.status, 200)                                  # від гаманця власника (клієнт за замовчуванням)
+            got = self.app["feedback"].recent()
+            self.assertEqual([(f["kind"], f["pk"], f["page"]) for f in got], [("idea", TEST_PK, ""), ("bug", None, "/job/X?scope=all")])
+            self.assertEqual(got[1]["contact"], "@trader")
+            self.assertEqual(self.app["events"].tail()[0]["event"], "feedback")
+            for _ in range(4):
+                r = await self.client.post("/feedback", json=msg, headers=dict(GUEST, **self.origin))
+            self.assertEqual(r.status, 429)                                  # з однієї адреси — п'ять на годину
+            html = await (await self.client.get("/admin?tab=feedback")).text()
+            self.assertIn("The chart is empty on my phone", html)
+            self.assertIn("@trader", html)
+            self.assertIn("new message", await (await self.client.get("/admin")).text())
+
         async def test_sign_out_tags_and_list_exports_are_actions(self):
             seed_demo(self.tmp.name, self.app)
             r = await self.client.post("/me/wallets", json={"job": DEMO_JID, "wallets": [W1]}, headers=self.origin)

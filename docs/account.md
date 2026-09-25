@@ -54,6 +54,7 @@ is used and what it costs to run:
 - the buttons you use, such as a sort, a filter, an export or a link to Solscan, with a short setting like the
   column you sorted by; never an address or anything you type;
 - your use of the AI agent, and the questions you type to it;
+- what you send through **Write to us**, with the page you came from;
 - what each step cost in data credits;
 - once a day while the wallet is active: public facts about it from the chain — its age, its SOL balance, its last
   30 days of trading as counted by tracced's own ledger, and what Solana Tracker knows about it (a KOL name or an X
