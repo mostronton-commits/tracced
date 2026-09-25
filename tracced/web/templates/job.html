@@ -653,7 +653,10 @@
       const dtags = document.getElementById('dtags'), dstar = document.getElementById('dstar'), dprof = document.getElementById('dprof');
       const profiles = new Map();
       const myTags = w => (me && me.wallets && me.wallets[w] && me.wallets[w].my_tags) || [];
-      function closeCard() { drawer.hidden = true; document.body.classList.remove('drawer-open'); }
+      function closeCard() {                                     // the agent's panel under the card keeps the page still
+        drawer.hidden = true;
+        document.body.classList.toggle('drawer-open', !document.getElementById('apanel').hidden);
+      }
       function syncStar(w) {
         const on = inList(w);
         dstar.textContent = on ? '★' : '☆'; dstar.classList.toggle('on', on);
@@ -992,7 +995,7 @@
       let aLoaded = false, aBusy = false;
       const aEsc = t => esc(String(t == null ? '' : t));
       const aWallet = w => '<button type="button" class="link mono awallet" data-w="' + aEsc(w.wallet) + '" title="Open this wallet\'s card">' + aEsc(w.short) + '</button>'
-        + (w.why ? ' <span class="awhy">' + aEsc(w.why) + '</span>' : '');
+        + (w.why ? ' <span class="awhy">— ' + aEsc(w.why) + '</span>' : '');
       const aList = items => '<ul>' + items.map(t => '<li>' + aEsc(t) + '</li>').join('') + '</ul>';
       function aLeft(n) { if (n != null) document.getElementById('aleft').textContent = n + (n === 1 ? ' question' : ' questions') + ' left today.'; }
       async function aPost(path, body) {
@@ -1047,13 +1050,14 @@
         if (!ASSIST_ON) { aipop.hidden = !aipop.hidden; return; }
         apanel.hidden = !apanel.hidden;
         if (!apanel.hidden) { closeCard(); aShow(); }
+        document.body.classList.toggle('drawer-open', !apanel.hidden);   // on a phone the page under it stays put
       });
       if (!ASSIST_ON) {
         document.getElementById('askbtn').addEventListener('mouseenter', () => { aipop.hidden = false; });
         aiwrap.addEventListener('mouseleave', () => { aipop.hidden = true; });
         document.addEventListener('click', e => { if (!aipop.hidden && !e.target.closest('#aiwrap')) aipop.hidden = true; });
       }
-      document.getElementById('aclose').addEventListener('click', () => { apanel.hidden = true; });
+      document.getElementById('aclose').addEventListener('click', () => { apanel.hidden = true; document.body.classList.remove('drawer-open'); });
       document.getElementById('aconnect').addEventListener('click', () => EarlyWallet.open(() => { acctOn = true; loadMe(); aShow(); }));
       aform.addEventListener('submit', e => { e.preventDefault(); const q = aq.value; aq.value = ''; aAsk(q, false); });
       achips.addEventListener('click', e => { const b = e.target.closest('.achip'); if (b) aAsk(b.textContent, true); });
