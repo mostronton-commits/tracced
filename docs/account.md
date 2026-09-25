@@ -40,4 +40,21 @@ The chip above the table filters the list down to those wallets.
 
 Finished analyses are public. The home page lists what everyone analyzed, and any result opens for anyone.
 
-**Who ran an analysis is never shown.** Your lists, your own tags and your saved analyses are yours alone.
+**Who ran an analysis is never shown.** Your lists, your own tags and your saved analyses are never shown to other
+people.
+
+## What we record
+
+With a connected wallet, the server keeps a log of what that wallet does here, so the owner can see how the product
+is used and what it costs to run:
+
+- the pages you open, and whether from a phone or a computer;
+- the analyses you run, the wallets and analyses you save, your lists, how many own tags a wallet has (not the
+  words), and your exports;
+- your use of the AI agent, and the questions you type to it;
+- what each step cost in data credits.
+
+Only the owner sees it. It is never sold or shared, and it is kept for about a year. Signing out stops it.
+
+Without a wallet, the log holds nothing about you: visits are counted by Umami, which sets no cookies and never gets
+a wallet address.

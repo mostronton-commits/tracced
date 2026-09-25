@@ -18,6 +18,8 @@ import re
 import statistics
 import time
 
+from .assistant import AssistantError
+
 EXCLUDABLE = ("bot-like", "bundle", "fresh", "sniper", "transfer-in", "pre-range")
 
 DEFAULT_METHOD = """How to read a pump on tracced.
@@ -406,7 +408,11 @@ class Agent:
         if dropped and len(cards["story"]) < 2:                 # вигадане число з'їло картку — один повтор з поправкою
             fix = user + "\n\nYour previous answer used numbers that are not in the digest: " + "; ".join(
                 x["why"] for x in dropped[:5]) + ". Use only numbers from the digest."
-            raw, usage2 = self.chat(system, fix)
+            try:
+                raw, usage2 = self.chat(system, fix)
+            except AssistantError as e:                         # повтор не вдався, але перша відповідь оплачена
+                e.usage = _add(usage, e.usage)
+                raise
             usage = _add(usage, usage2)
             cards, dropped = check_cards(raw, d, wmap)
         return dict(cards, model=self.model), dropped, usage

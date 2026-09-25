@@ -50,8 +50,10 @@ Tags are facts with fixed definitions you can read: bought within 60 seconds of 
 hours, funded by the same wallet as others in the list. Each is derived from trades you can open yourself. The
 judgement stays with the person.
 
-No tracking of who you are. The live site counts visits and steps (a token opened, an analysis run, a card opened)
-with Umami, which sets no cookies, and never sends it a wallet address.
+No tracking by third parties. Visits are counted with Umami, which sets no cookies and never gets a wallet address.
+When you connect a wallet, tracced's own server also keeps what that wallet does here and what each step cost, so
+the owner can see how the product is used. None of it goes to anyone else:
+[what is recorded](/docs/account#what-we-record).
 
 ## Where to go next
 

@@ -357,6 +357,36 @@ class TestRpcBudget(unittest.TestCase):
         paid.funder("W2", age["oldest_sig"])
         self.assertEqual(b.spent, 20)                         # транзакцію читає публічна нода
 
+    def test_the_meter_counts_only_its_own_callers_credits(self):
+        import threading
+        from tracced.early.wallet_age import rpc_meter
+        b = MonthBudget(None, limit=10_000)
+        paid = WalletAge(url="https://rpc.example/?k", tx_url=DEFAULT_URL, post=FakePost([sigs(3), [], sigs(3), []]),
+                         sleep=lambda s: None, pace_s=0, budget=b)
+        with rpc_meter() as m:
+            paid.oldest_tx("W1")                              # дві сторінки підписів по 10
+            t = threading.Thread(target=paid.oldest_tx, args=("W2",))   # чужа перевірка в ту саму мить
+            t.start()
+            t.join()
+        self.assertEqual((m["credits"], b.spent), (20, 40))   # місяць бачить усе, лічильник — лише своє
+        free = WalletAge(url=DEFAULT_URL, tx_url=DEFAULT_URL, post=FakePost([sigs(3), []]), sleep=lambda s: None, pace_s=0, budget=b)
+        with rpc_meter() as m:
+            free.oldest_tx("W3")
+        self.assertEqual(m["credits"], 0)                     # публічна нода нічого не коштує
+
+    def test_enrichment_puts_its_credits_on_the_analysis(self):
+        from types import SimpleNamespace
+        from tracced.web.app import make_enricher
+        b = MonthBudget(None, limit=10_000)
+        wa = WalletAge(url="https://rpc.example/?k", tx_url=DEFAULT_URL, post=FakePost([sigs(3), []] * 2 + [{"meta": {}}] * 2),
+                       sleep=lambda s: None, pace_s=0, budget=b)
+        rows = [{"wallet": w, "first_buy_ms": 2_000_000_000, "tag_list": []} for w in ("W1", "W2")]
+        job = SimpleNamespace(result={"rows": rows}, log=[], owner="OWNER", id="J1")
+        spent = []
+        make_enricher(wa, {"age_lookups_max": 10}, spend=lambda who, what, **kw: spent.append((who, what, kw)))(job, lambda j: True)
+        self.assertEqual(sum(kw["rpc"] for _, _, kw in spent), b.spent)
+        self.assertEqual({(who, what, kw["job"], kw["bg"]) for who, what, kw in spent}, {("OWNER", "enrich", "J1", 1)})
+
     def test_enrichment_pauses_on_the_budget_and_keeps_cached_wallets_free(self):
         from types import SimpleNamespace
         from tracced.web.app import make_enricher

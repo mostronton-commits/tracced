@@ -150,6 +150,14 @@ class TestNoSharedLock(unittest.TestCase):
         self.assertNotIn("identities_done", job.result)                  # наступний запуск спитає знову
         self.assertTrue(any("names unavailable" in m for m in job.log))
 
+    def test_name_requests_reach_the_meter_of_whoever_asked(self):
+        from tracced.web.app import _share_st
+        st = client(identity_cache=JsonCache(None))
+        _share_st(st, threading.BoundedSemaphore(4))
+        with st.meter():
+            st.identities([f"W{i}" for i in range(250)])
+            self.assertEqual(st.requests_here(), 3)               # три пакети в трьох потоках — усі на цей рахунок
+
     def test_names_reach_the_file_in_one_write(self):
         import os
         import tempfile

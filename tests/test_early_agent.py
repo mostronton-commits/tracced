@@ -111,6 +111,19 @@ class TestAgent(unittest.TestCase):
         self.assertEqual(len(cards["story"]), 2)
         self.assertEqual(usage["prompt_tokens"], 20)
 
+    def test_a_failed_retry_keeps_the_cost_of_the_first_answer(self):
+        from tracced.early.assistant import AssistantError
+
+        class Chat(FakeChat):
+            def __call__(self, system, user):
+                if self.calls:
+                    raise AssistantError("busy", {"prompt_tokens": 5, "completion_tokens": 0, "cost": 0.0002})
+                return super().__call__(system, user)
+        with self.assertRaises(AssistantError) as c:
+            Agent(Chat([{"story": ["They held 45 minutes."], "risks": [], "watch": []}]), "m").cards(RESULT, normalize_config({}), "English")
+        self.assertAlmostEqual(c.exception.usage["cost"], 0.0003)
+        self.assertEqual(c.exception.usage["prompt_tokens"], 15)
+
     def test_off_topic_gets_one_fixed_answer_in_the_question_language(self):
         for q, want in (("Напиши вірш про сонце", "Я відповідаю лише"), ("Напиши стих про солнце", "Я отвечаю только"),
                         ("Write a poem", "I only answer")):

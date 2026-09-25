@@ -86,11 +86,12 @@ REPLAY_THREADS = 2                        # демо лише спить між 
 
 
 class JobQueue:
-    def __init__(self, runner, persist_dir, enricher=None, on_error=None, namer=None, enrich_upto=0):
+    def __init__(self, runner, persist_dir, enricher=None, on_error=None, namer=None, enrich_upto=0, on_finish=None):
         self.runner = runner
         self.enricher = enricher              # enricher(job, save) — повільне збагачення після done
         self.namer = namer                    # namer(job, save) — імена гаманців: секунди, окремий потік, без черги за віком
         self.on_error = on_error              # on_error(job) — прогін упав: повернути власнику день
+        self.on_finish = on_finish            # on_finish(job) — живий прогін закінчився (як завгодно): рядок журналу
         self.dir = persist_dir
         self.jobs = {}
         self.load_errors = []                 # файли аналізів, які не вдалось прочитати при старті: видно в /health
@@ -149,6 +150,7 @@ class JobQueue:
                             self._save(j)
                         except OSError:
                             pass
+                        self._finished(j)
                     if j.result:
                         from ..early.report import upgrade_result
                         upgrade_result(j.result)              # файли до перейменування window → range
@@ -271,11 +273,20 @@ class JobQueue:
         except Exception as e:  # noqa: BLE001
             job.log.append(f"could not save the result: {e}")
             self.load_errors.append(f"{job.id}.json not saved: {type(e).__name__}: {str(e)[:120]}")
+        self._finished(job)
         if job.status == "done" and job.result and not job.replay:   # демо вже збагачене
             if self.namer:
                 self.nq.put(job)
             if self.enricher:
                 self.eq.put(job)
+
+    def _finished(self, job):
+        """Живий прогін закінчився — успіхом, помилкою чи рестартом посеред роботи. Програвання демо — лише показ."""
+        if self.on_finish and not job.replay:
+            try:
+                self.on_finish(job)
+            except Exception:  # noqa: BLE001 — журнал не має валити чергу
+                pass
 
     def _current(self, job):
         """Чи це ще той самий аналіз? Повторний запуск того ж діапазону кладе на його місце новий."""

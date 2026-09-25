@@ -1710,6 +1710,27 @@ class TestJobQueue(unittest.TestCase):
         with open(os.path.join(d, jid + ".json"), "w") as f:
             json.dump(job, f)
 
+    def test_every_finished_live_run_is_reported_once(self):
+        from tracced.web.jobs import JobQueue
+        with tempfile.TemporaryDirectory() as d:
+            self._file(d, "cut", status="running", result=None)            # обірваний рестартом
+            seen = []
+
+            def runner(job):
+                if job.mint.startswith("F"):
+                    raise RuntimeError("feed down")
+                return {"rows": []}
+            q = JobQueue(runner, d, on_finish=lambda j: seen.append((j.id, j.status)))
+            self.assertEqual(seen, [("cut", "error")])
+            q.submit("M" * 40, 1_000_000, 2_000_000)
+            q.submit("F" * 40, 1_000_000, 2_000_000)
+            q.submit("M" * 40, 3_000_000, 4_000_000, replay={"log": [], "result": {"rows": []}})
+            q.q.join()
+            q.rq.join()
+            self.assertEqual(sorted(st for _, st in seen[1:]), ["done", "error"])   # програвання демо — не прогін
+            JobQueue(runner, d, on_finish=lambda j: seen.append(j.id))
+            self.assertEqual(len(seen), 3)                                     # рестарт не повторює вже закінчені
+
     def test_results_without_names_are_named_once_newest_first(self):
         from tracced.web.jobs import JobQueue
         with tempfile.TemporaryDirectory() as d:

@@ -104,6 +104,11 @@
         {% elif e.event == 'assistant' %}asked the agent ({{ e.n }} picks) on <a href="/job/{{ e.job }}">{{ e.job }}</a>
         {% elif e.event == 'agent' %}{{ 'asked the agent' if e.kind == 'ask' else 'opened the agent' }} on <a href="/job/{{ e.job }}">{{ e.job }}</a>
         {% elif e.event == 'agent_method' %}saved the agent's method v{{ e.v }}
+        {% elif e.event == 'signout' %}signed out
+        {% elif e.event == 'tags' %}tagged a wallet ({{ e.count }} own tag{{ '' if e.count == 1 else 's' }})
+        {% elif e.event == 'export' %}exported {{ 'a list' if e.what == 'list' else 'the lists' }} as CSV
+        {% elif e.event in ('list_create', 'list_rename', 'list_remove') %}{{ {'list_create': 'made', 'list_rename': 'renamed', 'list_remove': 'deleted'}[e.event] }} a list
+        {% elif e.event == 'set_demo' %}made <a href="/job/{{ e.job }}">{{ e.symbol or e.job }}</a> the demo
         {% else %}{{ e.event }}{% endif %}
       </span>
     </div>
