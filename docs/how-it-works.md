@@ -73,21 +73,15 @@ comes from DexScreener's public order list, which is free and costs no requests 
 Two facts are not trades, so they do not come from the trade feed: when a wallet made its first transaction ever,
 and who sent it its first SOL. Those come from a Solana RPC node that keeps the whole history.
 
-They are what `fresh` and `bundle` are built from. Every wallet in the table, up to {{ '{:,}'.format(s.age_lookups_max) }},
-is checked in the background, best PnL first, after the table is already on screen. The check reads the wallet's
-history back from its first buy in the range. For most wallets everything before that buy fits in one page, and the
-last transaction on it is the wallet's first ever: that is its age, and the SOL that arrived in it names the funder.
+They are what `fresh` and `bundle` are built from. The first {{ s.age_lookups_max }} wallets by PnL, the ones
+that made money on the token, are checked in the background after the table is already on screen. The check reads a
+wallet's history back from its first buy in the range: for most wallets everything before that buy fits in one page,
+and the last transaction on it is the wallet's first ever. A busy wallet is read to its very first transaction in one
+more call. The SOL that arrived in that transaction names the funder; a wallet that apps pay fees for, like an account
+in a trading app, often starts with tokens rather than SOL, so its first SOL is looked for among its first hundred
+transactions. When it came later than that, the funder stays empty instead of guessed.
 
-A busy wallet has thousands of transactions before its buy. Even then one page is usually enough for `fresh`: when
-the oldest transaction on it is more than a day older than the buy, the wallet is not fresh, whatever came before.
-Only a wallet that made a thousand transactions in the day before its buy is read to the very start, because it
-could still be new. So the tags come out the same for every wallet in the table.
-
-The first {{ s.age_full_top }} by PnL get more: a busy wallet's real age and first funder, read to its first
-transaction, and for a wallet that apps pay fees for, like an account in a trading app, its first SOL looked for
-among its first hundred transactions, since such a wallet often starts with tokens rather than SOL. Any other
-wallet gets the same the moment its card is opened, and the answer stays in the result for everyone. When the first
-SOL came later than the first hundred transactions, the funder stays empty instead of guessed.
+Any other wallet is checked the moment its card is opened, and the answer stays in the result for everyone.
 
 A `bundle` is three or more wallets here whose first SOL came from the same wallet. An exchange or an app funds
 thousands of wallets that have nothing to do with each other, at any time. So when a funder's latest 1,000
@@ -98,9 +92,9 @@ most of what looked like bundles was one app's service wallet (154 of the buyers
 token, one wallet created 200 wallets in 41 minutes, and all of them bought within minutes of the launch: that is
 still a bundle, however busy its funder.
 
-Until the check reaches a wallet, `fresh`, `bundle` and the filters that hide them do not know about it yet. Results
-made before this check existed had only their first {{ s.age_full_top }} checked; their other wallets are checked
-when a card is opened.
+Until the check reaches a wallet, `fresh`, `bundle` and the filters that hide them do not know about it yet. Below
+the first {{ s.age_lookups_max }} they stay unknown unless a card is opened: a bundle there counts only the wallets
+that were checked.
 
 These lookups have a monthly budget of their own. When it runs out, the check pauses, the page says so, and it
 picks up again next month. A wallet checked before costs nothing.
@@ -110,10 +104,10 @@ picks up again next month. A wallet checked before costs nothing.
 Click a wallet's name. The card shows, top to bottom:
 
 1. who it is, when Solana Tracker knows (a star for a KOL, its X account, the app it trades through), and next to
-   the address its age, like `94d`, and who sent it its first SOL; hover either for the detail. A busy wallet
-   outside the first {{ s.age_full_top }} shows `…` for a moment while its card reads it to the start; when that
-   cannot happen (no wallet connected, the day's card checks used up) it shows `1k+ tx`: its age stays unknown
-   rather than guessed;
+   the address its age, like `94d`, and who sent it its first SOL; hover either for the detail. A wallet outside
+   the first {{ s.age_lookups_max }} shows `…` for a moment while its card checks it; when that cannot happen (no
+   wallet connected, the day's card checks used up) it shows `?` or `1k+ tx`: its age stays unknown rather than
+   guessed;
 2. its tags, ours and your own;
 3. how it trades on every token over the last 7 or 30 days: realized PnL and its curve, win rate with wins and
    losses, volume, buys and sells, best and worst day, drawdown, how its closed positions ended, the hours it

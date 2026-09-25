@@ -106,12 +106,10 @@ chart and terminal and result, without a single request to the data provider.
   (`SOLANA_RPC_URL`). A wallet's first transaction is its age; the SOL that arrived in it names the funder. A busy
   wallet's first transaction comes from Helius's oldest-first method in one call instead of paging back through
   tens of thousands; a wallet an app pays fees for is searched for its first SOL among its first hundred
-  transactions. Every wallet in the table is checked in the background, reading its history back from its first
-  buy in the range: one page settles `fresh` for almost every wallet (1-2 credits). The first 200 by PnL
-  (`age_full_top`) are also read to their first transaction and searched for an app wallet's first SOL; any other
-  wallet gets that when its card is opened. The credits are counted per month (`rpc_credits_month`, tracced's share
-  of the account) and the check pauses near the limit. Without a node the public `api.mainnet-beta` is used, and only
-  the first 200 wallets by PnL are checked automatically.
+  transactions. The first 200 wallets by PnL, the ones that made money, are checked in the background
+  (`age_lookups_max`), reading back from each wallet's first buy in the range; any other wallet is checked when its
+  card is opened. The credits are counted per month (`rpc_credits_month`, tracced's share of the account) and the
+  check pauses near the limit. Without a node the public `api.mainnet-beta` is used.
 - Paid DexScreener profiles on the chart: DexScreener's public orders endpoint, free and without a key, kept a day.
 - The AI agent: any OpenAI-compatible endpoint (`ASSISTANT_*` in `.env`), with per-wallet, per-guest and site-wide daily limits.
 - Nothing else: no third-party PnL, scores or "smart money" labels.

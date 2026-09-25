@@ -18,7 +18,7 @@ they are the reason nine wallets funded from one address are obvious here and in
 <tr><td>Buyers in your range</td><td class="us">every one</td><td>not documented</td><td>first 70 from launch</td></tr>
 <tr><td>How many wallets</td><td class="us">all of them</td><td>not published</td><td>100 in the API</td></tr>
 <tr><td>Trades on the chart</td><td class="us">10 at once</td><td>not documented</td><td>by category, not one</td></tr>
-<tr><td>Age and first funder</td><td class="us">every wallet in the table; the top {{ s.age_full_top }} by PnL read to the first transaction, any other on its card</td><td>not documented</td><td>raw fields in the API</td></tr>
+<tr><td>Age and first funder</td><td class="us">top {{ s.age_lookups_max }} by PnL, read to the first transaction; any other on its card</td><td>not documented</td><td>raw fields in the API</td></tr>
 <tr><td>Shared-funder clusters</td><td class="us">3 or more</td><td>same block only</td><td>tags, no grouping</td></tr>
 <tr><td>Label rules</td><td class="us">all published</td><td>bundle only</td><td>none published</td></tr>
 <tr><td>Export</td><td class="us">CSV, TXT, JSON</td><td>not documented</td><td>follow list only</td></tr>

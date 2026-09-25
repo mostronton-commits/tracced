@@ -34,7 +34,7 @@ for a day, and the age and funder stay in the result.
 | Requests one run may spend | {{ '{:,}'.format(s.run_cap_requests) }} |
 | Wallets that get exact exits | {{ '{:,}'.format(s.max_wallet_lookups) }} |
 | Smallest position in the table | ${{ s.min_invested_usd }} bought inside the range |
-| Wallets whose age is checked with the analysis, first by PnL | {{ '{:,}'.format(s.age_lookups_max) }}, the first {{ s.age_full_top }} read to their first transaction |
+| Wallets whose age is checked with the analysis, first by PnL | {{ s.age_lookups_max }} |
 | Other wallets checked from their cards, per person a day | {{ s.age_card_per_day }} |
 | Requests a day: charts (guest) / charts and wallet cards (wallet) / the whole site | {{ '{:,}'.format(s.browse_per_day_guest) }} / {{ '{:,}'.format(s.browse_per_day) }} / {{ '{:,}'.format(s.browse_global_per_day) }} |
 | New analyses on the whole site, per day | {{ s.runs_global_per_day }} |
