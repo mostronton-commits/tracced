@@ -42,6 +42,13 @@ is, small marks say so: a star for a KOL, its X account, the app it trades throu
 
 ![Wallet card](docs/img/card.png)
 
+With a wallet connected, the AI agent reads the analysis on the page and writes three short cards: what happened
+in the range, what to weigh, and whose wallets stand out. Then ask it about the analysis in your own language.
+Every number it writes is checked against the table before you see it, and it answers nothing but the analysis.
+[The AI agent →](https://tracced.xyz/docs/how-it-works#the-ai-agent)
+
+![AI agent](docs/img/agent.png)
+
 Keep what you find in several named lists, tag wallets in your own words, and export a list as CSV or TXT.
 [Your account →](https://tracced.xyz/docs/account)
 
