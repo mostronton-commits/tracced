@@ -51,6 +51,8 @@ is used and what it costs to run:
 - the pages you open, and whether from a phone or a computer;
 - the analyses you run, the wallets and analyses you save, your lists, how many own tags a wallet has (not the
   words), and your exports;
+- the buttons you use, such as a sort, a filter, an export or a link to Solscan, with a short setting like the
+  column you sorted by; never an address or anything you type;
 - your use of the AI agent, and the questions you type to it;
 - what each step cost in data credits.
 

@@ -485,6 +485,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_post("/me/lists/{action}", me_lists)
     app.router.add_post("/me/analyses", me_add_analysis)
     app.router.add_post("/me/analyses/remove", me_remove_analysis)
+    app.router.add_post("/me/usage", me_usage)
     app.router.add_get("/admin", admin_page)
     app.router.add_post("/admin/demo", admin_demo)
     app.router.add_post("/admin/agent", admin_agent_save)
@@ -1140,6 +1141,23 @@ async def me_tags(request, pk):
     if out is not False:
         request.app["events"].add(pk, "tags", count=len(out))   # лише скільки: слова тегів — справа людини
     return web.json_response({"ok": True, "tags": out}) if out is not False else _jerr("That wallet is not in your list.", 404)
+
+
+@_acct_route
+async def me_usage(request, pk):
+    """Кліки підключеного гаманця пачкою зі сторінки (EarlyUI.use): лише назви з білого списку і короткі значення, без
+    адрес і без набраного тексту. Де клікали, каже Referer цього ж сайту. Відповідь завжди 204 — сторінці нічого з нею
+    робити; що не влізло в добові стелі журналу, просто не пишеться."""
+    app = request.app
+    body = await _json_body(request, limit=8192)
+    where = usage_mod.page_of(request.headers.get("Referer", ""), request.host)
+    evs = usage_mod.clean_batch(body, int(time.time() * 1000)) if body is not None and where else []
+    n = _usage_take(app, pk, len(evs)) if evs else 0
+    if n:
+        page, ref = where
+        app["events"].add_many([{"ts_ms": e["ts"], "pubkey": pk, "event": "ui", "name": e["name"], "page": page,
+                                 **({"ref": ref} if ref else {}), **e["p"]} for e in evs[:n]])
+    return web.Response(status=204)
 
 
 @_acct_route

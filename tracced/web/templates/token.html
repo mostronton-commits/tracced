@@ -119,9 +119,9 @@
     onClick: ms => {
       if (DEMO) { nudge(); return; }
       const r = state.rows[state.sel], f = rowsEl.querySelector('.wrow.sel');
-      if (step === 0) { r.from = fmt(ms); r.to = ''; step = 1; ch.setMarker(ms); }
+      if (step === 0) { r.from = fmt(ms); r.to = ''; step = 1; ch.setMarker(ms); EarlyUI.use('range-set', { end: 'from' }); }
       else { r.to = fmt(ms); if (parse(r.to) <= parse(r.from)) { const t = r.from; r.from = r.to; r.to = t; } step = 0; ch.setMarker(null);
-             try { localStorage.setItem('early:hinted', '1'); } catch (x) {} }
+             try { localStorage.setItem('early:hinted', '1'); } catch (x) {} EarlyUI.use('range-set', { end: 'to' }); }
       hint();
       save(); f.querySelector('[name=from]').value = show(r.from); f.querySelector('[name=to]').value = show(r.to);
       refreshLink(f, r); ch.setWindows(winList(), state.sel);
@@ -246,8 +246,8 @@
   rowsEl.addEventListener('mousedown', e => { if (DEMO && e.target.matches('input[type=datetime-local], .label')) { e.preventDefault(); nudge(); } });
   rowsEl.addEventListener('focusin', e => { const f = e.target.closest('.wrow'); if (f && +f.dataset.i !== state.sel) { const name = e.target.name; state.sel = +f.dataset.i; save(); render(); focusSel(); const nf = rowsEl.querySelector('.wrow.sel [name=' + name + ']'); if (nf) nf.focus(); } });
   const addBtn = document.getElementById('add'), resetBtn = document.getElementById('reset');
-  if (addBtn) addBtn.addEventListener('click', () => { if (state.rows.length >= MAX_ROWS) { EarlyUI.toast(limitMsg()); return; } state.rows.push({ n: null, label: 'Range ' + (state.rows.length + 1), from: '', to: '' }); state.sel = state.rows.length - 1; save(); render(); });
-  if (resetBtn) resetBtn.addEventListener('click', () => { try { localStorage.removeItem(KEY); } catch (e) {} state = { rows: INITIAL.map(r => ({...r})), sel: 0 }; render(); focusSel(); });
+  if (addBtn) addBtn.addEventListener('click', () => { if (state.rows.length >= MAX_ROWS) { EarlyUI.toast(limitMsg()); return; } EarlyUI.use('range-add'); state.rows.push({ n: null, label: 'Range ' + (state.rows.length + 1), from: '', to: '' }); state.sel = state.rows.length - 1; save(); render(); });
+  if (resetBtn) resetBtn.addEventListener('click', () => { EarlyUI.use('range-reset'); try { localStorage.removeItem(KEY); } catch (e) {} state = { rows: INITIAL.map(r => ({...r})), sel: 0 }; render(); focusSel(); });
 
   // «Find the pump»: the recorded ranges on the demo, the detector's hints on a live token, else a look at the loaded candles
   const HINTS = JSON.parse(root.dataset.hints || '[]'), MIN_PEAK = +root.dataset.minPeak || 1e6;

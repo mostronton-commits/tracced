@@ -370,23 +370,25 @@
       }
       const na = nActive;
       if (window.matchMedia && matchMedia('(max-width: 640px)').matches) { panel.hidden = true; ftoggle.setAttribute('aria-expanded', 'false'); }
-      ftoggle.addEventListener('click', () => { panel.hidden = !panel.hidden; ftoggle.setAttribute('aria-expanded', String(!panel.hidden)); });
+      ftoggle.addEventListener('click', () => { panel.hidden = !panel.hidden; ftoggle.setAttribute('aria-expanded', String(!panel.hidden)); EarlyUI.use('filters-toggle', { on: !panel.hidden }); });
       panel.addEventListener('input', e => {
         const k = e.target.dataset.f; if (!k) return;
         const v = e.target.value.trim();
         f[k] = v === '' ? FDEF[k] : +v;                           // an empty field is no filter
         saveF(); apply();
       });
+      panel.addEventListener('change', e => { if (e.target.dataset.f) EarlyUI.use('filter', { k: e.target.dataset.f }); });   // once per edit, not per key
       panel.addEventListener('click', e => {
         const t = e.target.closest('[data-t]');
-        if (t) { f[t.dataset.t] = !f[t.dataset.t]; saveF(); syncInputs(); apply(); return; }
+        if (t) { f[t.dataset.t] = !f[t.dataset.t]; saveF(); syncInputs(); apply(); EarlyUI.use('filter', { k: t.dataset.t }); return; }
         const b = e.target.closest('[data-hide]'); if (!b) return;
         const h = b.dataset.hide; f.hide = f.hide.includes(h) ? f.hide.filter(x => x !== h) : [...f.hide, h]; saveF(); syncInputs(); apply();
+        EarlyUI.use('hide', { tag: h, on: f.hide.includes(h) });
       });
-      document.getElementById('fclear').addEventListener('click', () => { Object.assign(f, FDEF, { hide: [] }); saveF(); syncInputs(); apply(); });
-      clearsel.addEventListener('click', () => { selected.clear(); saveSel(); syncChecks(); });
-      tbody.addEventListener('change', e => { if (!e.target.classList.contains('pick')) return; const w = e.target.closest('tr').dataset.w; e.target.checked ? selected.add(w) : selected.delete(w); saveSel(); syncChecks(); });
-      document.getElementById('pickall').addEventListener('change', e => { pass.forEach(o => e.target.checked ? selected.add(o.w) : selected.delete(o.w)); saveSel(); syncChecks(); });
+      document.getElementById('fclear').addEventListener('click', () => { Object.assign(f, FDEF, { hide: [] }); saveF(); syncInputs(); apply(); EarlyUI.use('filters-reset'); });
+      clearsel.addEventListener('click', () => { selected.clear(); saveSel(); syncChecks(); EarlyUI.use('select-clear'); });
+      tbody.addEventListener('change', e => { if (!e.target.classList.contains('pick')) return; const w = e.target.closest('tr').dataset.w; e.target.checked ? selected.add(w) : selected.delete(w); saveSel(); syncChecks(); EarlyUI.use('select', { count: selected.size }, 5000); });
+      document.getElementById('pickall').addEventListener('change', e => { pass.forEach(o => e.target.checked ? selected.add(o.w) : selected.delete(o.w)); saveSel(); syncChecks(); EarlyUI.use('select-all', { on: e.target.checked }); });
 
       // the account: selected wallets go to the watchlist, the whole analysis to «My analyses»; no wallet yet → connect first, then continue.
       // Both ways: ★ on a row removes that wallet, «★ Saved» removes the analysis, «– Watchlist» removes the selected wallets.
@@ -542,10 +544,12 @@
         const th = e.target.closest('th.sortable'); if (!th) return;
         const k = th.dataset.key;
         sortBy(k, sortKey === k ? -sortDir : -1, th.dataset.type === 'text');
+        EarlyUI.use('sort', { key: k, dir: sortDir > 0 ? 'asc' : 'desc', via: 'head' });
       });
       msort.addEventListener('change', () => {
         const o = msort.selectedOptions[0];
         sortBy(o.value, +(o.dataset.dir || -1), false);        // a choice in the list starts from its natural end
+        EarlyUI.use('sort', { key: o.value, dir: sortDir > 0 ? 'asc' : 'desc', via: 'menu' });
       });
 
       const SCOPE = new URLSearchParams(location.search).get('scope') || 'all';
@@ -556,6 +560,7 @@
       document.getElementById('xpanel').addEventListener('click', async e => {   // by id: a signed-in header has its own .menu-panel first
         const x = e.target.closest('[data-x]'); if (!x) return;
         EarlyUI.track('export', { format: x.dataset.x });
+        EarlyUI.use('export', { format: x.dataset.x, sel: selected.size, filtered: na() > 0 });
         const wallets = exportSet().map(o => o.w), want = new Set(wallets);
         const suffix = '-' + SCOPE + (selected.size ? '-selected' : (na() ? '-filtered' : ''));
         if (x.dataset.x === 'txt') { download(jobId + suffix + '.txt', wallets.join('\n') + '\n', 'text/plain'); return; }
@@ -622,7 +627,7 @@
             const c = document.createElement('span'); c.className = 'chipw';
             c.innerHTML = '<span class="mono">' + short(o.wallet) + '</span> ';
             c.title = 'Stays visible when filtered · click for the story';
-            c.addEventListener('click', ev => { if (!ev.target.closest('.x')) openStory(o); });
+            c.addEventListener('click', ev => { if (!ev.target.closest('.x')) { cardSrc = 'chart'; openStory(o); } });
             const x = document.createElement('button'); x.type = 'button'; x.className = 'ghost x'; x.textContent = '×'; x.title = 'Remove from chart';
             x.addEventListener('click', () => { onChart.splice(onChart.indexOf(o), 1); if (drawer.dataset.w === o.wallet) closeCard(); renderOnChart(); });
             c.appendChild(x); bar.appendChild(c);
@@ -739,6 +744,7 @@
         const df = document.getElementById('dfund');
         if (df) df.addEventListener('click', () => {                   // the table shows who else this funder paid for
           f.funder = df.dataset.fund; saveF(); limit = LIMIT; apply(); closeCard();
+          EarlyUI.use('funder', { on: true });
           EarlyUI.toast('Showing the wallets funded by ' + short(df.dataset.fund) + ' · Reset in the filters clears it');
         });
         const go = document.getElementById('dagego');
@@ -831,6 +837,7 @@
       document.getElementById('dper').addEventListener('click', e => {
         const b = e.target.closest('[data-p]'); if (!b) return;
         period = b.dataset.p;
+        EarlyUI.use('card-period', { p: period });
         const p = profiles.get(drawer.dataset.w);
         if (p) renderProfile(p); else document.querySelectorAll('#dper [data-p]').forEach(x => x.classList.toggle('on', x.dataset.p === period));
       });
@@ -886,8 +893,10 @@
           + '<div><span>Sold for</span><b>' + amt(d.got, d.gotsol) + '</b></div>'
           + '</div>';
       }
+      let cardSrc = 'row';                                       // where the card was opened from, for the owner's log
       function openStory(o) {
-        if (drawer.hidden || drawer.dataset.w !== o.wallet) EarlyUI.track('card-open');
+        if (drawer.hidden || drawer.dataset.w !== o.wallet) { EarlyUI.track('card-open'); EarlyUI.use('card-open', { src: cardSrc }); }
+        cardSrc = 'row';
         const cur = (window.EarlyCur && EarlyCur.get()) === 'sol';
         const row = rowOf(o.wallet);
         drawer.dataset.w = o.wallet; drawer.hidden = false; document.body.classList.add('drawer-open');
@@ -911,8 +920,8 @@
         loadProfile(o.wallet);
         if (window.EarlyTZ) EarlyTZ.apply();
       }
-      document.getElementById('dclose').addEventListener('click', closeCard);
-      document.addEventListener('keydown', e => { if (e.key === 'Escape' && !drawer.hidden) closeCard(); });
+      document.getElementById('dclose').addEventListener('click', () => { closeCard(); EarlyUI.use('card-close'); });
+      document.addEventListener('keydown', e => { if (e.key === 'Escape' && !drawer.hidden) { closeCard(); EarlyUI.use('card-close'); } });
       dstar.addEventListener('click', () => { const w = drawer.dataset.w; withAcct(() => openLists(dstar, [w])); });
       // your own tags: a tag is a reason to watch, so tagging a wallet that is not watched yet adds it to the watchlist
       dtags.addEventListener('click', e => {
@@ -971,11 +980,13 @@
         if (fb) {
           const fnd = fb.dataset.fund, b = bundle[w];
           f.funder = f.funder === fnd ? '' : fnd; saveF(); limit = LIMIT; apply();
+          EarlyUI.use('funder', { on: !!f.funder });
           EarlyUI.toast(f.funder ? 'Showing the ' + (b ? b.n : 1) + ' wallets funded by ' + short(fnd) + ' · click again to clear' : 'Funder filter cleared');
           return;
         }
-        if (e.target.closest('.t-seen-before.seen')) { toggleWallet(w, true); return; }
+        if (e.target.closest('.t-seen-before.seen')) { cardSrc = 'seen'; toggleWallet(w, true); return; }
         const b = e.target.closest('.mk, .wname'); if (!b) return;
+        if (b.classList.contains('mk')) EarlyUI.use('pin', { on: !pinned.has(w) });
         b.disabled = true; toggleWallet(w, b.classList.contains('wname')).finally(() => { b.disabled = false; });
       });
 
@@ -1051,11 +1062,11 @@
         aiwrap.addEventListener('mouseleave', () => { aipop.hidden = true; });
         document.addEventListener('click', e => { if (!aipop.hidden && !e.target.closest('#aiwrap')) aipop.hidden = true; });
       }
-      document.getElementById('aclose').addEventListener('click', () => { apanel.hidden = true; document.body.classList.remove('drawer-open'); });
+      document.getElementById('aclose').addEventListener('click', () => { apanel.hidden = true; document.body.classList.remove('drawer-open'); EarlyUI.use('agent-close'); });
       document.getElementById('aconnect').addEventListener('click', () => EarlyWallet.open(() => { acctOn = true; loadMe(); aShow(); }));
       aform.addEventListener('submit', e => { e.preventDefault(); const q = aq.value; aq.value = ''; aAsk(q, false); });
       achips.addEventListener('click', e => { const b = e.target.closest('.achip'); if (b) aAsk(b.textContent, true); });
-      apanel.addEventListener('click', e => { const b = e.target.closest('.awallet'); if (b) toggleWallet(b.dataset.w, true); });
+      apanel.addEventListener('click', e => { const b = e.target.closest('.awallet'); if (b) { cardSrc = 'agent'; toggleWallet(b.dataset.w, true); } });
       // a phone has no hover: a tap on a part of the closed-positions bar says what the mouse would have shown
       document.addEventListener('click', e => { const seg = e.target.closest('.ddist .dbar i'); if (seg) EarlyUI.toast(seg.title); });
 

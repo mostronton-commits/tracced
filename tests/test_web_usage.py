@@ -170,6 +170,28 @@ if AioHTTPTestCase:
                              [(False, True), (False, False), (False, False), (True, False)])   # новіші першими
             self.assertEqual(log[0]["usage"]["cost"], 0.0005)
 
+        async def test_clicks_arrive_in_batches_from_this_site_only(self):
+            page = f"http://{self.client.host}:{self.client.port}/job/{DEMO_JID}"
+            batch = {"e": [["sort", {"key": "real", "dir": "desc", "via": "head"}, 1000], ["hacked", {}, 1000],
+                           ["copy", {"what": W1}, 1500]]}
+            r = await self.client.post("/me/usage", data=json.dumps(batch), headers=dict(GUEST, Origin=self.origin["Origin"]))
+            self.assertEqual(r.status, 401)                               # гість нічого не пише
+            r = await self.client.post("/me/usage", data=json.dumps(batch), headers={"Origin": "https://evil.example"})
+            self.assertEqual(r.status, 403)                               # чужий сайт — теж
+            r = await self.client.post("/me/usage", data=json.dumps(batch), headers=dict(self.origin, Referer=page))
+            self.assertEqual(r.status, 204)
+            ui = self.lines("ui")
+            self.assertEqual([(e["name"], e["page"], e["ref"]) for e in ui], [("sort", "job", DEMO_JID), ("copy", "job", DEMO_JID)])
+            self.assertEqual((ui[0]["key"], ui[0]["pubkey"]), ("real", TEST_PK))
+            self.assertNotIn(W1, json.dumps(ui))                          # адреса в журнал не пролазить
+            admin = f"http://{self.client.host}:{self.client.port}/admin"
+            await self.client.post("/me/usage", data=json.dumps(batch), headers=dict(self.origin, Referer=admin))
+            await self.client.post("/me/usage", data="x" * 9000, headers=dict(self.origin, Referer=page))
+            self.assertEqual(len(self.lines("ui")), 2)                    # кліки власника на /admin і завелике тіло — ні
+            self.app["s"]["usage_events_per_day"] = 3
+            await self.client.post("/me/usage", data=json.dumps({"e": [["tf", {"tf": "1m"}, 1]] * 5}), headers=dict(self.origin, Referer=page))
+            self.assertEqual(len(self.lines("ui")), 3)                    # стеля гаманця на добу
+
         async def test_sign_out_tags_and_list_exports_are_actions(self):
             seed_demo(self.tmp.name, self.app)
             r = await self.client.post("/me/wallets", json={"job": DEMO_JID, "wallets": [W1]}, headers=self.origin)

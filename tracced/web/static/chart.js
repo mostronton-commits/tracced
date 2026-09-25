@@ -325,13 +325,13 @@
 
     // timeframe buttons
     const tfs = document.createElement('div'); tfs.className = 'tfs';
-    Object.keys(TF_SEC).forEach(k => { const b = document.createElement('button'); b.type = 'button'; b.className = 'tf'; b.dataset.tf = k; b.textContent = k; b.addEventListener('click', () => setTf(k, true)); tfs.appendChild(b); });
+    Object.keys(TF_SEC).forEach(k => { const b = document.createElement('button'); b.type = 'button'; b.className = 'tf'; b.dataset.tf = k; b.textContent = k; b.addEventListener('click', () => { setTf(k, true); if (window.EarlyUI) EarlyUI.use('tf', { tf: k }); }); tfs.appendChild(b); });
     const back = document.createElement('button'); back.type = 'button'; back.className = 'tf back'; back.textContent = '⌖ Range'; back.title = 'Bring the selected range back into view';
-    back.addEventListener('click', () => { const w = windows[selected] || windows[0]; if (w && w.from && w.to) focus(w.from, w.to, null); });
+    back.addEventListener('click', () => { const w = windows[selected] || windows[0]; if (w && w.from && w.to) focus(w.from, w.to, null); if (window.EarlyUI) EarlyUI.use('chart-nav', { to: 'range' }); });
     tfs.appendChild(back);
     const launch = document.createElement('button'); launch.type = 'button'; launch.className = 'tf back'; launch.textContent = '⇤ Launch';
     launch.title = 'The first hours of trading';
-    launch.addEventListener('click', () => focus(created, created + 3 * 3600, null));
+    launch.addEventListener('click', () => { focus(created, created + 3 * 3600, null); if (window.EarlyUI) EarlyUI.use('chart-nav', { to: 'launch' }); });
     tfs.appendChild(launch);
     el.appendChild(tfs);
 

@@ -129,7 +129,7 @@
     const em = document.getElementById('lempty'); if (em) em.hidden = n > 0;
     try { localStorage.setItem('early:list', current); } catch (e) {}
   }
-  document.getElementById('ltabs').addEventListener('click', e => { const b = e.target.closest('.ltab'); if (b) showList(b.dataset.list); });
+  document.getElementById('ltabs').addEventListener('click', e => { const b = e.target.closest('.ltab'); if (b) { showList(b.dataset.list); EarlyUI.use('list-tab'); } });
   const lnew = document.getElementById('lnew');
   if (lnew) lnew.addEventListener('submit', async e => {
     e.preventDefault();
@@ -149,6 +149,7 @@
   document.querySelectorAll('.tags .tag[data-tag]').forEach(EarlyTags.iconify);
   const tx = document.getElementById('xtxt');
   if (tx) tx.addEventListener('click', () => {
+    EarlyUI.use('export', { format: 'txt', where: 'lists' });                // the CSV is a download the server counts itself
     const ws = [...document.querySelectorAll('tr[data-w]')].filter(t => !t.hidden).map(t => t.dataset.w);
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([ws.join('\n') + '\n'], { type: 'text/plain' })); a.download = 'watchlist.txt'; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);

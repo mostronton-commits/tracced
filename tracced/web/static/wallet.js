@@ -61,6 +61,7 @@
       const msg = n.domain + ' wants you to sign in with your Solana account:\n' + pk + '\n\n' + n.statement + '\n\nNonce: ' + n.nonce + '\nIssued At: ' + n.issued_at;
       const sig = await a.sign(new TextEncoder().encode(msg));
       const v = await post('/auth/verify', { pubkey: pk, signature: b64(sig), message: msg, wallet: a.name });
+      document.documentElement.dataset.acct = '1';     // the page stays: its clicks now go to the owner's log too
       if (window.EarlyUI) EarlyUI.track('connect-done', { app: a.name });   // which wallet app, never the address
       const f = onDone; close();                       // close() drops the callback: take it first
       if (!f) {                                          // no callback: a page may leave a form to send once signed in (the 401 card), else reload
@@ -98,7 +99,7 @@
     const first = l.querySelector('button, a'); if (first) first.focus();
   }
   function close() { const s = sheet(); if (s) s.hidden = true; onDone = null; if (opener && opener.focus && document.contains(opener)) { try { opener.focus(); } catch (e) {} } opener = null; }
-  async function signOut() { try { await post('/auth/logout'); } catch (e) {} location.reload(); }
+  async function signOut() { if (window.EarlyUI) EarlyUI.flush(); try { await post('/auth/logout'); } catch (e) {} location.reload(); }
 
   document.addEventListener('click', e => {
     const t = e.target.closest('[data-wallet-signin]');
