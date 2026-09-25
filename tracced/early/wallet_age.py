@@ -398,6 +398,19 @@ class WalletAge:
             self.cache.put(key, out)
         return out["service"]
 
+    def balances(self, wallets):
+        """SOL на гаманцях: getMultipleAccounts по 100 адрес за виклик на публічній ноді, тож 0 кредитів (перевірено
+        25.09.2026: значення йдуть у порядку адрес, гаманець без рахунку — null, тобто 0 SOL). Збій — виняток: дашборд
+        власника тоді лишає вчорашнє значення."""
+        out, ws = {}, list(dict.fromkeys(w for w in wallets if w))
+        for i in range(0, len(ws), 100):
+            chunk = ws[i:i + 100]
+            res = self._call("getMultipleAccounts", [chunk, {"encoding": "base64", "dataSlice": {"offset": 0, "length": 0}}],
+                             url=DEFAULT_URL, pace_s=self.tx_pace_s) or {}
+            for w, v in zip(chunk, res.get("value") or []):
+                out[w] = round(((v or {}).get("lamports") or 0) / 1e9, 4)
+        return out
+
     def funder_pending(self, wallet):
         """Дешева перевірка прочитала лише першу транзакцію, і спонсора там не було: пошук серед перших 100 ще не
         робився. Картка, яку відкрили, його доробляє."""

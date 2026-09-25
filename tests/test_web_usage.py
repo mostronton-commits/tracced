@@ -230,6 +230,63 @@ if AioHTTPTestCase:
             r = await self.client.post("/admin/usage/exclude", json={"wallet": user, "on": False}, headers=self.origin)
             self.assertEqual((await r.json())["excluded"], False)
 
+        async def test_on_chain_facts_of_active_wallets_once_a_day(self):
+            from tracced.web.app import refresh_onchain
+            import time as _time
+            now = int(_time.time() * 1000)
+            active, idle = acct_mod.b58encode(b"\x41" * 32), acct_mod.b58encode(b"\x42" * 32)
+            self.app["accounts"].touch(active, "Phantom")                         # хто щось робив — той і входив
+            self.app["events"].add(active, "view", page="home", ts_ms=now - 3_600_000)
+            self.app["events"].add(idle, "view", page="home", ts_ms=now - 10 * 86_400_000)      # тиждень тому й раніше — не оновлюємо
+
+            class Ages:
+                def __init__(self):
+                    self.calls = []
+
+                def balances(self, ws):
+                    self.calls.append(("balances", list(ws)))
+                    return {w: 1.5 for w in ws}
+
+                def paused(self):
+                    return False
+
+                def oldest_tx(self, w, full=True):
+                    self.calls.append(("age", w))
+                    return {"oldest_ms": now - 400 * 86_400_000, "exact": True}
+            ages = Ages()
+            self.app["ages"] = ages
+            self.st.identities = lambda ws, **kw: {active: {"name": "Cented", "type": "kol"}}
+            before = self.st.requests
+            try:
+                self.assertEqual(await asyncio.to_thread(refresh_onchain, self.app, now), 1)
+                self.assertEqual(await asyncio.to_thread(refresh_onchain, self.app, now + 3_600_000), 0)   # 20 годин ще не минуло
+            finally:
+                self.app["ages"] = None
+                del self.st.identities
+            data = json.load(open(self.app["usage_dir"] / "onchain.json"))
+            rec = data[active]
+            self.assertEqual((rec["sol"], rec["idn"]["name"], rec["p30"]["pnl_usd"]), (1.5, "Cented", 50.0))
+            self.assertNotIn(idle, data)
+            self.assertEqual(ages.calls, [("balances", [active]), ("age", active)])
+            spend = self.lines("spend", what="onchain")
+            self.assertEqual([(e["pubkey"], e["st"], e["bg"]) for e in spend], [("system", self.st.requests - before, 1)])
+            html = await (await self.client.get("/admin?team=1")).text()
+            self.assertIn("Cented", html)                                    # на дашборді — у таблиці гаманців
+
+        async def test_new_profiles_stop_at_the_daily_cap(self):
+            from tracced.web.app import refresh_onchain
+            import time as _time
+            now = int(_time.time() * 1000)
+            ws = [acct_mod.b58encode(bytes([0x50 + i]) * 32) for i in range(3)]
+            for w in ws:
+                self.app["events"].add(w, "view", page="home", ts_ms=now - 3_600_000)
+            self.app["s"]["usage_profiles_per_day"] = 2
+            before = self.st.requests
+            self.assertEqual(await asyncio.to_thread(refresh_onchain, self.app, now), 3)
+            self.assertEqual(self.st.requests - before, 2)                    # третій профіль — завтра
+            data = json.load(open(self.app["usage_dir"] / "onchain.json"))
+            self.assertEqual(sum(1 for w in ws if data[w].get("p30")), 2)
+
         async def test_sign_out_tags_and_list_exports_are_actions(self):
             seed_demo(self.tmp.name, self.app)
             r = await self.client.post("/me/wallets", json={"job": DEMO_JID, "wallets": [W1]}, headers=self.origin)

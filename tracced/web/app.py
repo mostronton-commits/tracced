@@ -376,10 +376,14 @@ def _check_services(r, ages):
     r["services"] = sorted(services)
 
 
-def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/early", ages=None, assistant=None):
+def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/early", ages=None, assistant=None, background=False):
     app = web.Application(middlewares=[errors_mw, auth_mw])
     app.on_response_prepare.append(_security_headers)
     app.on_cleanup.append(_flush_on_exit)
+    app["bg"] = {}                                                 # фонові задачі сервера (лише з background=True, не в тестах)
+    if background:
+        app.on_startup.append(_start_background)
+        app.on_cleanup.append(_stop_background)
     app["assistant"] = assistant                                   # транспорт до моделі; None — агента на цьому сервері нема
     app["agent"] = agent_mod.Agent(assistant.json_chat, assistant.model) if assistant is not None else None
     app["agent_store"] = AgentStore(Path(out_dir).parent / "agent")   # методика власника, її версії, журнал питань
@@ -514,6 +518,88 @@ async def _security_headers(request, response):
     for k, v in SECURITY_HEADERS.items():
         response.headers.setdefault(k, v)
     response.headers["Server"] = "tracced"
+
+
+ONCHAIN_FIRST_S, ONCHAIN_EVERY_S = 600, 6 * 3600
+
+
+async def _start_background(app):
+    app["bg"]["usage"] = asyncio.get_running_loop().create_task(_usage_loop(app))
+
+
+async def _stop_background(app):
+    for task in app["bg"].values():
+        task.cancel()
+
+
+async def _usage_loop(app):
+    """Фон дашборда власника: за 10 хвилин після старту (деплой dev перезапускає сервер часто), далі кожні 6 годин —
+    on-chain факти активних гаманців і чистка журналу, старшого за usage_keep_months. Збій проходу — лише в журнал."""
+    await asyncio.sleep(ONCHAIN_FIRST_S)
+    while True:
+        try:
+            n = await asyncio.to_thread(refresh_onchain, app)
+            if n:
+                log.info("usage: on-chain facts of %s wallets refreshed", n)
+            await asyncio.to_thread(app["events"].prune, int(app["s"].get("usage_keep_months", 13)))
+        except Exception as e:  # noqa: BLE001
+            log.warning("usage refresh: %s", e)
+        await asyncio.sleep(ONCHAIN_EVERY_S)
+
+
+def refresh_onchain(app, now=None):
+    """On-chain факти гаманців, активних за usage_active_days, раз на ~добу: хто це (Solana Tracker, з кешу), SOL
+    (публічна нода, 0 кредитів), вік (Helius, кеш тиждень) і 30 днів торгівлі нашим леджером (1-5 запитів; кеш картки
+    гаманця спільний). Нових профілів — не більше usage_profiles_per_day на добу і лише поки ключ далеко від резерву.
+    Витрачене — одним рядком `system`. Кличеться в потоці; повертає, скільки гаманців оновлено."""
+    s, st, ages = app["s"], app["st"], app.get("ages")
+    now = now or int(time.time() * 1000)
+    path = app["usage_dir"] / "onchain.json"
+    data = usage_mod.load_json(path, {}) or {}
+    events = app["events"].read(now - int(s.get("usage_active_days", 7)) * 86_400_000)
+    due = usage_mod.due_wallets(events, data, now, cap=int(s.get("usage_onchain_max_wallets", 100)))
+    if not due:
+        return 0
+    left, reserve = app["credits"]["left"], _credits_reserve(s)
+    with st.meter(), wallet_age_mod.rpc_meter() as m:              # один лічильник на прохід: вкладені ховали б запити
+        req0 = st.requests_here()
+        try:
+            idn, bal = {}, {}
+            if hasattr(st, "identities") and s.get("st_identity", True):
+                try:
+                    idn = st.identities(due) or {}
+                except Exception as e:  # noqa: BLE001
+                    log.warning("usage: names: %s", e)
+            if ages is not None and hasattr(ages, "balances"):
+                try:
+                    bal = ages.balances(due)
+                except Exception as e:  # noqa: BLE001 — лишається вчорашній баланс
+                    log.warning("usage: balances: %s", e)
+            for w in due:
+                rec = dict(data.get(w) or {}, at=now, idn=idn.get(w) or (data.get(w) or {}).get("idn") or {})
+                if w in bal:
+                    rec["sol"] = bal[w]
+                if ages is not None and not ages.paused():
+                    try:
+                        age = ages.oldest_tx(w, full=True)
+                        if age.get("oldest_ms"):
+                            rec["age_ms"], rec["age_exact"] = age["oldest_ms"], bool(age.get("exact"))
+                    except Exception as e:  # noqa: BLE001
+                        log.warning("usage: age of %s: %s", w[:6], e)
+                card = app["profile_cache"].get(f"v{profile.VERSION}:{w}")
+                if (card is None and hasattr(st, "wallet_swaps") and (left is None or left > reserve)
+                        and app["usage_daily"].take("onchain:profiles", int(s.get("usage_profiles_per_day", 50)))):
+                    try:
+                        card = _profile_now(app, w)
+                    except Exception as e:  # noqa: BLE001
+                        log.warning("usage: 30 days of %s: %s", w[:6], e)
+                if card is not None:
+                    rec["p30"] = usage_mod.compact_profile(card)
+                data[w] = rec
+        finally:
+            _spend(app, "system", "onchain", st=st.requests_here() - req0, rpc=m["credits"], bg=1)
+    usage_mod.save_json(path, data)
+    return len(due)
 
 
 async def _flush_on_exit(app):

@@ -374,6 +374,20 @@ class TestRpcBudget(unittest.TestCase):
             free.oldest_tx("W3")
         self.assertEqual(m["credits"], 0)                     # публічна нода нічого не коштує
 
+    def test_balances_come_free_from_the_public_node_a_hundred_at_a_time(self):
+        b = MonthBudget(None, limit=10_000)
+        ws = [f"W{i}" for i in range(150)]
+        answers = [{"context": {"slot": 1}, "value": [None if i % 2 else {"lamports": 2_500_000_000} for i in range(100)]},
+                   {"context": {"slot": 1}, "value": [{"lamports": 1} for _ in range(50)]}]
+        post = FakePost(answers)
+        wa = WalletAge(url="https://rpc.example/?k", post=post, sleep=lambda s: None, pace_s=0, budget=b)
+        out = wa.balances(ws + ["W0"])
+        self.assertEqual(len(post.calls), 2)                  # 150 адрес — два виклики
+        self.assertEqual(post.urls, [DEFAULT_URL, DEFAULT_URL])
+        self.assertEqual((out["W0"], out["W1"], out["W149"]), (2.5, 0, 0.0))   # null — гаманець без рахунку, 0 SOL
+        self.assertEqual(post.calls[0]["params"][1]["dataSlice"], {"offset": 0, "length": 0})
+        self.assertEqual(b.spent, 0)
+
     def test_enrichment_puts_its_credits_on_the_analysis(self):
         from types import SimpleNamespace
         from tracced.web.app import make_enricher

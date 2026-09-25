@@ -41,7 +41,7 @@ def main():
         assistant = Assistant(os.getenv("ASSISTANT_KEY"), url=os.getenv("ASSISTANT_URL"), model=os.getenv("ASSISTANT_MODEL"),
                               fallbacks=os.getenv("ASSISTANT_FALLBACKS"))
         logging.getLogger("early.web").info("assistant: %s @ %s", assistant.model, assistant.url)
-    app = create_app(st, s, cfg, ages=ages, assistant=assistant)
+    app = create_app(st, s, cfg, ages=ages, assistant=assistant, background=True)   # фон дашборда власника: лише живий сервер
     port = int(os.getenv("WEB_PORT", "8095"))
     web.run_app(app, host=os.getenv("WEB_HOST", "0.0.0.0"), port=port, print=None)
     return 0

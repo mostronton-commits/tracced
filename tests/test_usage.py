@@ -228,6 +228,22 @@ class TestSummary(unittest.TestCase):
         self.assertIn("off topic", usage.label(ev(1, A, "agent", kind="ask", ok=1, off=1, job="J1"))["text"])
 
 
+class TestOnchainHelpers(unittest.TestCase):
+    def test_who_is_due_for_fresh_facts(self):
+        evs = [ev(NOW - 5 * H, A, "view"), ev(NOW - H, B, "view"), ev(NOW - 2 * H, C, "view"), ev(NOW - H, "guest", "spend", st=1),
+               ev(NOW - H, T, "spend", what="enrich", rpc=5, bg=1)]
+        onchain = {C: {"at": NOW - 3 * H}, A: {"at": NOW - 30 * H}}
+        self.assertEqual(usage.due_wallets(evs, onchain, NOW), [B, A])        # C оновлено 3 год тому, T лише платив у фоні
+        self.assertEqual(usage.due_wallets(evs, onchain, NOW, cap=1), [B])
+
+    def test_the_dashboard_keeps_a_few_numbers_of_the_card(self):
+        card = {"pnl_usd": 1234.567, "win_rate": 0.4567, "closed": 9, "swaps": 120, "tokens": 14, "volume_usd": 9999.991,
+                "partial": False, "computed_ms": 5, "heat": [[0] * 24] * 7, "periods": {}}
+        self.assertEqual(usage.compact_profile(card), {"pnl_usd": 1234.57, "win_rate": 0.457, "closed": 9, "swaps": 120, "tokens": 14,
+                                                       "volume_usd": 9999.99, "partial": False, "at": 5})
+        self.assertIsNone(usage.compact_profile(None))
+
+
 class TestZone(unittest.TestCase):
     def test_warsaw_resolves_in_the_image(self):
         tz = usage.zone("Europe/Warsaw")                                 # pip tzdata: у slim-образі системної бази нема

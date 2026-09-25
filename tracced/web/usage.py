@@ -706,3 +706,30 @@ def load_exclude(path):
 
 def save_exclude(path, wallets):
     save_json(path, {"wallets": sorted(wallets)})
+
+
+# ───────────────────────── on-chain факти користувачів ─────────────────────────
+
+ONCHAIN_GAP_MS = 20 * HOUR               # «раз на добу» з запасом: прохід кожні 6 годин не чіпає свіжий запис
+
+
+def due_wallets(events, onchain, now_ms, gap_ms=ONCHAIN_GAP_MS, cap=100):
+    """Кому оновити on-chain факти: гаманці з кроками в `events` (читають за останні дні), чий запис старший за gap_ms;
+    найсвіжіші першими, не більше cap. Гості й сервер — не гаманці."""
+    last = {}
+    for e in events:
+        pk = e.get("pubkey")
+        if isinstance(pk, str) and PK_RE.match(pk) and not e.get("bg") and e.get("event") not in NOT_ACTIVITY:
+            last[pk] = max(last.get(pk, 0), e.get("ts_ms") or 0)
+    fresh = {w for w, rec in (onchain or {}).items() if (rec or {}).get("at", 0) > now_ms - gap_ms}
+    return [w for w, _ in sorted(last.items(), key=lambda x: -x[1]) if w not in fresh][:cap]
+
+
+def compact_profile(card):
+    """З картки гаманця (profile.card, останні 30 днів) — те, що бачить дашборд."""
+    if not isinstance(card, dict):
+        return None
+    r = lambda v, d=2: None if v is None else round(float(v), d)   # noqa: E731
+    return {"pnl_usd": r(card.get("pnl_usd")), "win_rate": r(card.get("win_rate"), 3), "closed": card.get("closed"),
+            "swaps": card.get("swaps"), "tokens": card.get("tokens"), "volume_usd": r(card.get("volume_usd")),
+            "partial": bool(card.get("partial")), "at": card.get("computed_ms")}
