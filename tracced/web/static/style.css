@@ -934,3 +934,37 @@ td.c-roi b { font-size: 13px; }
 /* sorting: the column headers do it on a wide screen; on a phone the table is cards without headers, so the list stays */
 .sortby { display: none; }
 @media (max-width: 640px) { .sortby { display: inline-flex; } }
+/* ── the owner's dashboard (/admin): period links, day bars, the funnel, small flags ── */
+.unav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 2px 0 10px; }
+.unav .seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.unav .seg a { border: 0; padding: 5px 11px; font-size: 12.5px; color: var(--muted); }
+.unav .seg a + a { border-left: 1px solid var(--line); }
+.unav .seg a.on { background: var(--sage); color: var(--ink); font-weight: 600; }
+.unav .uteam { font-size: 12.5px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); }
+.unav .uteam.on { background: #FEF3C7; border-color: #FCD34D; color: #92400E; }
+.unav .ujump { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-left: auto; }
+.unav .ujump a { color: var(--muted); border-bottom-color: transparent; } .unav .ujump a:hover { color: var(--ink); border-bottom-color: var(--line); }
+.usage .stats b small { font-size: 12px; font-weight: 500; }
+.usage .stats div { min-width: 150px; }
+.ucharts { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin: 4px 0 8px; }
+.ubars { margin: 0; border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px 8px; background: var(--surface); }
+.ubars figcaption { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.ubars figcaption b { font-weight: 500; }
+.ubars svg { display: block; width: 100%; height: 72px; }
+.ubars rect.b { fill: #6EE7B7; } .ubars rect.bad { fill: #FCA5A5; } .ubars rect:hover { opacity: .75; }
+.ubars path.axis { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; fill: none; }
+.uax { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 4px; }
+.ufun { display: grid; grid-template-columns: minmax(150px, 220px) 1fr 90px; gap: 10px; align-items: center; padding: 4px 0; font-size: 13px; }
+.ufun .bar { height: 12px; background: #F1F5F9; border-radius: 999px; overflow: hidden; }
+.ufun .bar i { display: block; height: 100%; background: #6EE7B7; border-radius: 999px; min-width: 2px; }
+.ufun .n { text-align: right; color: var(--muted); }
+.uflag { display: inline-block; font-size: 11px; line-height: 1; padding: 3px 7px; border-radius: 999px; border: 1px solid #FCD34D; background: #FEF3C7; color: #92400E; vertical-align: 1px; }
+.ucols { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; align-items: start; }
+.ubuckets p { margin: 0 0 10px; } .ubuckets span { display: inline-block; margin: 4px 12px 0 0; color: var(--muted); } .ubuckets span b { color: var(--ink); }
+.uday { margin: 14px 0 4px; color: var(--muted); font-weight: 600; }
+@media (max-width: 640px) {
+  .ufun { grid-template-columns: 1fr 64px; } .ufun .bar { grid-column: 1 / -1; grid-row: 2; }
+  .unav .ujump { margin-left: 0; }
+  .usage .stats div { min-width: calc(50% - 4px); flex: 1 1 calc(50% - 4px); }
+  .me .rrow.evrow { grid-template-columns: 90px 1fr; row-gap: 2px; } .me .rrow.evrow > :nth-child(3) { grid-column: 1 / -1; }
+}

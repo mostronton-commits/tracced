@@ -1,43 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Accounts · tracced{% endblock %}
+{% block title %}Usage · tracced{% endblock %}
+{% block main_class %}wide{% endblock %}
 {% block body %}
-<section class="card me">
-  <div class="row mehead"><h2>Accounts</h2><span class="muted small">who connected a wallet and what they did · this page is for the owner only</span>
-    <button type="button" class="ghost right" id="umamioff" title="Umami's own switch: this browser's visits stop counting in the analytics (set it on every device you use)"></button></div>
-  <div class="stats">
-    <div title="Wallets that signed in at least once"><b data-count="{{ totals.accounts }}" data-fmt="int">0</b><span>Accounts</span></div>
-    <div title="First sign-in within the last 7 days"><b data-count="{{ totals.new_7d }}" data-fmt="int">0</b><span>New · 7 d</span></div>
-    <div title="Signed in or saved something within the last 7 days"><b data-count="{{ totals.active_7d }}" data-fmt="int">0</b><span>Active · 7 d</span></div>
-    <div title="Wallets saved to lists, all accounts"><b data-count="{{ totals.wallets }}" data-fmt="int">0</b><span>Saved wallets</span></div>
-    <div title="Analyses saved, all accounts"><b data-count="{{ totals.analyses }}" data-fmt="int">0</b><span>Saved analyses</span></div>
-  </div>
-  <div class="row mehead"><h2>Budget</h2><span class="muted small">Solana Tracker credits · asked at most once per 10 minutes</span></div>
-  <div class="stats">
-    <div title="Data API credits left on the key{% if budget.credits_at %}, checked at this time{% endif %}"><b>{{ budget.credits_left|num if budget.credits_left is not none else '—' }}</b><span>Data API left{% if budget.credits_at %} · <span class="dtc" data-ms="{{ budget.credits_at }}">{{ budget.credits_at|dt }}</span>{% endif %}</span></div>
-    <div title="Below this, new live analyses by others wait for the plan to renew"><b>{{ budget.reserve|num if budget.reserve else 'off' }}</b><span>Reserve of {{ budget.credits_month|num }}</span></div>
-    <div title="Live analyses started today by anyone but the owner"><b>{{ budget.runs_today }}</b><span>Runs today</span></div>
-    {% if budget.rpc %}<div title="Credits spent on the paid RPC node this month (10 per signatures page or transaction); wallet age pauses near the limit"><b>{{ budget.rpc.spent|num }}</b><span>RPC {{ budget.rpc.month }} of {{ budget.rpc.limit|num }}</span></div>{% endif %}
-  </div>
-  {% if accounts %}
-  <div class="tablewrap"><table class="facts melist"><thead><tr>
-    <th>Account</th><th>Wallet app</th><th>First seen</th><th>Last seen</th><th class="num">Sign-ins</th><th class="num">Saved wallets</th><th class="num">Saved analyses</th>
-  </tr></thead><tbody>
-  {% for a in accounts %}
-    <tr>
-      <td><span class="wid"><span class="mono" title="{{ a.pubkey }}">{{ a.pubkey[:6] }}…{{ a.pubkey[-4:] }}</span><button type="button" class="ghost copy" data-copy="{{ a.pubkey }}" title="Copy address">⧉</button><a class="ext" href="https://solscan.io/account/{{ a.pubkey }}" target="_blank" rel="noopener" title="Solscan">↗</a></span></td>
-      <td>{{ a.wallet_app or '—' }}</td>
-      <td class="muted small"><span class="dtc" data-ms="{{ a.created_ms or 0 }}">{{ (a.created_ms or 0)|dt }}</span></td>
-      <td class="muted small"><span class="dtc" data-ms="{{ a.last_seen_ms or 0 }}">{{ (a.last_seen_ms or 0)|dt }}</span></td>
-      <td class="num mono">{{ a.signins or 0 }}</td>
-      <td class="num mono">{{ (a.wallets or {})|length }}</td>
-      <td class="num mono">{{ (a.analyses or {})|length }}</td>
-    </tr>
-  {% endfor %}
-  </tbody></table></div>
-  {% else %}<p class="muted">Nobody has connected a wallet yet.</p>{% endif %}
-</section>
+{% include "_usage.html" %}
 
-<section class="card me agentadm">
+<section class="card me agentadm" id="method">
   <div class="row mehead"><h2>Agent</h2><span class="muted small">{% if agent_on %}on · {{ agent_model }}{% else %}off on this server: set ASSISTANT_KEY in .env{% endif %} · method v{{ agent_cfg.v }}{% if agent_cfg.saved_ms %}, saved <span class="dtc" data-ms="{{ agent_cfg.saved_ms }}">{{ agent_cfg.saved_ms|dt }}</span>{% endif %}</span></div>
   <p class="muted small">The method tells the agent how to read an analysis. Write it in your own words, in any language. The rules that
     keep it on topic, stop it from advising or predicting and check every number it writes live in the code: the method cannot change them.</p>
@@ -85,32 +52,15 @@
   {% else %}<p class="muted">Nobody has asked the agent anything yet.</p>{% endif %}
 </section>
 
-<section class="card me">
-  <div class="row mehead"><h2>Recent actions</h2><span class="muted small">last {{ events|length }}</span></div>
+<section class="card me" id="actions">
+  <div class="row mehead"><h2>Recent actions</h2><span class="muted small">last {{ events|length }}: sign-ins, analyses, saves, lists, exports, the agent</span></div>
   {% if events %}
   <div class="recent">
   {% for e in events %}
     <div class="rrow evrow">
       <span class="muted small"><span class="dtc" data-ms="{{ e.ts_ms }}">{{ e.ts_ms|dt }}</span></span>
-      {% if e.pubkey == 'guest' %}<span class="muted">guest</span>{% else %}<span class="mono" title="{{ e.pubkey }}">{{ e.pubkey[:6] }}…{{ e.pubkey[-4:] }}</span>{% endif %}
-      <span>
-        {% if e.event == 'signin' %}signed in{% if e.wallet %} · {{ e.wallet }}{% endif %}
-        {% elif e.event == 'save_wallets' %}saved {{ e.n }} wallet{{ '' if e.n == 1 else 's' }} from <a href="/job/{{ e.job }}">{{ e.symbol or e.job }}</a>
-        {% elif e.event == 'save_analysis' %}saved the analysis <a href="/job/{{ e.job }}">{{ e.symbol or e.job }}</a>
-        {% elif e.event == 'remove_wallet' %}removed a wallet from a list
-        {% elif e.event == 'remove_analysis' %}removed an analysis
-        {% elif e.event == 'analyze' %}ran an analysis: <a href="/job/{{ e.job }}">{{ e.symbol or e.job }}</a>
-        {% elif e.event == 'delete_analysis' %}deleted the analysis {{ e.symbol or e.job }}
-        {% elif e.event == 'assistant' %}asked the agent ({{ e.n }} picks) on <a href="/job/{{ e.job }}">{{ e.job }}</a>
-        {% elif e.event == 'agent' %}{{ 'asked the agent' if e.kind == 'ask' else 'opened the agent' }} on <a href="/job/{{ e.job }}">{{ e.job }}</a>
-        {% elif e.event == 'agent_method' %}saved the agent's method v{{ e.v }}
-        {% elif e.event == 'signout' %}signed out
-        {% elif e.event == 'tags' %}tagged a wallet ({{ e.count }} own tag{{ '' if e.count == 1 else 's' }})
-        {% elif e.event == 'export' %}exported {{ 'a list' if e.what == 'list' else 'the lists' }} as CSV
-        {% elif e.event in ('list_create', 'list_rename', 'list_remove') %}{{ {'list_create': 'made', 'list_rename': 'renamed', 'list_remove': 'deleted'}[e.event] }} a list
-        {% elif e.event == 'set_demo' %}made <a href="/job/{{ e.job }}">{{ e.symbol or e.job }}</a> the demo
-        {% else %}{{ e.event }}{% endif %}
-      </span>
+      {% if e.pubkey == 'guest' %}<span class="muted">guest</span>{% elif e.pubkey|length >= 32 %}<a class="mono" href="/admin/w/{{ e.pubkey }}" title="{{ e.pubkey }}">{{ e.pubkey[:6] }}…{{ e.pubkey[-4:] }}</a>{% else %}<span class="muted">{{ e.pubkey }}</span>{% endif %}
+      <span>{{ e.text }}{% if e.href %} <a href="{{ e.href }}">{{ e.link }}</a>{% endif %}</span>
     </div>
   {% endfor %}
   </div>

@@ -400,7 +400,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["accounts"] = acct_mod.AccountStore(Path(out_dir).parent / "accounts")   # поруч з web/ і demo/ у output/early
     app["nonces"] = acct_mod.NonceStore()
     # що роблять гаманці і скільки це коштувало, файл на місяць; старий журнал до 26.09.2026 лише читається
-    app["events"] = acct_mod.EventLog(Path(out_dir).parent / "usage", legacy=Path(out_dir).parent / "accounts" / "_events.jsonl")
+    app["usage_dir"] = Path(out_dir).parent / "usage"            # там же список тестових гаманців і on-chain факти користувачів
+    app["events"] = acct_mod.EventLog(app["usage_dir"], legacy=Path(out_dir).parent / "accounts" / "_events.jsonl")
     app["admins"] = {w.strip() for w in os.getenv("ADMIN_WALLETS", "").split(",") if w.strip()}   # чиї гаманці бачать /admin
     app["auth_throttle"] = Throttle(max_fails=10, window_s=300, block_s=600)
     daily_dir = Path(out_dir).parent / "daily"           # добові лічильники переживають деплой
@@ -487,6 +488,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_post("/me/analyses/remove", me_remove_analysis)
     app.router.add_post("/me/usage", me_usage)
     app.router.add_get("/admin", admin_page)
+    app.router.add_get("/admin/w/{pk}", admin_wallet_page)
+    app.router.add_post("/admin/usage/exclude", admin_usage_exclude)
     app.router.add_post("/admin/demo", admin_demo)
     app.router.add_post("/admin/agent", admin_agent_save)
     app.router.add_post("/admin/agent/preview", admin_agent_preview)
@@ -1399,7 +1402,7 @@ async def _admin_json(request, limit=32_768):
     app = request.app
     pk = request.get("acct")
     if not app["admins"] or not pk or pk not in app["admins"]:
-        return None, None, _jerr("Only the owner's wallet can change the agent.", 403)
+        return None, None, _jerr("Only the owner's wallet can do this.", 403)
     if not _same_origin(request):
         return None, None, _jerr("Requests must come from this site.", 403)
     body = await _json_body(request, limit=limit)
@@ -1443,32 +1446,108 @@ async def admin_agent_preview(request):
     return web.json_response({"cards": cards, "dropped": dropped, "usage": usage, "range": rng.get("label")})
 
 
-async def admin_page(request):
-    """Хто підключився і що робив. Лише для гаманців з ADMIN_WALLETS; без них сторінки не існує."""
+def _admin_gate(request):
+    """Сторінки власника: без ADMIN_WALLETS їх не існує (404), чужому гаманцю — відмова (403). None — можна."""
     app = request.app
     if not app["admins"]:
         raise web.HTTPNotFound(text="Not configured.")
     pk = request.get("acct")
     if not pk or pk not in app["admins"]:
         return render("error.html", request, message="This page is for the owner's wallet. Connect it first.", status=403)
-    accounts = app["accounts"].all()
-    now, week = int(time.time() * 1000), int(time.time() * 1000) - 7 * 86_400_000
-    totals = {"accounts": len(accounts),
-              "new_7d": sum(1 for a in accounts if (a.get("created_ms") or 0) >= week),
-              "active_7d": sum(1 for a in accounts if (a.get("last_seen_ms") or 0) >= week),
-              "wallets": sum(len(a.get("wallets") or {}) for a in accounts),
-              "analyses": sum(len(a.get("analyses") or {}) for a in accounts)}
+    return None
+
+
+def _team(app):
+    """Хто не рахується в поведінці: гаманці власника і ті, що він позначив тестовими."""
+    return set(app["admins"]) | usage_mod.load_exclude(app["usage_dir"] / "exclude.json")
+
+
+USAGE_TTL = 60
+
+
+async def _budget(app):
+    s, ages = app["s"], app.get("ages")
     left = await _credits_left(app)
-    ages = app.get("ages")
-    budget = {"credits_left": left, "credits_at": int(app["credits"]["at"] * 1000) or None,
-              "credits_month": int(app["s"].get("credits_month", 0) or 0), "reserve": _credits_reserve(app["s"]),
-              "runs_today": int(app["s"].get("runs_global_per_day", 10)) - app["runs_daily"].left("global", int(app["s"].get("runs_global_per_day", 10))),
-              "rpc": ages.budget.state() if ages is not None and getattr(ages, "budget", None) else None}
+    gcap = int(s.get("runs_global_per_day", 10))
+    return {"credits_left": left, "credits_at": int(app["credits"]["at"] * 1000) or None,
+            "credits_month": int(s.get("credits_month", 0) or 0), "reserve": _credits_reserve(s),
+            "runs_today": gcap - app["runs_daily"].left("global", gcap),
+            "rpc": ages.budget.state() if ages is not None and getattr(ages, "budget", None) else None}
+
+
+async def _usage_summary(app, period, include_team, budget):
+    """Дашборд з журналу, раз на хвилину: читається і рахується в потоці, не на циклі подій."""
+    key = (period, include_team)
+    hit = app["usage_cache"].get(key)
+    if hit and time.time() - hit[0] < USAGE_TTL:
+        return hit[1]
+    tz, now = usage_mod.zone(app["s"].get("usage_tz")), int(time.time() * 1000)
+    jobs = [j for j in list(app["jobs"].jobs.values()) if not j.replay]   # знімок словника тут: робочі потоки його міняють
+
+    def work():
+        return usage_mod.summarize(app["events"].read(usage_mod.load_since(now, period, tz)), accounts=app["accounts"].all(),
+                                   jobs=jobs, onchain=usage_mod.load_json(app["usage_dir"] / "onchain.json", {}), now_ms=now,
+                                   period=period, tz=tz, team=_team(app), include_team=include_team, budgets=budget)
+    out = await asyncio.to_thread(work)
+    app["usage_cache"][key] = (time.time(), out)
+    return out
+
+
+async def admin_page(request):
+    """Дашборд власника: хто з підключених гаманців що робить і скільки кредитів це коштує; методика агента."""
+    app = request.app
+    refused = _admin_gate(request)
+    if refused:
+        return refused
+    period = request.query.get("p") if request.query.get("p") in usage_mod.PERIODS else "7d"
+    include_team = request.query.get("team") == "1"
+    budget = await _budget(app)
+    u = await _usage_summary(app, period, include_team, budget)
+    events = [dict(e, **usage_mod.label(e)) for e in app["events"].tail(100)]
     store = app["agent_store"]
-    return render("admin.html", request, accounts=accounts, totals=totals, events=app["events"].tail(100), now=now, budget=budget,
+    return render("admin.html", request, u=u, budget=budget, events=events, period=period, include_team=include_team,
+                  usage_tz=app["s"].get("usage_tz") or "UTC", periods=list(usage_mod.PERIODS),
                   agent_cfg=store.config(), agent_history=store.history(10), agent_log=store.recent(50),
                   agent_on=app.get("agent") is not None, agent_model=getattr(app.get("assistant"), "model", ""),
                   excludable=agent_mod.EXCLUDABLE, default_method=agent_mod.DEFAULT_METHOD)
+
+
+async def admin_wallet_page(request):
+    """Один гаманець для власника: хто він, що робив день за днем, його аналізи з кредитами, питання агенту."""
+    app = request.app
+    refused = _admin_gate(request)
+    if refused:
+        return refused
+    pk = request.match_info["pk"]
+    if not acct_mod.valid_pubkey(pk):
+        raise web.HTTPNotFound(text="That is not a wallet address.")
+    tz, now = usage_mod.zone(app["s"].get("usage_tz")), int(time.time() * 1000)
+    jobs = [j for j in list(app["jobs"].jobs.values()) if not j.replay and j.owner == pk]
+    team = _team(app)
+
+    def work():
+        return usage_mod.wallet_detail(app["events"].read(), pk, account=app["accounts"].load(pk), jobs=jobs,
+                                       onchain=usage_mod.load_json(app["usage_dir"] / "onchain.json", {}),
+                                       agent_log=app["agent_store"].recent(2000), now_ms=now, tz=tz, team=team)
+    d = await asyncio.to_thread(work)
+    return render("admin_wallet.html", request, d=d, excluded=pk in team and pk not in app["admins"], is_admin=pk in app["admins"], now=now)
+
+
+async def admin_usage_exclude(request):
+    """Позначити гаманець тестовим (або зняти позначку): його дії більше не рахуються як поведінка користувачів."""
+    app = request.app
+    pk, body, err = await _admin_json(request)
+    if err:
+        return err
+    wallet = str(body.get("wallet") or "")
+    if not acct_mod.valid_pubkey(wallet):
+        return _jerr("That is not a wallet address.")
+    path = app["usage_dir"] / "exclude.json"
+    ex = usage_mod.load_exclude(path)
+    ex = ex | {wallet} if body.get("on") else ex - {wallet}
+    usage_mod.save_exclude(path, ex)
+    app["usage_cache"].clear()
+    return web.json_response({"ok": True, "excluded": wallet in ex})
 
 
 ME_COLUMNS = ["wallet", "symbol", "mint", "from_job", "entry_mcap", "invested_usd", "multiple", "tags", "my_tags", "lists", "added_utc"]

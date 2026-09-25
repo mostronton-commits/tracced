@@ -192,6 +192,44 @@ if AioHTTPTestCase:
             await self.client.post("/me/usage", data=json.dumps({"e": [["tf", {"tf": "1m"}, 1]] * 5}), headers=dict(self.origin, Referer=page))
             self.assertEqual(len(self.lines("ui")), 3)                    # стеля гаманця на добу
 
+        async def test_the_dashboard_shows_the_owner_what_wallets_do(self):
+            import re
+            seed_demo(self.tmp.name, self.app)
+            user = acct_mod.b58encode(b"\x31" * 32)
+            hu = {"Cookie": wallet_cookie(user)}
+            self.app["accounts"].touch(user, "Phantom")
+            await self.client.get(f"/job/{DEMO_JID}", headers=hu)
+            page = f"http://{self.client.host}:{self.client.port}/job/{DEMO_JID}"
+            r = await self.client.post("/me/usage", data=json.dumps({"e": [["sort", {"key": "real", "dir": "desc"}, 1]]}),
+                                       headers=dict(hu, Origin=self.origin["Origin"], Referer=page))
+            self.assertEqual(r.status, 204)
+            for p in ("today", "7d", "30d", "all", "junk"):
+                r = await self.client.get(f"/admin?p={p}")
+                self.assertEqual(r.status, 200, p)
+            html = await (await self.client.get("/admin")).text()
+            for part in ('id="funnel"', "Analyses and their credits", "Sorted the table", f'href="/admin/w/{user}"', "Phantom", 'id="method"'):
+                self.assertIn(part, html)
+            self.assertIsNone(re.search("[\u0400-\u04ff]", html))
+            self.assertEqual((await self.client.get("/admin", headers=hu)).status, 403)     # не власник
+            r = await self.client.get(f"/admin/w/{user}")
+            text = await r.text()
+            self.assertEqual(r.status, 200)
+            self.assertIn("Sorted the table", text)
+            self.assertIn("opened a result (demo)", text)
+            self.assertEqual((await self.client.get("/admin/w/not-a-wallet")).status, 404)
+            self.assertEqual((await self.client.get(f"/admin/w/{user}", headers=hu)).status, 403)
+            r = await self.client.post("/admin/usage/exclude", json={"wallet": user, "on": True}, headers=dict(hu, Origin=self.origin["Origin"]))
+            self.assertEqual(r.status, 403)                                  # позначати тестовим може лише власник
+            r = await self.client.post("/admin/usage/exclude", json={"wallet": user, "on": True}, headers=self.origin)
+            self.assertEqual((await r.json())["excluded"], True)
+            html = await (await self.client.get("/admin")).text()
+            self.assertNotIn(f'href="/admin/w/{user}"', html)                # тестовий гаманець — не користувач
+            html = await (await self.client.get("/admin?team=1")).text()
+            self.assertIn(f'href="/admin/w/{user}"', html)                   # а з командою видно, з позначкою
+            self.assertIn("Team included", html)
+            r = await self.client.post("/admin/usage/exclude", json={"wallet": user, "on": False}, headers=self.origin)
+            self.assertEqual((await r.json())["excluded"], False)
+
         async def test_sign_out_tags_and_list_exports_are_actions(self):
             seed_demo(self.tmp.name, self.app)
             r = await self.client.post("/me/wallets", json={"job": DEMO_JID, "wallets": [W1]}, headers=self.origin)
