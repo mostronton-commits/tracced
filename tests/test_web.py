@@ -2266,7 +2266,7 @@ if AioHTTPTestCase:
                 self.assertEqual(r.status, 200, await r.text())
                 self.assertEqual(seen, [("Try this.", "preview", "Ukrainian", MINT)])   # спроба на демо, не збережена
                 self.assertEqual(self.app["agent_store"].config()["method"], "Read exits first.")
-                html = await (await self.client.get("/admin", headers=ha)).text()
+                html = await (await self.client.get("/admin?tab=method", headers=ha)).text()
                 self.assertIn("method v2", html)
                 self.assertIn("Read exits first.", html)
                 self.assertIsNone(CYRILLIC.search(html))
@@ -2296,10 +2296,14 @@ if AioHTTPTestCase:
             r = await self.client.get("/admin", headers=self._hdr(r_admin))
             html = await r.text()
             self.assertEqual(r.status, 200)
+            self.assertIn('data-count="2"', html)                                    # two accounts
+            html = await (await self.client.get("/admin?tab=log", headers=self._hdr(r_admin))).text()
             self.assertIn(pk_user[:6] + "…" + pk_user[-4:], html)
-            self.assertIn("Phantom", html)
             self.assertIn("saved 1 wallet from", html)
             self.assertIn("saved the analysis", html)
-            self.assertIn('data-count="2"', html)                                    # two accounts
-            self.assertIsNone(CYRILLIC.search(html))
+            html = await (await self.client.get("/admin?tab=wallets", headers=self._hdr(r_admin))).text()
+            self.assertIn("Phantom", html)
+            for tab in ("overview", "analyses", "agent", "wallets", "behavior", "costs", "log", "method"):
+                html = await (await self.client.get(f"/admin?tab={tab}", headers=self._hdr(r_admin))).text()
+                self.assertIsNone(CYRILLIC.search(html), tab)
             self.app["admins"] = set()

@@ -664,11 +664,22 @@ def _share_st(st, slots):
 
 # ───────────────────────── middleware ─────────────────────────
 
+def _error_event(request, status, msg):
+    """Підключений гаманець побачив помилку: де і яку (дашборд власника показує, що ламається в людей). Ліміти
+    (429) пишуться окремо як `limit`; гостей не пишемо."""
+    pk = request.get("acct")
+    if not pk or status == 429 or not _usage_take(request.app, pk, 1):
+        return
+    where = request.path.strip("/").split("/")[0] or "home"
+    request.app["events"].add(pk, "error", where=where[:40], status=int(status), msg=str(msg or "")[:120])
+
+
 @web.middleware
 async def errors_mw(request, handler):
     try:
         return await handler(request)
     except web.HTTPNotFound as e:
+        _error_event(request, 404, e.text)
         if request.path.endswith((".json", ".csv")):
             raise
         return render("error.html", request, message=e.text or "There is no such page.", status=404)
@@ -680,11 +691,13 @@ async def errors_mw(request, handler):
         return render("connect.html", request, mint=e.mint, t_from=e.t_from, t_to=e.t_to,
                       demo_mint=(_demo(request.app) or {}).get("mint"), status=401)
     except WebError as e:
+        _error_event(request, e.status, str(e))
         if request.path.endswith(".json"):
             return _jerr(str(e), e.status)                             # графік читає JSON і показує причину, а не порожнечу
         return render("error.html", request, message=str(e), status=e.status)
     except Exception:
         log.exception("page %s failed", request.path)
+        _error_event(request, 500, "Something broke on our side.")
         return render("error.html", request,
                       message="Something broke on our side. The log has the details.", status=500)
 
@@ -1549,6 +1562,8 @@ def _team(app):
 
 
 USAGE_TTL = 60
+ADMIN_TABS = {"overview": "Overview", "analyses": "Analyses", "agent": "Agent", "wallets": "Wallets", "behavior": "Behavior",
+              "costs": "Costs", "log": "Log", "method": "Agent method"}
 
 
 async def _budget(app):
@@ -1587,11 +1602,12 @@ async def admin_page(request):
         return refused
     period = request.query.get("p") if request.query.get("p") in usage_mod.PERIODS else "7d"
     include_team = request.query.get("team") == "1"
+    tab = request.query.get("tab") if request.query.get("tab") in ADMIN_TABS else "overview"
     budget = await _budget(app)
     u = await _usage_summary(app, period, include_team, budget)
-    events = [dict(e, **usage_mod.label(e)) for e in app["events"].tail(100)]
+    events = [dict(e, **usage_mod.label(e)) for e in app["events"].tail(100)] if tab == "log" else []
     store = app["agent_store"]
-    return render("admin.html", request, u=u, budget=budget, events=events, period=period, include_team=include_team,
+    return render("admin.html", request, u=u, budget=budget, events=events, period=period, include_team=include_team, tab=tab, tabs=ADMIN_TABS,
                   usage_tz=app["s"].get("usage_tz") or "UTC", periods=list(usage_mod.PERIODS),
                   agent_cfg=store.config(), agent_history=store.history(10), agent_log=store.recent(50),
                   agent_on=app.get("agent") is not None, agent_model=getattr(app.get("assistant"), "model", ""),

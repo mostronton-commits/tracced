@@ -206,10 +206,14 @@ if AioHTTPTestCase:
             for p in ("today", "7d", "30d", "all", "junk"):
                 r = await self.client.get(f"/admin?p={p}")
                 self.assertEqual(r.status, 200, p)
-            html = await (await self.client.get("/admin")).text()
-            for part in ('id="funnel"', "Analyses and their credits", "Sorted the table", f'href="/admin/w/{user}"', "Phantom", 'id="method"'):
-                self.assertIn(part, html)
-            self.assertIsNone(re.search("[\u0400-\u04ff]", html))
+            pages = {tab: await (await self.client.get(f"/admin?tab={tab}")).text()
+                     for tab in ("overview", "analyses", "agent", "wallets", "behavior", "costs", "log", "method", "junk")}
+            for tab, part in (("overview", "Agent questions"), ("behavior", "Sorted the table"), ("wallets", f'href="/admin/w/{user}"'),
+                              ("wallets", "Phantom"), ("method", 'id="method"'), ("junk", "Agent questions")):
+                self.assertIn(part, pages[tab], tab)                          # невідома вкладка — огляд
+            self.assertNotIn('id="method"', pages["overview"])                # кожна вкладка — лише своє
+            for html in pages.values():
+                self.assertIsNone(re.search("[\u0400-\u04ff]", html))
             self.assertEqual((await self.client.get("/admin", headers=hu)).status, 403)     # не власник
             r = await self.client.get(f"/admin/w/{user}")
             text = await r.text()
@@ -222,9 +226,9 @@ if AioHTTPTestCase:
             self.assertEqual(r.status, 403)                                  # позначати тестовим може лише власник
             r = await self.client.post("/admin/usage/exclude", json={"wallet": user, "on": True}, headers=self.origin)
             self.assertEqual((await r.json())["excluded"], True)
-            html = await (await self.client.get("/admin")).text()
+            html = await (await self.client.get("/admin?tab=wallets")).text()
             self.assertNotIn(f'href="/admin/w/{user}"', html)                # тестовий гаманець — не користувач
-            html = await (await self.client.get("/admin?team=1")).text()
+            html = await (await self.client.get("/admin?team=1&tab=wallets")).text()
             self.assertIn(f'href="/admin/w/{user}"', html)                   # а з командою видно, з позначкою
             self.assertIn("Team included", html)
             r = await self.client.post("/admin/usage/exclude", json={"wallet": user, "on": False}, headers=self.origin)
@@ -270,7 +274,7 @@ if AioHTTPTestCase:
             self.assertEqual(ages.calls, [("balances", [active]), ("age", active)])
             spend = self.lines("spend", what="onchain")
             self.assertEqual([(e["pubkey"], e["st"], e["bg"]) for e in spend], [("system", self.st.requests - before, 1)])
-            html = await (await self.client.get("/admin?team=1")).text()
+            html = await (await self.client.get("/admin?team=1&tab=wallets")).text()
             self.assertIn("Cented", html)                                    # на дашборді — у таблиці гаманців
 
         async def test_new_profiles_stop_at_the_daily_cap(self):
@@ -286,6 +290,16 @@ if AioHTTPTestCase:
             self.assertEqual(self.st.requests - before, 2)                    # третій профіль — завтра
             data = json.load(open(self.app["usage_dir"] / "onchain.json"))
             self.assertEqual(sum(1 for w in ws if data[w].get("p30")), 2)
+
+        async def test_errors_a_wallet_sees_are_written(self):
+            user = acct_mod.b58encode(b"\x61" * 32)
+            hu = {"Cookie": wallet_cookie(user)}
+            await self.client.get("/job/no-such-job", headers=hu)
+            await self.client.get("/token?mint=not-a-token", headers=hu)
+            await self.client.get("/job/no-such-job", headers=GUEST)               # гостя не пишемо
+            errs = self.lines("error")
+            self.assertEqual([(e["pubkey"], e["where"], e["status"]) for e in errs], [(user, "job", 404), (user, "token", 400)])
+            self.assertIn("Solana token address", errs[1]["msg"])
 
         async def test_sign_out_tags_and_list_exports_are_actions(self):
             seed_demo(self.tmp.name, self.app)

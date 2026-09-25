@@ -4,6 +4,7 @@
 {% block body %}
 {% include "_usage.html" %}
 
+{% if tab == 'method' %}
 <section class="card me agentadm" id="method">
   <div class="row mehead"><h2>Agent</h2><span class="muted small">{% if agent_on %}on · {{ agent_model }}{% else %}off on this server: set ASSISTANT_KEY in .env{% endif %} · method v{{ agent_cfg.v }}{% if agent_cfg.saved_ms %}, saved <span class="dtc" data-ms="{{ agent_cfg.saved_ms }}">{{ agent_cfg.saved_ms|dt }}</span>{% endif %}</span></div>
   <p class="muted small">The method tells the agent how to read an analysis. Write it in your own words, in any language. The rules that
@@ -36,24 +37,11 @@
   </details>
   <script type="application/json" id="ahist">{{ agent_history|tojson }}</script>
   {% endif %}
-  <h3 class="small">Questions people asked</h3>
-  {% if agent_log %}
-  <div class="tablewrap"><table class="facts melist"><thead><tr><th>When</th><th>Wallet</th><th>What</th><th>Answer</th><th class="num">Cost</th></tr></thead><tbody>
-  {% for e in agent_log %}
-    <tr>
-      <td class="muted small"><span class="dtc" data-ms="{{ e.ts_ms }}">{{ e.ts_ms|dt }}</span></td>
-      <td class="mono small" title="{{ e.pk }}">{{ (e.pk or '')[:6] }}…</td>
-      <td class="small">{% if e.kind == 'ask' %}{{ e.q }}{% else %}{{ e.kind }} · {{ e.lang }}{% endif %} <a class="muted" href="/job/{{ e.job }}">{{ e.job[:6] }}</a></td>
-      <td class="small">{% if e.error %}<span class="err">{{ e.error }}</span>{% elif e.on_topic == false %}<span class="err">off topic</span>{% else %}ok{% endif %}{% if e.dropped %} · <span class="muted" title="{% for d in e.dropped %}{{ d.why }}: {{ d.text }}&#10;{% endfor %}">{{ e.dropped|length }} dropped</span>{% endif %}</td>
-      <td class="num mono small">{% if e.usage and e.usage.cost %}${{ '%.4f'|format(e.usage.cost) }}{% endif %}</td>
-    </tr>
-  {% endfor %}
-  </tbody></table></div>
-  {% else %}<p class="muted">Nobody has asked the agent anything yet.</p>{% endif %}
 </section>
+{% endif %}
 
-<section class="card me" id="actions">
-  <div class="row mehead"><h2>Recent actions</h2><span class="muted small">last {{ events|length }}: sign-ins, analyses, saves, lists, exports, the agent</span></div>
+{% if tab == 'log' %}
+<section class="card me">
   {% if events %}
   <div class="recent">
   {% for e in events %}
@@ -66,8 +54,9 @@
   </div>
   {% else %}<p class="muted">Nothing yet.</p>{% endif %}
 </section>
+{% endif %}
 <script>
-(function () {
+{% if tab == 'method' %}(function () {
   // the agent's method: try it on the demo before saving, save as a new version, load an earlier one back
   const $ = id => document.getElementById(id), stat = $('astat'), out = $('aprevout');
   const DEFAULT_METHOD = {{ default_method|tojson }};
@@ -106,7 +95,7 @@
     const h = hist.find(x => String(x.v) === b.dataset.v); if (!h) return;
     fill(h); stat.textContent = 'v' + h.v + ' is in the form · press Save to make it the method again';
   }));
-})();
+})();{% endif %}
 (function () {
   // the owner's own visits are not visitors: Umami skips a browser that has this key (docs.umami.is, "Exclude my own visits")
   const b = document.getElementById('umamioff'), KEY = 'umami.disabled';

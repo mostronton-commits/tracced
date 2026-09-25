@@ -112,7 +112,7 @@ def run_facts(job):
     t0, t1, created = job.t_from or 0, job.t_to or 0, info.get("created_time") or 0
     ok = job.status == "done" and bool(job.result)
     mcap = info.get("mcap")
-    return {"job": job.id, "mint": job.mint, "symbol": job.symbol, "ok": 1 if ok else 0,
+    return {"job": job.id, "mint": job.mint, "symbol": job.symbol, "ok": 1 if ok else 0, "t_from": job.t_from, "t_to": job.t_to,
             "err": None if ok else (job.error or "")[:120] or None,
             "st": job.spent,                                  # None — невідомо (обірваний рестартом)
             "secs": round((job.finished_ms - job.started_ms) / 1000, 1) if job.finished_ms and job.started_ms else None,
@@ -158,6 +158,7 @@ LIMITS = {"run": "Live analyses", "browse": "Charts of new tokens", "age-card": 
           "agent-ask": "Questions to the agent", "agent-cards": "Agent cards"}
 LIMIT_KINDS = {"wallet": "per wallet", "site": "whole site", "network": "per network", "token": "per token",
                "hourly": "per hour from one address", "month": "month budget"}
+RANGE_BUCKETS = ((5, "≤ 5 min"), (15, "5–15 min"), (60, "15–60 min"), (360, "1–6 h"), (None, "> 6 h"))
 AGE_BUCKETS = ((1, "< 1 h"), (6, "1–6 h"), (24, "6–24 h"), (168, "1–7 d"), (None, "> 7 d"))
 AFTER_BUCKETS = ((1, "< 1 h"), (6, "1–6 h"), (24, "6–24 h"), (72, "1–3 d"), (None, "> 3 d"))
 MCAP_BUCKETS = ((100_000, "< $100K"), (1_000_000, "$100K–1M"), (10_000_000, "$1M–10M"), (None, "> $10M"))
@@ -402,10 +403,17 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
         c = costs_of.get(id(e), {})
         st_total = None if c.get("st_run") is None else c["st_run"] + c["st_names"] + c["st_cards"]
         runs.append({"ts_ms": e["ts_ms"], "pubkey": e["pubkey"], "who": who_of(e["pubkey"], team), "job": e.get("job"),
+                     "t_from": e.get("t_from"), "t_to": e.get("t_to"), "range_min": e.get("range_min"),
                      "mint": e.get("mint"), "symbol": e.get("symbol"), "ok": bool(e.get("ok")), "err": e.get("err"),
                      "rows": e.get("rows"), "secs": e.get("secs"), "backfill": bool(e.get("backfill")), **c,
                      "st_total": st_total, "rpc_total": c.get("rpc_enrich", 0) + c.get("rpc_cards", 0)})
-    run_stats = {"st": _stats([r["st_total"] for r in runs]), "rpc": _stats([r["rpc_total"] for r in runs if not r["backfill"]])}
+    run_stats = {"st": _stats([r["st_total"] for r in runs]), "rpc": _stats([r["rpc_total"] for r in runs if not r["backfill"]]),
+                 "secs": _stats([r["secs"] for r in runs]), "rows": _stats([r["rows"] for r in runs if r["ok"]])}
+    fails = {}
+    for r in runs:
+        if not r["ok"]:
+            k = (r["err"] or "unknown")[:90]
+            fails[k] = fails.get(k, 0) + 1
 
     # ── витрати: усі, хто платив ──
     feat, by_who, month = {}, {k: {"st": 0, "rpc": 0, "ai_usd": 0.0} for k in WHO}, {"st": 0, "rpc": 0, "ai_usd": 0.0}
@@ -494,7 +502,7 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
     # ── кліки, токени, ліміти, on-chain ──
     feats = {}
     for e in in_p:
-        if e["event"] != "ui":
+        if e["event"] != "ui" or e.get("name") == "leave":     # вихід зі сторінки — не натискання, він лише закриває візит
             continue
         k = (e.get("name"), e.get("page"))
         f = feats.setdefault(k, {"name": k[0], "label": CLICKS.get(k[0], k[0]), "page": k[1], "times": 0, "wallets": set()})
@@ -517,7 +525,8 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
                             key=lambda t: (-t["runs"], -t["viewers"]))[:15],
               "age": _count([e.get("age_h") for e in runs_p], AGE_BUCKETS),
               "after": _count([e.get("after_h") for e in runs_p], AFTER_BUCKETS),
-              "mcap": _count([e.get("mcap") for e in runs_p], MCAP_BUCKETS)}
+              "mcap": _count([e.get("mcap") for e in runs_p], MCAP_BUCKETS),
+              "range": _count([e.get("range_min") for e in runs_p], RANGE_BUCKETS)}
     pads = {}
     for e in runs_p:
         if e.get("pad"):
@@ -532,6 +541,16 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
             x["times"] += 1
             x["wallets"].add(e["pubkey"])
     limits = sorted(({**x, "wallets": len(x["wallets"])} for x in lim.values()), key=lambda x: -x["times"])
+    errs = {}
+    for e in in_p:
+        if e["event"] == "error":
+            x = errs.setdefault((e.get("where"), e.get("status"), e.get("msg")), {"where": e.get("where"), "status": e.get("status"),
+                                                                              "msg": e.get("msg"), "times": 0, "wallets": set()})
+            x["times"] += 1
+            x["wallets"].add(e["pubkey"])
+    errors = sorted(({**x, "wallets": len(x["wallets"])} for x in errs.values()), key=lambda x: -x["times"])
+    phone = {e["pubkey"] for e in in_p if e["event"] == "view" and e.get("dev") == "m"}
+    computer = {e["pubkey"] for e in in_p if e["event"] == "view" and e.get("dev") == "d"}
     oc = [onchain[a["pubkey"]] for a in accts if onchain.get(a["pubkey"])]
     idn = [o.get("idn") or {} for o in oc]
     p30 = [o.get("p30") or {} for o in oc]
@@ -547,7 +566,10 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
             "pulse": pulse, "daily": series, "funnel": funnel, "funnel_base": len(active), "returning": returning,
             "sessions": sessions, "came_back": came_back, "activation": {"n": len(activated), "of": len(new)},
             "ttfa_median_h": _median(ttfa), "runs": runs[:100], "runs_n": len(runs), "run_stats": run_stats, "costs": costs,
-            "ai": ai, "users": users, "features": features, "tokens": tokens, "limits": limits, "onchain": onchain_sum}
+            "ai": ai, "users": users, "features": features, "tokens": tokens, "limits": limits, "onchain": onchain_sum,
+            "errors": errors, "fails": sorted(({"err": k, "n": n} for k, n in fails.items()), key=lambda x: -x["n"]),
+            "devices": {"phone": len(phone), "computer": len(computer)},
+            "questions": sum(1 for e in in_p if e["event"] == "agent" and e.get("kind") == "ask")}
 
 
 # ───────────────────────── події людською мовою ─────────────────────────
@@ -639,6 +661,8 @@ def label(e):
         return {"text": f"{FEATURES.get(g('what'), g('what'))}: {cost}", **link}
     if ev == "limit":
         return {"text": f"hit the daily limit: {g('what')} ({g('kind')})"}
+    if ev == "error":
+        return {"text": f"saw an error on {g('where') or 'a page'} ({g('status')}): {g('msg') or ''}".rstrip(": ")}
     return {"text": str(ev)}
 
 

@@ -962,8 +962,20 @@ td.c-roi b { font-size: 13px; }
 .ucols { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; align-items: start; }
 .ubuckets p { margin: 0 0 10px; } .ubuckets span { display: inline-block; margin: 4px 12px 0 0; color: var(--muted); } .ubuckets span b { color: var(--ink); }
 .uday { margin: 14px 0 4px; color: var(--muted); font-weight: 600; }
+.uhead { padding-bottom: 0; }
+.utabs { display: flex; gap: 2px; margin: 4px -22px 0; padding: 0 22px; border-top: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.utabs::-webkit-scrollbar { display: none; }
+.utabs a { border: 0; border-bottom: 2px solid transparent; padding: 11px 12px 10px; font-size: 13.5px; color: var(--muted); white-space: nowrap; }
+.utabs a:hover { color: var(--ink); }
+.utabs a.on { color: var(--ink); font-weight: 600; border-bottom-color: #34D399; }
+.ubks { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px 18px; margin: 4px 0 14px; }
+.ubk { font-size: 12.5px; color: var(--muted); } .ubk b { display: block; color: var(--ink); font-size: 12.5px; margin-bottom: 3px; }
+.ubk span { display: inline-block; margin: 2px 10px 0 0; } .ubk i { font-style: normal; color: var(--ink); font-weight: 600; }
+.uwatch { margin: 4px 0 6px; padding-left: 18px; font-size: 13.5px; } .uwatch li { margin: 3px 0; }
+.usage h3.small { margin: 16px 0 6px; }
 @media (max-width: 640px) {
-  .ufun { grid-template-columns: 1fr 64px; } .ufun .bar { grid-column: 1 / -1; grid-row: 2; }
+  .ufun { grid-template-columns: 1fr 48px; } .ufun .bar { grid-column: 1 / -1; grid-row: 2; }
+  .utabs { margin: 4px -14px 0; padding: 0 14px; }            /* картка на телефоні має відступ 14px */
   .unav .ujump { margin-left: 0; }
   .usage .stats div { min-width: calc(50% - 4px); flex: 1 1 calc(50% - 4px); }
   .me .rrow.evrow { grid-template-columns: 90px 1fr; row-gap: 2px; } .me .rrow.evrow > :nth-child(3) { grid-column: 1 / -1; }

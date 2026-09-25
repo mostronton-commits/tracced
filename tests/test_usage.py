@@ -212,6 +212,16 @@ class TestSummary(unittest.TestCase):
         self.assertEqual({b["label"]: b["n"] for b in t["age"]}["1–6 h"], 1)
         self.assertEqual(t["pads"], [{"pad": "pump.fun", "n": 1}])
 
+    def test_ranges_failures_errors_and_devices(self):
+        self.events += [ev(NOW - H, A, "error", where="job", status=502, msg="The chain node did not answer."),
+                        ev(NOW - H + 1, B, "error", where="job", status=502, msg="The chain node did not answer.")]
+        u = self.summ(period="30d", include_team=True)
+        self.assertEqual({b["label"]: b["n"] for b in u["tokens"]["range"]}["> 6 h"], 0)
+        self.assertEqual(u["fails"], [{"err": "feed down", "n": 1}])               # прогін власника, з командою
+        self.assertEqual([(e["where"], e["status"], e["times"], e["wallets"]) for e in u["errors"]], [("job", 502, 2, 2)])
+        self.assertEqual(u["devices"], {"phone": 1, "computer": 1})
+        self.assertEqual(u["questions"], 1)
+
     def test_one_wallet_step_by_step(self):
         d = usage.wallet_detail(self.events, A, account=self.accounts[0], now_ms=NOW, team={T})
         items = [x for day in d["timeline"] for x in day["steps"]]
