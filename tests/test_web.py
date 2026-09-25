@@ -147,7 +147,7 @@ if AioHTTPTestCase:
                 if "↓ Export" in html: break
                 await asyncio.sleep(0.1)
             self.assertIn("↓ Export", html)
-            self.assertIn("Whole history", html)
+            self.assertNotIn("Whole history", html)                      # no scope switch: the numbers are the whole history
             self.assertEqual(self.st.requests, before)                    # not a single request to Solana Tracker
             st = await (await self.client.get(loc + ".state.json?since=0")).json()
             self.assertTrue(any(l.startswith("page 1: 3 trades (+3 new)") for l in st["log"]), st["log"])   # a believable run from the stored numbers
@@ -1032,7 +1032,7 @@ if AioHTTPTestCase:
             self.assertIn('data-count=', html)                          # count-up tiles
             self.assertIn(">Hide:<", html)
             self.assertIn("Exits known for", html)                       # coverage line
-            self.assertIn("Whole history", html)                         # scope switch
+            self.assertNotIn("Only:", html)                              # the "Only" chips are gone (owner, 25.09)
             self.assertIn("Trades up to", html)
             self.assertIn("Select all", html)
             self.assertIn('id="more"', html)                             # rows beyond the first 100 wait behind "Show more"
@@ -1053,8 +1053,7 @@ if AioHTTPTestCase:
             r = await self.client.get(loc + "?scope=48h")
             self.assertEqual(r.status, 200)
             page48 = await r.text()
-            self.assertIn("48 h after range", page48)
-            self.assertIn('class="on" href="?scope=48h"', page48)
+            self.assertNotIn("Numbers for", page48)                      # the scope switch is gone; an old ?scope= link still opens
             self.assertIn('id="watchbtn"', page48)                      # the real save to a list, no placeholder
             self.assertIn('id="aform"', page48)                          # the agent: cards, suggested questions and a question line
             self.assertIn("Save analysis", page48)
