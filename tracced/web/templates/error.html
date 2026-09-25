@@ -1,11 +1,47 @@
 {% extends "base.html" %}
-{% block title %}Error · tracced{% endblock %}
+{% block title %}{{ 'Rugged' if rugged else 'Error' }} · tracced{% endblock %}
 {% block main_class %}center{% endblock %}
 {% block body %}
+{% if rugged %}
+<section class="card narrow rugged">
+  <figure class="rug-scene">
+    <svg viewBox="0 0 320 162" role="img" aria-label="Wick, a small green candle, jumped off the top of a chart just before one red candle took it to zero">
+      <rect width="320" height="162" rx="12" fill="#090D16"/>
+      <g stroke="#141C2E" stroke-width="1"><path d="M12 42H308M12 74H308M12 106H308"/></g>
+      <path d="M12 138H308" stroke="#1E293B" stroke-width="1"/>
+      <g stroke="#A7F3D0" stroke-width="1.5" fill="rgba(167,243,208,.22)" stroke-linecap="round">
+        <path d="M30 100V124M52 94V112M74 82V104M96 70V96M118 58V84M140 46V72M162 24V60"/>
+        <rect x="24" y="104" width="12" height="14" rx="1.5"/><rect x="46" y="98" width="12" height="10" rx="1.5"/>
+        <rect x="68" y="86" width="12" height="14" rx="1.5"/><rect x="90" y="74" width="12" height="18" rx="1.5"/>
+        <rect x="112" y="62" width="12" height="18" rx="1.5"/><rect x="134" y="50" width="12" height="18" rx="1.5"/>
+        <rect x="156" y="30" width="12" height="26" rx="1.5"/>
+      </g>
+      <path d="M208 22V30" stroke="#F87171" stroke-width="1.5" stroke-linecap="round"/>
+      <rect x="200" y="30" width="16" height="108" rx="1.5" fill="#F87171"/>
+      <text x="222" y="153" fill="#F87171" font-family="Geist Mono, ui-monospace, Menlo, monospace" font-size="10">−100%</text>
+      <path d="M168 26Q218 -12 258 74" fill="none" stroke="#A7F3D0" stroke-width="1.5" stroke-dasharray="3 5" opacity=".55"/>
+      <g transform="translate(252 86)"><g class="wick">
+        <path d="M12 0V10" stroke="#A7F3D0" stroke-width="2.5" stroke-linecap="round"/>
+        <rect y="10" width="24" height="34" rx="5" fill="#34D399"/>
+        <path d="M7 44V52M17 44V52" stroke="#A7F3D0" stroke-width="2.5" stroke-linecap="round"/>
+        <circle cx="7.5" cy="22" r="3.6" fill="#F8FAFC"/><circle cx="16.5" cy="22" r="3.6" fill="#F8FAFC"/>
+        <circle cx="6.2" cy="22.6" r="1.8" fill="#090D16"/><circle cx="15.2" cy="22.6" r="1.8" fill="#090D16"/>
+        <path d="M8 31q4 3.5 8 0" fill="none" stroke="#064E3B" stroke-width="1.8" stroke-linecap="round"/>
+      </g></g>
+    </svg>
+    <figcaption class="mono muted small">Wick sold the top. This page didn't.</figcaption>
+  </figure>
+  <h2>This page got rugged.</h2>
+  <p class="muted">{{ message }}</p>
+  <p class="row"><a class="button" href="/">Back to tracced</a>{% if demo_token %} <a href="/token?mint={{ demo_token }}">Open the demo</a>{% endif %}
+    <a class="right small" href="/feedback?kind=bug">Report a broken link</a></p>
+</section>
+{% else %}
 <section class="card narrow">
   <h2>That didn't work</h2>
   <p class="err">{{ message }}</p>
   <p class="row"><a class="button" href="javascript:history.back()">← Back</a> <a href="/">Home</a>
     <a class="right small" href="/feedback?kind=bug">Report this</a></p>
 </section>
+{% endif %}
 {% endblock %}

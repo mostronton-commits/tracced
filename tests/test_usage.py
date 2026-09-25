@@ -74,6 +74,11 @@ class TestBeaconBatch(unittest.TestCase):
                          [("sort", {"key": "real", "dir": "desc", "via": "head"}), ("copy", {}), ("filter", {}),
                           ("select", {}), ("leave", {"secs": 1_000_000_000}), ("pin", {"on": True})])
 
+    def test_the_easter_egg_is_a_named_click(self):
+        out = usage.clean_batch({"e": [["egg", {"what": "candles", "who": "wick"}, 5_000]]}, self.NOW)
+        self.assertEqual([(e["name"], e["p"]) for e in out], [("egg", {"what": "candles"})])
+        self.assertEqual(usage.CLICKS["egg"], "Found an easter egg")
+
     def test_the_browser_clock_only_orders_a_batch(self):
         out = usage.clean_batch({"e": [["tf", {"tf": "1m"}, 1_000], ["tf", {"tf": "5m"}, 61_000], ["tf", {"tf": "1h"}, 10**15]]}, self.NOW)
         self.assertEqual([e["ts"] for e in out], [self.NOW - usage.LAG_MAX_MS, self.NOW - usage.LAG_MAX_MS, self.NOW])

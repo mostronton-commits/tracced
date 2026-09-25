@@ -998,3 +998,13 @@ td.c-roi b { font-size: 13px; }
 .fbtext { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .uflag.fb-bug { border-color: #FECACA; background: #FEF2F2; color: #B91C1C; }
 .uflag.fb-idea { border-color: #A7F3D0; background: var(--sage); color: #065F46; }
+/* пасхалки: сторінка «rugged» з Wick і дощ свічок із назви (сім швидких кліків, egg.js вантажиться лише тоді) */
+.rugged .rug-scene { margin: 0 0 16px; }
+.rugged .rug-scene svg { display: block; width: 100%; height: auto; }
+.rugged .rug-scene figcaption { margin-top: 8px; text-align: center; }
+.rugged h2 { margin: 0 0 6px; }
+.rug-scene .wick { animation: wickbob 2.6s ease-in-out infinite; }
+@keyframes wickbob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+.brandline, .foot-brand b { -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+.eggfx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; }
+@media (prefers-reduced-motion: reduce) { .rug-scene .wick { animation: none; } }

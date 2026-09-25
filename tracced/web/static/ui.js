@@ -135,6 +135,23 @@ document.addEventListener('click', e => {
   });
 });
 
+/* seven quick clicks on the wordmark (the home title or the footer) rain candles; egg.js loads only then */
+(function () {
+  const src = document.currentScript && document.currentScript.src, v = src ? new URL(src).search : '';
+  let n = 0, t = 0;
+  document.addEventListener('click', e => {
+    const w = e.target.closest('.brandline, .foot-brand b'); if (!w) return;
+    const now = Date.now();
+    n = now - t < 700 ? n + 1 : 1; t = now;
+    if (n < 7) return;
+    n = 0;
+    if (window.EarlyEgg) { EarlyEgg.rain(w); return; }
+    const s = document.createElement('script');
+    s.src = '/static/egg.js' + v; s.onload = () => EarlyEgg.rain(w);
+    document.head.appendChild(s);
+  });
+})();
+
 /* a link out of tracced (Solscan, X, DexScreener): for the owner's log, which site, never the address in it */
 document.addEventListener('click', e => {
   const a = e.target.closest('a[target=_blank]'); if (!a) return;

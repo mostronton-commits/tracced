@@ -757,11 +757,25 @@ if AioHTTPTestCase:
 
         async def test_404_pages_and_client_ip(self):
             r = await self.client.get("/job/nope", headers=GUEST)
+            html = await r.text()
             self.assertEqual(r.status, 404)
-            self.assertIn("That didn't work", await r.text())            # брендована сторінка, не голий текст
+            self.assertIn("This page got rugged.", html)                  # мертве посилання — сторінка з Wick
+            self.assertIn("No such analysis.", html)                      # і причина під заголовком
             r = await self.client.get("/no-such-page", headers=GUEST)
+            html = await r.text()
             self.assertEqual(r.status, 404)
-            self.assertIn("<footer", await r.text())
+            self.assertIn("<footer", html)
+            self.assertIn('class="rug-scene"', html)
+            self.assertIn("gone, like the liquidity", html)
+            self.assertNotIn("404: Not Found", html)                      # не голий текст aiohttp
+            self.assertIsNone(CYRILLIC.search(html))
+            r = await self.client.get("/docs/nope", headers=GUEST)
+            self.assertIn("There is no such page in the documentation.", await r.text())
+            r = await self.client.get("/token?mint=bad", headers=GUEST)
+            html = await r.text()
+            self.assertEqual(r.status, 400)
+            self.assertIn("That didn't work", html)                       # інші помилки — звичайна сторінка з причиною
+            self.assertNotIn("rug-scene", html)
             from aiohttp.test_utils import make_mocked_request
             from tracced.web.app import _client_ip
             self.assertEqual(_client_ip(make_mocked_request("GET", "/", headers={"X-Forwarded-For": "2001:db8:abcd:1234:5:6:7:8"})), "2001:db8:abcd:1234::/64")

@@ -679,6 +679,10 @@ def _error_event(request, status, msg):
     request.app["events"].add(pk, "error", where=where[:40], status=int(status), msg=str(msg or "")[:120])
 
 
+# мертві посилання: сторінка «rugged» з Wick. Решта 404 (немає гаманця в аналізі тощо) — звичайна помилка з причиною
+RUGGED = {"No such analysis.", "There is no such page in the documentation."}
+
+
 @web.middleware
 async def errors_mw(request, handler):
     try:
@@ -687,7 +691,9 @@ async def errors_mw(request, handler):
         _error_event(request, 404, e.text)
         if request.path.endswith((".json", ".csv")):
             raise
-        return render("error.html", request, message=e.text or "There is no such page.", status=404)
+        text = "" if (e.text or "").startswith("404:") else (e.text or "")   # маршрут не знайдено: aiohttp пише «404: Not Found»
+        return render("error.html", request, status=404, rugged=not text or text in RUGGED,
+                      message=text or "The link you followed is gone, like the liquidity.")
     except web.HTTPException:
         raise
     except ConnectRequired as e:
