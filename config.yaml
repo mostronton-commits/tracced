@@ -58,3 +58,6 @@ early:
                                 # exact but misses most bundles (measured on PAID: 3 of 86 wallets in bundles kept)
   rpc_credits_month: 250000     # tracced's share of the Helius month (1,000,000 for the whole account). About 2 credits
                                 # a wallet, 11 for a busy one; age checks pause at 90% and resume next month
+
+  # The owner's dashboard at /admin counts days in this zone (the daily caps above still reset at 00:00 UTC).
+  usage_tz: Europe/Warsaw

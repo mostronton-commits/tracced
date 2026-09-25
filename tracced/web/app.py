@@ -368,13 +368,16 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
                                      ttl_hours=float(s.get("wallet_profile_ttl_hours", 24)), flush_every=25)   # решту допише зупинка сервера
     app["accounts"] = acct_mod.AccountStore(Path(out_dir).parent / "accounts")   # поруч з web/ і demo/ у output/early
     app["nonces"] = acct_mod.NonceStore()
-    app["events"] = acct_mod.EventLog(Path(out_dir).parent / "accounts" / "_events.jsonl")
+    # що роблять гаманці і скільки це коштувало, файл на місяць; старий журнал до 26.09.2026 лише читається
+    app["events"] = acct_mod.EventLog(Path(out_dir).parent / "usage", legacy=Path(out_dir).parent / "accounts" / "_events.jsonl")
     app["admins"] = {w.strip() for w in os.getenv("ADMIN_WALLETS", "").split(",") if w.strip()}   # чиї гаманці бачать /admin
     app["auth_throttle"] = Throttle(max_fails=10, window_s=300, block_s=600)
     daily_dir = Path(out_dir).parent / "daily"           # добові лічильники переживають деплой
     app["assistant_daily"] = DailyCount(daily_dir / "assistant.json")
     app["browse_daily"] = DailyCount(daily_dir / "browse.json")   # запити на графіки живих токенів: на адресу, на гаманець, на сайт
     app["runs_daily"] = DailyCount(daily_dir / "runs.json")       # живі прогони на весь сайт за добу (будь-який ключ підписує безкоштовно)
+    app["usage_daily"] = DailyCount(daily_dir / "usage.json")     # рядків журналу (перегляди, кліки) на гаманець і на сайт за добу
+    app["usage_cache"], app["view_last"] = {}, {}                 # порахований дашборд на хвилину; останній перегляд сторінки
     app["credits"] = {"left": None, "at": 0}                     # залишок кредитів Data API: питаємо не частіше ніж раз на 10 хв
     app["ages"] = ages
     _share_st(st, app["st_slots"])
@@ -758,6 +761,21 @@ def _browse_budget(request, est=1):
             daily.add(who, d)
             daily.add("global", d)
     return settle
+
+
+def _usage_take(app, pk, n):
+    """Скільки з n рядків журналу (перегляди, кліки) цього гаманця ще влазить у сьогоднішні стелі — стільки й списує.
+
+    Перегляд чи клік нічого не коштують, тож без стелі будь-який підключений гаманець міг би циклом писати журнал,
+    доки не скінчиться диск: 1000 рядків на гаманець і 30 000 на сайт за добу — у сотні разів більше, ніж клікає людина."""
+    s, daily = app["s"], app["usage_daily"]
+    ok = min(int(n), daily.left(f"ev:{pk}", int(s.get("usage_events_per_day", 1000))),
+             daily.left("ev:global", int(s.get("usage_events_global_per_day", 30000))))
+    if ok <= 0:
+        return 0
+    daily.add(f"ev:{pk}", ok)
+    daily.add("ev:global", ok)
+    return ok
 
 
 @web.middleware

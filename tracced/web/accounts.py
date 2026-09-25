@@ -476,31 +476,120 @@ class AccountStore:
         return self._update(pubkey, lambda a: a["analyses"].pop(str(job_id), None) is not None)
 
 
-class EventLog:
-    """Що роблять акаунти на сайті: один JSONL-файл, читає лише власник на /admin."""
+# дії, які власник читає рядком у «Recent actions»; решта журналу (перегляди, кліки, прогони, витрати, ліміти) —
+# сировина для підрахунків дашборда, і в стрічці дій вона б утопила все інше
+ACTIONS = frozenset({"signin", "signout", "save_wallets", "remove_wallet", "list_create", "list_rename", "list_remove",
+                     "save_analysis", "remove_analysis", "set_demo", "agent_method", "analyze", "delete_analysis",
+                     "agent", "tags", "export", "assistant", "waitlist"})   # assistant, waitlist — лише в старому файлі
+MONTH_FILE = re.compile(r"^\d{4}-\d{2}\.jsonl$")
 
-    def __init__(self, path):
-        self.path = str(path)
+
+def _month(ms):
+    return time.strftime("%Y-%m", time.gmtime(ms / 1000))
+
+
+class EventLog:
+    """Що роблять акаунти на сайті і скільки це коштувало: файл на місяць, output/early/usage/YYYY-MM.jsonl (місяць —
+    за часом події, UTC). Читає лише власник на /admin.
+
+    Рядок — {ts_ms, pubkey, event, ...}; pubkey — адреса гаманця, "guest" (витрати без гаманця) або "system" (фонова
+    робота сервера). Старий файл accounts/_events.jsonl, куди все писалось до 26.09.2026, лише читається."""
+
+    def __init__(self, dir, legacy=None):
+        self.dir = str(dir)
+        self.legacy = str(legacy) if legacy else None
         self.lock = threading.Lock()
+        self._legacy = (None, [])                     # (mtime, рядки): старий файл більше не росте, читаємо раз
+        os.makedirs(self.dir, exist_ok=True)
+
+    def _path(self, ms):
+        return os.path.join(self.dir, _month(ms) + ".jsonl")
 
     def add(self, pubkey, event, **extra):
-        rec = {"ts_ms": _now_ms(), "pubkey": pubkey, "event": event, **extra}
+        rec = {"ts_ms": _now_ms(), "pubkey": pubkey, "event": event}
+        rec.update((k, v) for k, v in extra.items() if v is not None)   # ts_ms в extra — час події, а не запису
+        self.add_many([rec])
+
+    def add_many(self, recs):
+        """Кілька рядків одним записом (пачка кліків зі сторінки): кожен — у файл місяця своєї події."""
+        by = {}
+        for r in recs:
+            by.setdefault(self._path(r["ts_ms"]), []).append(json.dumps(r, ensure_ascii=False) + "\n")
         try:
-            with self.lock, open(self.path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            with self.lock:
+                for path, lines in by.items():
+                    with open(path, "a", encoding="utf-8") as f:
+                        f.writelines(lines)
         except OSError as e:                          # журнал не має валити дію користувача
             log.warning("event log: %s", e)
 
-    def tail(self, n=100):
+    def _files(self, lo="", hi="9999"):
+        """Місячні файли від lo до hi (рядки «YYYY-MM»), старші першими."""
         try:
-            with open(self.path, encoding="utf-8") as f:
-                lines = f.readlines()[-n:]
-        except FileNotFoundError:
+            names = sorted(n for n in os.listdir(self.dir) if MONTH_FILE.match(n) and lo <= n[:7] <= hi)
+        except OSError:
+            return []
+        return [os.path.join(self.dir, n) for n in names]
+
+    @staticmethod
+    def _lines(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                lines = f.readlines()
+        except OSError:
             return []
         out = []
         for line in lines:
             try:
-                out.append(json.loads(line))
+                rec = json.loads(line)
             except ValueError:
-                continue
-        return out[::-1]
+                continue                              # рядок, що дописувався саме в цю мить, або обірваний збоєм
+            if isinstance(rec, dict) and isinstance(rec.get("ts_ms"), (int, float)):
+                out.append(rec)
+        return out
+
+    def _old(self):
+        if not self.legacy:
+            return []
+        try:
+            mtime = os.path.getmtime(self.legacy)
+        except OSError:
+            return []
+        if self._legacy[0] != mtime:
+            self._legacy = (mtime, self._lines(self.legacy))
+        return self._legacy[1]
+
+    def read(self, since_ms=0, until_ms=None):
+        """Усі події з since_ms до until_ms, за часом (старий файл теж)."""
+        hi = _month(until_ms) if until_ms else "9999"
+        out = [r for r in self._old() if r["ts_ms"] >= since_ms and (until_ms is None or r["ts_ms"] <= until_ms)]
+        for path in self._files(_month(since_ms) if since_ms else "", hi):
+            out.extend(r for r in self._lines(path) if r["ts_ms"] >= since_ms and (until_ms is None or r["ts_ms"] <= until_ms))
+        out.sort(key=lambda r: r["ts_ms"])
+        return out
+
+    def tail(self, n=100, kinds=ACTIONS):
+        """Останні n подій цих видів (None — будь-яких), новіші першими."""
+        out = []
+        for path in reversed(self._files()):
+            out.extend(r for r in reversed(self._lines(path)) if kinds is None or r.get("event") in kinds)
+            if len(out) >= n:
+                return out[:n]
+        out.extend(r for r in reversed(self._old()) if kinds is None or r.get("event") in kinds)
+        return out[:n]
+
+    def prune(self, keep_months, now_ms=None):
+        """Прибрати місячні файли, старші за keep_months (поточний місяць — перший із них). Повертає, скільки прибрано."""
+        now = time.gmtime((now_ms or _now_ms()) / 1000)
+        y, m = now.tm_year, now.tm_mon - (int(keep_months) - 1)
+        while m <= 0:
+            y, m = y - 1, m + 12
+        n = 0
+        for path in self._files(hi=f"{y:04d}-{m:02d}"):
+            if os.path.basename(path)[:7] < f"{y:04d}-{m:02d}":
+                try:
+                    os.remove(path)
+                    n += 1
+                except OSError:
+                    pass
+        return n
