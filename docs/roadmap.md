@@ -10,8 +10,9 @@ known one: a KOL, its X account, the app it trades through. Several named lists 
 history and its wallets read in parallel, so a busy token takes seconds. A result that reads on a phone and stays
 light with thousands of wallets. New analyses counted per person a day, not per wallet.
 
-An AI agent that reads only the table in front of it and the method you describe, then returns a short list with
-a reason for each pick.{% if not assistant_on %}
+An AI agent that reads only the analysis in front of it: three cards on what happened, what to weigh and whose
+wallets stand out, then answers to your questions, each line carrying a number from the table. It needs a connected
+wallet.{% if not assistant_on %}
 
 !!! warning "🤖 The agent is off on this server"
     It needs a model key that this deployment does not have yet, so its button explains itself instead of

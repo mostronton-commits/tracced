@@ -927,9 +927,9 @@ if AioHTTPTestCase:
             self.assertLess(self.app["browse_daily"].left("global", 300), 300)   # …і списуються з бюджету на графіки
             r = await self.client.get(f"/wallet_trades.json?mint={MINT}&job={other_job}&wallet=A", headers=GUEST)
             self.assertEqual(r.status, 404)                              # чужий id — нема такого
-            r = await self.client.post(f"/job/{jid}/assistant", json={"method": "x"}, allow_redirects=False,
+            r = await self.client.post(f"/job/{jid}/agent/cards", json={"lang": "en"}, allow_redirects=False,
                                        headers={"Origin": f"http://{self.client.host}:{self.client.port}", "Cookie": ""})
-            self.assertIn(r.status, (404, 503))                          # the demo's agent answers guests too
+            self.assertIn(r.status, (401, 404, 503))                     # no agent for guests, and none on this server
 
         async def test_how_redirects_into_the_docs(self):
             # один опис замість двох: /how вів своє життя і неминуче розійшовся б з документацією
@@ -1055,7 +1055,8 @@ if AioHTTPTestCase:
             page48 = await r.text()
             self.assertIn("48 h after range", page48)
             self.assertIn('class="on" href="?scope=48h"', page48)
-            self.assertIn("+ Watchlist", page48)                        # the real save, no placeholder
+            self.assertIn('id="watchbtn"', page48)                      # the real save to a list, no placeholder
+            self.assertIn('id="aform"', page48)                          # the agent: cards, suggested questions and a question line
             self.assertIn("Save analysis", page48)
             self.assertNotIn("Add to watchlist", page48)
             self.assertNotIn("soon-badge", page48)
@@ -1064,25 +1065,10 @@ if AioHTTPTestCase:
             r = await self.client.get("/wallet_trades.json?job=" + loc.split("/")[-1] + "&wallet=A")
             self.assertEqual(r.status, 400)                              # not a base58 wallet in tests → readable error
             o = {"Origin": f"http://{self.client.host}:{self.client.port}"}
-            r = await self.client.post(loc + "/assistant", json={"method": "x"}, headers=o)   # assistant: not configured → 503 with a readable reason
+            r = await self.client.post(loc + "/agent/cards", json={"lang": "en"}, headers=o)   # the agent: off on this server → 503 with a reason
             self.assertEqual(r.status, 503)
-            self.assertIn("ASSISTANT_KEY", (await r.json())["error"])
-
-            class FakeAssistant:
-                model = "fake"
-                def ask(self, rows, method):
-                    assert rows and method == "only profitable"
-                    return {"picks": [{"wallet": rows[0]["wallet"], "reason": "realized profit"}], "note": "", "model": "fake"}
-            self.app["assistant"] = a = FakeAssistant()
-            r = await self.client.post(loc + "/assistant", json={"method": "only profitable", "wallets": ["A"]})
-            self.assertEqual(r.status, 403)                              # JSON writes need the page's own origin
-            r = await self.client.post(loc + "/assistant", json={"method": "only profitable", "wallets": ["A"]}, headers=o)
-            self.assertEqual(r.status, 200)
-            aj = await r.json()
-            self.assertEqual(aj["picks"][0]["wallet"], "A")
-            self.assertEqual(aj["left"], 9)                               # a wallet gets 10 a day (guests 3)
-            r = await self.client.post(loc + "/assistant", json={"method": "only profitable", "wallets": ["A"]}, headers=o)
-            self.assertTrue((await r.json()).get("cached"))
+            self.assertIn("switched on", (await r.json())["error"])
+            a = object()                                                 # the pages only ask whether a model is set
             self.assertIn("AI agent", page48)
             self.assertEqual(page48.count("<b>Coming soon</b>"), 1)          # no key on this server: the button says so
             self.app["assistant"] = None                                 # …and then the home page must not promise it either
@@ -1351,8 +1337,7 @@ if AioHTTPTestCase:
                 self.assertIn("frame-ancestors 'none'", csp, path)
                 self.assertNotIn("script-src", csp)                                 # вбудовані скрипти сторінок працюють
 
-        async def test_an_ask_is_given_back_only_when_the_model_did_not_answer(self):
-            import urllib.error
+        async def test_a_question_is_given_back_only_when_the_model_did_not_answer(self):
             from tracced.early.assistant import AssistantError
             r = await self.client.post("/analyze", allow_redirects=False,
                                        data={"mint": "S" * 40, "from": "2001-09-09T01:46", "to": "2001-09-09T02:06"})
@@ -1362,22 +1347,27 @@ if AioHTTPTestCase:
             class Flaky:
                 model = "fake"
 
-                def ask(self, rows, method):
-                    if method == "down":
-                        raise AssistantError("The free model is rate-limited right now.") from urllib.error.URLError("timed out")
-                    raise AssistantError("The assistant did not return a usable list.")
-            self.app["assistant"] = Flaky()
+                def ask(self, result, cfg, q, lang):
+                    if q == "down":
+                        raise AssistantError("The agent's model is busy right now. Try again in a minute.")
+                    return {"on_topic": False, "answer": ["I only answer questions about this analysis."], "wallets": [], "model": "fake"}, [], {}
+            self.app["agent"], self.app["admins"] = Flaky(), set()
             try:
-                who = f"acct:{TEST_PK}"
+                who = f"agent-ask:{TEST_PK}"
                 n0 = self.app["assistant_daily"].left(who, 10)
-                r = await self.client.post(loc + "/assistant", json={"method": "down"}, headers=self.same_site)
+                r = await self.client.post(loc + "/agent/ask", json={"q": "down"}, headers=self.same_site)
                 self.assertEqual(r.status, 502)
-                self.assertEqual(self.app["assistant_daily"].left(who, 10), n0)          # модель мовчала — спроба не рахується
-                r = await self.client.post(loc + "/assistant", json={"method": "prose"}, headers=self.same_site)
-                self.assertEqual(r.status, 502)
-                self.assertEqual(self.app["assistant_daily"].left(who, 10), n0 - 1)      # відповіла без списку — рахується
+                self.assertEqual(self.app["assistant_daily"].left(who, 10), n0)          # модель мовчала — питання не рахується
+                r = await self.client.post(loc + "/agent/ask", json={"q": "write me a poem"}, headers=self.same_site)
+                self.assertEqual((r.status, (await r.json())["on_topic"]), (200, False))
+                self.assertEqual(self.app["assistant_daily"].left(who, 10), n0 - 1)      # стороннє питання — рахується
+                r = await self.client.post(loc + "/agent/ask", json={"q": "x" * 501}, headers=self.same_site)
+                self.assertEqual(r.status, 400)
+                log = self.app["agent_store"].recent()
+                self.assertEqual([(e["kind"], e.get("on_topic"), bool(e.get("error"))) for e in log[:2]],
+                                 [("ask", False, False), ("ask", None, True)])
             finally:
-                self.app["assistant"] = None
+                self.app["agent"], self.app["admins"] = None, {TEST_PK}
 
 
 if AioHTTPTestCase:
@@ -2181,35 +2171,87 @@ if AioHTTPTestCase:
             self.assertIn('id="add"', html)                                    # a live token keeps the full editor
             self.assertIn('data-max-rows="3"', html)
 
-        async def test_assistant_daily_budget(self):
+        async def test_the_agent_needs_a_wallet_and_keeps_its_limits(self):
             seed_demo(self.tmp.name, self.app)
+            self.app["admins"] = set()
+            calls = []
 
-            class FakeAssistant:
+            class FakeAgent:
                 model = "fake"
-                def ask(self, rows, method):
-                    return {"picks": [{"wallet": rows[0]["wallet"], "reason": method}], "note": "", "model": "fake"}
-            self.app["assistant"] = FakeAssistant()
-            o = {"Origin": self.origin}
-            for i in range(3):                                             # three different questions a day for a guest
-                r = await self.client.post(f"/job/{DEMO_JID}/assistant", json={"method": f"m{i}"}, headers=o)
+
+                def cards(self, result, cfg, lang):
+                    calls.append(("cards", lang, cfg["v"]))
+                    return {"story": ["1 wallet bought."], "risks": [], "watch": [], "method": "m", "model": "fake"}, [], {"cost": 0.001}
+
+                def ask(self, result, cfg, q, lang):
+                    calls.append(("ask", q, lang))
+                    return {"on_topic": True, "answer": ["1 wallet bought."], "wallets": [], "model": "fake"}, [], {"cost": 0.001}
+            self.app["agent"] = FakeAgent()
+            try:
+                o = {"Origin": self.origin}
+                r = await self.client.post(f"/job/{DEMO_JID}/agent/cards", json={"lang": "uk-UA"}, headers=o)
+                self.assertEqual(r.status, 401)                                # гостям агент закритий
+                r_in, pk, _, _ = await self._sign_in()
+                h = self._hdr(r_in)
+                r = await self.client.post(f"/job/{DEMO_JID}/agent/cards", json={"lang": "uk-UA"}, headers=h)
+                d = await r.json()
+                self.assertEqual((r.status, d["cached"], d["left"]), (200, False, 10))
+                self.assertIn("Was this a bundled launch?", d["chips"])
+                r = await self.client.post(f"/job/{DEMO_JID}/agent/cards", json={"lang": "uk"}, headers=h)
+                self.assertTrue((await r.json())["cached"])                    # ті самі картки — безкоштовно
+                self.assertEqual(calls, [("cards", "Ukrainian", 0)])
+                r = await self.client.post(f"/job/{DEMO_JID}/agent/ask", json={"q": "Who took 3x?", "chip": True, "lang": "en"}, headers=h)
+                self.assertEqual(((await r.json())["left"], calls[-1]), (9, ("ask", "Who took 3x?", "English")))
+                r = await self.client.post(f"/job/{DEMO_JID}/agent/ask", json={"q": "Хто тримає?"}, headers=h)
+                self.assertEqual(calls[-1][2], "the language of the user's question")   # своє питання — його мовою
+                self.app["s"]["agent_questions_per_day"] = 2
+                r = await self.client.post(f"/job/{DEMO_JID}/agent/ask", json={"q": "more"}, headers=h)
+                self.assertEqual(r.status, 429)
+                self.assertIn("today's 2 questions", (await r.json())["error"])
+                self.app["s"]["agent_questions_per_day"], self.app["s"]["agent_global_per_day"] = 10, 0
+                r = await self.client.post(f"/job/{DEMO_JID}/agent/ask", json={"q": "more"}, headers=h)
+                self.assertEqual(r.status, 429)
+                self.app["s"]["agent_global_per_day"] = 300
+                r = await self.client.post(f"/job/{DEMO_JID}/agent/ask", json={"q": "more"})
+                self.assertEqual(r.status, 403)                                # чужий сайт не питає від імені людини
+                self.assertEqual([e["event"] for e in self.app["events"].tail()][:1], ["agent"])
+            finally:
+                self.app["agent"] = None
+
+        async def test_the_owner_writes_the_agents_method(self):
+            seed_demo(self.tmp.name, self.app)
+            r_user, _, _, _ = await self._sign_in()
+            r_admin, pk_admin, _, _ = await self._sign_in()
+            self.app["admins"] = {pk_admin}
+            hu, ha = self._hdr(r_user), self._hdr(r_admin)
+            try:
+                r = await self.client.post("/admin/agent", json={"method": "Read bundles first."}, headers=hu)
+                self.assertEqual(r.status, 403)
+                r = await self.client.post("/admin/agent", json={"method": "Read bundles first.", "watch": {"n": 3}}, headers=ha)
+                d = await r.json()
+                self.assertEqual((d["config"]["v"], d["config"]["watch"]["n"]), (1, 3))
+                r = await self.client.post("/admin/agent", json={"method": "Read exits first."}, headers=ha)
+                self.assertEqual((await r.json())["config"]["v"], 2)
+                self.assertEqual([h["v"] for h in self.app["agent_store"].history()], [2, 1])   # попередня версія лишилась
+                seen = []
+
+                class FakeAgent:
+                    model = "fake"
+
+                    def cards(self, result, cfg, lang):
+                        seen.append((cfg["method"], cfg["v"], lang, result["info"]["mint"]))
+                        return {"story": ["x"], "risks": [], "watch": [], "method": "m", "model": "fake"}, [], {"cost": 0.0007}
+                self.app["agent"] = FakeAgent()
+                r = await self.client.post("/admin/agent/preview", json={"config": {"method": "Try this."}, "lang": "uk"}, headers=ha)
                 self.assertEqual(r.status, 200, await r.text())
-                self.assertEqual((await r.json())["left"], 2 - i)
-            r = await self.client.post(f"/job/{DEMO_JID}/assistant", json={"method": "m0"}, headers=o)
-            self.assertTrue((await r.json())["cached"])                    # a repeat is free
-            r = await self.client.post(f"/job/{DEMO_JID}/assistant", json={"method": "m9"}, headers=o)
-            self.assertEqual(r.status, 429)
-            self.assertIn("connect a wallet", (await r.json())["error"])
-            r_in, pk, _, _ = await self._sign_in()                          # a wallet has its own, bigger budget
-            r = await self.client.post(f"/job/{DEMO_JID}/assistant", json={"method": "m9"}, headers=self._hdr(r_in))
-            self.assertEqual(r.status, 200)
-            self.assertEqual((await r.json())["left"], 9)
-            self.app["s"]["assistant_global_per_day"] = 0
-            r = await self.client.post(f"/job/{DEMO_JID}/assistant", json={"method": "m10"}, headers=self._hdr(r_in))
-            self.assertEqual(r.status, 429)
-            self.assertIn("daily budget", (await r.json())["error"])
-            self.app["s"]["assistant_global_per_day"] = 45
-            self.assertEqual([e["event"] for e in self.app["events"].tail()][:1], ["assistant"])
-            self.app["assistant"] = None
+                self.assertEqual(seen, [("Try this.", "preview", "Ukrainian", MINT)])   # спроба на демо, не збережена
+                self.assertEqual(self.app["agent_store"].config()["method"], "Read exits first.")
+                html = await (await self.client.get("/admin", headers=ha)).text()
+                self.assertIn("method v2", html)
+                self.assertIn("Read exits first.", html)
+                self.assertIsNone(CYRILLIC.search(html))
+            finally:
+                self.app["agent"], self.app["admins"] = None, set()
 
         async def test_admin_sees_accounts_and_actions(self):
             seed_demo(self.tmp.name, self.app)

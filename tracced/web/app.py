@@ -28,7 +28,7 @@ from markupsafe import Markup
 
 from ..cache import JsonCache
 from ..config import DEFAULTS as CFG_DEFAULTS
-from ..early import assistant as assistant_mod, ledger, pipeline, profile, report, scope, tags, wallet_age as wallet_age_mod, window
+from ..early import agent as agent_mod, assistant as assistant_mod, ledger, pipeline, profile, report, scope, tags, wallet_age as wallet_age_mod, window
 from ..early.store import TradeStore
 from ..providers import dexscreener
 from . import accounts as acct_mod
@@ -36,6 +36,7 @@ from . import docs as docs_mod
 from . import chart
 from . import demo as demo_mod
 from . import replay
+from .agent_store import AgentStore
 from .jobs import JobQueue, make_id, unnamed
 
 log = logging.getLogger("early.web")
@@ -348,7 +349,10 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app = web.Application(middlewares=[errors_mw, auth_mw])
     app.on_response_prepare.append(_security_headers)
     app.on_cleanup.append(_flush_on_exit)
-    app["assistant"], app["assistant_cache"] = assistant, {}
+    app["assistant"] = assistant                                   # транспорт до моделі; None — агента на цьому сервері нема
+    app["agent"] = agent_mod.Agent(assistant.json_chat, assistant.model) if assistant is not None else None
+    app["agent_store"] = AgentStore(Path(out_dir).parent / "agent")   # методика власника, її версії, журнал питань
+    app["agent_cache"], app["agent_inflight"] = {}, {}             # картки спільного демо (у файл не пишуться) і ті, що вже пишуться
     app["st"], app["s"], app["cfg"] = st, s, cfg or {}
     app["store_dir"] = store_dir
     app["runs"] = Throttle(max_fails=int(s.get("runs_per_hour", 20)), window_s=3600, block_s=3600)
@@ -423,7 +427,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_get("/job/{id}.enrich.json", job_enrich_json)   # before .json: {id} would swallow ".enrich"
     app.router.add_get("/job/{id}.csv", job_csv)     # before /job/{id}: {id} would swallow the dot
     app.router.add_get("/job/{id}.json", job_json)
-    app.router.add_post("/job/{id}/assistant", job_assistant)
+    app.router.add_post("/job/{id}/agent/cards", job_agent_cards)
+    app.router.add_post("/job/{id}/agent/ask", job_agent_ask)
     app.router.add_get("/job/{id}", job_page)
     app.router.add_get("/health", health)
     app.router.add_post("/auth/nonce", auth_nonce)
@@ -441,6 +446,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_post("/me/analyses/remove", me_remove_analysis)
     app.router.add_get("/admin", admin_page)
     app.router.add_post("/admin/demo", admin_demo)
+    app.router.add_post("/admin/agent", admin_agent_save)
+    app.router.add_post("/admin/agent/preview", admin_agent_preview)
     app.router.add_get("/wallet_age.json", wallet_age_json)
     app.router.add_get("/job/{id}/crossings.json", job_crossings_json)
     app.router.add_post("/job/{id}/delete", job_delete)
@@ -1250,6 +1257,53 @@ def _save_soon(app, job):
     task.add_done_callback(saves["tasks"].discard)
 
 
+async def _admin_json(request, limit=32_768):
+    """Тіло запиту адміна або відповідь-відмова."""
+    app = request.app
+    pk = request.get("acct")
+    if not app["admins"] or not pk or pk not in app["admins"]:
+        return None, None, _jerr("Only the owner's wallet can change the agent.", 403)
+    if not _same_origin(request):
+        return None, None, _jerr("Requests must come from this site.", 403)
+    body = await _json_body(request, limit=limit)
+    if body is None:
+        return None, None, _jerr("Bad request body.")
+    return pk, body, None
+
+
+async def admin_agent_save(request):
+    """Нова версія методики агента: одразу для всіх нових карток і питань (зроблені картки лишаються під своєю версією)."""
+    pk, body, err = await _admin_json(request)
+    if err:
+        return err
+    cfg = request.app["agent_store"].save(body, by=pk)
+    request.app["events"].add(pk, "agent_method", v=cfg["v"])
+    return web.json_response({"ok": True, "config": cfg})
+
+
+async def admin_agent_preview(request):
+    """Картки демо з методикою, яку власник ще не зберіг: побачити різницю до збереження. Нічого не кешується."""
+    app = request.app
+    pk, body, err = await _admin_json(request)
+    if err:
+        return err
+    if app.get("agent") is None:
+        return _jerr("The agent is not switched on on this server: set ASSISTANT_KEY in .env.", 503)
+    demo = _demo(app)
+    if not demo or not demo.get("ranges"):
+        return _jerr("There is no demo to try it on.", 404)
+    rng = next((r for r in demo["ranges"] if r["job"] == body.get("job")), demo["ranges"][0])
+    cfg = dict(agent_mod.normalize_config(body.get("config") or {}), v="preview")
+    lang = agent_mod.lang_name(body.get("lang"))
+    try:
+        cards, dropped, usage = await asyncio.to_thread(app["agent"].cards, rng["result"], cfg, lang)
+    except assistant_mod.AssistantError as e:
+        return _jerr(str(e), 502)
+    app["agent_store"].log({"pk": pk, "job": rng["job"], "kind": "preview", "lang": lang, "dropped": dropped, "usage": usage,
+                            "model": cards.get("model")})
+    return web.json_response({"cards": cards, "dropped": dropped, "usage": usage, "range": rng.get("label")})
+
+
 async def admin_page(request):
     """Хто підключився і що робив. Лише для гаманців з ADMIN_WALLETS; без них сторінки не існує."""
     app = request.app
@@ -1271,7 +1325,11 @@ async def admin_page(request):
               "credits_month": int(app["s"].get("credits_month", 0) or 0), "reserve": _credits_reserve(app["s"]),
               "runs_today": int(app["s"].get("runs_global_per_day", 10)) - app["runs_daily"].left("global", int(app["s"].get("runs_global_per_day", 10))),
               "rpc": ages.budget.state() if ages is not None and getattr(ages, "budget", None) else None}
-    return render("admin.html", request, accounts=accounts, totals=totals, events=app["events"].tail(100), now=now, budget=budget)
+    store = app["agent_store"]
+    return render("admin.html", request, accounts=accounts, totals=totals, events=app["events"].tail(100), now=now, budget=budget,
+                  agent_cfg=store.config(), agent_history=store.history(10), agent_log=store.recent(50),
+                  agent_on=app.get("agent") is not None, agent_model=getattr(app.get("assistant"), "model", ""),
+                  excludable=agent_mod.EXCLUDABLE, default_method=agent_mod.DEFAULT_METHOD)
 
 
 ME_COLUMNS = ["wallet", "symbol", "mint", "from_job", "entry_mcap", "invested_usd", "multiple", "tags", "my_tags", "lists", "added_utc"]
@@ -1861,7 +1919,7 @@ async def job_page(request):
                   age_read=wallet_age_mod.MAX_PAGES * wallet_age_mod.LIMIT,   # скільки транзакцій гаманця читає перевірка віку
                   is_demo=job.id in _demo_job_ids(app) or (job.canon or "") in _demo_job_ids(app),
                   sm=sm, TAGS=tags.DEFS, created=created or (job.t_from - 24 * HOUR), now=int(time.time() * 1000),
-                  cov_text=report.coverage_text((result or {}).get("coverage")), default_method=assistant_mod.DEFAULT_METHOD, presets=assistant_mod.PRESETS,
+                  cov_text=report.coverage_text((result or {}).get("coverage")), 
                   assistant_on=app.get("assistant") is not None,
                   scope=sc, scopes=scope.scopes_for(app["s"]), has_scopes=bool((result or {}).get("wallet_trades")),
                   scope_end=(scope.end_for(sc, job.t_to, (result or {}).get("window", {}).get("end", 0)) if result else None))
@@ -1996,62 +2054,127 @@ async def job_json(request):
     return web.Response(text=await asyncio.to_thread(json.dumps, body), content_type="application/json")
 
 
-async def job_assistant(request):
-    """The assistant picks wallets to watch from the facts in the table + the user's method (JSON in/out)."""
+def _agent_gate(request):
+    """Спільне для карток і питань: готовий аналіз, агент увімкнений, запит з цього сайту, підключений гаманець."""
     app = request.app
     job = app["jobs"].get(request.match_info["id"])
     if not job or job.status != "done" or not job.result:
-        return web.json_response({"error": "No result yet."}, status=404)
-    a = app.get("assistant")
-    if a is None:
-        return web.json_response({"error": "The assistant is not configured on this server: set ASSISTANT_KEY "
-                                           "(and optionally ASSISTANT_URL, ASSISTANT_MODEL) in .env."}, status=503)
+        return None, _jerr("No result yet.", 404)
+    if app.get("agent") is None:
+        return None, _jerr("The agent is not switched on on this server.", 503)
     if not _same_origin(request):
-        return _jerr("Requests must come from this site.", 403)
+        return None, _jerr("Requests must come from this site.", 403)
+    if not request.get("acct"):
+        return None, _jerr("Connect a wallet to use the agent.", 401)
+    return job, None
+
+
+def _agent_take(app, pk, kind):
+    """Добові стелі агента: своя на гаманець для карток і для питань, спільна на сайт. Повертає (відмова, повернути)."""
+    s, daily = app["s"], app["assistant_daily"]
+    who, cap = (f"agent-ask:{pk}", int(s.get("agent_questions_per_day", 10))) if kind == "ask" else \
+        (f"agent-cards:{pk}", int(s.get("agent_cards_per_day", 20)))
+    gcap = int(s.get("agent_global_per_day", 300))
+    if pk not in app["admins"]:
+        if daily.left("agent-global", gcap) <= 0:
+            return _jerr("The agent has answered all it can today. Back tomorrow.", 429), None
+        if not daily.take(who, cap):
+            return _jerr(f"You have used today's {cap} questions to the agent. More tomorrow." if kind == "ask" else
+                         "You have opened the agent on too many analyses today. More tomorrow.", 429), None
+        daily.take("agent-global", gcap)
+
+    def give_back():
+        if pk not in app["admins"]:
+            daily.add(who, -1)
+            daily.add("agent-global", -1)
+    return None, give_back
+
+
+def _agent_left(app, pk):
+    return app["assistant_daily"].left(f"agent-ask:{pk}", int(app["s"].get("agent_questions_per_day", 10)))
+
+
+async def job_agent_cards(request):
+    """Три картки про аналіз мовою браузера. Зроблені раз — безкоштовні для всіх: лежать у результаті (у спільного демо —
+    у пам'яті) під мовою і версією методики. Нові — з добової стелі гаманця на картки і спільної стелі агента."""
+    app = request.app
+    job, err = _agent_gate(request)
+    if err:
+        return err
+    body = await _json_body(request) or {}
+    pk, lang, cfg = request.get("acct"), agent_mod.lang_name(body.get("lang")), app["agent_store"].config()
+    demo_ids = _demo_job_ids(app)
+    shared = bool(job.replay) or job.id in demo_ids or (job.canon or "") in demo_ids
+    ckey = (job.canon or job.id, cfg["v"], lang)
+    store = app["agent_cache"] if shared else job.result.setdefault("agent_cards", {})
+    skey = ckey if shared else f"{cfg['v']}:{lang}"
+
+    def reply(cards, cached):
+        return web.json_response({"cards": cards, "cached": cached, "chips": cfg["chips"], "left": _agent_left(app, pk)},
+                                 headers={"Cache-Control": "no-store"})
+    if store.get(skey):
+        return reply(store[skey], True)
+    busy = app["agent_inflight"].get(ckey)
+    if busy is not None:                                     # ці самі картки вже пишуться для когось іншого: чекаємо їх
+        try:
+            return reply(await asyncio.shield(busy), True)
+        except Exception:  # noqa: BLE001 — у того запиту не вийшло: пробуємо самі
+            pass
+    refuse, give_back = _agent_take(app, pk, "cards")
+    if refuse:
+        return refuse
+    fut = asyncio.get_running_loop().create_future()
+    app["agent_inflight"][ckey] = fut
+    try:
+        cards, dropped, usage = await asyncio.to_thread(app["agent"].cards, job.result, cfg, lang)
+    except assistant_mod.AssistantError as e:
+        give_back()
+        fut.set_exception(e)
+        fut.exception()                                        # позначено як прочитане: без попередження в журналі
+        app["agent_store"].log({"pk": pk, "job": job.canon or job.id, "kind": "cards", "lang": lang, "error": str(e)})
+        return _jerr(str(e), 502)
+    finally:
+        app["agent_inflight"].pop(ckey, None)
+    store[skey] = cards
+    fut.set_result(cards)
+    if not shared:
+        _save_soon(app, job)
+    app["agent_store"].log({"pk": pk, "job": job.canon or job.id, "kind": "cards", "lang": lang, "v": cfg["v"],
+                            "dropped": dropped, "usage": usage, "model": cards.get("model")})
+    app["events"].add(pk, "agent", kind="cards", job=job.canon or job.id)
+    return reply(cards, False)
+
+
+async def job_agent_ask(request):
+    """Питання про цей аналіз. Відповідь — мовою питання (кнопка-підказка — мовою браузера), лише факти з аналізу;
+    стороннє питання отримує одну незмінну відповідь, а спроба все одно рахується."""
+    app = request.app
+    job, err = _agent_gate(request)
+    if err:
+        return err
     body = await _json_body(request)
     if body is None:
         return _jerr("Bad request body.")
-    method = str(body.get("method") or "")[:2000]
-    want = body.get("wallets") if isinstance(body.get("wallets"), list) else []
-    keep = set(str(w) for w in want)
-    sc = body.get("scope") if body.get("scope") in scope.scopes_for(app["s"]) else "all"
-    # ключ відповіді — з самого запиту, без рядків: повтор безкоштовний навіть понад стелю, а рядки рахуються лише після неї
-    key = hashlib.sha1("|".join([job.id, sc, method, ",".join(sorted(keep)) or "*"]).encode()).hexdigest()
-    cached = app["assistant_cache"].get(key)
-    if cached:
-        return web.json_response(dict(cached, cached=True))
-    # добові стелі: своя на гаманець або адресу, спільна на весь сайт (безкоштовний тариф моделі)
-    s, daily, pk = app["s"], app["assistant_daily"], request.get("acct")
-    who, cap = (f"acct:{pk}", s.get("assistant_per_day", 10)) if pk else (f"ip:{_client_ip(request)}", s.get("assistant_per_day_guest", 3))
-    if daily.left("global", s.get("assistant_global_per_day", 45)) <= 0:
-        return _jerr("The assistant's free daily budget is used up. Back tomorrow.", 429)
-    if not daily.take(who, cap):
-        return _jerr(f"You have used today's {int(cap)} assistant asks" + ("" if pk else " — connect a wallet for more") + ". More tomorrow.", 429)
-    daily.take("global", s.get("assistant_global_per_day", 45))
-
-    def give_back():
-        daily.add(who, -1)
-        daily.add("global", -1)
-    rows, _ = await _rows_async(app, job.result, sc)
-    if keep:
-        rows = [r for r in rows if r["wallet"] in keep]
-    rows = rows[:assistant_mod.MAX_ROWS]
-    if not rows:
-        give_back()                                                     # питати нема про що — спроба не рахується
-        return web.json_response({"error": "No wallets to look at — clear the filters."}, status=400)
+    q = " ".join(str(body.get("q") or "").split())
+    if not q:
+        return _jerr("Ask something about this analysis.")
+    if len(q) > agent_mod.MAX_QUESTION:
+        return _jerr(f"Keep the question under {agent_mod.MAX_QUESTION} characters.")
+    pk, cfg = request.get("acct"), app["agent_store"].config()
+    lang = agent_mod.lang_name(body.get("lang")) if body.get("chip") else "the language of the user's question"
+    refuse, give_back = _agent_take(app, pk, "ask")
+    if refuse:
+        return refuse
     try:
-        out = await asyncio.get_running_loop().run_in_executor(None, a.ask, rows, method)
+        out, dropped, usage = await asyncio.to_thread(app["agent"].ask, job.result, cfg, q, lang)
     except assistant_mod.AssistantError as e:
-        # повертаємо спробу лише коли модель не відповіла зовсім (429, тайм-аут, HTTP): відповідь, з якої не вийшло
-        # списку, уже коштувала 2-3 виклики безкоштовного тарифу, і без ліку ними можна було б вичерпати його за всіх
-        if isinstance(e.__cause__, OSError):
-            give_back()
-        return web.json_response({"error": str(e)}, status=502)
-    out["n_rows"] = len(rows)
-    out["left"] = daily.left(who, cap)
-    app["assistant_cache"][key] = out
-    app["events"].add(pk or "guest", "assistant", n=len(out.get("picks") or []), job=job.id)
-    return web.json_response(out)
+        give_back()
+        app["agent_store"].log({"pk": pk, "job": job.canon or job.id, "kind": "ask", "q": q, "error": str(e)})
+        return _jerr(str(e), 502)
+    app["agent_store"].log({"pk": pk, "job": job.canon or job.id, "kind": "ask", "q": q, "on_topic": out["on_topic"],
+                            "v": cfg["v"], "dropped": dropped, "usage": usage, "model": out.get("model")})
+    app["events"].add(pk, "agent", kind="ask", job=job.canon or job.id)
+    return web.json_response(dict(out, left=_agent_left(app, pk)), headers={"Cache-Control": "no-store"})
 
 
 async def job_state_json(request):

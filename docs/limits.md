@@ -38,6 +38,8 @@ for a day, and the age and funder stay in the result.
 | Other wallets checked from their cards, per person a day | {{ s.age_card_per_day }} |
 | Requests a day: charts (guest) / charts and wallet cards (wallet) / the whole site | {{ '{:,}'.format(s.browse_per_day_guest) }} / {{ '{:,}'.format(s.browse_per_day) }} / {{ '{:,}'.format(s.browse_global_per_day) }} |
 | New analyses on the whole site, per day | {{ s.runs_global_per_day }} |
+| Questions to the AI agent, per person a day | {{ s.agent_questions_per_day }} |
+| Results the agent writes its cards for, per person a day (cards someone already opened are free) | {{ s.agent_cards_per_day }} |
 
 !!! info "📐 These numbers are the live settings"
     The table is rendered from the same configuration the site runs on, so it cannot drift from what actually

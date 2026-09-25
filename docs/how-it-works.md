@@ -133,3 +133,24 @@ or was bought earlier, so its cost is unknown, and a transfer is not a profit.
 Nothing in the card is computed for wallets nobody opens. The swaps are read the moment a card opens, a few
 requests with a connected wallet, and the answer is kept for a day, so opening the same wallet again is free for
 everyone. The 7-day view is counted from the same swaps and costs nothing extra.
+
+## The AI agent
+
+The agent on a result page reads that analysis and nothing else. Open it and it writes three cards: what happened in
+the range, what a buyer should weigh, and whose wallets stand out by the method written under the card. Then ask it
+about the analysis, in your own language; the suggested questions under the cards are a place to start. A wallet it
+names opens its card.
+
+It reads a digest that the site computes from the table: the counts, the top wallets, the bundles and fresh wallets,
+the token's creator. It does not compute a number of its own. Before an answer reaches the page, the code checks it:
+a line with a number the analysis does not hold, or with no fact from it at all, is dropped, and a wallet has to be
+one of the table's. It never tells you to buy or sell, never predicts a price and never calls a wallet good or a
+token safe.
+
+It answers only about the analysis it is on. Anything else, including a request to change how it works, gets one
+fixed reply. The agent needs a connected wallet; cards someone has already opened are kept, so opening them again is
+free for everyone.{% if not assistant_on %}
+
+!!! warning "🤖 The agent is off on this server"
+    It needs a model key that this deployment does not have yet.
+{% endif %}

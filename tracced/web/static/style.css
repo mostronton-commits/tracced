@@ -479,12 +479,24 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 /* ── iteration 9: assistant ── */
 .ask { border-color: #C4B5FD; background: linear-gradient(115deg, #F5F3FF, #ECFEFF); }
 .ask:hover { border-color: #A78BFA; }
-.apanel-body { padding: 12px 16px; overflow-y: auto; flex: 1; }
-.apanel textarea { width: 100%; box-sizing: border-box; font: 12.5px/1.45 var(--sans); border: 1px solid var(--line); border-radius: var(--r); padding: 8px 10px; resize: vertical; margin: 4px 0 8px; }
-.apanel textarea:focus { outline: none; border-color: #86efac; box-shadow: 0 0 0 3px var(--sage); }
-.apicks { padding-left: 18px; margin: 12px 0 8px; }
-.apicks li { margin: 0 0 10px; font-size: 13px; }
-.apicks .areason { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.apanel-body { padding: 12px 16px; overflow-y: auto; flex: 1; overscroll-behavior: contain; }
+.aguest p { margin: 0 0 12px; padding: 0; border: 0; line-height: 1.5; font-size: 13.5px; }
+.acard { margin: 0 0 14px; }
+.acard h4 { margin: 0 0 6px; font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.acard ul, .aans { margin: 0; padding-left: 18px; }
+.acard li, .aans li { margin: 0 0 6px; font-size: 13px; line-height: 1.45; }
+.acard p, .aqa p { padding: 0; border: 0; margin: 0 0 6px; }
+.awallet { padding: 0; height: auto; font-size: 12.5px; }
+.awhy { color: var(--muted); }
+.aload { font-size: 13px; }
+.aerr { color: var(--red); font-size: 13px; }
+.athread { margin: 6px 0; }
+.aqa { border-top: 1px solid var(--line); padding: 10px 0 4px; }
+.aqq { font-weight: 600; font-size: 13px; }
+.aans.off { list-style: none; padding-left: 0; color: var(--muted); }
+.aask { display: flex; gap: 6px; margin: 8px 0; }
+.aask input { flex: 1; min-width: 0; font: 13px var(--sans); border: 1px solid var(--line); border-radius: var(--r); padding: 8px 10px; }
+.aask input:focus { outline: none; border-color: #86efac; box-shadow: 0 0 0 3px var(--sage); }
 
 /* ── iteration 10: dark top bar and footer, AI block, aligned range rows, AI agent button ── */
 .top { background: var(--navy); border-bottom: 1px solid #1E293B; color: #E2E8F0; }
@@ -909,3 +921,12 @@ td.c-roi b { font-size: 13px; }
   .facts td.c-held { order: 5; }
   .facts td.fund { order: 6; grid-column: span 2; white-space: normal; }
 }
+
+/* ── the agent: the owner's method at /admin ── */
+.agentadm textarea { width: 100%; box-sizing: border-box; font: 13px/1.5 var(--sans); border: 1px solid var(--line); border-radius: var(--r); padding: 8px 10px; resize: vertical; margin: 4px 0 8px; }
+.agentadm textarea:focus { outline: none; border-color: #86efac; box-shadow: 0 0 0 3px var(--sage); }
+.agentrow { flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 4px 0 10px; }
+.agentrow input[type=number] { width: 64px; font: 13px var(--mono); padding: 3px 6px; border: 1px solid var(--line); border-radius: var(--r); }
+.aprevout { border: 1px solid var(--line); border-radius: var(--r); padding: 10px 14px; margin: 0 0 12px; background: var(--bg); }
+.aprevout h4 { margin: 8px 0 4px; font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.aprevout ul { margin: 0; padding-left: 18px; } .aprevout li { font-size: 13px; margin: 0 0 4px; }

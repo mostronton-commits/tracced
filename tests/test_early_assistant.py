@@ -3,15 +3,7 @@ import unittest
 import urllib.error
 
 from tracced.early import assistant
-from tracced.early.assistant import Assistant, AssistantError, build_prompt, compact, parse_reply
-
-ROWS = [
-    {"wallet": "W1", "entry_range_mcap": 395140.29, "invested_in_range_usd": 954.75, "realized_usd": 822.03,
-     "multiple": 1.86, "hold_minutes": 147.3, "buys": 7, "sells": 7, "tags": "fresh", "sold_share_pct": 100.0,
-     "unrealized_usd": 0.0, "first_sell_utc": "2026-09-16 20:53"},
-    {"wallet": "W2", "entry_range_mcap": 398597.32, "invested_in_range_usd": 784.78, "realized_usd": 10.97,
-     "multiple": 1.01, "hold_minutes": 0.0, "buys": 27, "sells": 27, "tags": "bot-like"},
-]
+from tracced.early.assistant import Assistant, AssistantError, parse_json
 
 
 class FakePost:
@@ -23,99 +15,68 @@ class FakePost:
         a = self.answers.pop(0)
         if isinstance(a, Exception):
             raise a
-        return {"choices": [{"message": {"content": a}}]}
+        return {"choices": [{"message": {"content": a}}], "usage": {"prompt_tokens": 100, "completion_tokens": 20, "cost": 0.0001}}
 
 
-class TestAssistant(unittest.TestCase):
-    def test_compact_and_prompt_contain_only_facts(self):
-        c = compact(ROWS)
-        self.assertEqual(c[0]["wallet"], "W1")
-        self.assertEqual(c[0]["realized_usd"], 822.0)
-        self.assertNotIn("unrealized_usd", c[0])                      # нулі й порожнє не шлемо
-        system, user = build_prompt(ROWS, "my method: only profitable")
-        self.assertIn("JSON only", system)
-        self.assertIn("my method: only profitable", user)
-        self.assertIn('"wallet": "W2"', user)
-        self.assertNotIn("solscan", user.lower())                      # лише факти з FIELDS
+def http(code):
+    return urllib.error.HTTPError("u", code, "x", {}, None)
 
-    def test_default_method_when_empty(self):
-        _, user = build_prompt(ROWS, "")
-        self.assertIn("Pick wallets worth watching", user)
 
-    def test_parse_reply_tolerates_text_and_unknown_wallets(self):
-        text = 'Sure! Here you go:\n{"picks": [{"wallet": "W1", "reason": "+$822, held 147 min"}, {"wallet": "ZZZ", "reason": "x"}, {"wallet": "W1", "reason": "dup"}], "note": "W2 looks like a bot"}\nHope this helps.'
-        picks, note = parse_reply(text, known={"W1", "W2"})
-        self.assertEqual(picks, [{"wallet": "W1", "reason": "+$822, held 147 min"}])
-        self.assertEqual(note, "W2 looks like a bot")
-        self.assertEqual(parse_reply("no json here", {"W1"}), ([], ""))
-        self.assertEqual(parse_reply("", {"W1"}), ([], ""))
-
-    def test_ask_retries_once_then_returns(self):
-        post = FakePost(["not json at all", json.dumps({"picks": [{"wallet": "W1", "reason": "profit"}], "note": ""})])
-        a = Assistant("k", post=post, model="m")
-        out = a.ask(ROWS, "")
-        self.assertEqual(out["picks"][0]["wallet"], "W1")
-        self.assertEqual(a.calls, 2)
-        self.assertIn("not valid JSON", post.payloads[1]["messages"][1]["content"])
-        self.assertEqual(post.payloads[0]["model"], "m")
-
-    def test_ask_errors_are_human(self):
-        err = urllib.error.HTTPError("u", 401, "x", {}, None)
-        with self.assertRaises(AssistantError) as cm:
-            Assistant("k", post=FakePost([err])).ask(ROWS, "")
-        self.assertIn("HTTP 401", str(cm.exception))
-        with self.assertRaises(AssistantError):
-            Assistant("k", post=FakePost(["nope", "still nope"])).ask(ROWS, "")
-
+class TestTransport(unittest.TestCase):
     def test_defaults(self):
         a = Assistant("k")
-        self.assertEqual((a.url, a.model), (assistant.DEFAULT_URL, assistant.DEFAULT_MODEL))
-        self.assertIn("openrouter.ai", a.url)
+        self.assertEqual((a.url, a.model), ("https://openrouter.ai/api/v1", "deepseek/deepseek-v4.1-flash"))
 
     def test_payload_for_openrouter(self):
-        post = FakePost([json.dumps({"picks": [{"wallet": "W1", "reason": "ok"}]})])
-        a = Assistant("k", post=post, model="m", fallbacks="f1, f2, m")
-        a.ask(ROWS, "")
-        p = post.payloads[0]
-        self.assertEqual((p["max_tokens"], p["response_format"], p["models"]), (assistant.MAX_TOKENS, {"type": "json_object"}, ["m", "f1", "f2"]))
-        self.assertNotIn("reasoning", p)
-        self.assertEqual(a.calls, 1)
+        a = Assistant("k", fallbacks="m2, m3")
+        p = a.payload("sys", "usr")
+        self.assertEqual(p["models"], ["deepseek/deepseek-v4.1-flash", "m2", "m3"])   # запасні моделі
+        self.assertEqual(p["response_format"], {"type": "json_object"})
+        self.assertEqual(p["usage"], {"include": True})                                 # ціна кожної відповіді — в журнал
+        self.assertEqual([m["role"] for m in p["messages"]], ["system", "user"])
 
-    def test_empty_answer_retries_without_reasoning(self):
-        post = FakePost(["", json.dumps({"picks": [{"wallet": "W2", "reason": "bot"}]})])
-        a = Assistant("k", post=post)
-        out = a.ask(ROWS, "")
-        self.assertEqual(out["picks"][0]["wallet"], "W2")
-        self.assertEqual(post.payloads[1]["reasoning"], {"enabled": False})
-        self.assertEqual(a.calls, 2)
+    def test_json_chat_returns_the_object_and_what_it_cost(self):
+        post = FakePost(['Sure! {"story": ["a"]} hope it helps'])
+        out, usage = Assistant("k", post=post).json_chat("s", "u")
+        self.assertEqual(out, {"story": ["a"]})
+        self.assertEqual(usage, {"prompt_tokens": 100, "completion_tokens": 20, "cost": 0.0001})
+        self.assertEqual(post.payloads[0]["reasoning"], {"enabled": False})              # відповідь, а не роздуми
 
     def test_http_400_retries_without_response_format(self):
-        err = urllib.error.HTTPError("u", 400, "x", {}, None)
-        post = FakePost([err, json.dumps({"picks": [{"wallet": "W1", "reason": "ok"}]})])
-        a = Assistant("k", post=post)
-        a.ask(ROWS, "")
-        self.assertIn("response_format", post.payloads[0])
+        post = FakePost([http(400), '{"ok": 1}'])
+        out, _ = Assistant("k", post=post).json_chat("s", "u")
+        self.assertEqual(out, {"ok": 1})
         self.assertNotIn("response_format", post.payloads[1])
 
-    def test_rate_limit_is_explained(self):
-        err = urllib.error.HTTPError("u", 429, "x", {}, None)
-        with self.assertRaises(AssistantError) as cm:
-            Assistant("k", post=FakePost([err])).ask(ROWS, "")
-        self.assertIn("rate-limited", str(cm.exception))
+    def test_not_json_is_asked_once_more_then_given_up(self):
+        post = FakePost(["prose", '{"ok": 2}'])
+        self.assertEqual(Assistant("k", post=post).json_chat("s", "u")[0], {"ok": 2})
+        self.assertIn("not a valid JSON", post.payloads[1]["messages"][1]["content"])
+        post = FakePost(["prose", "more prose"])
+        with self.assertRaises(AssistantError):
+            Assistant("k", post=post).json_chat("s", "u")
+        self.assertEqual(len(post.payloads), 2)
+
+    def test_errors_are_human(self):
+        for code, words in ((429, "busy"), (402, "budget"), (500, "HTTP 500")):
+            with self.assertRaises(AssistantError) as c:
+                Assistant("k", post=FakePost([http(code)])).json_chat("s", "u")
+            self.assertIn(words, str(c.exception))
+        with self.assertRaises(AssistantError) as c:
+            Assistant("k", post=FakePost([urllib.error.URLError("timed out")])).json_chat("s", "u")
+        self.assertIn("did not answer in time", str(c.exception))
 
     def test_at_most_three_calls(self):
-        post = FakePost(["", "nope", "still nope", "never asked"])
+        post = FakePost([http(400), "prose", "prose", '{"never": 1}'])
         with self.assertRaises(AssistantError):
-            Assistant("k", post=post).ask(ROWS, "")
-        self.assertEqual(len(post.payloads), 3)
+            Assistant("k", post=post).json_chat("s", "u")
+        self.assertLessEqual(len(post.payloads), assistant.MAX_CALLS)
 
-    def test_retry_ladder_is_per_ask_not_per_process(self):
-        good = json.dumps({"picks": [{"wallet": ROWS[0]["wallet"], "reason": "r"}], "note": ""})
-        post = FakePost(["", good, "", good])                  # two asks on one instance, each needs the empty-reply retry
-        a = Assistant("k", post=post)
-        self.assertTrue(a.ask(ROWS, "")["picks"])
-        self.assertTrue(a.ask(ROWS, "")["picks"])
-        self.assertEqual(len(post.payloads), 4)
+    def test_parse_json(self):
+        self.assertEqual(parse_json('```json\n{"a": [1, 2]}\n```'), {"a": [1, 2]})
+        self.assertIsNone(parse_json("no json"))
+        self.assertIsNone(parse_json('["a list"]'))
+        self.assertEqual(json.loads(json.dumps(parse_json('{"x": "y"}'))), {"x": "y"})
 
 
 if __name__ == "__main__":

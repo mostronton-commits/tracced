@@ -37,6 +37,54 @@
   {% else %}<p class="muted">Nobody has connected a wallet yet.</p>{% endif %}
 </section>
 
+<section class="card me agentadm">
+  <div class="row mehead"><h2>Agent</h2><span class="muted small">{% if agent_on %}on · {{ agent_model }}{% else %}off on this server: set ASSISTANT_KEY in .env{% endif %} · method v{{ agent_cfg.v }}{% if agent_cfg.saved_ms %}, saved <span class="dtc" data-ms="{{ agent_cfg.saved_ms }}">{{ agent_cfg.saved_ms|dt }}</span>{% endif %}</span></div>
+  <p class="muted small">The method tells the agent how to read an analysis. Write it in your own words, in any language. The rules that
+    keep it on topic, stop it from advising or predicting and check every number it writes live in the code: the method cannot change them.</p>
+  <label class="muted small" for="amethod">Method</label>
+  <textarea id="amethod" rows="16" spellcheck="false">{{ agent_cfg.method }}</textarea>
+  <div class="row agentrow">
+    <label class="muted small">Who to watch: ROI from <input id="aroi" type="number" min="0" step="0.5" value="{{ agent_cfg.watch.min_roi }}">×</label>
+    <label class="muted small">held from <input id="ahold" type="number" min="0" step="1" value="{{ agent_cfg.watch.min_hold_min }}"> min</label>
+    <label class="muted small">show <input id="an" type="number" min="1" max="10" step="1" value="{{ agent_cfg.watch.n }}"></label>
+    <span class="muted small">leave out:</span>
+    {% for t in excludable %}<label class="small"><input type="checkbox" class="aex" value="{{ t }}"{% if t in agent_cfg.watch.exclude %} checked{% endif %}> {{ t }}</label>{% endfor %}
+  </div>
+  <label class="muted small" for="achipsin">Suggested questions, one a line</label>
+  <textarea id="achipsin" rows="4" spellcheck="false">{{ agent_cfg.chips|join('\n') }}</textarea>
+  <div class="row agentrow">
+    <select id="alang" aria-label="Language of the preview"><option value="en">English</option><option value="uk">Ukrainian</option><option value="ru">Russian</option></select>
+    <button type="button" id="aprev"{% if not agent_on %} disabled{% endif %}>Try on the demo</button>
+    <button type="button" class="primary" id="asave">Save as v{{ agent_cfg.v + 1 }}</button>
+    <button type="button" class="ghost" id="adefault" title="Put the built-in method back into the field (nothing is saved until you press Save)">Built-in method</button>
+    <span class="muted small" id="astat"></span>
+  </div>
+  <div class="aprevout" id="aprevout" hidden></div>
+  {% if agent_history %}
+  <details><summary class="muted small">Earlier versions ({{ agent_history|length }})</summary>
+    <div class="recent">{% for h in agent_history %}
+      <div class="rrow"><span class="mono">v{{ h.v }}</span><span class="muted small"><span class="dtc" data-ms="{{ h.saved_ms or 0 }}">{{ (h.saved_ms or 0)|dt }}</span></span>
+        <button type="button" class="ghost aload-v" data-v="{{ h.v }}">Load into the form</button></div>{% endfor %}
+    </div>
+  </details>
+  <script type="application/json" id="ahist">{{ agent_history|tojson }}</script>
+  {% endif %}
+  <h3 class="small">Questions people asked</h3>
+  {% if agent_log %}
+  <div class="tablewrap"><table class="facts melist"><thead><tr><th>When</th><th>Wallet</th><th>What</th><th>Answer</th><th class="num">Cost</th></tr></thead><tbody>
+  {% for e in agent_log %}
+    <tr>
+      <td class="muted small"><span class="dtc" data-ms="{{ e.ts_ms }}">{{ e.ts_ms|dt }}</span></td>
+      <td class="mono small" title="{{ e.pk }}">{{ (e.pk or '')[:6] }}…</td>
+      <td class="small">{% if e.kind == 'ask' %}{{ e.q }}{% else %}{{ e.kind }} · {{ e.lang }}{% endif %} <a class="muted" href="/job/{{ e.job }}">{{ e.job[:6] }}</a></td>
+      <td class="small">{% if e.error %}<span class="err">{{ e.error }}</span>{% elif e.on_topic == false %}<span class="err">off topic</span>{% else %}ok{% endif %}{% if e.dropped %} · <span class="muted" title="{% for d in e.dropped %}{{ d.why }}: {{ d.text }}&#10;{% endfor %}">{{ e.dropped|length }} dropped</span>{% endif %}</td>
+      <td class="num mono small">{% if e.usage and e.usage.cost %}${{ '%.4f'|format(e.usage.cost) }}{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody></table></div>
+  {% else %}<p class="muted">Nobody has asked the agent anything yet.</p>{% endif %}
+</section>
+
 <section class="card me">
   <div class="row mehead"><h2>Recent actions</h2><span class="muted small">last {{ events|length }}</span></div>
   {% if events %}
@@ -54,6 +102,8 @@
         {% elif e.event == 'analyze' %}ran an analysis: <a href="/job/{{ e.job }}">{{ e.symbol or e.job }}</a>
         {% elif e.event == 'delete_analysis' %}deleted the analysis {{ e.symbol or e.job }}
         {% elif e.event == 'assistant' %}asked the agent ({{ e.n }} picks) on <a href="/job/{{ e.job }}">{{ e.job }}</a>
+        {% elif e.event == 'agent' %}{{ 'asked the agent' if e.kind == 'ask' else 'opened the agent' }} on <a href="/job/{{ e.job }}">{{ e.job }}</a>
+        {% elif e.event == 'agent_method' %}saved the agent's method v{{ e.v }}
         {% else %}{{ e.event }}{% endif %}
       </span>
     </div>
@@ -62,6 +112,46 @@
   {% else %}<p class="muted">Nothing yet.</p>{% endif %}
 </section>
 <script>
+(function () {
+  // the agent's method: try it on the demo before saving, save as a new version, load an earlier one back
+  const $ = id => document.getElementById(id), stat = $('astat'), out = $('aprevout');
+  const DEFAULT_METHOD = {{ default_method|tojson }};
+  const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const form = () => ({ method: $('amethod').value, chips: $('achipsin').value.split('\n').map(x => x.trim()).filter(Boolean),
+    watch: { min_roi: +$('aroi').value, min_hold_min: +$('ahold').value, n: +$('an').value, exclude: [...document.querySelectorAll('.aex:checked')].map(x => x.value) } });
+  const fill = c => { $('amethod').value = c.method || ''; $('achipsin').value = (c.chips || []).join('\n');
+    $('aroi').value = c.watch.min_roi; $('ahold').value = c.watch.min_hold_min; $('an').value = c.watch.n;
+    document.querySelectorAll('.aex').forEach(x => { x.checked = (c.watch.exclude || []).includes(x.value); }); };
+  async function post(path, body) {
+    const r = await fetch(path, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    let d = {}; try { d = await r.json(); } catch (e) {}
+    return { ok: r.ok, d };
+  }
+  $('aprev').addEventListener('click', async () => {
+    stat.textContent = 'writing the three cards for the demo…'; out.hidden = true;
+    const { ok, d } = await post('/admin/agent/preview', { config: form(), lang: $('alang').value });
+    if (!ok) { stat.textContent = d.error || 'did not work'; return; }
+    const c = d.cards || {}, list = a => '<ul>' + (a || []).map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>';
+    out.innerHTML = '<h4>What happened</h4>' + list(c.story) + '<h4>What to weigh</h4>' + list(c.risks)
+      + '<h4>Who to watch</h4><p class="muted small">' + esc(c.method) + '</p><ul>' + (c.watch || []).map(w => '<li><span class="mono">' + esc(w.short) + '</span> ' + esc(w.why) + '</li>').join('') + '</ul>'
+      + ((d.dropped || []).length ? '<p class="muted small">The check dropped ' + d.dropped.length + ': ' + d.dropped.map(x => esc(x.why + ' — ' + x.text)).join('; ') + '</p>' : '');
+    out.hidden = false;
+    stat.textContent = (d.range || 'demo') + ' · ' + ((d.usage && d.usage.cost) ? '$' + (+d.usage.cost).toFixed(4) : '') + ' · not saved';
+  });
+  $('asave').addEventListener('click', async () => {
+    stat.textContent = 'saving…';
+    const { ok, d } = await post('/admin/agent', form());
+    if (!ok) { stat.textContent = d.error || 'did not save'; return; }
+    stat.textContent = 'saved as v' + d.config.v + ': new cards and answers follow it now';
+    $('asave').textContent = 'Save as v' + (d.config.v + 1);
+  });
+  $('adefault').addEventListener('click', () => { $('amethod').value = DEFAULT_METHOD; stat.textContent = 'built-in method in the field · not saved'; });
+  const hist = $('ahist') ? JSON.parse($('ahist').textContent) : [];
+  document.querySelectorAll('.aload-v').forEach(b => b.addEventListener('click', () => {
+    const h = hist.find(x => String(x.v) === b.dataset.v); if (!h) return;
+    fill(h); stat.textContent = 'v' + h.v + ' is in the form · press Save to make it the method again';
+  }));
+})();
 (function () {
   // the owner's own visits are not visitors: Umami skips a browser that has this key (docs.umami.is, "Exclude my own visits")
   const b = document.getElementById('umamioff'), KEY = 'umami.disabled';

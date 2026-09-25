@@ -111,7 +111,11 @@ chart and terminal and result, without a single request to the data provider.
   card is opened. The credits are counted per month (`rpc_credits_month`, tracced's share of the account) and the
   check pauses near the limit. Without a node the public `api.mainnet-beta` is used.
 - Paid DexScreener profiles on the chart: DexScreener's public orders endpoint, free and without a key, kept a day.
-- The AI agent: any OpenAI-compatible endpoint (`ASSISTANT_*` in `.env`), with per-wallet, per-guest and site-wide daily limits.
+- The AI agent: DeepSeek V4.1 Flash through OpenRouter by default, or any OpenAI-compatible endpoint (`ASSISTANT_*` in
+  `.env`). It reads a digest of the result that the code computes and writes three cards and answers from it; the
+  code checks every number it writes against that digest and drops what it cannot find. For connected wallets only,
+  with per-wallet and site-wide daily limits. The owner writes its method at `/admin`; the rules that keep it on
+  topic live in the code.
 - Nothing else: no third-party PnL, scores or "smart money" labels.
 
 ## License

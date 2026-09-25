@@ -80,7 +80,7 @@
         <button type="button" class="button holo" id="askbtn" title="{{ 'Pick wallets to watch by your method' if assistant_on else 'Coming soon' }}"><span class="holo-in">✦ AI agent</span></button>
         <div class="soon-pop" id="aipop" hidden>
           <b>Coming soon</b>
-          <span>The agent will read this table and the method you describe, then return a short list with a reason for each pick. It is not connected to this server yet.</span>
+          <span>The agent will read this analysis and tell you what happened in the range, what to weigh and whose wallets stand out, then answer your questions about it. It is not switched on on this server yet.</span>
         </div>
       </div>
       <div id="watch" hidden>
@@ -137,16 +137,20 @@
       <span class="muted small">Filters, Select all and Export work on every wallet, shown or not.</span>
     </div>
 
-    <aside class="drawer apanel" id="apanel" hidden>
-      <div class="drawer-head"><div><b>AI agent</b> <span class="muted small">wallets to watch</span></div><button type="button" class="ghost x" id="aclose" title="Close">×</button></div>
+    <aside class="drawer apanel" id="apanel" hidden aria-label="AI agent">
+      <div class="drawer-head"><div><b>✦ AI agent</b> <span class="muted small">reads this analysis only</span></div><button type="button" class="ghost x" id="aclose" title="Close" aria-label="Close">×</button></div>
       <div class="apanel-body">
-        <label class="muted small" for="amethod">Your method</label>
-        <div class="row achips">{% for name, text in presets.items() %}<button type="button" class="chip apreset" data-method="{{ text }}" title="Use this method">{{ name }}</button>{% endfor %}</div>
-        <textarea id="amethod" rows="5" spellcheck="false">{{ default_method }}</textarea>
-        <div class="row"><button type="button" class="primary" id="arun">Ask</button><span class="muted small" id="astat"></span><button type="button" class="ghost" id="areset" title="Restore the default method">Reset</button></div>
-        <ol class="apicks" id="apicks"></ol>
-        <div class="row" id="aact" hidden><button type="button" id="aselect">Select these</button><button type="button" id="awatch" title="Add every pick to Watchlist, your first list">+ Watchlist</button><span class="muted small" id="anote"></span></div>
-        <p class="muted small">Reads only this table and your method. No predictions. Verify before acting. <span id="aleft"></span></p>
+        <div class="aguest" id="aguest" hidden>
+          <p>The agent reads this analysis and tells you what happened in the range, what to weigh, and whose wallets stand out. Then it answers your questions about it.</p>
+          <button type="button" class="primary" id="aconnect">Connect a wallet to use it</button>
+        </div>
+        <div id="amain" hidden>
+          <div class="acards" id="acards"></div>
+          <div class="row achips" id="achips"></div>
+          <div class="athread" id="athread"></div>
+          <form class="aask" id="aform"><input id="aq" maxlength="500" placeholder="Ask about this analysis…" autocomplete="off" aria-label="Your question"><button type="submit" class="primary">Ask</button></form>
+          <p class="muted small">Facts from this analysis only, never advice or predictions. <span id="aleft"></span></p>
+        </div>
       </div>
     </aside>
     <aside class="drawer wcard" id="drawer" hidden aria-label="Wallet card">
@@ -978,42 +982,82 @@
         b.disabled = true; toggleWallet(w, b.classList.contains('wname')).finally(() => { b.disabled = false; });
       });
 
-      // assistant: facts of the visible rows + the user's method → picks with reasons
-      const apanel = document.getElementById('apanel'), amethod = document.getElementById('amethod'), apicks = document.getElementById('apicks');
-      const astat = document.getElementById('astat'), aact = document.getElementById('aact'), anote = document.getElementById('anote');
-      const MKEY = 'early:method', DEFAULT_METHOD = amethod.value;
-      try { const m = localStorage.getItem(MKEY); if (m) amethod.value = m; } catch (e) {}
-      let lastPicks = [];
+      // The agent: three cards about this analysis in the browser's language, then questions about it. It needs a
+      // connected wallet; the server keeps each set of cards, so opening the agent again, or by anyone, costs nothing.
+      const apanel = document.getElementById('apanel'), acards = document.getElementById('acards'), achips = document.getElementById('achips');
+      const athread = document.getElementById('athread'), aform = document.getElementById('aform'), aq = document.getElementById('aq');
+      const aguest = document.getElementById('aguest'), amain = document.getElementById('amain');
       const ASSIST_ON = {{ 'true' if assistant_on else 'false' }}, aipop = document.getElementById('aipop'), aiwrap = document.getElementById('aiwrap');
-      document.getElementById('askbtn').addEventListener('click', () => { EarlyUI.track('agent-open'); if (ASSIST_ON) { apanel.hidden = !apanel.hidden; closeCard(); } else aipop.hidden = !aipop.hidden; });
+      const ALANG = navigator.language || 'en';
+      let aLoaded = false, aBusy = false;
+      const aEsc = t => esc(String(t == null ? '' : t));
+      const aWallet = w => '<button type="button" class="link mono awallet" data-w="' + aEsc(w.wallet) + '" title="Open this wallet\'s card">' + aEsc(w.short) + '</button>'
+        + (w.why ? ' <span class="awhy">' + aEsc(w.why) + '</span>' : '');
+      const aList = items => '<ul>' + items.map(t => '<li>' + aEsc(t) + '</li>').join('') + '</ul>';
+      function aLeft(n) { if (n != null) document.getElementById('aleft').textContent = n + (n === 1 ? ' question' : ' questions') + ' left today.'; }
+      async function aPost(path, body) {
+        try {
+          const r = await fetch(path, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+          let d = {}; try { d = await r.json(); } catch (e) {}
+          return { status: r.status, ok: r.ok, d };
+        } catch (e) { return { status: 0, ok: false, d: { error: 'Could not reach the server.' } }; }
+      }
+      function aShow() {
+        aguest.hidden = acctOn; amain.hidden = !acctOn;
+        if (acctOn) loadCards();
+      }
+      async function loadCards() {
+        if (aLoaded || aBusy) return;
+        aBusy = true;
+        acards.innerHTML = '<p class="muted aload">Reading the analysis…</p>';
+        const { status, ok, d } = await aPost('/job/' + jobId + '/agent/cards', { lang: ALANG });
+        aBusy = false;
+        if (status === 401) { acctOn = false; aShow(); return; }
+        if (!ok) { acards.innerHTML = '<p class="aerr">' + aEsc(d.error || 'The agent did not answer.') + '</p>'; return; }
+        aLoaded = true;
+        const c = d.cards || {}, sec = (h, body) => '<section class="acard"><h4>' + h + '</h4>' + body + '</section>';
+        acards.innerHTML = (c.story && c.story.length ? sec('What happened', aList(c.story)) : '')
+          + (c.risks && c.risks.length ? sec('What to weigh', aList(c.risks)) : '')
+          + sec('Who to watch', '<p class="muted small">' + aEsc(c.method || '') + '</p>'
+            + (c.watch && c.watch.length ? '<ul>' + c.watch.map(w => '<li>' + aWallet(w) + '</li>').join('') + '</ul>' : '<p class="muted small">No wallet here fits this method.</p>'));
+        achips.innerHTML = (d.chips || []).map(q => '<button type="button" class="chip achip">' + aEsc(q) + '</button>').join('');
+        aLeft(d.left);
+      }
+      async function aAsk(q, chip) {
+        q = (q || '').trim();
+        if (!q || aBusy) return;
+        aBusy = true;
+        EarlyUI.track('agent-ask', { chip: !!chip });
+        const item = document.createElement('div');
+        item.className = 'aqa';
+        item.innerHTML = '<p class="aqq">' + aEsc(q) + '</p><p class="muted aload">Thinking…</p>';
+        athread.appendChild(item);
+        item.scrollIntoView({ block: 'nearest' });
+        const { status, ok, d } = await aPost('/job/' + jobId + '/agent/ask', { q, lang: ALANG, chip: !!chip });
+        aBusy = false;
+        const slot = item.querySelector('.aload');
+        if (status === 401) { acctOn = false; aShow(); item.remove(); return; }
+        if (!ok) { slot.className = 'aerr'; slot.textContent = d.error || 'The agent did not answer.'; return; }
+        const parts = (d.answer || []).map(t => '<li>' + aEsc(t) + '</li>').concat((d.wallets || []).map(w => '<li>' + aWallet(w) + '</li>'));
+        slot.outerHTML = '<ul class="aans' + (d.on_topic === false ? ' off' : '') + '">' + parts.join('') + '</ul>';
+        aLeft(d.left);
+      }
+      document.getElementById('askbtn').addEventListener('click', () => {
+        EarlyUI.track('agent-open');
+        if (!ASSIST_ON) { aipop.hidden = !aipop.hidden; return; }
+        apanel.hidden = !apanel.hidden;
+        if (!apanel.hidden) { closeCard(); aShow(); }
+      });
       if (!ASSIST_ON) {
         document.getElementById('askbtn').addEventListener('mouseenter', () => { aipop.hidden = false; });
         aiwrap.addEventListener('mouseleave', () => { aipop.hidden = true; });
         document.addEventListener('click', e => { if (!aipop.hidden && !e.target.closest('#aiwrap')) aipop.hidden = true; });
       }
       document.getElementById('aclose').addEventListener('click', () => { apanel.hidden = true; });
-      document.getElementById('areset').addEventListener('click', () => { amethod.value = DEFAULT_METHOD; try { localStorage.removeItem(MKEY); } catch (e) {} });
-      amethod.addEventListener('input', () => { try { localStorage.setItem(MKEY, amethod.value); } catch (e) {} });
-      document.getElementById('arun').addEventListener('click', async () => {
-        const wallets = pass.map(o => o.w).slice(0, 200);
-        astat.textContent = 'reading ' + wallets.length + ' wallets…'; apicks.innerHTML = ''; aact.hidden = true;
-        try {
-          const r = await fetch('/job/' + jobId + '/assistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wallets, method: amethod.value, scope: SCOPE }) });
-          const d = await r.json();
-          if (!r.ok) { astat.textContent = d.error || ('error ' + r.status); return; }
-          lastPicks = d.picks || [];
-          astat.textContent = lastPicks.length + ' picks' + (d.cached ? ' (cached)' : '') + ' · ' + (d.model || '');
-          if (d.left != null) document.getElementById('aleft').textContent = d.left + (d.left === 1 ? ' ask' : ' asks') + ' left today.';
-          lastPicks.forEach(p => { const row = byW.get(p.wallet), li = document.createElement('li');
-            li.innerHTML = '<button type="button" class="wname mono" data-w="' + esc(p.wallet) + '">' + esc(short(p.wallet)) + '</button>' + (row ? ' <span class="mono small">' + ch.fmtMcap(+row.entry) + ' → ' + (+row.exitcap ? ch.fmtMcap(+row.exitcap) : '—') + ' · ' + money(+row.real) + '</span>' : '') + '<div class="areason">' + esc(p.reason) + '</div>';
-            apicks.appendChild(li); });
-          anote.textContent = d.note || ''; aact.hidden = !lastPicks.length;
-        } catch (e) { astat.textContent = 'could not reach the server'; }
-      });
-      apicks.addEventListener('click', e => { const b = e.target.closest('.wname'); if (b) toggleWallet(b.dataset.w, true); });
-      document.getElementById('aselect').addEventListener('click', () => { lastPicks.forEach(p => selected.add(p.wallet)); saveSel(); syncChecks(); });
-      document.getElementById('awatch').addEventListener('click', () => { lastPicks.forEach(p => selected.add(p.wallet)); saveSel(); syncChecks(); withAcct(saveWallets); });
-      apanel.querySelectorAll('.apreset').forEach(b => b.addEventListener('click', () => { amethod.value = b.dataset.method; try { localStorage.setItem(MKEY, amethod.value); } catch (e) {} apanel.querySelectorAll('.apreset').forEach(x => x.classList.toggle('on', x === b)); }));
+      document.getElementById('aconnect').addEventListener('click', () => EarlyWallet.open(() => { acctOn = true; loadMe(); aShow(); }));
+      aform.addEventListener('submit', e => { e.preventDefault(); const q = aq.value; aq.value = ''; aAsk(q, false); });
+      achips.addEventListener('click', e => { const b = e.target.closest('.achip'); if (b) aAsk(b.textContent, true); });
+      apanel.addEventListener('click', e => { const b = e.target.closest('.awallet'); if (b) toggleWallet(b.dataset.w, true); });
 
       // The background checks, asked every five seconds while they run: `fresh` and `bundle` tags, funders, first
       // transactions and who a wallet is. Each answer carries only what is new since the one before, and a tab in the
