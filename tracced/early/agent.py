@@ -215,7 +215,7 @@ def digest(r, watch=None):
               + "".join(f", not {t}" for t in sorted(excl)))
 
     t = lambda ms: time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(ms / 1000)) if ms else None   # noqa: E731
-    checked = min(len(rows), int((r.get("enrich") or {}).get("total") or 0))
+    checked = len(r.get("ages") or {}) or min(len(rows), int((r.get("enrich") or {}).get("total") or 0))   # у кого вік справді є
     d = {
         "token": {"symbol": info.get("symbol"), "created": t(info.get("created_time")), "launchpad": info.get("launchpad"),
                   "moved_to_market": t((info.get("migration") or {}).get("ms")), "mcap_now_usd": _usd(info.get("mcap"))},
@@ -291,9 +291,11 @@ def _clean(text):
     return " ".join(t.split())[:MAX_BULLET]
 
 
-def check_bullets(items, d, wmap, extra_text=""):
-    """Пункти, що пройшли перевірку, і відкинуті з причиною. Пункт має нести факт з аналізу (число чи гаманець), а всі
-    його числа — бути у вижимці (дати й час — рядки, їх не рахуємо). extra_text — питання: його числа можна повторити."""
+def check_bullets(items, d, wmap, extra_text="", need_fact=True):
+    """Пункти, що пройшли перевірку, і відкинуті з причиною. Усі числа пункту мають бути у вижимці (дати й час — рядки,
+    їх не рахуємо); extra_text — питання, його числа можна повторити. need_fact: пункт має ще й нести факт з аналізу
+    (число чи гаманець) — для відповідей на питання людини, де стороння проза могла б пролізти; картки пишуться лише
+    з вижимки, і там «творець токена в діапазоні не купував» — законний пункт без числа."""
     dj = json.dumps(d, ensure_ascii=False)
     known = _known(dj) | _known(extra_text)
     keep, dropped = [], []
@@ -307,7 +309,7 @@ def check_bullets(items, d, wmap, extra_text=""):
         has_fact = bool(_NUM.search(bare)) or any(s in text for s in wmap) or sym in text
         if bad:
             dropped.append({"text": text, "why": "numbers not in the analysis: " + ", ".join(bad)})
-        elif not has_fact:
+        elif need_fact and not has_fact:
             dropped.append({"text": text, "why": "no fact from the analysis"})
         else:
             keep.append(text)
@@ -336,8 +338,8 @@ def check_wallets(items, d, wmap, allowed=None):
 
 
 def check_cards(raw, d, wmap):
-    story, bad1 = check_bullets(raw.get("story"), d, wmap)
-    risks, bad2 = check_bullets(raw.get("risks"), d, wmap)
+    story, bad1 = check_bullets(raw.get("story"), d, wmap, need_fact=False)
+    risks, bad2 = check_bullets(raw.get("risks"), d, wmap, need_fact=False)
     allowed = {c["wallet"] for c in d["watch_candidates"]["wallets"]}
     watch, bad3 = check_wallets(raw.get("watch"), d, wmap, allowed)
     method = _clean(raw.get("method"))[:200] or d["watch_candidates"]["method"]
@@ -349,6 +351,8 @@ def check_answer(raw, d, wmap, question):
         return {"on_topic": False, "answer": [], "wallets": []}, []
     answer, bad1 = check_bullets(raw.get("answer"), d, wmap, extra_text=question)
     wallets, bad2 = check_wallets(raw.get("wallets"), d, wmap)
+    said = " ".join(answer)
+    wallets = [w for w in wallets if w["short"] not in said]   # гаманець, уже названий у відповіді, не повторюємо рядком
     return {"on_topic": bool(answer or wallets), "answer": answer, "wallets": wallets}, bad1 + bad2
 
 

@@ -152,7 +152,7 @@ def enrich_target(r, s):
     читає історію гаманця до цієї покупки і коштує 1-2 кредити. Результати, зняті до цього підпису, — лише перші
     full_top: решта їхніх гаманців дочитується з картки, коли її відкривають."""
     rows = r.get("rows") or []
-    cap = int(s.get("age_lookups_max", 0) or 0)
+    cap = max(int(s.get("age_lookups_max", 0) or 0), int(r.get("age_full_top") or 0))   # демо: повна перевірка всім
     if not any(row.get("entry_tx") for row in rows):
         cap = min(cap, full_top(r, s))
     return min(len(rows), cap)

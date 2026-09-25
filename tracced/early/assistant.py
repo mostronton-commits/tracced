@@ -50,6 +50,7 @@ class Assistant:
 
     def payload(self, system, user, json_mode=True, reasoning=True):
         p = {"model": self.model, "temperature": 0.2, "max_tokens": MAX_TOKENS, "usage": {"include": True},
+             "provider": {"sort": "throughput"},                # OpenRouter: найшвидший постачальник цієї моделі (картки — сотні токенів)
              "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
         if self.fallbacks:
             p["models"] = [self.model] + self.fallbacks          # OpenRouter: запасні моделі, якщо основна впала чи перевантажена
