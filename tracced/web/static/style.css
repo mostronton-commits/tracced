@@ -512,7 +512,7 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .foot b { color: #F8FAFC; }
 .foot a, .foot .link { color: #CBD5E1; border-bottom-color: #334155; } .foot a:hover, .foot .link:hover { color: #F8FAFC; }
 .ai { display: grid; grid-template-columns: 1.1fr 1fr; gap: 24px; align-items: center; position: relative; background: linear-gradient(120deg, #0B1220, #090D16); color: #E2E8F0; border: 1px solid #1E293B; border-radius: 10px; padding: 22px 24px; margin: 0 0 16px; }
-.ai h2 { margin: 0 0 8px; font-size: 32px; line-height: 1.1; letter-spacing: -.02em; color: #F8FAFC; text-wrap: balance; }
+.ai h2 { margin: 0 0 6px; font-size: 20px; letter-spacing: -.01em; color: #F8FAFC; }
 .ai p { margin: 0; color: #94A3B8; font-size: 14px; }
 .ai-r { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 14px; }
 .ai-r li { color: #E2E8F0; } .ai-r li::first-letter { color: var(--mint); }
@@ -1013,7 +1013,7 @@ td.c-roi b { font-size: 13px; }
 .ai-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .ai-chips li { border: 1px solid #1F3B35; background: rgba(167, 243, 208, .08); color: #D1FAE5; padding: 7px 14px; border-radius: 999px; font-size: 14px; }
 .ai-chips li::first-letter { color: inherit; }
-@media (max-width: 720px) { .ai h2 { font-size: 26px; } .ai-chips { justify-content: flex-start; } }
+@media (max-width: 720px) { .ai-chips { justify-content: flex-start; } }
 
 /* the wallet card and the agent sit beside the page on a wide screen, not over it: the chart and the table narrow instead */
 @media (min-width: 1200px) {
@@ -1021,5 +1021,29 @@ td.c-roi b { font-size: 13px; }
   .drawer, .drawer.wcard { width: 480px; }
 }
 #facts tbody tr.carded td { background: var(--sage); }
-.wcard .dnav { width: 30px; height: 36px; padding: 0; font-size: 15px; line-height: 1; color: var(--muted); }
-.wcard .dnav:disabled { opacity: .3; cursor: default; }
+
+/* ── wallet card v4 (27.09): a dark head like the site's bar that never wraps the address, this token first ── */
+.wcard .drawer-head { background: var(--navy); border-bottom: 1px solid #1E293B; color: #E2E8F0; padding: 12px 12px 12px 16px; }
+.wcard .dh-top b { color: #F8FAFC; }
+.wcard .dh-addr, .wcard .dh-addr .mono { color: #94A3B8; }
+.wcard .dh-addr { flex-wrap: wrap; row-gap: 5px; }
+.wcard .dh-addr .mono { white-space: nowrap; }
+.wcard .wav { border-color: #1E293B; background: #0F172A; }
+.wcard .wcopy { color: #94A3B8; } .wcard .wcopy:hover { color: #F8FAFC; background: rgba(255, 255, 255, .06); }
+.wcard .drawer-head .ext { color: #94A3B8; border-color: #334155; } .wcard .drawer-head .ext:hover { color: #F8FAFC; }
+.wcard .dchips { margin-left: 4px; }
+.wcard .drawer-head .dchip { background: rgba(255, 255, 255, .06); border-color: #1E293B; color: #E2E8F0; }
+.wcard .drawer-head .dchip.q, .wcard .drawer-head .dchip small { color: #94A3B8; }
+.wcard .drawer-head .dchip.age.young { background: rgba(167, 243, 208, .12); border-color: #1F3B35; color: var(--mint); }
+.wcard .drawer-head button.dchip:hover { color: #F8FAFC; }
+.wcard .dstar, .wcard .drawer-head .x { color: #CBD5E1; }
+.wcard .dstar:hover, .wcard .drawer-head .x:hover { color: #F8FAFC; background: rgba(255, 255, 255, .06); }
+.wcard .dstar.on { color: #FBBF24; }
+.wcard .dtok { background: #F6FEF9; border-top: 0; }
+.wcard .dtok h4 { color: var(--ink); }
+
+/* the token page: a range with a result is navy with a tick, a range to run stays mint */
+.wrow .result.opened { background: var(--navy); border: 1px solid var(--navy); color: #F8FAFC; font-weight: 600; padding: 0 14px; height: 36px; display: inline-flex; align-items: center; border-radius: 8px; }
+.wrow .result.opened:hover { background: #172033; }
+/* chart toolbar: the log switch lights up like a timeframe */
+.chartbox .tf.tlog.on { background: var(--mint); border-color: var(--mint); color: var(--navy); font-weight: 600; }

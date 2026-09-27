@@ -148,27 +148,25 @@
             </div>
           </div>
           <div class="dh-act">
-            <button type="button" class="ghost dnav" id="dprev" title="Previous wallet in the table" aria-label="Previous wallet">↑</button>
-            <button type="button" class="ghost dnav" id="dnext" title="Next wallet in the table" aria-label="Next wallet">↓</button>
             <button type="button" class="ghost dstar" id="dstar" title="Add to one of your lists" aria-label="Add to one of your lists">☆</button>
             <button type="button" class="ghost x" id="dclose" title="Close" aria-label="Close">×</button>
           </div>
         </div>
         <div class="dtags" id="dtags"></div>
+        <section class="dsec dtok">
+          <h4>On {{ job.symbol }}</h4>
+          <div id="dfacts"></div>
+        </section>
         <section class="dsec dperf">
           <div class="dsec-h"><h4>All tokens <span class="dinfo" id="dprofi" hidden>i</span></h4>
             <div class="seg" id="dper" role="tablist" aria-label="Period"><button type="button" data-p="7">7D</button><button type="button" data-p="30" class="on">30D</button></div></div>
           <div id="dprof"></div>
         </section>
-        <section class="dsec">
-          <h4>{{ job.symbol }}</h4>
-          <div id="dfacts"></div>
-        </section>
         <section class="dsec" id="dwsec" hidden>
           <div class="dcross" id="dcross"></div>
         </section>
         <section class="dsec">
-          <h4>Trades <span class="muted" id="dtcount"></span></h4>
+          <h4>Trades on {{ job.symbol }} <span class="muted" id="dtcount"></span></h4>
           <table class="story"><thead><tr><th>Time</th><th></th><th class="num">Amount</th><th class="num">Tokens</th><th class="num">Cap</th></tr></thead><tbody id="dtrades"></tbody></table>
           <p class="muted small dline" id="dnote"></p>
         </section>
@@ -652,24 +650,11 @@
         document.body.classList.toggle('drawer-open', !document.getElementById('apanel').hidden);
         markCarded('');
       }
-      // the table row of the open card is marked; the arrows in the card walk the table without closing it
-      const rowEl = w => w ? tbody.querySelector('tr[data-w="' + CSS.escape(w) + '"]') : null;
-      const stepRow = (tr, dir) => { let n = tr && (dir < 0 ? tr.previousElementSibling : tr.nextElementSibling); while (n && !n.dataset.w) n = dir < 0 ? n.previousElementSibling : n.nextElementSibling; return n; };
-      function markCarded(w, scroll) {
+      // the table row of the open card is marked
+      function markCarded(w) {
         tbody.querySelectorAll('tr.carded').forEach(r => r.classList.remove('carded'));
-        const tr = rowEl(w);
-        if (tr) { tr.classList.add('carded'); if (scroll) tr.scrollIntoView({ block: 'nearest' }); }
-        document.getElementById('dprev').disabled = !stepRow(tr, -1);
-        document.getElementById('dnext').disabled = !stepRow(tr, 1);
-      }
-      let navPin = null;                                         // a wallet the arrows put on the chart: the next step takes it off again
-      async function navTo(dir) {
-        const from = drawer.dataset.w, n = stepRow(rowEl(from), dir); if (!n) return;
-        const w = n.dataset.w, was = onChart.some(o => o.wallet === w), drop = navPin === from ? from : null;
-        cardSrc = 'nav';
-        await toggleWallet(w, true);
-        if (drop && drop !== w) { const i = onChart.findIndex(o => o.wallet === drop); if (i >= 0) { onChart.splice(i, 1); renderOnChart(); } }
-        navPin = was ? null : w;
+        const tr = w ? tbody.querySelector('tr[data-w="' + CSS.escape(w) + '"]') : null;
+        if (tr) tr.classList.add('carded');
       }
       function syncStar(w) {
         const on = inList(w);
@@ -920,11 +905,11 @@
       let cardSrc = 'row';                                       // where the card was opened from, for the owner's log
       function openStory(o) {
         if (drawer.hidden || drawer.dataset.w !== o.wallet) { EarlyUI.track('card-open'); EarlyUI.use('card-open', { src: cardSrc }); }
-        const via = cardSrc; cardSrc = 'row';
+        cardSrc = 'row';
         const cur = (window.EarlyCur && EarlyCur.get()) === 'sol';
         const row = rowOf(o.wallet);
         drawer.dataset.w = o.wallet; drawer.hidden = false; document.body.classList.add('drawer-open');
-        markCarded(o.wallet, via === 'nav');                      // only the arrows scroll the table: a click on the chart keeps the chart in view
+        markCarded(o.wallet);
         const dw = document.getElementById('dw'); dw.textContent = short(o.wallet); dw.title = o.wallet;
         document.getElementById('dcopy').dataset.copy = o.wallet;
         document.getElementById('dsol').href = 'https://solscan.io/account/' + o.wallet;
@@ -946,8 +931,6 @@
         if (window.EarlyTZ) EarlyTZ.apply();
       }
       document.getElementById('dclose').addEventListener('click', () => { closeCard(); EarlyUI.use('card-close'); });
-      document.getElementById('dprev').addEventListener('click', () => navTo(-1));
-      document.getElementById('dnext').addEventListener('click', () => navTo(1));
       document.addEventListener('keydown', e => { if (e.key === 'Escape' && !drawer.hidden) { closeCard(); EarlyUI.use('card-close'); } });
       dstar.addEventListener('click', () => { const w = drawer.dataset.w; withAcct(() => openLists(dstar, [w])); });
       // your own tags: a tag is a reason to watch, so tagging a wallet that is not watched yet adds it to the watchlist
