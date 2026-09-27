@@ -14,8 +14,8 @@ Live, no sign-up: **[tracced.xyz](https://tracced.xyz)** · Docs: **[tracced.xyz
 2. **Mark the range.** Two clicks: where buying starts, where the pump takes off. Detected pumps are offered as hints.
 3. **Read the wallets.** Everyone who bought inside it, with what they paid, sold and still hold. Export CSV, TXT or JSON.
 
-Looking is free: the demo, every finished result, the chart of any token. A new analysis needs a connected wallet
-(a signed message, no transaction, no fee) and counts against a daily allowance per person: the wallet and the
+Looking is free: the demo, every finished result, the chart of any token. A new analysis needs a connected Phantom
+wallet (a signed message, no transaction, no fee) and counts against a daily allowance per person: the wallet and the
 browser count together, one network has its own count, and all of them reset at midnight UTC.
 [Limits →](https://tracced.xyz/docs/limits)
 
@@ -29,7 +29,7 @@ A terminal ranks the winners. tracced lists everyone who was inside the range yo
 together, which is the only way a group of wallets sharing one funder becomes visible.
 [How it compares to Axiom and GMGN →](https://tracced.xyz/docs/compare)
 
-Tags are rules, not opinions: `sniper`, `fresh`, `bundle`, `transfer-in` and six more, each with a definition you
+Tags are rules, not opinions: `sniper`, `fresh`, `bundle`, `transfer-in` and four more, each with a definition you
 can read and check. [Every rule →](https://tracced.xyz/docs/tags)
 
 Amounts read in dollars or in SOL. Both come from the same swap, so nothing is converted at a rate, and profit
@@ -42,9 +42,10 @@ is, small marks say so: a star for a KOL, its X account, the app it trades throu
 
 ![Wallet card](docs/img/card.png)
 
-With a wallet connected, the AI agent reads the analysis on the page and writes three short cards: what happened
-in the range, what to weigh, and whose wallets stand out. Then ask it about the analysis in your own language.
-Every number it writes is checked against the table before you see it, and it answers nothing but the analysis.
+With a wallet connected, the AI agent answers questions about the analysis on the page: who sold the top, whether
+it was a bundled launch, who is still holding, or anything in your own words. A summary gives three short cards:
+what happened in the range, what to weigh, and whose wallets stand out. A wallet it names opens its card. Every
+number it writes is checked against the table before you see it, and it answers nothing but the analysis.
 [The AI agent →](https://tracced.xyz/docs/how-it-works#the-ai-agent)
 
 ![AI agent](docs/img/agent.png)
@@ -62,7 +63,7 @@ more on request, on a phone too, where each wallet becomes a card.
 |---|---|
 | [Overview](https://tracced.xyz/docs) | What it answers and how to read it |
 | [How it works](https://tracced.xyz/docs/how-it-works) | Where every number comes from |
-| [Tags](https://tracced.xyz/docs/tags) | Ten rules, each checkable on chain |
+| [Tags](https://tracced.xyz/docs/tags) | Eight rules, each checkable on chain |
 | [Limits](https://tracced.xyz/docs/limits) | What is free, what needs a wallet, what it costs |
 | [Your account](https://tracced.xyz/docs/account) | Sign-in, lists, your own tags, repeats |
 | [Compare](https://tracced.xyz/docs/compare) | Next to Axiom and GMGN |

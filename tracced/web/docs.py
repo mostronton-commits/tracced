@@ -15,7 +15,7 @@ PAGES = [
     ("index", "Overview", "🧭", "What tracced answers and how to read it"),
     ("compare", "Compare", "⚖️", "Why not just look at Axiom or GMGN"),
     ("how-it-works", "How it works", "⚙️", "Where every number on the page comes from"),
-    ("tags", "Tags", "🏷️", "Ten rules, each one checkable on chain"),
+    ("tags", "Tags", "🏷️", "Eight rules, each one checkable on chain"),
     ("limits", "Limits", "⏳", "What is free, what needs a wallet, what it costs us"),
     ("account", "Your account", "🔑", "Sign-in, lists, your own tags, repeats"),
     ("roadmap", "Roadmap", "🗺️", "Shipped, next, and what we will not build"),
