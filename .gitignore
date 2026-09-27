@@ -10,3 +10,6 @@ output/
 docs/hackathon-*.md
 docs/journal.md
 docs/strategy.md
+
+# робочі копії агентів Claude Code: лише локально, не частина репозиторію
+.claude/worktrees/
