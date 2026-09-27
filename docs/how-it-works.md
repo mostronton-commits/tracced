@@ -7,8 +7,7 @@ Every figure on a result page comes from a swap that happened. Here is the path 
 The range decides **which wallets appear**. Their numbers come from all of that wallet's trades on the token:
 before the range, inside it, after it.
 
-So a wallet can show a bigger total than what it spent in your range. It was buying earlier, and the `pre-range`
-tag says so.
+So a wallet can show a bigger total than what it spent in your range: it was buying earlier too.
 
 The scope switch above the table recounts the same stored trades up to 24 or 48 hours after the range. It costs
 nothing: the trades are already here.

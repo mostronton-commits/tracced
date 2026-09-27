@@ -31,37 +31,17 @@
   <em aria-hidden="true">→</em>
   <div><i>03</i><b>Get wallets</b></div>
 </section>
-
-<section class="ai feats" aria-label="What tracced does">
-  <div class="feat">
-    <div class="ft"><b>AI agent that digs for you</b><span class="ai-soon">{{ 'Live in beta' if assistant_on else 'Coming next' }}</span></div>
-    <p>Ask in plain words. It finds the wallets you are after.</p>
-  </div>
-  <div class="feat">
-    <div class="ft"><b>Mark a zone. See who bought.</b></div>
-    <p>Select any part of the chart and get every wallet that bought there.</p>
-  </div>
-  <div class="feat">
-    <div class="ft"><b>Real stats, not made up</b></div>
-    <p>Entry, exit, PnL and funder, from each wallet's own trades.</p>
-  </div>
-  <div class="fnext"><span>In development</span><i>Telegram alerts</i><i>Copy-trading</i></div>
-</section>
-
-
-
 {% if tokens %}
 <section class="card" id="recent">
   <div class="row mehead"><h2>Recently analyzed on tracced</h2>{% if acct %}<a class="right small" href="/me#analyses">My analyses ({{ my_n }}) →</a>{% endif %}</div>
-  <p class="muted small">Everyone's analyses, not only yours. A finished one opens for anyone, which is why a link you
-    share works and why opening one costs nothing. Who ran it is never shown.</p>
+  <p class="muted small">Everyone's analyses. Who ran them is never shown.</p>
   <div class="recent">
     {% for t in tokens %}
       <a class="rrow{{ ' ex' if t.example else '' }}" href="/token?mint={{ t.mint }}">
         <span class="sym">{{ t.symbol }}</span>
         <span class="mono muted win" title="When this token was last analyzed">analyzed <span class="dtc" data-ms="{{ t.at }}">{{ t.at|dt }}</span></span>
         <span class="mono n">{{ t.ranges }} range{{ '' if t.ranges == 1 else 's' }}</span>
-        <span class="mono n"{% if t.made2 %} title="Wallets that bought inside the range and sold at 2× their average entry or more"{% endif %}>{% if t.made2 %}{{ t.made2 }} made 2×+{% endif %}</span>
+        <span class="mono n"{% if t.best %} title="Highest average exit cap ÷ average entry cap among its wallets, buys before the range included"{% endif %}>{% if t.best %}best {{ t.best|round(1) }}×{% endif %}</span>
         {% if t.example %}<span class="chip ex" title="Recorded token — press Analyze on a pump to replay the run, no requests">Demo</span>{% else %}<span class="chip st-{{ t.status }}">{{ {'running':'Running','done':'Done','error':'Error'}[t.status] }}</span>{% endif %}
         <span class="open">Open →</span>
       </a>

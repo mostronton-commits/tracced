@@ -974,7 +974,7 @@ if AioHTTPTestCase:
             self.assertNotIn("Where this is going", html)               # roadmap removed for now
             self.assertIn("Paste address", html)
             self.assertIn("Get wallets", html)
-            self.assertIn("AI agent", html)
+            self.assertNotIn("feats", html)                            # no banner on the home page (the owner's call, 28.09)
             self.assertNotIn('href="/#recent"', html)                   # no Analyses in the top bar
             self.assertNotIn("Try a sample scan", html)
             self.assertIsNone(CYRILLIC.search(html))
@@ -1087,12 +1087,10 @@ if AioHTTPTestCase:
             self.assertEqual(page48.count("<b>Coming soon</b>"), 1)          # no key on this server: the button says so
             self.app["assistant"] = None                                 # …and then the home page must not promise it either
             home_off = await (await self.client.get("/")).text()
-            self.assertIn("Coming next", home_off)
-            self.assertNotIn("Live in beta", home_off)
+            self.assertNotIn("Live in beta", home_off)                     # the home page promises nothing about the agent
             self.assertIn("The agent is off on this server", await (await self.client.get("/docs/roadmap")).text())
             self.app["assistant"] = a
             home_on = await (await self.client.get("/")).text()
-            self.assertIn("Live in beta", home_on)                       # with a key the promise is true
             r = await self.client.get("/")                               # home with a finished analysis: counters, sample, bg lines
             self.assertEqual(r.status, 200)
             home = await r.text()

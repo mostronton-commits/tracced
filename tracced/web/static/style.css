@@ -636,8 +636,8 @@ button.tzseg { background: transparent; padding: 0; height: auto; font: inherit;
 .saved { color: #B45309; margin-left: 5px; font-size: 12px; cursor: default; }
 button.saved { border: 0; background: transparent; padding: 0 2px; height: auto; cursor: pointer; } button.saved:hover { color: var(--red); background: transparent; }
 .savejob.on { color: #B45309; } .savejob:disabled { cursor: default; opacity: 1; }
-.toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 70; background: var(--navy); color: #F8FAFC; padding: 10px 16px; border-radius: 10px; font-size: 13px; white-space: normal; max-width: calc(100vw - 32px); text-align: center; box-shadow: 0 12px 30px -10px rgba(0, 0, 0, .5); animation: toast-in .2s ease; }
-.toast a { color: var(--mint); border-bottom-color: rgba(167, 243, 208, .4); }
+.toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 70; background: var(--surface); color: var(--ink); border: 1px solid var(--line); padding: 10px 16px; border-radius: 10px; font-size: 13px; white-space: normal; max-width: calc(100vw - 32px); text-align: center; box-shadow: 0 16px 40px -12px rgba(9, 13, 22, .45), 0 0 0 1px rgba(9, 13, 22, .04); animation: toast-in .2s ease; }
+.toast a { color: #047857; border-bottom-color: #A7F3D0; }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
 .mehead { margin-bottom: 8px; } .mehead h2 { margin: 0; }
 .me .tablewrap { overflow-x: auto; }
@@ -1085,21 +1085,6 @@ td.c-roi b { font-size: 13px; }
 /* the home list: a row under the pointer keeps its light line (links elsewhere darken theirs) */
 .rrow:hover { border-color: var(--line); }
 
-/* the banner: three things that work today, two in development */
-.ai.feats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; padding: 0; overflow: hidden; }
-.feats .feat { padding: 20px 22px; display: grid; gap: 6px; align-content: start; }
-.feats .feat + .feat { border-left: 1px solid #1E293B; }
-.feats .ft { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.feats .ft b { font-size: 17px; font-weight: 600; letter-spacing: -.01em; color: #F8FAFC; }
-.feats .feat p { margin: 0; color: #94A3B8; font-size: 13.5px; line-height: 1.5; }
-.feats .ai-soon { position: static; }
-.feats .fnext { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 22px; border-top: 1px solid #1E293B; background: rgba(255, 255, 255, .02); }
-.feats .fnext span { font: 600 10px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: #64748B; margin-right: 4px; }
-.feats .fnext i { font-style: normal; font-size: 13px; color: #CBD5E1; border: 1px dashed #334155; border-radius: 999px; padding: 4px 11px; }
-@media (max-width: 720px) {
-  .ai.feats { grid-template-columns: 1fr; }
-  .feats .feat + .feat { border-left: 0; border-top: 1px solid #1E293B; }
-}
 .awin { display: inline; height: auto; padding: 0 1px; border: 0; border-bottom: 1px dashed #34D399; border-radius: 0; background: none; color: var(--ink); font: inherit; font-family: var(--mono); cursor: pointer; }
 .awin:hover { background: var(--sage); }
 

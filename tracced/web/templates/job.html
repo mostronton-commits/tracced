@@ -259,6 +259,7 @@
         if (sol == null) return '<b class="mono amt nosol ' + cls + '" title="This result was saved before tracced recorded SOL amounts">' + money(usd) + '</b>';
         return '<b class="mono insol ' + cls + '">' + EarlyCur.sol(sol) + '</b>';
       }
+      const QUIET = new Set(['seen-before', 'pre-range', 're-bought']);   // kept in the data, not shown: seen-before has its own mark
       function tagsHtml(o) {
         // a repeat, who the wallet is, then our rules as pictures with the rule in the tooltip
         const cx = crossings[o.w], idn = idents[o.w], b = bundle[o.w];
@@ -267,7 +268,7 @@
         const ids = idn ? EarlyTags.idMarks(idn) : '';
         if (ids) h += '<span class="ids">' + ids + '</span>';
         o.tags.forEach(t => {
-          if (t === 'seen-before') return;
+          if (QUIET.has(t)) return;
           h += t === 'bundle' && b ? EarlyTags.chip('bundle ×' + b.n, TAGDEF.bundle + ' — funder ' + short(b.funder)) : EarlyTags.chip(t, TAGDEF[t]);
         });
         return h;
@@ -663,7 +664,7 @@
       function renderTags(w) {
         // our tags as picture and word, then the person's own; seen-before has its own block further down
         const row = rowOf(w), mine = myTags(w);
-        const ours = row ? row.tags.filter(t => t && t !== 'seen-before')
+        const ours = row ? row.tags.filter(t => t && !QUIET.has(t))
           .map(t => EarlyTags.chip(t === 'bundle' && bundle[w] ? 'bundle ×' + bundle[w].n : t, TAGDEF[t], { text: true })).join('') : '';
         dtags.innerHTML = ours + mine.map(t => '<button type="button" class="tag mine" title="Your tag · click to remove">' + esc(t) + '</button>').join('')
           + (mine.length < MAX_TAGS ? '<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd wide" title="Your own tag for this wallet" aria-label="Add your own tag">' + PLUS + '<span>tag</span></button>' : '');
