@@ -3,7 +3,7 @@
 A Solana wallet signs a one-time message. That signature is the account: no password, no e-mail, no transaction,
 no fee.
 
-Works with Phantom, MetaMask and Rabby.
+Works with Phantom. On a phone, open tracced inside the Phantom app: the Connect button takes you there.
 
 ## Lists and saved analyses
 
