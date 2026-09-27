@@ -59,7 +59,7 @@
     {% for t in tokens %}
       <a class="rrow{{ ' ex' if t.example else '' }}" href="/token?mint={{ t.mint }}">
         <span class="sym">{{ t.symbol }}</span>
-        <span class="mono muted win"><span class="dtc" data-ms="{{ t.t_from }}">{{ t.t_from|dt }}</span> → <span class="dtc" data-ms="{{ t.t_to }}">{{ t.t_to|dt }}</span></span>
+        <span class="mono muted win" title="When this token was last analyzed">analyzed <span class="dtc" data-ms="{{ t.at }}">{{ t.at|dt }}</span></span>
         <span class="mono n">{{ t.ranges }} range{{ '' if t.ranges == 1 else 's' }}</span>
         <span class="mono n"{% if t.best %} title="Highest average exit cap ÷ average entry cap among its wallets, buys before the range included"{% endif %}>{% if t.best %}best {{ t.best|round(1) }}×{% endif %}</span>
         {% if t.example %}<span class="chip ex" title="Recorded token — press Analyze on a pump to replay the run, no requests">Demo</span>{% else %}<span class="chip st-{{ t.status }}">{{ {'running':'Running','done':'Done','error':'Error'}[t.status] }}</span>{% endif %}
