@@ -96,6 +96,7 @@ env.filters["dt"] = chart.fmt_dt
 env.filters["dtu"] = lambda ms: chart.fmt_dt(ms, year=True, utc=True)   # експорт: у файлі колонка мусить назвати зону
 env.filters["dty"] = lambda ms: chart.fmt_dt(ms, year=True)            # на сторінці зону називає перемикач у підвалі
 env.filters["dtl"] = chart.to_input
+env.filters["day"] = chart.fmt_day
 env.filters["mcap"] = chart.fmt_mcap
 env.filters["usd"] = _usd
 env.filters["num"] = _num
@@ -418,6 +419,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["feedback_throttle"] = Throttle(max_fails=5, window_s=3600, block_s=3600)       # п'ять листів на годину з однієї адреси
     app["usage_cache"], app["view_last"] = {}, {}                 # порахований дашборд на хвилину; останній перегляд сторінки
     app["credits"] = {"left": None, "at": 0}                     # залишок кредитів Data API: питаємо не частіше ніж раз на 10 хв
+    app["ai_balance"] = {"v": None, "at": 0}                     # залишок на відповіді агента (OpenRouter): так само раз на 10 хв
     app["ages"] = ages
     _share_st(st, app["st_slots"])
 
@@ -880,6 +882,22 @@ async def _credits_left(app):
 
 def _credits_reserve(s):
     return int(float(s.get("credits_month", 0) or 0) * float(s.get("credits_reserve_pct", 0) or 0) / 100)
+
+
+async def _ai_balance(app):
+    """Скільки лишилось на відповіді агента: ліміт ключа і гроші на акаунті OpenRouter, не частіше ніж раз на 10 хв (запити
+    безкоштовні, але не на кожне відкриття дашборда). None — агента на сервері нема або провайдер не відповів."""
+    c, a = app["ai_balance"], app.get("assistant")
+    if a is None or not hasattr(a, "balance"):
+        return None
+    if c["at"] and time.time() - c["at"] < CREDITS_TTL:
+        return c["v"]
+    try:
+        v = await asyncio.to_thread(a.balance)
+    except Exception:  # noqa: BLE001
+        v = None
+    c.update(v=v, at=time.time())
+    return v
 
 
 def _overview_cached(app, mint):
@@ -1583,6 +1601,7 @@ async def _budget(app):
     gcap = int(s.get("runs_global_per_day", 10))
     return {"credits_left": left, "credits_at": int(app["credits"]["at"] * 1000) or None,
             "credits_month": int(s.get("credits_month", 0) or 0), "reserve": _credits_reserve(s),
+            "renew_day": int(s.get("credits_renew_day") or 0), "ai": await _ai_balance(app),
             "runs_today": gcap - app["runs_daily"].left("global", gcap),
             "rpc": ages.budget.state() if ages is not None and getattr(ages, "budget", None) else None}
 
@@ -1619,7 +1638,8 @@ async def admin_page(request):
     events = [dict(e, **usage_mod.label(e)) for e in app["events"].tail(100)] if tab == "log" else []
     feedback = app["feedback"].recent(200)
     store = app["agent_store"]
-    return render("admin.html", request, u=u, budget=budget, events=events, period=period, include_team=include_team, tab=tab, tabs=ADMIN_TABS,
+    meters = usage_mod.credit_meters(budget, now_ms=int(time.time() * 1000))
+    return render("admin.html", request, u=u, budget=budget, meters=meters, events=events, period=period, include_team=include_team, tab=tab, tabs=ADMIN_TABS,
                   feedback=feedback, feedback_new=sum(1 for f in feedback if f.get("ts_ms", 0) >= u["since_ms"]),
                   usage_tz=app["s"].get("usage_tz") or "UTC", periods=list(usage_mod.PERIODS),
                   agent_cfg=store.config(), agent_history=store.history(10), agent_log=store.recent(50),

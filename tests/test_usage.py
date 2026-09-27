@@ -270,5 +270,62 @@ class TestZone(unittest.TestCase):
         self.assertEqual(noon.astimezone(usage.zone("")).hour, 12)      # не задано — UTC
 
 
+def utc(*a):
+    return int(datetime.datetime(*a, tzinfo=datetime.timezone.utc).timestamp() * 1000)
+
+
+class TestCreditMeters(unittest.TestCase):
+    """Смуга «Credits left»: скільки лишилось у постачальників, коли оновиться і чи вистачить до того."""
+
+    def test_the_renewal_keeps_its_day_and_a_short_month_takes_its_last_day(self):
+        self.assertEqual(usage.renewal(24, utc(2026, 9, 28, 12)), (utc(2026, 9, 24), utc(2026, 10, 24)))
+        self.assertEqual(usage.renewal(24, utc(2026, 9, 20)), (utc(2026, 8, 24), utc(2026, 9, 24)))
+        self.assertEqual(usage.renewal(24, utc(2026, 9, 24)), (utc(2026, 9, 24), utc(2026, 10, 24)))    # сам день — уже оновився
+        self.assertEqual(usage.renewal(31, utc(2027, 2, 10)), (utc(2027, 1, 31), utc(2027, 2, 28)))     # 31-ше в лютому — 28-ме
+        self.assertEqual(usage.renewal(15, utc(2026, 12, 20)), (utc(2026, 12, 15), utc(2027, 1, 15)))   # через Новий рік
+        self.assertEqual(usage.renewal(15, utc(2027, 1, 3)), (utc(2026, 12, 15), utc(2027, 1, 15)))
+        self.assertEqual(usage.renewal(0, utc(2026, 9, 28)), (None, None))                              # день невідомий
+
+    def test_solana_tracker_is_the_balance_against_the_plan(self):
+        b = {"credits_left": 992_687, "credits_month": 1_000_000, "reserve": 50_000, "renew_day": 24}
+        st, = usage.credit_meters(b, now_ms=utc(2026, 9, 28))
+        self.assertEqual((st["key"], st["left"], st["of"], st["renews_ms"], st["lasts"], st["level"]),
+                         ("st", 992_687, 1_000_000, utc(2026, 10, 24), True, "ok"))     # 7 313 за 4 дні: роки такого темпу
+        self.assertAlmostEqual(st["pct"], 99.2687)
+        fast, = usage.credit_meters(dict(b, credits_left=100_000), now_ms=utc(2026, 9, 28))
+        self.assertIs(fast["lasts"], False)                               # 900 000 за 4 дні: решти — на пів дня
+        self.assertAlmostEqual(fast["runs_out_ms"], utc(2026, 9, 28) + 38_400_000, delta=1)
+        self.assertEqual(fast["level"], "warn")
+        self.assertEqual(usage.credit_meters(dict(b, credits_left=40_000), now_ms=utc(2026, 9, 28))[0]["level"], "crit")   # під резервом
+        unknown, = usage.credit_meters(dict(b, credits_left=None), now_ms=utc(2026, 9, 28))
+        self.assertEqual((unknown["left"], unknown["pct"], unknown["lasts"], unknown["level"]), (None, None, None, "unknown"))
+        self.assertIsNone(usage.credit_meters(b, now_ms=utc(2026, 9, 24, 6))[0]["lasts"])       # менше доби циклу: судити рано
+        nod, = usage.credit_meters(dict(b, renew_day=0), now_ms=utc(2026, 9, 28))
+        self.assertEqual((nod["renews_ms"], nod["lasts"]), (None, None))
+
+    def test_helius_is_this_servers_share_of_the_calendar_month(self):
+        rpc, = usage.credit_meters({"rpc": {"month": "2026-09", "spent": 8_361, "limit": 250_000}}, now_ms=utc(2026, 9, 28))
+        self.assertEqual((rpc["key"], rpc["left"], rpc["of"], rpc["renews_ms"], rpc["lasts"], rpc["level"]),
+                         ("rpc", 241_639, 250_000, utc(2026, 10, 1), True, "ok"))
+        over, = usage.credit_meters({"rpc": {"spent": 260_000, "limit": 250_000}}, now_ms=utc(2026, 9, 28))
+        self.assertEqual((over["left"], over["level"], over["empty"], over["lasts"], over["runs_out_ms"]), (0, "crit", True, False, None))
+        dry, = usage.credit_meters({"credits_left": -30, "credits_month": 1_000_000, "renew_day": 24}, now_ms=utc(2026, 9, 28))
+        self.assertEqual((dry["empty"], dry["pct"], dry["level"]), (True, 0.0, "crit"))   # ST у мінусі: «used up», не дата
+        self.assertEqual(usage.credit_meters({"rpc": {"spent": 5, "limit": 0}}, now_ms=utc(2026, 9, 28)), [])   # без межі — без смуги
+
+    def test_the_agent_can_spend_the_lower_of_the_key_limit_and_the_account(self):
+        ai = {"key_limit": 3.0, "key_left": 2.961216, "key_reset": None, "week_usd": 0.0388, "account": 10.0, "account_left": 9.956}
+        now = utc(2026, 9, 27, 12)                                        # неділя: шість з половиною днів цього тижня
+        m, = usage.credit_meters({"ai": ai}, now_ms=now)
+        self.assertEqual((m["key"], m["left"], m["of"], m["renews_ms"], m["lasts"], m["level"]), ("ai", 2.96, 3.0, None, True, "ok"))
+        poor, = usage.credit_meters({"ai": dict(ai, account_left=0.1)}, now_ms=now)
+        self.assertEqual((poor["left"], poor["level"]), (0.1, "crit"))   # гроші на акаунті скінчаться раніше за ліміт ключа
+        self.assertEqual(usage.credit_meters({"ai": dict(ai, key_reset="monthly")}, now_ms=now)[0]["renews_ms"], utc(2026, 10, 1))
+        self.assertEqual(usage.credit_meters({"ai": dict(ai, key_reset="weekly")}, now_ms=now)[0]["renews_ms"], utc(2026, 9, 28))
+        only, = usage.credit_meters({"ai": {"account": 10.0, "account_left": 9.0}}, now_ms=now)
+        self.assertEqual((only["left"], only["of"], only["lasts"]), (9.0, 10.0, None))   # ключ без ліміту, темп невідомий
+        self.assertEqual(usage.credit_meters({"ai": None}, now_ms=now), [])
+
+
 if __name__ == "__main__":
     unittest.main()

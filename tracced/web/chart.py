@@ -42,6 +42,13 @@ def fmt_dt(ms, year=False, utc=False):
     return s + (" UTC" if utc else "")
 
 
+def fmt_day(ms):
+    """'Oct 24': a day without the time (renewal dates, UTC)."""
+    if not ms:
+        return "—"
+    return datetime.datetime.utcfromtimestamp(ms / 1000).strftime("%b %-d")
+
+
 def to_input(ms):
     """ms → value for <input type=datetime-local> (UTC)."""
     if not ms:

@@ -234,6 +234,29 @@ if AioHTTPTestCase:
             r = await self.client.post("/admin/usage/exclude", json={"wallet": user, "on": False}, headers=self.origin)
             self.assertEqual((await r.json())["excluded"], False)
 
+        async def test_credits_left_sit_above_every_tab_and_the_costs_tab_only_counts_spending(self):
+            class FakeAssistant:
+                model, asked = "fake", 0
+
+                def balance(self):
+                    FakeAssistant.asked += 1
+                    return {"key_limit": 3.0, "key_left": 2.5, "key_reset": None, "account": 10.0, "account_left": 9.0}
+            self.app["assistant"] = FakeAssistant()
+            self.app["s"].update(credits_month=1_000_000, credits_renew_day=24)
+            try:
+                for tab in ("overview", "log", "costs"):
+                    html = await (await self.client.get(f"/admin?tab={tab}")).text()
+                    self.assertIn("Credits left", html, tab)
+                    self.assertIn("of 1,000,000 · renews ", html, tab)             # баланс ключа ST (фейк: 100) проти тарифу
+                    self.assertIn("$2.50", html, tab)                               # ліміт ключа менший за гроші на акаунті
+                    self.assertIn("of $3.00 key limit · $9.00 on the account", html, tab)
+                self.assertEqual(FakeAssistant.asked, 1)                            # провайдера питаємо раз на 10 хв, не щоразу
+                self.assertIn("Solana Tracker spent", html)
+                self.assertNotIn("Solana Tracker left", html)                       # залишок — лише вгорі, без дубля
+                self.assertEqual((await self.client.get("/admin", headers={"Cookie": wallet_cookie(W1)})).status, 403)
+            finally:
+                self.app["assistant"] = None
+
         async def test_on_chain_facts_of_active_wallets_once_a_day(self):
             from tracced.web.app import refresh_onchain
             import time as _time

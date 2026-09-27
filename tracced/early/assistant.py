@@ -29,7 +29,7 @@ def parse_json(text):
 
 
 class Assistant:
-    def __init__(self, key, url=None, model=None, post=None, timeout=60, fallbacks=None):
+    def __init__(self, key, url=None, model=None, post=None, timeout=60, fallbacks=None, get=None):
         self.key = key
         self.url = (url or DEFAULT_URL).rstrip("/")
         self.model = model or DEFAULT_MODEL
@@ -38,6 +38,7 @@ class Assistant:
             fallbacks = [m.strip() for m in fallbacks.split(",")]
         self.fallbacks = [m for m in (fallbacks or []) if m and m != self.model]
         self._post = post or self._http
+        self._get = get or self._http_get
         self.calls = 0
 
     def _http(self, payload):
@@ -47,6 +48,32 @@ class Assistant:
                                               "X-Title": "tracced"}, method="POST")
         with urllib.request.urlopen(req, timeout=self.timeout) as r:
             return json.loads(r.read().decode())
+
+    def _http_get(self, path):
+        req = urllib.request.Request(self.url + path, headers={"Authorization": f"Bearer {self.key}", "User-Agent": "tracced/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read().decode())
+
+    def balance(self):
+        """Що лишилось на оплату відповідей (OpenRouter, обидва запити безкоштовні): ліміт самого ключа (`/key`) і гроші
+        на акаунті (`/credits`). Частина, на яку провайдер не відповів, — None; нічого — None."""
+        def data(path):
+            try:
+                d = self._get(path)
+            except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+                return None
+            return d.get("data") if isinstance(d, dict) and isinstance(d.get("data"), dict) else None
+        k, c = data("/key"), data("/credits")
+        if k is None and c is None:
+            return None
+        k, out = k or {}, {}
+        if isinstance(k.get("limit"), (int, float)):
+            out.update(key_limit=float(k["limit"]), key_left=float(k.get("limit_remaining") or 0), key_reset=k.get("limit_reset"))
+        if isinstance(k.get("usage_weekly"), (int, float)):
+            out["week_usd"] = float(k["usage_weekly"])
+        if c and isinstance(c.get("total_credits"), (int, float)):
+            out.update(account=float(c["total_credits"]), account_left=float(c["total_credits"]) - float(c.get("total_usage") or 0))
+        return out
 
     def payload(self, system, user, json_mode=True, reasoning=True):
         p = {"model": self.model, "temperature": 0.2, "max_tokens": MAX_TOKENS, "usage": {"include": True},
