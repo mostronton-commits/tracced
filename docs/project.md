@@ -1,6 +1,6 @@
 # The project
 
-Built in Ukraine for the Solana Crypto World's Fair, 2026. This is the argument behind the product, for anyone
+Built for the Colosseum Crypto World's Fair, 2026. This is the argument behind the product, for anyone
 deciding whether it is worth their time.
 
 ## The question

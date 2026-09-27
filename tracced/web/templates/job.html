@@ -93,7 +93,7 @@
       <label title="At least this many minutes from its entry to its first sale">Held, min <input type="number" data-f="hold" min="0" step="5" placeholder="min"></label>
       <span class="sep"></span>
       <span class="muted small">Hide:</span>
-      {% for k, d in TAGS.items() if k != 'seen-before' %}<button type="button" class="tagchip t-{{ k }}" data-hide="{{ k }}" title="Hide wallets tagged {{ k }}: {{ d }}">{{ k }}</button>{% endfor %}
+      {% for k, d in TAGS.items() if k not in ('seen-before', 'pre-range', 're-bought') %}<button type="button" class="tagchip t-{{ k }}" data-hide="{{ k }}" title="Hide wallets tagged {{ k }}: {{ d }}">{{ k }}</button>{% endfor %}
       {% if s.age_lookups_max %}<span class="muted small" id="enrich" title="{{ TAGS.fresh }}">wallet age…</span>{% endif %}
       <button type="button" class="ghost" id="fclear">Reset</button>
     </div>
@@ -195,7 +195,7 @@
       const FDEF = { inv: 0, pnl: null, sold: 0, buysMax: 0, hold: 0, exits: false, profit: false, hide: [], funder: '', repeat: false };
       const f = Object.assign({}, FDEF);
       try { const saved = JSON.parse(localStorage.getItem(FKEY) || '{}'); Object.keys(FDEF).forEach(k => { if (k in saved) f[k] = saved[k]; }); } catch (e) {}
-      f.hide = (f.hide || []).filter(t => t !== 'seen-before');       // a saved hide of repeats could not be undone from the chips
+      f.hide = (f.hide || []).filter(t => !['seen-before', 'pre-range', 're-bought'].includes(t));   // a saved hide these chips no longer offer could not be undone
       f.exits = f.profit = f.repeat = false;                          // the "Only" chips are gone: a saved one would hide rows for good
       const saveF = () => { try { localStorage.setItem(FKEY, JSON.stringify(f)); } catch (e) {} };
       const panel = document.getElementById('filters'), ftoggle = document.getElementById('ftoggle'), clearsel = document.getElementById('clearsel');

@@ -1023,7 +1023,7 @@ td.c-roi b { font-size: 13px; }
 #facts tbody tr.carded td { background: var(--sage); }
 
 /* ── wallet card v5 (28.09): a light head (logos of X, FOMO and the like read on it), the address never wraps ── */
-.wcard .drawer-head { background: #F1F5F9; border-bottom: 1px solid var(--line); padding: 12px 12px 12px 16px; }
+.wcard .drawer-head { background: var(--bg); border-bottom: 1px solid var(--line); padding: 12px 12px 12px 16px; }
 .wcard .dh-addr { flex-wrap: wrap; row-gap: 5px; }
 .wcard .dh-addr .mono { white-space: nowrap; }
 .wcard .dchips { margin-left: 4px; }
@@ -1037,7 +1037,7 @@ td.c-roi b { font-size: 13px; }
 .wrow .result.opened:hover { background: #F0FDF7; }
 
 /* ── the agent v2 (27.09): a dark head, quick questions first, a thread, the input at the bottom ── */
-.apanel .drawer-head { background: #F1F5F9; border-bottom: 1px solid var(--line); }
+.apanel .drawer-head { background: var(--bg); border-bottom: 1px solid var(--line); }
 .apanel .aht { display: grid; gap: 1px; } .apanel .aht b { font-size: 14px; } .apanel .aht span { color: var(--muted); font-size: 12px; }
 .apanel .drawer-head .x:hover { background: #E2E8F0; }
 .apanel-body { padding: 16px; }
@@ -1102,3 +1102,6 @@ td.c-roi b { font-size: 13px; }
 }
 .awin { display: inline; height: auto; padding: 0 1px; border: 0; border-bottom: 1px dashed #34D399; border-radius: 0; background: none; color: var(--ink); font: inherit; font-family: var(--mono); cursor: pointer; }
 .awin:hover { background: var(--sage); }
+
+/* the site's top bar sits above the card and the agent, so its wallet menu (Lists, Sign out) opens over them */
+header.top { position: relative; z-index: 45; }

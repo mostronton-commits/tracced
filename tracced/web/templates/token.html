@@ -55,12 +55,11 @@
     </div>
   </div>
   {% endif %}
-  <div class="row rowsfoot">{% if not is_demo %}
+  {% if not is_demo %}<div class="row rowsfoot">
     <button type="button" class="ghost" id="add">+ Add range</button>
     <button type="button" class="ghost" id="reset" title="Back to the detected pumps">Reset</button>
-    <span class="muted small">Range up to {{ s.max_window_hours }} h</span>{% else %}
-    <span class="muted small">Recorded ranges are fixed here. {% if acct %}Paste any token above to analyze your own — {{ s.runs_per_day|per_day }}.{% else %}<button type="button" class="link" data-wallet-signin>Connect a wallet</button> to analyze any token — {{ s.runs_per_day|per_day }}.{% endif %}</span>{% endif %}
-  </div>
+    <span class="muted small">Range up to {{ s.max_window_hours }} h</span>
+  </div>{% endif %}
 </section>
 
 <script>

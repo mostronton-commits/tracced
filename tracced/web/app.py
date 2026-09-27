@@ -1833,6 +1833,18 @@ def _demo(app):
     return app["demo"]
 
 
+_MADE2 = {}
+
+
+def _made2(job):
+    """Wallets of a finished analysis that sold at 2× their average entry or more: bought in the range, took the move."""
+    rows = (job.result or {}).get("rows") or []
+    key = (job.id, len(rows))
+    if key not in _MADE2:
+        _MADE2[key] = frozenset(r["wallet"] for r in rows if (r.get("multiple") or 0) >= 2 and r.get("wallet"))
+    return _MADE2[key]
+
+
 def _by_token(jobs, example_id=None):
     """Один запис на токен: скільки діапазонів по ньому проаналізовано і що з них вийшло.
 
@@ -1846,13 +1858,14 @@ def _by_token(jobs, example_id=None):
     for mint, js in groups.items():
         done = [j for j in js if j.status == "done" and j.result]
         best = max(((j.result.get("summary") or {}).get("best_multiple") or 0 for j in done), default=0)
+        made2 = len(set().union(*(_made2(j) for j in done))) if done else 0
         out.append({
             "mint": mint,
             "symbol": next((j.symbol for j in js if j.symbol), mint[:6]),
             "ranges": len(js),
             "t_from": min(j.t_from for j in js),
             "t_to": max(j.t_to for j in js),
-            "best": best,
+            "best": best, "made2": made2,
             "status": "running" if any(j.status in ("queued", "running") for j in js) else ("done" if done else "error"),
             "example": any(j.id == example_id for j in js),
             "at": max(j.created_ms or 0 for j in js),

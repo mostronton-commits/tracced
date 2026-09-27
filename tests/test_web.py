@@ -2196,7 +2196,8 @@ if AioHTTPTestCase:
         async def test_demo_ranges_are_fixed(self):
             seed_demo(self.tmp.name, self.app)
             html = await (await self.client.get(f"/token?mint={MINT}")).text()
-            self.assertIn("Recorded ranges are fixed here", html)
+            self.assertNotIn("Recorded ranges are fixed here", html)           # no standing note: a click on a field says it
+            self.assertIn("Demo ranges are fixed", html)
             self.assertIn("data-wallet-signin", html)                          # the nudge points to Connect, not a password
             self.assertNotIn('id="add"', html)                                 # no new ranges on the demo
             self.assertNotIn('id="reset"', html)

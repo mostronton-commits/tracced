@@ -61,7 +61,7 @@
         <span class="sym">{{ t.symbol }}</span>
         <span class="mono muted win" title="When this token was last analyzed">analyzed <span class="dtc" data-ms="{{ t.at }}">{{ t.at|dt }}</span></span>
         <span class="mono n">{{ t.ranges }} range{{ '' if t.ranges == 1 else 's' }}</span>
-        <span class="mono n"{% if t.best %} title="Highest average exit cap ÷ average entry cap among its wallets, buys before the range included"{% endif %}>{% if t.best %}best {{ t.best|round(1) }}×{% endif %}</span>
+        <span class="mono n"{% if t.made2 %} title="Wallets that bought inside the range and sold at 2× their average entry or more"{% endif %}>{% if t.made2 %}{{ t.made2 }} made 2×+{% endif %}</span>
         {% if t.example %}<span class="chip ex" title="Recorded token — press Analyze on a pump to replay the run, no requests">Demo</span>{% else %}<span class="chip st-{{ t.status }}">{{ {'running':'Running','done':'Done','error':'Error'}[t.status] }}</span>{% endif %}
         <span class="open">Open →</span>
       </a>
