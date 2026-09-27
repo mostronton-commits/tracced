@@ -7,8 +7,7 @@ Every figure on a result page comes from a swap that happened. Here is the path 
 The range decides **which wallets appear**. Their numbers come from all of that wallet's trades on the token:
 before the range, inside it, after it.
 
-So a wallet can show a bigger total than what it spent in your range. It was buying earlier, and the `pre-range`
-tag says so.
+So a wallet can show a bigger total than what it spent in your range: it was buying earlier too.
 
 The scope switch above the table recounts the same stored trades up to 24 or 48 hours after the range. It costs
 nothing: the trades are already here.
@@ -136,10 +135,10 @@ everyone. The 7-day view is counted from the same swaps and costs nothing extra.
 
 ## The AI agent
 
-The agent on a result page reads that analysis and nothing else. Open it and it writes three cards: what happened in
-the range, what a buyer should weigh, and whose wallets stand out by the method written under the card. Then ask it
-about the analysis, in your own language; the suggested questions under the cards are a place to start. A wallet it
-names opens its card.
+The agent on a result page reads that analysis and nothing else. Open it and pick a question (who sold the top,
+whether it was a bundled launch, who is still holding) or ask your own, in any language. **Summary of this pump**
+writes three cards: what happened in the range, what a buyer should weigh, and whose wallets stand out by the
+method written under the card. A wallet it names opens its card.
 
 It reads a digest that the site computes from the table: the counts, the top wallets, the bundles and fresh wallets,
 the token's creator. It does not compute a number of its own. Before an answer reaches the page, the code checks it:

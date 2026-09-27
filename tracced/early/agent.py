@@ -18,6 +18,8 @@ import re
 import statistics
 import time
 
+from .assistant import AssistantError
+
 EXCLUDABLE = ("bot-like", "bundle", "fresh", "sniper", "transfer-in", "pre-range")
 
 DEFAULT_METHOD = """How to read a pump on tracced.
@@ -39,8 +41,8 @@ Style: short, one fact a line, the most important first. No ratings, no advice, 
 DEFAULT_CONFIG = {
     "method": DEFAULT_METHOD,
     "watch": {"min_roi": 3.0, "min_hold_min": 10, "exclude": ["bot-like", "bundle", "fresh"], "n": 5},
-    "chips": ["Was this a bundled launch?", "Who took 3× or more and held over 10 minutes?",
-              "Where did the best exits happen?", "Who still holds, and how much?"],
+    "chips": ["Who sold the top?", "Was this a bundled launch?", "Who is still holding, and how much?",
+              "Who took 3× or more and held over 10 minutes?"],
 }
 
 LANGS = {"uk": "Ukrainian", "ru": "Russian", "en": "English", "pl": "Polish", "de": "German", "es": "Spanish",
@@ -406,7 +408,11 @@ class Agent:
         if dropped and len(cards["story"]) < 2:                 # вигадане число з'їло картку — один повтор з поправкою
             fix = user + "\n\nYour previous answer used numbers that are not in the digest: " + "; ".join(
                 x["why"] for x in dropped[:5]) + ". Use only numbers from the digest."
-            raw, usage2 = self.chat(system, fix)
+            try:
+                raw, usage2 = self.chat(system, fix)
+            except AssistantError as e:                         # повтор не вдався, але перша відповідь оплачена
+                e.usage = _add(usage, e.usage)
+                raise
             usage = _add(usage, usage2)
             cards, dropped = check_cards(raw, d, wmap)
         return dict(cards, model=self.model), dropped, usage

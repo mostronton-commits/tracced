@@ -94,16 +94,20 @@ class Assistant:
                 out = parse_json(text)
         except urllib.error.HTTPError as e:
             if e.code == 429:
-                raise AssistantError("The agent's model is busy right now. Try again in a minute.") from e
+                raise AssistantError("The agent's model is busy right now. Try again in a minute.", spent) from e
             if e.code == 402:
-                raise AssistantError("The agent's budget for its model is used up. The owner has been told.") from e
-            raise AssistantError(f"The agent's model answered HTTP {e.code}. Try again later.") from e
+                raise AssistantError("The agent's budget for its model is used up. The owner has been told.", spent) from e
+            raise AssistantError(f"The agent's model answered HTTP {e.code}. Try again later.", spent) from e
         except (urllib.error.URLError, TimeoutError) as e:
-            raise AssistantError("The agent's model did not answer in time. Try again in a minute.") from e
+            raise AssistantError("The agent's model did not answer in time. Try again in a minute.", spent) from e
         if out is None:
-            raise AssistantError("The agent did not return a usable answer. Try again.")
+            raise AssistantError("The agent did not return a usable answer. Try again.", spent)   # відповіді були, і за них заплачено
         return out, spent
 
 
 class AssistantError(Exception):
-    """A reason a person can read."""
+    """A reason a person can read; `usage` — what the calls before the failure already cost."""
+
+    def __init__(self, message, usage=None):
+        super().__init__(message)
+        self.usage = usage

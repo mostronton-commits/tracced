@@ -1,6 +1,7 @@
 /* Sign in with a Solana wallet: connect → sign a server-issued message → the server sets a cookie.
-   No libraries, no transaction. A fixed list — Phantom, MetaMask, Rabby — through Wallet Standard when the
-   wallet registers itself, or Phantom's injected provider; anything else is not offered. */
+   No libraries, no transaction. Phantom only (the owner's call): through Wallet Standard when it registers itself,
+   or its injected provider; any other wallet is not offered. On a phone without Phantom in the browser, the row opens
+   this page inside the Phantom app, where the wallet is. */
 (function () {
   const sheet = () => document.getElementById('wsheet'), list = () => document.getElementById('wlist'), st = () => document.getElementById('wstate');
   let onDone = null, busy = false, opener = null;
@@ -19,12 +20,12 @@
     try { window.dispatchEvent(new CustomEvent('wallet-standard:app-ready', { detail: { register: (...ws) => { ws.forEach(w => out.push(w)); return () => {}; } } })); } catch (e) {}
     return out.filter(w => w && w.features && w.features['standard:connect'] && w.features['solana:signMessage']);
   }
-  /* a fixed, short list in a fixed order: whatever else registers itself (OKX, Solflare, …) is not offered */
+  /* Phantom only: whatever else registers itself (MetaMask, Rabby, Solflare, …) is not offered */
   const KNOWN = [
-    { name: 'Phantom', url: 'https://phantom.com', legacy: () => (window.phantom && window.phantom.solana) || (window.solana && window.solana.isPhantom ? window.solana : null) },
-    { name: 'MetaMask', url: 'https://metamask.io' },
-    { name: 'Rabby', url: 'https://rabby.io' },
+    { name: 'Phantom', url: 'https://phantom.com/download', legacy: () => (window.phantom && window.phantom.solana) || (window.solana && window.solana.isPhantom ? window.solana : null) },
   ];
+  const onPhone = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (matchMedia('(pointer: coarse)').matches && innerWidth < 900);
+  const inPhantom = () => 'https://phantom.app/ul/browse/' + encodeURIComponent(location.href) + '?ref=' + encodeURIComponent(location.origin);
   function adapters() {
     const std = standardWallets();
     const byName = n => std.find(w => String(w.name || '').toLowerCase().startsWith(n.toLowerCase()));
@@ -61,6 +62,7 @@
       const msg = n.domain + ' wants you to sign in with your Solana account:\n' + pk + '\n\n' + n.statement + '\n\nNonce: ' + n.nonce + '\nIssued At: ' + n.issued_at;
       const sig = await a.sign(new TextEncoder().encode(msg));
       const v = await post('/auth/verify', { pubkey: pk, signature: b64(sig), message: msg, wallet: a.name });
+      document.documentElement.dataset.acct = '1';     // the page stays: its clicks now go to the owner's log too
       if (window.EarlyUI) EarlyUI.track('connect-done', { app: a.name });   // which wallet app, never the address
       const f = onDone; close();                       // close() drops the callback: take it first
       if (!f) {                                          // no callback: a page may leave a form to send once signed in (the 401 card), else reload
@@ -83,9 +85,10 @@
     const l = list(); l.innerHTML = '';
     const as = adapters();
     as.forEach(a => {
-      if (a.missing) {                                   // not installed: the same row, but it leads to the install page
-        const x = document.createElement('a'); x.className = 'button winstall'; x.href = a.url; x.target = '_blank'; x.rel = 'noopener';
-        x.innerHTML = '<span>' + a.name + '</span><small>Install ↗</small>'; l.appendChild(x); return;
+      if (a.missing) {                                   // not in this browser: on a phone open the page in the app, else install
+        const phone = onPhone(), x = document.createElement('a'); x.className = 'button winstall'; x.rel = 'noopener';
+        x.href = phone ? inPhantom() : a.url; if (!phone) x.target = '_blank';
+        x.innerHTML = '<span>' + a.name + '</span><small>' + (phone ? 'Open in the app ↗' : 'Install ↗') + '</small>'; l.appendChild(x); return;
       }
       const b = document.createElement('button'); b.type = 'button';
       if (a.icon && /^data:image\//.test(a.icon)) { const i = document.createElement('img'); i.src = a.icon; i.alt = ''; b.appendChild(i); }
@@ -93,12 +96,12 @@
       b.addEventListener('click', () => signIn(a));
       l.appendChild(b);
     });
-    if (!as.some(a => !a.missing)) state('No wallet found. Install one, then reload this page.');
+    if (!as.some(a => !a.missing)) state(onPhone() ? 'On a phone, tracced connects inside the Phantom app.' : 'Phantom is not in this browser. Install it, then reload this page.');
     s.hidden = false;
     const first = l.querySelector('button, a'); if (first) first.focus();
   }
   function close() { const s = sheet(); if (s) s.hidden = true; onDone = null; if (opener && opener.focus && document.contains(opener)) { try { opener.focus(); } catch (e) {} } opener = null; }
-  async function signOut() { try { await post('/auth/logout'); } catch (e) {} location.reload(); }
+  async function signOut() { if (window.EarlyUI) EarlyUI.flush(); try { await post('/auth/logout'); } catch (e) {} location.reload(); }
 
   document.addEventListener('click', e => {
     const t = e.target.closest('[data-wallet-signin]');

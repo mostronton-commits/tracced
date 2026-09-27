@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Wallet {{ d.pubkey[:4] }}…{{ d.pubkey[-4:] }} · tracced{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% macro dollars(v) %}{% if v %}${{ '%.4f'|format(v) if v < 1 else '%.2f'|format(v) }}{% else %}—{% endif %}{% endmacro %}
+{% block body %}
+{% set a = d.account %}{% set o = d.onchain or {} %}{% set i = o.idn or {} %}{% set q = o.p30 or {} %}{% set t = d.totals %}
+<section class="card me usage">
+  <div class="row mehead">
+    <h2><a href="/admin#wallets" class="muted">Usage</a> / <span class="mono" title="{{ d.pubkey }}">{{ d.pubkey[:6] }}…{{ d.pubkey[-4:] }}</span></h2>
+    <button type="button" class="ghost copy" data-copy="{{ d.pubkey }}" title="Copy address">⧉</button>
+    <a class="ext" href="https://solscan.io/account/{{ d.pubkey }}" target="_blank" rel="noopener" title="Solscan">Solscan ↗</a>
+    {% if is_admin %}<span class="uflag right">your wallet</span>
+    {% else %}<button type="button" class="ghost right" id="uexclude" data-wallet="{{ d.pubkey }}" data-on="{{ '0' if excluded else '1' }}"
+      title="A test or team wallet: its steps stop counting as a user's (its costs still count)">{{ 'Counted as a test wallet · undo' if excluded else 'Mark as a test wallet' }}</button>{% endif %}
+  </div>
+  <p class="muted small">
+    {% if i %}{% if i.type == 'kol' or 'kol' in (i.tags or []) %}★ KOL · {% endif %}{{ i.name or '' }}{% if i.twitter %} <a href="https://x.com/{{ i.twitter|replace('@', '') }}" target="_blank" rel="noopener">@{{ i.twitter|replace('@', '') }}</a>{% endif %} (per Solana Tracker) · {% endif %}
+    {{ a.wallet_app or 'wallet app unknown' }} · first sign-in <span class="dtc" data-ms="{{ d.first_ms or 0 }}">{{ (d.first_ms or 0)|dt }}</span>
+    {% if d.last_ms %} · last seen <span class="dtc" data-ms="{{ d.last_ms }}">{{ d.last_ms|dt }}</span>{% endif %}
+    · {{ (a.wallets or {})|length }} wallets saved, {{ (a.analyses or {})|length }} analyses saved
+  </p>
+  <div class="stats">
+    <div title="Days with any step, and visits (a visit ends after 30 minutes without a step)"><b>{{ t.days }} · {{ t.sessions }}</b><span>Days · visits</span></div>
+    <div><b>{{ t.views }}</b><span>Pages opened</span></div>
+    <div><b>{{ t.runs }}</b><span>Analyses run</span></div>
+    <div><b>{{ t.cards }}</b><span>Wallet cards opened</span></div>
+    <div><b>{{ t.asks }}</b><span>Questions to the agent</span></div>
+    <div title="Everything this wallet's steps cost, its analyses' background checks included"><b>{{ t.st|num }} · {{ t.rpc|num }}</b><span>Solana Tracker · Helius</span></div>
+    <div><b>{{ dollars(t.ai_usd) }}</b><span>AI</span></div>
+  </div>
+  {% if o %}
+  <div class="stats">
+    <div title="Its first transaction"><b>{% if o.age_ms %}{{ ((now - o.age_ms) / 86400000)|round|int }} d{% else %}—{% endif %}</b><span>Wallet age</span></div>
+    <div><b>{{ '%.2f'|format(o.sol) if o.sol is defined and o.sol is not none else '—' }}</b><span>SOL</span></div>
+    <div title="Its last 30 days on every token, counted by tracced's own ledger from its swaps"><b class="{{ 'pos' if (q.pnl_usd or 0) > 0 else ('neg' if (q.pnl_usd or 0) < 0 else '') }}">{{ q.pnl_usd|usd if q.pnl_usd is defined and q.pnl_usd is not none else '—' }}</b><span>30 d PnL</span></div>
+    <div><b>{% if q.win_rate is defined and q.win_rate is not none %}{{ (q.win_rate * 100)|round|int }}%{% else %}—{% endif %}</b><span>Win rate{% if q.closed %} · {{ q.closed }} closed{% endif %}</span></div>
+    <div><b>{{ q.swaps|num if q.swaps else '—' }}</b><span>Swaps · {{ q.tokens or 0 }} tokens</span></div>
+    <div><b class="small">{% if o.at %}<span class="dtc" data-ms="{{ o.at }}">{{ o.at|dt }}</span>{% else %}—{% endif %}</b><span>On-chain facts from</span></div>
+  </div>
+  {% endif %}
+</section>
+
+<section class="card me usage">
+  <div class="row mehead"><h2>Analyses</h2><span class="muted small">run by this wallet</span></div>
+  {% if d.runs %}
+  <div class="tablewrap"><table class="facts melist"><thead><tr><th>When</th><th>Token</th><th class="num">Wallets</th><th class="num">Solana Tracker</th><th class="num">Helius</th></tr></thead><tbody>
+  {% for r in d.runs %}<tr>
+    <td class="muted small"><span class="dtc" data-ms="{{ r.ts_ms }}">{{ r.ts_ms|dt }}</span></td>
+    <td><a href="/job/{{ r.job }}">{{ r.symbol or r.job }}</a>{% if not r.ok %} <span class="err" title="{{ r.err or '' }}">failed</span>{% endif %}{% if r.backfill %} <span class="uflag">saved</span>{% endif %}</td>
+    <td class="num mono">{{ r.rows|num if r.rows is not none else '—' }}</td>
+    <td class="num mono">{{ r.st_total|num if r.st_total is not none else '—' }}</td>
+    <td class="num mono">{{ r.rpc_total|num if r.rpc_total else '—' }}</td>
+  </tr>{% endfor %}
+  </tbody></table></div>
+  {% else %}<p class="muted">No analyses.</p>{% endif %}
+</section>
+
+<section class="card me usage">
+  <div class="row mehead"><h2>Questions to the agent</h2></div>
+  {% if d.agent %}
+  <div class="tablewrap"><table class="facts melist"><thead><tr><th>When</th><th>What</th><th>Answer</th><th class="num">Cost</th></tr></thead><tbody>
+  {% for e in d.agent %}<tr>
+    <td class="muted small"><span class="dtc" data-ms="{{ e.ts_ms }}">{{ e.ts_ms|dt }}</span></td>
+    <td class="small">{% if e.kind == 'ask' %}{{ e.q }}{% if e.chip %} <span class="uflag">suggested</span>{% endif %}{% else %}{{ e.kind }} · {{ e.lang }}{% endif %} <a class="muted" href="/job/{{ e.job }}">{{ (e.job or '')[:6] }}</a></td>
+    <td class="small">{% if e.error %}<span class="err">{{ e.error }}</span>{% elif e.on_topic == false %}<span class="err">off topic</span>{% else %}ok{% endif %}</td>
+    <td class="num mono small">{{ dollars(e.usage.cost if e.usage else 0) }}</td>
+  </tr>{% endfor %}
+  </tbody></table></div>
+  {% else %}<p class="muted">None.</p>{% endif %}
+</section>
+
+<section class="card me usage">
+  <div class="row mehead"><h2>Last 30 days, step by step</h2><span class="muted small">newest first; the same step in a row is folded</span></div>
+  {% for day in d.timeline %}
+  <h3 class="small uday">{{ day.day }}</h3>
+  <div class="recent">
+    {% for x in day.steps %}<div class="rrow evrow"><span class="muted small"><span class="dtc" data-ms="{{ x.ts_ms }}" data-short="1">{{ x.ts_ms|dt }}</span></span><span class="muted small">{{ x.event }}</span><span>{{ x.text }}{% if x.href %} <a href="{{ x.href }}">{{ x.link }}</a>{% endif %}{% if x.n > 1 %} <b class="mono">×{{ x.n }}</b>{% endif %}</span></div>{% endfor %}
+  </div>
+  {% else %}<p class="muted">Nothing in the last 30 days.</p>{% endfor %}
+</section>
+<script>
+(function () {
+  const b = document.getElementById('uexclude'); if (!b) return;
+  b.addEventListener('click', async () => {
+    b.disabled = true;
+    try { await EarlyWallet.post('/admin/usage/exclude', { wallet: b.dataset.wallet, on: b.dataset.on === '1' }); location.reload(); }
+    catch (e) { b.disabled = false; EarlyUI.toast(e.message); }
+  });
+})();
+</script>
+{% endblock %}

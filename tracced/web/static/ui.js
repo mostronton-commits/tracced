@@ -24,6 +24,7 @@
     const inSol = el.classList.contains('amt') && window.EarlyCur && EarlyCur.get() === 'sol' && el.dataset.sol !== undefined;
     const target = +(inSol ? el.dataset.sol : el.dataset.count), fmt = inSol ? EarlyCur.sol : (FMT[el.dataset.fmt || 'int'] || FMT.int);
     if (isNaN(target)) return;
+    el.classList.toggle('insol', inSol);                           // the Solana mark before the number
     if (reduced || target === 0) { el.textContent = fmt(target); return; }
     const dur = Math.min(1400, Math.max(300, 300 + 250 * Math.log10(Math.abs(target) + 1)));
     const t0 = performance.now();
@@ -63,14 +64,47 @@
     let t = document.querySelector('.toast'); if (!t) { t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
     t.innerHTML = html; t.hidden = false; clearTimeout(t._h); t._h = setTimeout(() => { t.hidden = true; }, ms || 4000);
   }
+  /* The owner's own log, only for a connected wallet (docs: Your account → What we record): a named click and a short
+     setting, never an address or anything typed. Queued and sent in one request every 15 s, at 20 clicks and when the
+     page hides; the server keeps a line only for a wallet that is signed in. */
+  const Q = [], seen = {}, T0 = Date.now();
+  let timer = null;
+  const signedIn = () => document.documentElement.dataset.acct === '1';
+  function flush() {
+    clearTimeout(timer); timer = null;
+    while (Q.length) {
+      const body = JSON.stringify({ e: Q.splice(0, 30) });
+      try { if (navigator.sendBeacon && navigator.sendBeacon('/me/usage', body)) continue; } catch (e) {}   // a string goes as text/plain
+      try { fetch('/me/usage', { method: 'POST', body, credentials: 'same-origin', keepalive: true }).catch(() => {}); } catch (e) {}
+    }
+  }
+  /* merge (ms): a burst of the same step keeps only its last setting, e.g. ticking rows one by one */
+  function use(name, props, merge) {
+    if (!signedIn()) return;
+    const now = Date.now(), key = name + JSON.stringify(props || {}), tail = Q[Q.length - 1];
+    if (seen[key] && now - seen[key] < 1500) return;                         // a double click is one click
+    seen[key] = now;
+    if (merge && tail && tail[0] === name && now - tail[2] < merge) { tail[1] = props || {}; tail[2] = now; return; }
+    Q.push([name, props || {}, now]);
+    if (Q.length >= 20) flush(); else if (!timer) timer = setTimeout(flush, 15000);
+  }
+  addEventListener('pagehide', () => { use('leave', { secs: Math.round((Date.now() - T0) / 1000) }); flush(); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
+
   /* A product step for Umami, the privacy-friendly analytics on the live site: what people do, never who they are
-     (no wallet addresses, at most one small property). Nothing happens where Umami is not loaded or is blocked. */
+     (no wallet addresses, at most one small property). Nothing happens where Umami is not loaded or is blocked.
+     A few steps also go to the owner's own log above (only for a connected wallet). */
+  const FWD = { 'show-more': 1, 'limit-window': 1, 'find-pump': 1, 'agent-open': 1 };
   function track(name, data) {
+    if (FWD[name]) use(name, data);
+    toUmami(name, data);
+  }
+  function toUmami(name, data) {
     // an inline script runs while the page is still parsed, before the deferred Umami script: wait for it
-    if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', () => track(name, data), { once: true }); return; }
+    if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', () => toUmami(name, data), { once: true }); return; }
     try { if (window.umami && typeof umami.track === 'function') umami.track(name, data); } catch (e) {}
   }
-  window.EarlyUI = { countUp, fmtShort, FMT, toast, menus, marks, track };
+  window.EarlyUI = { countUp, fmtShort, FMT, toast, menus, marks, track, use, flush };
 })();
 
 /* home: the address field "types" a made-up base58 address until the user touches it */
@@ -95,10 +129,45 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-copy]'); if (!b || !b.dataset.copy || !navigator.clipboard) return;
   e.stopPropagation();
+  EarlyUI.use('copy', { what: b.closest('#drawer') ? 'card' : b.closest('tr') ? 'row' : 'page' });   // where, never what
   navigator.clipboard.writeText(b.dataset.copy).then(() => {
     if (!b.dataset.was) b.dataset.was = b.innerHTML;
     b.textContent = '✓'; clearTimeout(b._h); b._h = setTimeout(() => { b.innerHTML = b.dataset.was; delete b.dataset.was; }, 1200);
   });
+});
+
+/* a card or the agent opens under the site's top bar: --dtop is where the bar's bottom edge is on screen now */
+(function () {
+  let raf = 0;
+  const set = () => { raf = 0; const bar = document.querySelector('header.top'); const h = bar ? Math.max(0, Math.round(bar.getBoundingClientRect().bottom)) : 0;
+    document.documentElement.style.setProperty('--dtop', h + 'px'); };
+  const soon = () => { if (!raf) raf = requestAnimationFrame(set); };
+  addEventListener('scroll', soon, { passive: true }); addEventListener('resize', soon);
+  document.addEventListener('DOMContentLoaded', set);
+})();
+
+/* seven quick clicks on the wordmark (the home title or the footer) rain candles; egg.js loads only then */
+(function () {
+  const src = document.currentScript && document.currentScript.src, v = src ? new URL(src).search : '';
+  let n = 0, t = 0;
+  document.addEventListener('click', e => {
+    const w = e.target.closest('.brandline, .foot-brand b'); if (!w) return;
+    const now = Date.now();
+    n = now - t < 700 ? n + 1 : 1; t = now;
+    if (n < 7) return;
+    n = 0;
+    if (window.EarlyEgg) { EarlyEgg.rain(w); return; }
+    const s = document.createElement('script');
+    s.src = '/static/egg.js' + v; s.onload = () => EarlyEgg.rain(w);
+    document.head.appendChild(s);
+  });
+})();
+
+/* a link out of tracced (Solscan, X, DexScreener): for the owner's log, which site, never the address in it */
+document.addEventListener('click', e => {
+  const a = e.target.closest('a[target=_blank]'); if (!a) return;
+  let h = ''; try { h = new URL(a.href).hostname.replace(/^www\./, ''); } catch (x) {}
+  EarlyUI.use('ext', { to: /solscan/.test(h) ? 'solscan' : (h === 'x.com' || h === 'twitter.com') ? 'x' : /dexscreener/.test(h) ? 'dexscreener' : /github/.test(h) ? 'github' : 'other' });
 });
 
 /* Markers that say what kind of wallet a row is, the way terminals do: a small picture per category, the rule or

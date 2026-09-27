@@ -31,32 +31,15 @@
   <em aria-hidden="true">→</em>
   <div><i>03</i><b>Get wallets</b></div>
 </section>
-
-<section class="ai" aria-label="AI agent">
-  <div class="ai-l">
-    <h2>AI reads the numbers. You decide.</h2>
-    <p>On every result, the agent reads the analysis and tells you what happened in the range, what to weigh and whose wallets stand out. Then it answers your questions about it.</p>
-  </div>
-  <ul class="ai-r">
-    <li>✦ Three cards the moment you open it</li>
-    <li>✦ Every line carries a number from the table, checked before you see it</li>
-    <li>✦ Ask in your language, get the answer in it</li>
-  </ul>
-  <span class="ai-soon">{{ 'Live on every result' if assistant_on else 'Coming next' }}</span>
-</section>
-
-
-
 {% if tokens %}
 <section class="card" id="recent">
   <div class="row mehead"><h2>Recently analyzed on tracced</h2>{% if acct %}<a class="right small" href="/me#analyses">My analyses ({{ my_n }}) →</a>{% endif %}</div>
-  <p class="muted small">Everyone's analyses, not only yours. A finished one opens for anyone, which is why a link you
-    share works and why opening one costs nothing. Who ran it is never shown.</p>
+  <p class="muted small">Everyone's analyses. Who ran them is never shown.</p>
   <div class="recent">
     {% for t in tokens %}
       <a class="rrow{{ ' ex' if t.example else '' }}" href="/token?mint={{ t.mint }}">
         <span class="sym">{{ t.symbol }}</span>
-        <span class="mono muted win"><span class="dtc" data-ms="{{ t.t_from }}">{{ t.t_from|dt }}</span> → <span class="dtc" data-ms="{{ t.t_to }}">{{ t.t_to|dt }}</span></span>
+        <span class="mono muted win" title="When this token was last analyzed">analyzed <span class="dtc" data-ms="{{ t.at }}">{{ t.at|dt }}</span></span>
         <span class="mono n">{{ t.ranges }} range{{ '' if t.ranges == 1 else 's' }}</span>
         <span class="mono n"{% if t.best %} title="Highest average exit cap ÷ average entry cap among its wallets, buys before the range included"{% endif %}>{% if t.best %}best {{ t.best|round(1) }}×{% endif %}</span>
         {% if t.example %}<span class="chip ex" title="Recorded token — press Analyze on a pump to replay the run, no requests">Demo</span>{% else %}<span class="chip st-{{ t.status }}">{{ {'running':'Running','done':'Done','error':'Error'}[t.status] }}</span>{% endif %}

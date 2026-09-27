@@ -8,8 +8,6 @@
     <ul>{% for p in nav %}
       <li><a href="/docs/{{ p.slug }}"{% if p.on %} class="on" aria-current="page"{% endif %}><i aria-hidden="true">{{ p.icon }}</i>{{ p.label }}</a></li>
     {% endfor %}</ul>
-    <p class="muted small">Written next to the code and shipped with it, so a page changes in the same commit as
-      the thing it describes. <a href="https://github.com/mostronton-commits/tracced" target="_blank" rel="noopener">Source ↗</a></p>
   </nav>
   <div class="docs-main">
     <article class="docs-body card">{{ body|safe }}</article>

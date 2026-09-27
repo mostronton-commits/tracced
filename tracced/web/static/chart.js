@@ -141,19 +141,20 @@
     function visible() { const r = chart.timeScale().getVisibleRange(); return r ? { a: r.from, b: r.to } : null; }
     function center() { const v = visible(); return v ? (v.a + v.b) / 2 : (created + now) / 2; }
 
-    async function setTf(newTf, keepView) {
+    async function setTf(newTf, keepView, start) {
       const v = visible();
       tf = newTf; gen++; data.clear(); times = []; loaded = { a: null, b: null }; edge = { left: false, right: false };
       const span = CHUNK[tf];
       let a, b;
       if (v && keepView) { const c = (v.a + v.b) / 2, w = Math.min(Math.max((v.b - v.a) * 1.2, span / 2), span); a = c - w / 2; b = c + w / 2; }
       else if (now - created <= span) { a = created; b = now; }
+      else if (start === 'recent') { a = now - span; b = now; }       // a token page opens on its latest hours
       else { const c = center(); a = c - span / 2; b = c + span / 2; }
       await load(...capSpan(a, b));
       if (!data.size && !(v && keepView)) {
-        // a cold start centred on the middle of a long life can land on hours with no trades: try the latest hours,
-        // then the first ones, before saying the chart is empty
-        for (const [x, y] of [[now - span, now], [created, created + span]]) { await load(...capSpan(x, y)); if (data.size) break; }
+        // a cold start can land on hours with no trades: try the latest hours, then the first ones, before saying
+        // the chart is empty
+        for (const [x, y] of [[now - span, now], [created, created + span]]) { if (start === 'recent' && x === a) continue; await load(...capSpan(x, y)); if (data.size) break; }
       }
       empty.hidden = data.size > 0;
       if (v && keepView) chart.timeScale().setVisibleRange({ from: Math.max(v.a, created), to: Math.min(v.b, now) });
@@ -194,12 +195,22 @@
     let soon = 0;
     function placeSoon() { if (!soon) soon = requestAnimationFrame(() => { soon = requestAnimationFrame(() => { soon = 0; place(); }); }); }
     chart.timeScale().subscribeVisibleTimeRangeChange(() => { place(); placeSoon(); });
-    let pickedW = 0;
+    let pickedW = 0, pickedDrawer = null;
+    /* A card or the agent docking beside the chart narrows it, and the library keeps the right edge: the range the
+       page is about slid out on the left. The class flips before the resize, so the hours in view are taken then and
+       put back once the chart has its new width. */
+    let keepRange = null, keepT = 0, lastDr = document.body.classList.contains('drawer-open');
+    new MutationObserver(() => {
+      const dr = document.body.classList.contains('drawer-open'); if (dr === lastDr) return;
+      lastDr = dr; const v = visible(); if (!v) return;
+      keepRange = { from: v.a, to: v.b }; clearTimeout(keepT); keepT = setTimeout(() => { keepRange = null; }, 600);   // a phone's full-screen card changes no width
+    }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
     new ResizeObserver(() => {
+      if (keepRange) { const k = keepRange; keepRange = null; requestAnimationFrame(() => { try { chart.timeScale().setVisibleRange(k); } catch (e) {} place(); }); }
       place();
       // turning a phone or narrowing a window by a third: re-pick the timeframe if the candles no longer fit
-      const w = box.clientWidth, v = visible();
-      if (!pickedW) { pickedW = w; return; }
+      const w = box.clientWidth, v = visible(), dr = document.body.classList.contains('drawer-open');
+      if (!pickedW || dr !== pickedDrawer) { pickedW = w; pickedDrawer = dr; return; }   // a card opening beside the chart keeps the timeframe
       if (!tf || !v || busy || Math.abs(w - pickedW) < pickedW * 0.3) return;
       pickedW = w;
       const want = pickTf(v.b - v.a);
@@ -325,24 +336,24 @@
 
     // timeframe buttons
     const tfs = document.createElement('div'); tfs.className = 'tfs';
-    Object.keys(TF_SEC).forEach(k => { const b = document.createElement('button'); b.type = 'button'; b.className = 'tf'; b.dataset.tf = k; b.textContent = k; b.addEventListener('click', () => setTf(k, true)); tfs.appendChild(b); });
-    const back = document.createElement('button'); back.type = 'button'; back.className = 'tf back'; back.textContent = '⌖ Range'; back.title = 'Bring the selected range back into view';
-    back.addEventListener('click', () => { const w = windows[selected] || windows[0]; if (w && w.from && w.to) focus(w.from, w.to, null); });
+    Object.keys(TF_SEC).forEach(k => { const b = document.createElement('button'); b.type = 'button'; b.className = 'tf'; b.dataset.tf = k; b.textContent = k; b.addEventListener('click', () => { setTf(k, true); if (window.EarlyUI) EarlyUI.use('tf', { tf: k }); }); tfs.appendChild(b); });
+    const back = document.createElement('button'); back.type = 'button'; back.className = 'tf back'; back.textContent = '⌖ Back to range'; back.title = 'Bring the range you marked back into view'; back.hidden = !windows.some(w => w && w.from && w.to);   // a result page has its range from the start
+    back.addEventListener('click', () => { const w = windows[selected] || windows[0]; if (w && w.from && w.to) focus(w.from, w.to, null); if (window.EarlyUI) EarlyUI.use('chart-nav', { to: 'range' }); });
     tfs.appendChild(back);
-    const launch = document.createElement('button'); launch.type = 'button'; launch.className = 'tf back'; launch.textContent = '⇤ Launch';
-    launch.title = 'The first hours of trading';
-    launch.addEventListener('click', () => focus(created, created + 3 * 3600, null));
+    const launch = document.createElement('button'); launch.type = 'button'; launch.className = 'tf back'; launch.textContent = '⇤ First hours';
+    launch.title = 'Jump to the first hours of trading, right after the token launched';
+    launch.addEventListener('click', () => { focus(created, created + 3 * 3600, null); if (window.EarlyUI) EarlyUI.use('chart-nav', { to: 'launch' }); });
     tfs.appendChild(launch);
     el.appendChild(tfs);
 
     return {
-      setWindows(ws, sel) { windows = normWins(ws); selected = sel; place(); },
+      setWindows(ws, sel) { windows = normWins(ws); selected = sel; back.hidden = !windows.some(w => w && w.from && w.to); place(); },
       setEvents(list) { events = (list || []).map(e => ({ ...e, sec: sec(e.ms) })).filter(e => e.sec); place(); },
       setExit(v) { exitSec = sec(v); place(); },
       setMarker(v) { marker = sec(v); place(); },
       setWalletMarkers(list) { wallets = list || []; renderMarkers(); },
       focus: (from, to, exit) => focus(sec(from), sec(to), sec(exit)),
-      setTf, init: async () => { await setTf(pickTf(now - created), false); },
+      setTf, init: async first => { if (first) await setTf(first, false, 'recent'); else await setTf(pickTf(now - created), false); },
       fmtMcap,
       candles: () => [...data.values()].sort((x, y) => x.time - y.time),   // loaded candles in market cap, oldest first
     };

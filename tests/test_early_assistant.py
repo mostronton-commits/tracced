@@ -66,6 +66,14 @@ class TestTransport(unittest.TestCase):
             Assistant("k", post=FakePost([urllib.error.URLError("timed out")])).json_chat("s", "u")
         self.assertIn("did not answer in time", str(c.exception))
 
+    def test_a_failed_answer_still_says_what_it_cost(self):
+        with self.assertRaises(AssistantError) as c:
+            Assistant("k", post=FakePost(["prose", "more prose"])).json_chat("s", "u")
+        self.assertAlmostEqual(c.exception.usage["cost"], 0.0002)           # дві відповіді — обидві оплачені
+        with self.assertRaises(AssistantError) as c:
+            Assistant("k", post=FakePost(["prose", http(429)])).json_chat("s", "u")
+        self.assertEqual(c.exception.usage["prompt_tokens"], 100)          # перша відповідь була, друга — ні
+
     def test_at_most_three_calls(self):
         post = FakePost([http(400), "prose", "prose", '{"never": 1}'])
         with self.assertRaises(AssistantError):

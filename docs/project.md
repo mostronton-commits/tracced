@@ -1,6 +1,6 @@
 # The project
 
-Built in Ukraine for the Solana Crypto World's Fair, 2026. This is the argument behind the product, for anyone
+Built for the Colosseum Crypto World's Fair, 2026. This is the argument behind the product, for anyone
 deciding whether it is worth their time.
 
 ## The question
@@ -50,8 +50,10 @@ Tags are facts with fixed definitions you can read: bought within 60 seconds of 
 hours, funded by the same wallet as others in the list. Each is derived from trades you can open yourself. The
 judgement stays with the person.
 
-No tracking of who you are. The live site counts visits and steps (a token opened, an analysis run, a card opened)
-with Umami, which sets no cookies, and never sends it a wallet address.
+No tracking by third parties. Visits are counted with Umami, which sets no cookies and never gets a wallet address.
+When you connect a wallet, tracced's own server also keeps what that wallet does here and what each step cost, so
+the owner can see how the product is used. None of it goes to anyone else:
+[what is recorded](/docs/account#what-we-record).
 
 ## Where to go next
 
@@ -60,4 +62,5 @@ with Umami, which sets no cookies, and never sends it a wallet address.
 | The demo | [open it, no sign-up]({{ '/token?mint=' ~ demo_token if demo_token else '/' }}) |
 | The code | [github.com/mostronton-commits/tracced](https://github.com/mostronton-commits/tracced) |
 | Updates | [@tracced_xyz](https://x.com/tracced_xyz) |
+| A bug, an idea, a question | [Contact](/feedback) |
 | Next to the terminals | [where this sits beside Axiom and GMGN](/docs/compare) |

@@ -8,7 +8,7 @@ the table and the wallet's card name every one of them in words.
 
 | Tag | The rule |
 |---|---|
-{% for k, d in TAGS.items() %}| `{{ k }}` | {{ d }} |
+{% for k, d in TAGS.items() if k not in ('pre-range', 're-bought') %}| `{{ k }}` | {{ d }} |
 {% endfor %}
 This table is generated from the definitions in the code — the same ones the tooltips show, so they cannot drift
 apart.

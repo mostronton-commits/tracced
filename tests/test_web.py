@@ -242,7 +242,7 @@ if AioHTTPTestCase:
             for path in ("/", "/docs"):
                 html = await (await self.client.get(path)).text()
                 self.assertIn('<footer class="foot"><div class="foot-in">', html)
-                self.assertIn(">v0.4<", html)                                   # product version, not the asset hash
+                self.assertIn(">v0.5<", html)                                   # product version, not the asset hash
                 self.assertIn('href="https://github.com/mostronton-commits/tracced"', html)
                 self.assertIn('href="https://x.com/tracced_xyz"', html)
             html = await (await self.client.get("/docs")).text()
@@ -268,8 +268,9 @@ if AioHTTPTestCase:
             self.assertIn('id="cur"', html)                                # перемикач USD | SOL над таблицею
             self.assertIn('class="button holo" id="askbtn"', html)         # сяйво лишилось тільки на кнопці агента
             for el in ('id="dtags"', 'id="dchips"', 'id="dprof"', 'id="dprofi"', 'id="dstar"', 'id="dcopy"',
-                       'id="dfacts"', 'id="dcross"', 'id="dtrades"', 'id="dnote"', 'id="dclose"'):
+                       'id="dcross"', 'id="dtrades"', 'id="dnote"', 'id="dclose"'):
                 self.assertIn(el, html)                                    # картка гаманця: секції, на які спирається скрипт
+            self.assertNotIn('id="dfacts"', html)                          # цифри цього токена — у таблиці, картка їх не повторює
             self.assertIn('class="button wl" id="watchbtn"', html)
             m = re.search(r'<script type="application/json" id="rowsdata">(.*?)</script>', html, re.S)
             table = json.loads(m.group(1))                                 # рядки йдуть даними, малює їх браузер
@@ -757,11 +758,25 @@ if AioHTTPTestCase:
 
         async def test_404_pages_and_client_ip(self):
             r = await self.client.get("/job/nope", headers=GUEST)
+            html = await r.text()
             self.assertEqual(r.status, 404)
-            self.assertIn("That didn't work", await r.text())            # брендована сторінка, не голий текст
+            self.assertIn("This page got rugged.", html)                  # мертве посилання — сторінка з Wick
+            self.assertIn("No such analysis.", html)                      # і причина під заголовком
             r = await self.client.get("/no-such-page", headers=GUEST)
+            html = await r.text()
             self.assertEqual(r.status, 404)
-            self.assertIn("<footer", await r.text())
+            self.assertIn("<footer", html)
+            self.assertIn('class="rug-scene"', html)
+            self.assertIn("gone, like the liquidity", html)
+            self.assertNotIn("404: Not Found", html)                      # не голий текст aiohttp
+            self.assertIsNone(CYRILLIC.search(html))
+            r = await self.client.get("/docs/nope", headers=GUEST)
+            self.assertIn("There is no such page in the documentation.", await r.text())
+            r = await self.client.get("/token?mint=bad", headers=GUEST)
+            html = await r.text()
+            self.assertEqual(r.status, 400)
+            self.assertIn("That didn't work", html)                       # інші помилки — звичайна сторінка з причиною
+            self.assertNotIn("rug-scene", html)
             from aiohttp.test_utils import make_mocked_request
             from tracced.web.app import _client_ip
             self.assertEqual(_client_ip(make_mocked_request("GET", "/", headers={"X-Forwarded-For": "2001:db8:abcd:1234:5:6:7:8"})), "2001:db8:abcd:1234::/64")
@@ -959,7 +974,7 @@ if AioHTTPTestCase:
             self.assertNotIn("Where this is going", html)               # roadmap removed for now
             self.assertIn("Paste address", html)
             self.assertIn("Get wallets", html)
-            self.assertIn("AI agent", html)
+            self.assertNotIn("feats", html)                            # no banner on the home page (the owner's call, 28.09)
             self.assertNotIn('href="/#recent"', html)                   # no Analyses in the top bar
             self.assertNotIn("Try a sample scan", html)
             self.assertIsNone(CYRILLIC.search(html))
@@ -1072,12 +1087,10 @@ if AioHTTPTestCase:
             self.assertEqual(page48.count("<b>Coming soon</b>"), 1)          # no key on this server: the button says so
             self.app["assistant"] = None                                 # …and then the home page must not promise it either
             home_off = await (await self.client.get("/")).text()
-            self.assertIn("Coming next", home_off)
-            self.assertNotIn("Live on every result", home_off)
+            self.assertNotIn("Live in beta", home_off)                     # the home page promises nothing about the agent
             self.assertIn("The agent is off on this server", await (await self.client.get("/docs/roadmap")).text())
             self.app["assistant"] = a
             home_on = await (await self.client.get("/")).text()
-            self.assertIn("Live on every result", home_on)               # with a key the promise is true
             r = await self.client.get("/")                               # home with a finished analysis: counters, sample, bg lines
             self.assertEqual(r.status, 200)
             home = await r.text()
@@ -1710,6 +1723,27 @@ class TestJobQueue(unittest.TestCase):
         with open(os.path.join(d, jid + ".json"), "w") as f:
             json.dump(job, f)
 
+    def test_every_finished_live_run_is_reported_once(self):
+        from tracced.web.jobs import JobQueue
+        with tempfile.TemporaryDirectory() as d:
+            self._file(d, "cut", status="running", result=None)            # обірваний рестартом
+            seen = []
+
+            def runner(job):
+                if job.mint.startswith("F"):
+                    raise RuntimeError("feed down")
+                return {"rows": []}
+            q = JobQueue(runner, d, on_finish=lambda j: seen.append((j.id, j.status)))
+            self.assertEqual(seen, [("cut", "error")])
+            q.submit("M" * 40, 1_000_000, 2_000_000)
+            q.submit("F" * 40, 1_000_000, 2_000_000)
+            q.submit("M" * 40, 3_000_000, 4_000_000, replay={"log": [], "result": {"rows": []}})
+            q.q.join()
+            q.rq.join()
+            self.assertEqual(sorted(st for _, st in seen[1:]), ["done", "error"])   # програвання демо — не прогін
+            JobQueue(runner, d, on_finish=lambda j: seen.append(j.id))
+            self.assertEqual(len(seen), 3)                                     # рестарт не повторює вже закінчені
+
     def test_results_without_names_are_named_once_newest_first(self):
         from tracced.web.jobs import JobQueue
         with tempfile.TemporaryDirectory() as d:
@@ -2160,7 +2194,8 @@ if AioHTTPTestCase:
         async def test_demo_ranges_are_fixed(self):
             seed_demo(self.tmp.name, self.app)
             html = await (await self.client.get(f"/token?mint={MINT}")).text()
-            self.assertIn("Recorded ranges are fixed here", html)
+            self.assertNotIn("Recorded ranges are fixed here", html)           # no standing note: a click on a field says it
+            self.assertIn("Demo ranges are fixed", html)
             self.assertIn("data-wallet-signin", html)                          # the nudge points to Connect, not a password
             self.assertNotIn('id="add"', html)                                 # no new ranges on the demo
             self.assertNotIn('id="reset"', html)
@@ -2245,7 +2280,7 @@ if AioHTTPTestCase:
                 self.assertEqual(r.status, 200, await r.text())
                 self.assertEqual(seen, [("Try this.", "preview", "Ukrainian", MINT)])   # спроба на демо, не збережена
                 self.assertEqual(self.app["agent_store"].config()["method"], "Read exits first.")
-                html = await (await self.client.get("/admin", headers=ha)).text()
+                html = await (await self.client.get("/admin?tab=method", headers=ha)).text()
                 self.assertIn("method v2", html)
                 self.assertIn("Read exits first.", html)
                 self.assertIsNone(CYRILLIC.search(html))
@@ -2275,10 +2310,14 @@ if AioHTTPTestCase:
             r = await self.client.get("/admin", headers=self._hdr(r_admin))
             html = await r.text()
             self.assertEqual(r.status, 200)
+            self.assertIn('data-count="2"', html)                                    # two accounts
+            html = await (await self.client.get("/admin?tab=log", headers=self._hdr(r_admin))).text()
             self.assertIn(pk_user[:6] + "…" + pk_user[-4:], html)
-            self.assertIn("Phantom", html)
             self.assertIn("saved 1 wallet from", html)
             self.assertIn("saved the analysis", html)
-            self.assertIn('data-count="2"', html)                                    # two accounts
-            self.assertIsNone(CYRILLIC.search(html))
+            html = await (await self.client.get("/admin?tab=wallets", headers=self._hdr(r_admin))).text()
+            self.assertIn("Phantom", html)
+            for tab in ("overview", "analyses", "agent", "wallets", "behavior", "costs", "log", "method"):
+                html = await (await self.client.get(f"/admin?tab={tab}", headers=self._hdr(r_admin))).text()
+                self.assertIsNone(CYRILLIC.search(html), tab)
             self.app["admins"] = set()

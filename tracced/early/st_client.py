@@ -7,6 +7,7 @@
 stats_cache тепер тримає угоди гаманця по токену (ключ trades:<mint>:<wallet>).
 Поля перевірені живцем 16.09.2026 (docs/early_spike.md).
 """
+import contextvars
 import time
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
@@ -60,7 +61,9 @@ class EarlyST(SolanaTracker):
         got, failed = {}, 0
         if chunks:
             with ThreadPoolExecutor(max_workers=max(1, min(workers, len(chunks))), thread_name_prefix="early-ident") as pool:
-                for chunk, res in zip(chunks, pool.map(one, chunks)):
+                # контекст кожному пакету: лічильник запитів того, хто питає імена (st.meter), бачить і ці запити
+                futs = [pool.submit(contextvars.copy_context().run, one, c) for c in chunks]
+                for chunk, res in zip(chunks, (f.result() for f in futs)):
                     if res is None:
                         failed += 1
                         continue

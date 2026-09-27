@@ -636,8 +636,8 @@ button.tzseg { background: transparent; padding: 0; height: auto; font: inherit;
 .saved { color: #B45309; margin-left: 5px; font-size: 12px; cursor: default; }
 button.saved { border: 0; background: transparent; padding: 0 2px; height: auto; cursor: pointer; } button.saved:hover { color: var(--red); background: transparent; }
 .savejob.on { color: #B45309; } .savejob:disabled { cursor: default; opacity: 1; }
-.toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 70; background: var(--navy); color: #F8FAFC; padding: 10px 16px; border-radius: 10px; font-size: 13px; white-space: normal; max-width: calc(100vw - 32px); text-align: center; box-shadow: 0 12px 30px -10px rgba(0, 0, 0, .5); animation: toast-in .2s ease; }
-.toast a { color: var(--mint); border-bottom-color: rgba(167, 243, 208, .4); }
+.toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 70; background: var(--surface); color: var(--ink); border: 1px solid var(--line); padding: 10px 16px; border-radius: 10px; font-size: 13px; white-space: normal; max-width: calc(100vw - 32px); text-align: center; box-shadow: 0 16px 40px -12px rgba(9, 13, 22, .45), 0 0 0 1px rgba(9, 13, 22, .04); animation: toast-in .2s ease; }
+.toast a { color: #047857; border-bottom-color: #A7F3D0; }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
 .mehead { margin-bottom: 8px; } .mehead h2 { margin: 0; }
 .me .tablewrap { overflow-x: auto; }
@@ -934,3 +934,159 @@ td.c-roi b { font-size: 13px; }
 /* sorting: the column headers do it on a wide screen; on a phone the table is cards without headers, so the list stays */
 .sortby { display: none; }
 @media (max-width: 640px) { .sortby { display: inline-flex; } }
+/* ── the owner's dashboard (/admin): period links, day bars, the funnel, small flags ── */
+.unav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 2px 0 10px; }
+.unav .seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.unav .seg a { border: 0; padding: 5px 11px; font-size: 12.5px; color: var(--muted); }
+.unav .seg a + a { border-left: 1px solid var(--line); }
+.unav .seg a.on { background: var(--sage); color: var(--ink); font-weight: 600; }
+.unav .uteam { font-size: 12.5px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); }
+.unav .uteam.on { background: #FEF3C7; border-color: #FCD34D; color: #92400E; }
+.unav .ujump { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-left: auto; }
+.unav .ujump a { color: var(--muted); border-bottom-color: transparent; } .unav .ujump a:hover { color: var(--ink); border-bottom-color: var(--line); }
+.usage .stats b small { font-size: 12px; font-weight: 500; }
+.usage .stats div { min-width: 150px; }
+.ucharts { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin: 4px 0 8px; }
+.ubars { margin: 0; border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px 8px; background: var(--surface); }
+.ubars figcaption { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.ubars figcaption b { font-weight: 500; }
+.ubars svg { display: block; width: 100%; height: 72px; }
+.ubars rect.b { fill: #6EE7B7; } .ubars rect.bad { fill: #FCA5A5; } .ubars rect:hover { opacity: .75; }
+.ubars path.axis { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; fill: none; }
+.uax { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 4px; }
+.ufun { display: grid; grid-template-columns: minmax(150px, 220px) 1fr 90px; gap: 10px; align-items: center; padding: 4px 0; font-size: 13px; }
+.ufun .bar { height: 12px; background: #F1F5F9; border-radius: 999px; overflow: hidden; }
+.ufun .bar i { display: block; height: 100%; background: #6EE7B7; border-radius: 999px; min-width: 2px; }
+.ufun .n { text-align: right; color: var(--muted); }
+.uflag { display: inline-block; font-size: 11px; line-height: 1; padding: 3px 7px; border-radius: 999px; border: 1px solid #FCD34D; background: #FEF3C7; color: #92400E; vertical-align: 1px; }
+.ucols { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; align-items: start; }
+.ubuckets p { margin: 0 0 10px; } .ubuckets span { display: inline-block; margin: 4px 12px 0 0; color: var(--muted); } .ubuckets span b { color: var(--ink); }
+.uday { margin: 14px 0 4px; color: var(--muted); font-weight: 600; }
+.uhead { padding-bottom: 0; }
+.utabs { display: flex; gap: 2px; margin: 4px -22px 0; padding: 0 22px; border-top: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.utabs::-webkit-scrollbar { display: none; }
+.utabs a { border: 0; border-bottom: 2px solid transparent; padding: 11px 12px 10px; font-size: 13.5px; color: var(--muted); white-space: nowrap; }
+.utabs a:hover { color: var(--ink); }
+.utabs a.on { color: var(--ink); font-weight: 600; border-bottom-color: #34D399; }
+.ubks { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px 18px; margin: 4px 0 14px; }
+.ubk { font-size: 12.5px; color: var(--muted); } .ubk b { display: block; color: var(--ink); font-size: 12.5px; margin-bottom: 3px; }
+.ubk span { display: inline-block; margin: 2px 10px 0 0; } .ubk i { font-style: normal; color: var(--ink); font-weight: 600; }
+.uwatch { margin: 4px 0 6px; padding-left: 18px; font-size: 13.5px; } .uwatch li { margin: 3px 0; }
+.usage h3.small { margin: 16px 0 6px; }
+@media (max-width: 640px) {
+  .ufun { grid-template-columns: 1fr 48px; } .ufun .bar { grid-column: 1 / -1; grid-row: 2; }
+  .utabs { margin: 4px -14px 0; padding: 0 14px; }            /* картка на телефоні має відступ 14px */
+  .unav .ujump { margin-left: 0; }
+  .usage .stats div { min-width: calc(50% - 4px); flex: 1 1 calc(50% - 4px); }
+  .me .rrow.evrow { grid-template-columns: 90px 1fr; row-gap: 2px; } .me .rrow.evrow > :nth-child(3) { grid-column: 1 / -1; }
+}
+/* ── «Contact»: the form and the owner's inbox ── */
+.fb textarea { width: 100%; font: inherit; border: 1px solid var(--line); border-radius: var(--r); padding: 9px 11px; resize: vertical; margin: 10px 0 8px; background: var(--surface); color: var(--ink); }
+.fb textarea:focus { outline: none; border-color: #86efac; box-shadow: 0 0 0 3px var(--sage); }
+.fb input[type=text] { width: 100%; margin-bottom: 12px; }
+.fbhp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.fbkinds { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.fbkind input { position: absolute; opacity: 0; pointer-events: none; }
+.fbkind span { display: inline-block; padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.fbkind input:checked + span { background: var(--sage); border-color: #A7F3D0; color: var(--ink); font-weight: 600; }
+.fbkind input:focus-visible + span { box-shadow: 0 0 0 3px var(--sage); }
+.fbdone { margin: 8px 0 0; }
+.ucount { display: inline-block; min-width: 18px; padding: 1px 6px; border-radius: 999px; background: #FEF3C7; color: #92400E; font-size: 11px; text-align: center; }
+.fblist { display: flex; flex-direction: column; gap: 10px; }
+.fbitem { border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; }
+.fbmeta { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.fbtext { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.uflag.fb-bug { border-color: #FECACA; background: #FEF2F2; color: #B91C1C; }
+.uflag.fb-idea { border-color: #A7F3D0; background: var(--sage); color: #065F46; }
+/* пасхалки: сторінка «rugged» з Wick і дощ свічок із назви (сім швидких кліків, egg.js вантажиться лише тоді) */
+.rugged .rug-scene { margin: 0 0 16px; }
+.rugged .rug-scene svg { display: block; width: 100%; height: auto; }
+.rugged .rug-scene figcaption { margin-top: 8px; text-align: center; }
+.rugged h2 { margin: 0 0 6px; }
+.rug-scene .wick { animation: wickbob 2.6s ease-in-out infinite; }
+@keyframes wickbob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+.brandline, .foot-brand b { -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+.eggfx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; }
+@media (prefers-reduced-motion: reduce) { .rug-scene .wick { animation: none; } }
+
+/* the AI banner: what a trader gets, as three short chips */
+.ai-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.ai-chips li { border: 1px solid #1F3B35; background: rgba(167, 243, 208, .08); color: #D1FAE5; padding: 7px 14px; border-radius: 999px; font-size: 14px; }
+.ai-chips li::first-letter { color: inherit; }
+@media (max-width: 720px) { .ai-chips { justify-content: flex-start; } }
+
+/* the wallet card and the agent sit beside the page on a wide screen, not over it: the chart and the table narrow instead */
+@media (min-width: 1200px) {
+  body.drawer-open main.wide { margin-right: 480px; max-width: min(var(--page), calc(100vw - 480px)); }
+  .drawer, .drawer.wcard { width: 480px; }
+}
+#facts tbody tr.carded td { background: var(--sage); }
+
+/* ── wallet card v5 (28.09): a light head (logos of X, FOMO and the like read on it), the address never wraps ── */
+.wcard .drawer-head { background: var(--bg); border-bottom: 1px solid var(--line); padding: 12px 12px 12px 16px; }
+.wcard .dh-addr { flex-wrap: wrap; row-gap: 5px; }
+.wcard .dh-addr .mono { white-space: nowrap; }
+.wcard .dchips { margin-left: 4px; }
+.wcard .drawer-head .dchip { background: var(--surface); }
+.wcard .wav { border-color: var(--line); background: var(--surface); }
+.wcard .dstar:hover, .wcard .drawer-head .x:hover { background: #E2E8F0; }
+.wcard .dstar.on { color: #D97706; }
+
+/* the token page: a range with a result is an outlined link, a range to run is the filled mint Analyze */
+.wrow .result.opened { background: transparent; border: 1px solid #6EE7B7; color: var(--ink); font-weight: 600; padding: 0 14px; height: 34px; display: inline-flex; align-items: center; border-radius: 8px; }
+.wrow .result.opened:hover { background: #F0FDF7; }
+
+/* ── the agent v2 (27.09): a dark head, quick questions first, a thread, the input at the bottom ── */
+.apanel .drawer-head { background: var(--bg); border-bottom: 1px solid var(--line); }
+.apanel .aht { display: grid; gap: 1px; } .apanel .aht b { font-size: 14px; } .apanel .aht span { color: var(--muted); font-size: 12px; }
+.apanel .drawer-head .x:hover { background: #E2E8F0; }
+.apanel-body { padding: 16px; }
+.apanel p.aintro { margin: 0 0 10px; padding: 0; border: 0; font-weight: 600; font-size: 15px; }
+.aquick { display: grid; gap: 8px; }
+.aqbtn { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; height: auto; text-align: left; padding: 11px 14px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font-size: 14px; font-weight: 500; cursor: pointer; }
+.aqbtn span { color: var(--muted); }
+.aqbtn:hover { border-color: #A7F3D0; background: #F6FEF9; }
+.aqbtn.asum { background: var(--navy); border-color: var(--navy); color: #F8FAFC; }
+.aqbtn.asum span { color: var(--mint); } .aqbtn.asum:hover { background: #172033; }
+.apanel p.aguest { margin: 10px 0 0; padding: 0; border: 0; }
+.athread { display: grid; gap: 16px; }
+.athread .aqa { border: 0; padding: 0; display: grid; gap: 8px; }
+.athread .aqq { justify-self: end; max-width: 85%; margin: 0; padding: 8px 12px; border-radius: 12px 12px 4px 12px; background: var(--navy); color: #F8FAFC; font-size: 13.5px; font-weight: 500; }
+.athread .aans { margin: 0; padding: 10px 12px 10px 28px; border: 1px solid var(--line); border-radius: 4px 12px 12px 12px; background: var(--surface); }
+.athread .aans.off { padding-left: 12px; }
+.athread .aa > p { margin: 0; padding: 0; border: 0; }
+.aload span { animation: ablink 1.2s infinite; } .aload span:nth-child(2) { animation-delay: .2s; } .aload span:nth-child(3) { animation-delay: .4s; }
+@keyframes ablink { 0%, 80%, 100% { opacity: .2; } 40% { opacity: 1; } }
+.awl { display: grid; gap: 6px; margin-top: 8px; }
+.awr { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 12.5px; }
+.awl .awallet { height: auto; padding: 3px 10px; border: 1px solid #A7F3D0; border-radius: 999px; background: #F6FEF9; color: var(--ink); font-size: 12px; cursor: pointer; }
+.awl .awallet:hover { background: var(--sage); }
+.athread .acard { margin: 0 0 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.athread .acard.risk { background: #FFFBEB; border-color: #FDE68A; }
+.athread .acard.watch { background: #F0FDF7; border-color: #A7F3D0; }
+.athread .acard.risk h4 { color: #92400E; } .athread .acard.watch h4 { color: #065F46; }
+.afoot { display: grid; gap: 8px; padding: 10px 16px 12px; border-top: 1px solid var(--line); background: var(--surface); }
+.afoot .aask { margin: 0; }
+.apanel p.anote { margin: 0; padding: 0; border: 0; }
+@media (prefers-reduced-motion: reduce) { .aload span { animation: none; } }
+
+/* SOL amounts: the Solana mark before the number, drawn in the text's own colour */
+.insol::before { content: ''; display: inline-block; width: .95em; height: .8em; margin-right: .28em; vertical-align: -.03em; background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 15'%3E%3Cpath d='M4 0h14l-4 4H0zM0 5.5h14l4 4H4zM4 11h14l-4 4H0z'/%3E%3C/svg%3E") no-repeat center / contain;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 15'%3E%3Cpath d='M4 0h14l-4 4H0zM0 5.5h14l4 4H4zM4 11h14l-4 4H0z'/%3E%3C/svg%3E") no-repeat center / contain; }
+
+/* the card and the agent open under the site's top bar, never over it: their top follows the bar's bottom edge while
+   it is on screen (ui.js keeps --dtop), and reaches the top once the bar has scrolled away */
+.drawer { top: var(--dtop, 0px); }
+.wcard .wav { width: 36px; height: 36px; border-radius: 10px; }
+@media (max-width: 640px) { .drawer { top: 0; } }   /* a phone: the card is the whole screen */
+
+/* the home list: a row under the pointer keeps its light line (links elsewhere darken theirs) */
+.rrow:hover { border-color: var(--line); }
+
+.awin { display: inline; height: auto; padding: 0 1px; border: 0; border-bottom: 1px dashed #34D399; border-radius: 0; background: none; color: var(--ink); font: inherit; font-family: var(--mono); cursor: pointer; }
+.awin:hover { background: var(--sage); }
+
+/* the site's top bar sits above the card and the agent, so its wallet menu (Lists, Sign out) opens over them */
+header.top { position: relative; z-index: 45; }

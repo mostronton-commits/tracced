@@ -14,6 +14,8 @@ MAX_PAGES; у другому випадку вік невідомий (`exact=Fa
 (не довше RETRY_AFTER_MAX). Один запит на гаманець, кеш 7 днів. Адресу ноди можна замінити через
 SOLANA_RPC_URL (платна нода → без пауз), але вона мусить зберігати повну історію підписів.
 """
+import contextlib
+import contextvars
 import email.utils
 import json
 import os
@@ -40,6 +42,23 @@ DEEP_PAGES = 30          # картка, яку відкрили: до 30 000 п
 TRUSTED_FROM = 1_790_035_200
 RETRY_SLEEP = (2, 4, 8)
 RETRY_AFTER_MAX = 10     # Retry-After слухаємо, але картку, що чекає на відповідь, довше не тримаємо
+
+
+_RPC = contextvars.ContextVar("rpc_meter", default=None)
+_RPC_LOCK = threading.Lock()
+
+
+@contextlib.contextmanager
+def rpc_meter():
+    """Кредити платної ноди, витрачені тим, хто відкрив лічильник (збагачення аналізу, картка гаманця), як st.meter()
+    для Solana Tracker. Лічильник живе в контексті: картка, що перевіряє гаманець у ту саму мить, у чужий не потрапляє.
+    Місячний MonthBudget рахує все разом; цей — лише своє, щоб дашборд власника знав, хто скільки витратив."""
+    m = {"credits": 0}
+    token = _RPC.set(m)
+    try:
+        yield m
+    finally:
+        _RPC.reset(token)
 
 
 def _retry_after(err, default):
@@ -175,7 +194,12 @@ class WalletAge:
                     with self._count_lock:
                         self.requests += 1
                     if paid:
-                        self.budget.spend(self._credits(method, node))   # невдала спроба теж оплачена
+                        c = self._credits(method, node)
+                        self.budget.spend(c)                        # невдала спроба теж оплачена
+                        m = _RPC.get()
+                        if m is not None:
+                            with _RPC_LOCK:
+                                m["credits"] += c
                     d = self._post(payload, url) if url else self._post(payload)
                     slot["last"] = time.monotonic()
                 except urllib.error.HTTPError as e:
@@ -373,6 +397,19 @@ class WalletAge:
         if self.cache is not None:
             self.cache.put(key, out)
         return out["service"]
+
+    def balances(self, wallets):
+        """SOL на гаманцях: getMultipleAccounts по 100 адрес за виклик на публічній ноді, тож 0 кредитів (перевірено
+        25.09.2026: значення йдуть у порядку адрес, гаманець без рахунку — null, тобто 0 SOL). Збій — виняток: дашборд
+        власника тоді лишає вчорашнє значення."""
+        out, ws = {}, list(dict.fromkeys(w for w in wallets if w))
+        for i in range(0, len(ws), 100):
+            chunk = ws[i:i + 100]
+            res = self._call("getMultipleAccounts", [chunk, {"encoding": "base64", "dataSlice": {"offset": 0, "length": 0}}],
+                             url=DEFAULT_URL, pace_s=self.tx_pace_s) or {}
+            for w, v in zip(chunk, res.get("value") or []):
+                out[w] = round(((v or {}).get("lamports") or 0) / 1e9, 4)
+        return out
 
     def funder_pending(self, wallet):
         """Дешева перевірка прочитала лише першу транзакцію, і спонсора там не було: пошук серед перших 100 ще не
