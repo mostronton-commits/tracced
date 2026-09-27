@@ -156,10 +156,6 @@
           </div>
         </div>
         <div class="dtags" id="dtags"></div>
-        <section class="dsec dtok">
-          <h4>On {{ job.symbol }}</h4>
-          <div id="dfacts"></div>
-        </section>
         <section class="dsec dperf">
           <div class="dsec-h"><h4>All tokens <span class="dinfo" id="dprofi" hidden>i</span></h4>
             <div class="seg" id="dper" role="tablist" aria-label="Period"><button type="button" data-p="7">7D</button><button type="button" data-p="30" class="on">30D</button></div></div>
@@ -261,7 +257,7 @@
         // one amount in the unit the footer switch shows; a result saved before SOL was recorded keeps its dollars, dimmed
         if (!SOLON) return '<b class="mono ' + cls + '">' + money(usd) + '</b>';
         if (sol == null) return '<b class="mono amt nosol ' + cls + '" title="This result was saved before tracced recorded SOL amounts">' + money(usd) + '</b>';
-        return '<b class="mono ' + cls + '">' + EarlyCur.sol(sol) + '</b>';
+        return '<b class="mono insol ' + cls + '">' + EarlyCur.sol(sol) + '</b>';
       }
       function tagsHtml(o) {
         // a repeat, who the wallet is, then our rules as pictures with the rule in the tooltip
@@ -828,7 +824,7 @@
         info.hidden = !p.swaps;
         info.classList.toggle('warn', !!(all.partial || p.unbacked_tokens));
         dprof.innerHTML = !p.swaps ? '<p class="dline muted small">No swaps in ' + p.days + ' days.</p>' :
-          '<div class="dhero"><div><span class="lbl">PnL</span><b class="big ' + cls + '">' + (sol ? EarlyCur.sol(p.pnl_sol) : money(p.pnl_usd)) + '</b></div>'
+          '<div class="dhero"><div><span class="lbl">PnL</span><b class="big ' + cls + '">' + (sol ? EarlyCur.solHtml(p.pnl_sol) : money(p.pnl_usd)) + '</b></div>'
           + '<div class="r" title="' + p.closed + ' closed positions · win streak ' + p.win_streak + ' d, loss streak ' + p.loss_streak + ' d"><span class="lbl">Win rate</span><b class="big">' + (p.win_rate == null ? '—' : Math.round(p.win_rate * 100) + '%') + '</b>'
           + '<span class="sub"><span class="pos">' + p.wins + 'W</span> <span class="neg">' + p.losses + 'L</span></span></div></div>'
           + spark(p)
@@ -884,27 +880,6 @@
           noteIn([w], d.list || 'main'); markSaved(); return true;
         } catch (e) { EarlyUI.toast(e.message); return false; }
       }
-      function renderPosition(row, o) {
-        // this token, the way a terminal shows a position: the result first, then how it got there
-        const cur = (window.EarlyCur && EarlyCur.get()) === 'sol', d = row;
-        if (!row) return '';
-        const amt = (usd, sol) => (cur && sol != null ? EarlyCur.sol(+sol) : money(+usd));
-        const cls = +d.real > 0 ? 'pos' : (+d.real < 0 ? 'neg' : '');
-        const eavg = +d.eavg || 0;                                // a page from before it was sent leaves the cell out
-        return '<div class="dhero"><div><span class="lbl">PnL</span><b class="big ' + cls + '">' + amt(d.real, d.realsol) + '</b>'
-          + '<span class="sub">sold ' + Math.round(+d.sold || 0) + '%' + (+d.hold ? ' · ' + holdText(+d.hold) + ' to first sale' : '') + '</span></div>'
-          + '<div class="r" title="Average exit cap ÷ average entry cap, buys before the range included"><span class="lbl">ROI</span>'
-          + '<b class="big ' + (+d.mult ? (+d.mult >= 1 ? 'pos' : 'neg') : '') + '">' + roiX(+d.mult) + '</b>'
-          + '<span class="sub">' + (+d.mult ? roiPct(+d.mult) : 'nothing sold') + '</span></div></div>'
-          + '<div class="dgrid">'
-          + '<div title="Its first buy inside the range"><span>Entry</span><b>' + ch.fmtMcap(+d.entry) + '</b></div>'
-          + (eavg ? '<div title="Over every buy on this token, before the range too"><span>Avg entry</span><b>' + ch.fmtMcap(eavg) + '</b></div>' : '')
-          + '<div><span>Avg exit</span><b>' + (+d.exitcap ? ch.fmtMcap(+d.exitcap) : '—') + '</b></div>'
-          + '<div title="Bought inside the range"><span>In range</span><b>' + amt(d.inv, d.invsol) + '</b></div>'
-          + '<div title="Bought on this token in total"><span>Total in</span><b>' + amt(d.tot, d.totsol) + '</b></div>'
-          + '<div><span>Sold for</span><b>' + amt(d.got, d.gotsol) + '</b></div>'
-          + '</div>';
-      }
       let cardSrc = 'row';                                       // where the card was opened from, for the owner's log
       function openStory(o) {
         if (drawer.hidden || drawer.dataset.w !== o.wallet) { EarlyUI.track('card-open'); EarlyUI.use('card-open', { src: cardSrc }); }
@@ -917,8 +892,7 @@
         document.getElementById('dcopy').dataset.copy = o.wallet;
         document.getElementById('dsol').href = 'https://solscan.io/account/' + o.wallet;
         syncStar(o.wallet); renderTags(o.wallet); renderIdent(o.wallet);
-        document.getElementById('dfacts').innerHTML = renderPosition(row, o);
-        dtrades.innerHTML = o.trades.map(t => '<tr class="' + t.side + '"><td class="mono dtc" data-ms="' + t.t + '">' + EarlyTZ.fmt(t.t, false) + '</td><td>' + (t.side === 'buy' ? '<b class="buy">▲ buy</b>' : '<b class="sell">▼ sell</b>') + '</td><td class="num mono">' + (cur && t.sol != null ? EarlyCur.sol(t.sol) : money(t.usd)) + '</td><td class="num mono">' + (t.qty ? ch.fmtMcap(t.qty) : '—') + '</td><td class="num mono">' + ch.fmtMcap(t.mcap) + '</td></tr>').join('');
+        dtrades.innerHTML = o.trades.map(t => '<tr class="' + t.side + '"><td class="mono dtc" data-ms="' + t.t + '">' + EarlyTZ.fmt(t.t, false) + '</td><td>' + (t.side === 'buy' ? '<b class="buy">▲ buy</b>' : '<b class="sell">▼ sell</b>') + '</td><td class="num mono">' + (cur && t.sol != null ? EarlyCur.solHtml(t.sol) : money(t.usd)) + '</td><td class="num mono">' + (t.qty ? ch.fmtMcap(t.qty) : '—') + '</td><td class="num mono">' + ch.fmtMcap(t.mcap) + '</td></tr>').join('');
         const cx = crossings[o.wallet] || [];
         document.getElementById('dcross').innerHTML = cx.length
           ? '<b>' + CHAIN + ' Seen in ' + cx.length + ' of your other analyses</b><ul>' + cx.map(c =>

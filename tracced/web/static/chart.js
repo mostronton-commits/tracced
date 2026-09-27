@@ -196,7 +196,17 @@
     function placeSoon() { if (!soon) soon = requestAnimationFrame(() => { soon = requestAnimationFrame(() => { soon = 0; place(); }); }); }
     chart.timeScale().subscribeVisibleTimeRangeChange(() => { place(); placeSoon(); });
     let pickedW = 0, pickedDrawer = null;
+    /* A card or the agent docking beside the chart narrows it, and the library keeps the right edge: the range the
+       page is about slid out on the left. The class flips before the resize, so the hours in view are taken then and
+       put back once the chart has its new width. */
+    let keepRange = null, keepT = 0, lastDr = document.body.classList.contains('drawer-open');
+    new MutationObserver(() => {
+      const dr = document.body.classList.contains('drawer-open'); if (dr === lastDr) return;
+      lastDr = dr; const v = visible(); if (!v) return;
+      keepRange = { from: v.a, to: v.b }; clearTimeout(keepT); keepT = setTimeout(() => { keepRange = null; }, 600);   // a phone's full-screen card changes no width
+    }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
     new ResizeObserver(() => {
+      if (keepRange) { const k = keepRange; keepRange = null; requestAnimationFrame(() => { try { chart.timeScale().setVisibleRange(k); } catch (e) {} place(); }); }
       place();
       // turning a phone or narrowing a window by a third: re-pick the timeframe if the candles no longer fit
       const w = box.clientWidth, v = visible(), dr = document.body.classList.contains('drawer-open');

@@ -24,6 +24,7 @@
     const inSol = el.classList.contains('amt') && window.EarlyCur && EarlyCur.get() === 'sol' && el.dataset.sol !== undefined;
     const target = +(inSol ? el.dataset.sol : el.dataset.count), fmt = inSol ? EarlyCur.sol : (FMT[el.dataset.fmt || 'int'] || FMT.int);
     if (isNaN(target)) return;
+    el.classList.toggle('insol', inSol);                           // the Solana mark before the number
     if (reduced || target === 0) { el.textContent = fmt(target); return; }
     const dur = Math.min(1400, Math.max(300, 300 + 250 * Math.log10(Math.abs(target) + 1)));
     const t0 = performance.now();

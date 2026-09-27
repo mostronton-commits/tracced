@@ -268,8 +268,9 @@ if AioHTTPTestCase:
             self.assertIn('id="cur"', html)                                # перемикач USD | SOL над таблицею
             self.assertIn('class="button holo" id="askbtn"', html)         # сяйво лишилось тільки на кнопці агента
             for el in ('id="dtags"', 'id="dchips"', 'id="dprof"', 'id="dprofi"', 'id="dstar"', 'id="dcopy"',
-                       'id="dfacts"', 'id="dcross"', 'id="dtrades"', 'id="dnote"', 'id="dclose"'):
+                       'id="dcross"', 'id="dtrades"', 'id="dnote"', 'id="dclose"'):
                 self.assertIn(el, html)                                    # картка гаманця: секції, на які спирається скрипт
+            self.assertNotIn('id="dfacts"', html)                          # цифри цього токена — у таблиці, картка їх не повторює
             self.assertIn('class="button wl" id="watchbtn"', html)
             m = re.search(r'<script type="application/json" id="rowsdata">(.*?)</script>', html, re.S)
             table = json.loads(m.group(1))                                 # рядки йдуть даними, малює їх браузер

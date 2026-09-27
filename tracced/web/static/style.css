@@ -1042,9 +1042,14 @@ td.c-roi b { font-size: 13px; }
 .wcard .dtok { background: #F6FEF9; border-top: 0; }
 .wcard .dtok h4 { color: var(--ink); }
 
-/* the token page: a range with a result is navy with a tick, a range to run stays mint */
-.wrow .result.opened { background: var(--navy); border: 1px solid var(--navy); color: #F8FAFC; font-weight: 600; padding: 0 14px; height: 36px; display: inline-flex; align-items: center; border-radius: 8px; }
-.wrow .result.opened:hover { background: #172033; }
+/* the token page: a range with a result is an outlined link, a range to run is the filled mint Analyze; the times are
+   short typed fields, no date picker */
+.wrow .result.opened { background: transparent; border: 1px solid #6EE7B7; color: var(--ink); font-weight: 600; padding: 0 14px; height: 34px; display: inline-flex; align-items: center; border-radius: 8px; }
+.wrow .result.opened:hover { background: #F0FDF7; }
+.wrow { padding: 6px 10px; }
+.wrow input.dt { flex: none; min-width: 0; width: 124px; height: 32px; padding: 0 8px; font: 13px var(--mono); border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.wrow input.dt:focus { outline: none; border-color: #86efac; box-shadow: 0 0 0 3px var(--sage); }
+.wrow input.dt.bad { border-color: var(--red); box-shadow: 0 0 0 3px #FEE2E2; }
 /* chart toolbar: the log switch lights up like a timeframe */
 .chartbox .tf.tlog.on { background: var(--mint); border-color: var(--mint); color: var(--navy); font-weight: 600; }
 
@@ -1082,3 +1087,16 @@ td.c-roi b { font-size: 13px; }
 .afoot .aask { margin: 0; }
 .apanel p.anote { margin: 0; padding: 0; border: 0; }
 @media (prefers-reduced-motion: reduce) { .aload span { animation: none; } }
+
+/* SOL amounts: the Solana mark before the number, drawn in the text's own colour */
+.insol::before { content: ''; display: inline-block; width: .95em; height: .8em; margin-right: .28em; vertical-align: -.03em; background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 15'%3E%3Cpath d='M4 0h14l-4 4H0zM0 5.5h14l4 4H4zM4 11h14l-4 4H0z'/%3E%3C/svg%3E") no-repeat center / contain;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 15'%3E%3Cpath d='M4 0h14l-4 4H0zM0 5.5h14l4 4H4zM4 11h14l-4 4H0z'/%3E%3C/svg%3E") no-repeat center / contain; }
+
+/* the card's and the agent's dark head continue the site's top bar: the same 59px, and the drawer's light edge starts
+   below it, so no seam shows on the dark part */
+.wcard .drawer-head, .apanel .drawer-head { height: 59px; padding-top: 0; padding-bottom: 0; box-sizing: border-box; }
+.wcard .wav { width: 36px; height: 36px; border-radius: 10px; }
+.drawer { border-left: 0; }
+.drawer::before { content: ''; position: absolute; left: 0; top: 59px; bottom: 0; width: 1px; background: var(--line); z-index: 3; pointer-events: none; }
+@media (max-width: 640px) { .drawer::before { display: none; } }

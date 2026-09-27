@@ -36,8 +36,9 @@ window.EarlyCur = (function () {
   function sol(v) {
     const n = Math.abs(+v), s = v < 0 ? '-' : '';
     const d = n >= 100 ? 0 : n >= 10 ? 1 : n >= 1 ? 2 : 3;
-    return s + '\u25CE' + n.toFixed(d);
+    return s + n.toFixed(d);                                   // the Solana mark comes from CSS (.insol), not a glyph
   }
+  const solHtml = v => '<span class="insol">' + sol(v) + '</span>';
   function apply() {
     const on = cur === 'sol';
     document.querySelectorAll('.amt[data-usd]').forEach(el => {
@@ -45,6 +46,7 @@ window.EarlyCur = (function () {
       if (on && v === undefined) { el.classList.add('nosol'); el.title = 'This result was saved before tracced recorded SOL amounts'; return; }
       el.classList.remove('nosol'); el.removeAttribute('title');
       el.textContent = v === '' || v === undefined ? '\u2014' : (on ? sol(v) : el.dataset.usdText || el.textContent);
+      el.classList.toggle('insol', on && v !== '' && v !== undefined);
     });
     const b = document.getElementById('cur');
     if (b) b.querySelectorAll('b').forEach((x, i) => x.classList.toggle('on', i === (on ? 1 : 0)));
@@ -54,7 +56,7 @@ window.EarlyCur = (function () {
     document.querySelectorAll('.amt[data-usd]').forEach(el => { el.dataset.usdText = el.textContent; });
     apply();
   });
-  return { get: () => cur, sol, apply, toggle };
+  return { get: () => cur, sol, solHtml, apply, toggle };
 })();
 </script>
 {% block head %}{% endblock %}
@@ -75,7 +77,7 @@ window.EarlyCur = (function () {
 <footer class="foot"><div class="foot-in">
   <div class="foot-top">
     <div class="foot-brand"><b>tracced</b><span class="muted mono">every wallet on the record</span>
-      <div class="foot-meta"><span class="mono muted">◎ Built on Solana · <span title="assets {{ v }}">v{{ version }}</span></span>
+      <div class="foot-meta"><span class="mono muted"><span class="insol" aria-hidden="true"></span>Built on Solana · <span title="assets {{ v }}">v{{ version }}</span></span>
         <button type="button" class="tzseg" id="tz" title="Time zone for all dates" aria-label="Time zone for all dates" onclick="EarlyTZ.toggle()"><b class="on">UTC</b><b>Local</b></button></div></div>
     <nav class="foot-cols" aria-label="Site">
       <div><b>Product</b>
