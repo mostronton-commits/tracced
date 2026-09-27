@@ -1,21 +1,19 @@
 {% extends "base.html" %}
-{% block title %}Write to us · tracced{% endblock %}
+{% block title %}Contact · tracced{% endblock %}
 {% block main_class %}center{% endblock %}
 {% block body %}
 <section class="card narrow fb">
-  <h2>Write to us</h2>
-  <p class="muted small">A bug, an idea, a question. Every message is read.</p>
+  <h2>Contact</h2>
   <form id="fbform" novalidate>
     <div class="fbkinds" role="radiogroup" aria-label="What is it about">
       {% for k in kinds %}<label class="fbkind"><input type="radio" name="kind" value="{{ k }}"{% if k == kind %} checked{% endif %}><span>{{ {'bug': 'Bug', 'idea': 'Idea', 'question': 'Question', 'other': 'Other'}[k] }}</span></label>{% endfor %}
     </div>
-    <textarea name="text" rows="6" maxlength="{{ max_text }}" required aria-label="Your message" placeholder="What happened, or what would you like to see?"></textarea>
-    <input type="text" name="contact" maxlength="{{ max_contact }}" aria-label="How to reach you" placeholder="Your X, Telegram or email (optional)">
+    <textarea name="text" rows="6" maxlength="{{ max_text }}" required aria-label="Your message" placeholder="Your message"></textarea>
+    <input type="text" name="contact" maxlength="{{ max_contact }}" aria-label="How to reach you" placeholder="X, Telegram or email (optional)">
     <input type="text" name="website" class="fbhp" tabindex="-1" autocomplete="off" aria-hidden="true">
     <div class="row"><button type="submit" class="primary">Send</button><span class="muted small" id="fbstat" role="status"></span></div>
-    <p class="muted small">Kept with the message: the page you came from{% if acct %} and your wallet{% endif %}. Only the owner reads them.</p>
   </form>
-  <p class="fbdone" hidden>Thanks, it is with us. <a href="/">Back to tracced</a></p>
+  <p class="fbdone" hidden>Sent. Thank you. <a href="/">Back to tracced</a></p>
 </section>
 <script>
 (function () {

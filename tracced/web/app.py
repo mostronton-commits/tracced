@@ -414,7 +414,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["browse_daily"] = DailyCount(daily_dir / "browse.json")   # запити на графіки живих токенів: на адресу, на гаманець, на сайт
     app["runs_daily"] = DailyCount(daily_dir / "runs.json")       # живі прогони на весь сайт за добу (будь-який ключ підписує безкоштовно)
     app["usage_daily"] = DailyCount(daily_dir / "usage.json")     # рядків журналу (перегляди, кліки) на гаманець і на сайт за добу
-    app["feedback"] = FeedbackStore(Path(out_dir).parent / "feedback" / "feedback.jsonl")   # «Write to us»: листи власнику
+    app["feedback"] = FeedbackStore(Path(out_dir).parent / "feedback" / "feedback.jsonl")   # «Contact»: листи власнику
     app["feedback_throttle"] = Throttle(max_fails=5, window_s=3600, block_s=3600)       # п'ять листів на годину з однієї адреси
     app["usage_cache"], app["view_last"] = {}, {}                 # порахований дашборд на хвилину; останній перегляд сторінки
     app["credits"] = {"left": None, "at": 0}                     # залишок кредитів Data API: питаємо не частіше ніж раз на 10 хв
@@ -1890,7 +1890,7 @@ async def docs_page(request):
 
 
 async def feedback_page(request):
-    """«Write to us»: помилка, ідея, питання. Відкрито всім; зі сторінки помилки — одразу «Bug»."""
+    """«Contact»: помилка, ідея, питання. Відкрито всім; зі сторінки помилки — одразу «Bug»."""
     kind = request.query.get("kind") if request.query.get("kind") in FEEDBACK_KINDS else "idea"
     _view(request, "feedback")
     return render("feedback.html", request, kind=kind, kinds=FEEDBACK_KINDS, max_text=FEEDBACK_TEXT, max_contact=FEEDBACK_CONTACT)
@@ -1917,7 +1917,7 @@ async def feedback_post(request):
     if len(text) > FEEDBACK_TEXT:
         return _jerr(f"Keep it under {FEEDBACK_TEXT:,} characters.")
     if not app["usage_daily"].take("feedback:global", int(app["s"].get("feedback_per_day", 200))):
-        return _jerr("Too many messages today. Try again tomorrow or write to us on X.", 429)
+        return _jerr("Too many messages today. Try again tomorrow or reach us on X.", 429)
     app["feedback_throttle"].miss(ip, now)
     page = str(body.get("page") or "")
     pk, kind = request.get("acct"), body.get("kind") if body.get("kind") in FEEDBACK_KINDS else "other"

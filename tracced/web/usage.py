@@ -578,7 +578,7 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
 # ───────────────────────── події людською мовою ─────────────────────────
 
 PAGES = {"home": "the home page", "token": "a token", "job": "a result", "me": "their lists", "docs": "the docs",
-         "feedback": "the Write to us form", "other": "a page"}
+         "feedback": "the Contact form", "other": "a page"}
 SPEND_OF = {"st": "Solana Tracker requests", "rpc": "Helius credits"}
 
 

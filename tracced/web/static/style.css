@@ -512,7 +512,7 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .foot b { color: #F8FAFC; }
 .foot a, .foot .link { color: #CBD5E1; border-bottom-color: #334155; } .foot a:hover, .foot .link:hover { color: #F8FAFC; }
 .ai { display: grid; grid-template-columns: 1.1fr 1fr; gap: 24px; align-items: center; position: relative; background: linear-gradient(120deg, #0B1220, #090D16); color: #E2E8F0; border: 1px solid #1E293B; border-radius: 10px; padding: 22px 24px; margin: 0 0 16px; }
-.ai h2 { margin: 0 0 6px; font-size: 20px; letter-spacing: -.01em; color: #F8FAFC; }
+.ai h2 { margin: 0 0 8px; font-size: 32px; line-height: 1.1; letter-spacing: -.02em; color: #F8FAFC; text-wrap: balance; }
 .ai p { margin: 0; color: #94A3B8; font-size: 14px; }
 .ai-r { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 14px; }
 .ai-r li { color: #E2E8F0; } .ai-r li::first-letter { color: var(--mint); }
@@ -980,7 +980,7 @@ td.c-roi b { font-size: 13px; }
   .usage .stats div { min-width: calc(50% - 4px); flex: 1 1 calc(50% - 4px); }
   .me .rrow.evrow { grid-template-columns: 90px 1fr; row-gap: 2px; } .me .rrow.evrow > :nth-child(3) { grid-column: 1 / -1; }
 }
-/* ── «Write to us»: the form and the owner's inbox ── */
+/* ── «Contact»: the form and the owner's inbox ── */
 .fb textarea { width: 100%; font: inherit; border: 1px solid var(--line); border-radius: var(--r); padding: 9px 11px; resize: vertical; margin: 10px 0 8px; background: var(--surface); color: var(--ink); }
 .fb textarea:focus { outline: none; border-color: #86efac; box-shadow: 0 0 0 3px var(--sage); }
 .fb input[type=text] { width: 100%; margin-bottom: 12px; }
@@ -1008,3 +1008,18 @@ td.c-roi b { font-size: 13px; }
 .brandline, .foot-brand b { -webkit-user-select: none; user-select: none; touch-action: manipulation; }
 .eggfx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; }
 @media (prefers-reduced-motion: reduce) { .rug-scene .wick { animation: none; } }
+
+/* the AI banner: what a trader gets, as three short chips */
+.ai-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.ai-chips li { border: 1px solid #1F3B35; background: rgba(167, 243, 208, .08); color: #D1FAE5; padding: 7px 14px; border-radius: 999px; font-size: 14px; }
+.ai-chips li::first-letter { color: inherit; }
+@media (max-width: 720px) { .ai h2 { font-size: 26px; } .ai-chips { justify-content: flex-start; } }
+
+/* the wallet card and the agent sit beside the page on a wide screen, not over it: the chart and the table narrow instead */
+@media (min-width: 1200px) {
+  body.drawer-open main.wide { margin-right: 480px; max-width: min(var(--page), calc(100vw - 480px)); }
+  .drawer, .drawer.wcard { width: 480px; }
+}
+#facts tbody tr.carded td { background: var(--sage); }
+.wcard .dnav { width: 30px; height: 36px; padding: 0; font-size: 15px; line-height: 1; color: var(--muted); }
+.wcard .dnav:disabled { opacity: .3; cursor: default; }

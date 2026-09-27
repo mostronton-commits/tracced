@@ -148,6 +148,8 @@
             </div>
           </div>
           <div class="dh-act">
+            <button type="button" class="ghost dnav" id="dprev" title="Previous wallet in the table" aria-label="Previous wallet">↑</button>
+            <button type="button" class="ghost dnav" id="dnext" title="Next wallet in the table" aria-label="Next wallet">↓</button>
             <button type="button" class="ghost dstar" id="dstar" title="Add to one of your lists" aria-label="Add to one of your lists">☆</button>
             <button type="button" class="ghost x" id="dclose" title="Close" aria-label="Close">×</button>
           </div>
@@ -281,13 +283,15 @@
           + (col ? '<i class="dot" style="--c:' + col + '"></i>' : '') + short(fnd) + '</button>' + (b ? '<small class="muted"> ×' + b.n + '</small>' : '');
       }
       const cells = new Map();                                   // wallet → the tags and funder markup last drawn for it
+      const cardW = () => { const d = document.getElementById('drawer'); return d && !d.hidden ? d.dataset.w : ''; };   // the wallet whose card is open
       function rowHtml(o, n, i) {
         const sel = selected.has(o.w), oc = onChart.find(x => x.wallet === o.w), tg = tagsHtml(o), fd = fundHtml(o);
         cells.set(o.w, { tg, fd });
         const vs = o.mult ? Math.round((o.mult - 1) * 100) : null;
         const cls = v => v > 0 ? 'pos' : (v < 0 ? 'neg' : ''), cap = v => v ? fm(v) : '—';
         const style = (oc ? '--c:' + (oc.bundleColor || BUY_C) + ';' : '') + (i >= 0 ? '--i: ' + i : '');
-        return '<tr data-w="' + o.w + '"' + (sel || oc ? ' class="' + (sel ? 'picked' : '') + (oc ? ' onchart' : '') + '"' : '') + (style ? ' style="' + style + '"' : '') + '>'
+        const cd = cardW() === o.w;
+        return '<tr data-w="' + o.w + '"' + (sel || oc || cd ? ' class="' + [sel && 'picked', oc && 'onchart', cd && 'carded'].filter(Boolean).join(' ') + '"' : '') + (style ? ' style="' + style + '"' : '') + '>'
           + '<td class="pk"><input type="checkbox" class="pick" aria-label="Select this wallet"' + (sel ? ' checked' : '') + '></td>'
           + '<td class="muted n"' + (n === '' ? ' title="On the chart; the filters would hide it"' : '') + '>' + n + '</td>'
           + '<td class="wcell"><span class="wid"><button type="button" class="mk" title="Show on the chart">◉</button>'
@@ -646,6 +650,26 @@
       function closeCard() {                                     // the agent's panel under the card keeps the page still
         drawer.hidden = true;
         document.body.classList.toggle('drawer-open', !document.getElementById('apanel').hidden);
+        markCarded('');
+      }
+      // the table row of the open card is marked; the arrows in the card walk the table without closing it
+      const rowEl = w => w ? tbody.querySelector('tr[data-w="' + CSS.escape(w) + '"]') : null;
+      const stepRow = (tr, dir) => { let n = tr && (dir < 0 ? tr.previousElementSibling : tr.nextElementSibling); while (n && !n.dataset.w) n = dir < 0 ? n.previousElementSibling : n.nextElementSibling; return n; };
+      function markCarded(w, scroll) {
+        tbody.querySelectorAll('tr.carded').forEach(r => r.classList.remove('carded'));
+        const tr = rowEl(w);
+        if (tr) { tr.classList.add('carded'); if (scroll) tr.scrollIntoView({ block: 'nearest' }); }
+        document.getElementById('dprev').disabled = !stepRow(tr, -1);
+        document.getElementById('dnext').disabled = !stepRow(tr, 1);
+      }
+      let navPin = null;                                         // a wallet the arrows put on the chart: the next step takes it off again
+      async function navTo(dir) {
+        const from = drawer.dataset.w, n = stepRow(rowEl(from), dir); if (!n) return;
+        const w = n.dataset.w, was = onChart.some(o => o.wallet === w), drop = navPin === from ? from : null;
+        cardSrc = 'nav';
+        await toggleWallet(w, true);
+        if (drop && drop !== w) { const i = onChart.findIndex(o => o.wallet === drop); if (i >= 0) { onChart.splice(i, 1); renderOnChart(); } }
+        navPin = was ? null : w;
       }
       function syncStar(w) {
         const on = inList(w);
@@ -896,10 +920,11 @@
       let cardSrc = 'row';                                       // where the card was opened from, for the owner's log
       function openStory(o) {
         if (drawer.hidden || drawer.dataset.w !== o.wallet) { EarlyUI.track('card-open'); EarlyUI.use('card-open', { src: cardSrc }); }
-        cardSrc = 'row';
+        const via = cardSrc; cardSrc = 'row';
         const cur = (window.EarlyCur && EarlyCur.get()) === 'sol';
         const row = rowOf(o.wallet);
         drawer.dataset.w = o.wallet; drawer.hidden = false; document.body.classList.add('drawer-open');
+        markCarded(o.wallet, via === 'nav');                      // only the arrows scroll the table: a click on the chart keeps the chart in view
         const dw = document.getElementById('dw'); dw.textContent = short(o.wallet); dw.title = o.wallet;
         document.getElementById('dcopy').dataset.copy = o.wallet;
         document.getElementById('dsol').href = 'https://solscan.io/account/' + o.wallet;
@@ -921,6 +946,8 @@
         if (window.EarlyTZ) EarlyTZ.apply();
       }
       document.getElementById('dclose').addEventListener('click', () => { closeCard(); EarlyUI.use('card-close'); });
+      document.getElementById('dprev').addEventListener('click', () => navTo(-1));
+      document.getElementById('dnext').addEventListener('click', () => navTo(1));
       document.addEventListener('keydown', e => { if (e.key === 'Escape' && !drawer.hidden) { closeCard(); EarlyUI.use('card-close'); } });
       dstar.addEventListener('click', () => { const w = drawer.dataset.w; withAcct(() => openLists(dstar, [w])); });
       // your own tags: a tag is a reason to watch, so tagging a wallet that is not watched yet adds it to the watchlist
