@@ -1022,39 +1022,24 @@ td.c-roi b { font-size: 13px; }
 }
 #facts tbody tr.carded td { background: var(--sage); }
 
-/* ── wallet card v4 (27.09): a dark head like the site's bar that never wraps the address, this token first ── */
-.wcard .drawer-head { background: var(--navy); border-bottom: 1px solid #1E293B; color: #E2E8F0; padding: 12px 12px 12px 16px; }
-.wcard .dh-top b { color: #F8FAFC; }
-.wcard .dh-addr, .wcard .dh-addr .mono { color: #94A3B8; }
+/* ── wallet card v5 (28.09): a light head (logos of X, FOMO and the like read on it), the address never wraps ── */
+.wcard .drawer-head { background: #F1F5F9; border-bottom: 1px solid var(--line); padding: 12px 12px 12px 16px; }
 .wcard .dh-addr { flex-wrap: wrap; row-gap: 5px; }
 .wcard .dh-addr .mono { white-space: nowrap; }
-.wcard .wav { border-color: #1E293B; background: #0F172A; }
-.wcard .wcopy { color: #94A3B8; } .wcard .wcopy:hover { color: #F8FAFC; background: rgba(255, 255, 255, .06); }
-.wcard .drawer-head .ext { color: #94A3B8; border-color: #334155; } .wcard .drawer-head .ext:hover { color: #F8FAFC; }
 .wcard .dchips { margin-left: 4px; }
-.wcard .drawer-head .dchip { background: rgba(255, 255, 255, .06); border-color: #1E293B; color: #E2E8F0; }
-.wcard .drawer-head .dchip.q, .wcard .drawer-head .dchip small { color: #94A3B8; }
-.wcard .drawer-head .dchip.age.young { background: rgba(167, 243, 208, .12); border-color: #1F3B35; color: var(--mint); }
-.wcard .drawer-head button.dchip:hover { color: #F8FAFC; }
-.wcard .dstar, .wcard .drawer-head .x { color: #CBD5E1; }
-.wcard .dstar:hover, .wcard .drawer-head .x:hover { color: #F8FAFC; background: rgba(255, 255, 255, .06); }
-.wcard .dstar.on { color: #FBBF24; }
-.wcard .dtok { background: #F6FEF9; border-top: 0; }
-.wcard .dtok h4 { color: var(--ink); }
+.wcard .drawer-head .dchip { background: var(--surface); }
+.wcard .wav { border-color: var(--line); background: var(--surface); }
+.wcard .dstar:hover, .wcard .drawer-head .x:hover { background: #E2E8F0; }
+.wcard .dstar.on { color: #D97706; }
 
-/* the token page: a range with a result is an outlined link, a range to run is the filled mint Analyze; the times are
-   short typed fields, no date picker */
+/* the token page: a range with a result is an outlined link, a range to run is the filled mint Analyze */
 .wrow .result.opened { background: transparent; border: 1px solid #6EE7B7; color: var(--ink); font-weight: 600; padding: 0 14px; height: 34px; display: inline-flex; align-items: center; border-radius: 8px; }
 .wrow .result.opened:hover { background: #F0FDF7; }
-.wrow { padding: 6px 10px; }
-.wrow input.dt { flex: none; min-width: 0; width: 124px; height: 32px; padding: 0 8px; font: 13px var(--mono); border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
-.wrow input.dt:focus { outline: none; border-color: #86efac; box-shadow: 0 0 0 3px var(--sage); }
-.wrow input.dt.bad { border-color: var(--red); box-shadow: 0 0 0 3px #FEE2E2; }
 
 /* ── the agent v2 (27.09): a dark head, quick questions first, a thread, the input at the bottom ── */
-.apanel .drawer-head { background: var(--navy); border-bottom: 1px solid #1E293B; color: #E2E8F0; }
-.apanel .aht { display: grid; gap: 1px; } .apanel .aht b { color: #F8FAFC; font-size: 14px; } .apanel .aht span { color: #94A3B8; font-size: 12px; }
-.apanel .drawer-head .x { color: #CBD5E1; } .apanel .drawer-head .x:hover { color: #F8FAFC; background: rgba(255, 255, 255, .06); }
+.apanel .drawer-head { background: #F1F5F9; border-bottom: 1px solid var(--line); }
+.apanel .aht { display: grid; gap: 1px; } .apanel .aht b { font-size: 14px; } .apanel .aht span { color: var(--muted); font-size: 12px; }
+.apanel .drawer-head .x:hover { background: #E2E8F0; }
 .apanel-body { padding: 16px; }
 .apanel p.aintro { margin: 0 0 10px; padding: 0; border: 0; font-weight: 600; font-size: 15px; }
 .aquick { display: grid; gap: 8px; }
@@ -1092,11 +1077,28 @@ td.c-roi b { font-size: 13px; }
           mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 15'%3E%3Cpath d='M4 0h14l-4 4H0zM0 5.5h14l4 4H4zM4 11h14l-4 4H0z'/%3E%3C/svg%3E") no-repeat center / contain; }
 
 /* the card and the agent open under the site's top bar, never over it: their top follows the bar's bottom edge while
-   it is on screen (ui.js keeps --dtop), and reaches the top once the bar has scrolled away. The drawer's light edge
-   starts below their dark head, so no line shows on it */
+   it is on screen (ui.js keeps --dtop), and reaches the top once the bar has scrolled away */
 .drawer { top: var(--dtop, 0px); }
-.wcard .drawer-head, .apanel .drawer-head { height: 59px; padding-top: 0; padding-bottom: 0; box-sizing: border-box; }
 .wcard .wav { width: 36px; height: 36px; border-radius: 10px; }
-.drawer { border-left: 0; }
-.drawer::before { content: ''; position: absolute; left: 0; top: 59px; bottom: 0; width: 1px; background: var(--line); z-index: 3; pointer-events: none; }
-@media (max-width: 640px) { .drawer::before { display: none; } .drawer { top: 0; } }   /* a phone: the card is the whole screen */
+@media (max-width: 640px) { .drawer { top: 0; } }   /* a phone: the card is the whole screen */
+
+/* the home list: a row under the pointer keeps its light line (links elsewhere darken theirs) */
+.rrow:hover { border-color: var(--line); }
+
+/* the banner: three things that work today, two in development */
+.ai.feats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; padding: 0; overflow: hidden; }
+.feats .feat { padding: 20px 22px; display: grid; gap: 6px; align-content: start; }
+.feats .feat + .feat { border-left: 1px solid #1E293B; }
+.feats .ft { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.feats .ft b { font-size: 17px; font-weight: 600; letter-spacing: -.01em; color: #F8FAFC; }
+.feats .feat p { margin: 0; color: #94A3B8; font-size: 13.5px; line-height: 1.5; }
+.feats .ai-soon { position: static; }
+.feats .fnext { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 22px; border-top: 1px solid #1E293B; background: rgba(255, 255, 255, .02); }
+.feats .fnext span { font: 600 10px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: #64748B; margin-right: 4px; }
+.feats .fnext i { font-style: normal; font-size: 13px; color: #CBD5E1; border: 1px dashed #334155; border-radius: 999px; padding: 4px 11px; }
+@media (max-width: 720px) {
+  .ai.feats { grid-template-columns: 1fr; }
+  .feats .feat + .feat { border-left: 0; border-top: 1px solid #1E293B; }
+}
+.awin { display: inline; height: auto; padding: 0 1px; border: 0; border-bottom: 1px dashed #34D399; border-radius: 0; background: none; color: var(--ink); font: inherit; font-family: var(--mono); cursor: pointer; }
+.awin:hover { background: var(--sage); }

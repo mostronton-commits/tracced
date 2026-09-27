@@ -36,8 +36,8 @@
       <input type="hidden" name="mint" value="{{ mint }}">
       <span class="n"></span>
       <span class="label" contenteditable="true" spellcheck="false" title="Rename"></span>
-      <label class="fld"><span>From</span><input type="text" class="dt" name="from" required placeholder="DD.MM HH:MM" maxlength="16" autocomplete="off" spellcheck="false" inputmode="numeric"></label>
-      <label class="fld"><span>To</span><input type="text" class="dt" name="to" required placeholder="DD.MM HH:MM" maxlength="16" autocomplete="off" spellcheck="false" inputmode="numeric"></label>
+      <label class="fld"><span>From</span><input type="datetime-local" name="from" required></label>
+      <label class="fld"><span>To</span><input type="datetime-local" name="to" required></label>
       <button type="submit" class="primary">Analyze</button>
       <a class="result button" hidden>Open result →</a>
       <button type="button" class="ghost del" title="Remove">×</button>
@@ -84,28 +84,9 @@
   const parse = v => v ? Date.parse(v + ':00Z') : null;
   /* State and server speak UTC only. The field shows whatever the footer switch selects, so it converts both ways. */
   const inLocal = () => (window.EarlyTZ && EarlyTZ.get()) === 'local';
-  /* The fields are short text, typed by hand: "15.09 19:30" (the year only when it is not this one), in the footer's
-     time zone. State and server keep "YYYY-MM-DDTHH:MM" in UTC. */
-  const parts = ms => { const d = new Date(ms), L = inLocal();
-    return { y: L ? d.getFullYear() : d.getUTCFullYear(), mo: (L ? d.getMonth() : d.getUTCMonth()) + 1, d: L ? d.getDate() : d.getUTCDate(),
-             h: L ? d.getHours() : d.getUTCHours(), mi: L ? d.getMinutes() : d.getUTCMinutes() }; };
-  const show = u => { const ms = parse(u); if (!ms) return ''; const p = parts(ms);
-    return pad(p.d) + '.' + pad(p.mo) + (p.y !== new Date().getFullYear() ? '.' + p.y : '') + ' ' + pad(p.h) + ':' + pad(p.mi); };
-  function readIn(text, prev) {                                  // typed text → UTC state value, or null when it does not read as a time
-    const t = String(text || '').trim().replace(/\s+/g, ' ');
-    const base = prev && parse(prev) ? parts(parse(prev)) : null;
-    let y, mo, d, h, mi, m;
-    if ((m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[ T](\d{1,2}):(\d{2})$/))) [, y, mo, d, h, mi] = m.map(Number);
-    else if ((m = t.match(/^(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2}|\d{4}))?[ ,T]+(\d{1,2})[:.](\d{2})$/))) { [, d, mo, y, h, mi] = m.map(x => x === undefined ? undefined : Number(x)); if (y !== undefined && y < 100) y += 2000; }
-    else if ((m = t.match(/^(\d{1,2})[:.](\d{2})$/)) && base) { [, h, mi] = m.map(Number); y = base.y; mo = base.mo; d = base.d; }
-    else return null;
-    if (y === undefined) { y = base ? base.y : new Date().getFullYear(); }
-    if (!(mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && h >= 0 && h <= 23 && mi >= 0 && mi <= 59)) return null;
-    let ms = inLocal() ? new Date(y, mo - 1, d, h, mi).getTime() : Date.UTC(y, mo - 1, d, h, mi);
-    const back = parts(ms); if (back.d !== d || back.mo !== mo) return null;     // 31.02 and the like
-    if (!/\d{4}/.test(t) && ms > Date.now() + 86400e3) ms = inLocal() ? new Date(y - 1, mo - 1, d, h, mi).getTime() : Date.UTC(y - 1, mo - 1, d, h, mi);
-    return fmt(ms);
-  }
+  const fmtLoc = ms => { const d = new Date(ms); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+  const show = u => (u && inLocal() ? fmtLoc(parse(u)) : (u || ''));
+  const keep = v => (v && inLocal() ? fmt(Date.parse(v)) : v);        // a datetime-local with no zone parses as local time
   const jobId = r => { const f = parse(r.from), t = parse(r.to); if (!(f && t)) return null;
     const F = new Date(f), T = new Date(t);
     return mint.slice(0, 6) + '_' + F.getUTCFullYear() + pad(F.getUTCMonth() + 1) + pad(F.getUTCDate()) + '-' + pad(F.getUTCHours()) + pad(F.getUTCMinutes())
@@ -226,7 +207,7 @@
       f.querySelector('[name=from]').value = show(r.from);
       f.querySelector('[name=to]').value = show(r.to);
       if (i === state.sel) f.classList.add('sel');
-      if (DEMO) { f.querySelectorAll('input.dt').forEach(x => { x.readOnly = true; x.tabIndex = -1; }); f.querySelector('.label').contentEditable = 'false'; f.querySelector('.del').hidden = true; }
+      if (DEMO) { f.querySelectorAll('input[type=datetime-local]').forEach(x => { x.readOnly = true; x.tabIndex = -1; }); f.querySelector('.label').contentEditable = 'false'; f.querySelector('.del').hidden = true; }
       else if (r.job) { const d = f.querySelector('.del'); d.hidden = !r.deletable; d.title = 'Delete this analysis — the slot is free again'; }
       refreshLink(f, r);
       rowsEl.appendChild(f);
@@ -242,14 +223,7 @@
     const f = e.target.closest('.wrow'); if (!f) return;
     const i = +f.dataset.i, r = state.rows[i];
     if (e.target.classList.contains('label')) { r.label = e.target.textContent.trim().slice(0, 60); save(); ch.setWindows(winList(), state.sel); return; }
-    if (e.target.classList.contains('dt')) e.target.classList.remove('bad');   // read when the field is left or Enter is pressed
-  });
-  rowsEl.addEventListener('change', e => {
-    if (!e.target.classList.contains('dt')) return;
-    const f = e.target.closest('.wrow'); if (!f) return;
-    const r = state.rows[+f.dataset.i], name = e.target.name, v = readIn(e.target.value, r[name] || r.from || r.to);
-    if (!v) { e.target.classList.add('bad'); EarlyUI.toast('Type it like 15.09 19:30'); return; }
-    r[name] = v; e.target.value = show(v);
+    r[e.target.name] = keep(e.target.value);
     save(); refreshLink(f, r); ch.setWindows(winList(), state.sel);
   });
   rowsEl.addEventListener('click', e => {
@@ -269,7 +243,7 @@
     }
     if (i !== state.sel && !e.target.matches('input, button, a, select, .label')) { state.sel = i; save(); render(); focusSel(); }
   });
-  rowsEl.addEventListener('mousedown', e => { if (DEMO && e.target.matches('input.dt, .label')) { e.preventDefault(); nudge(); } });
+  rowsEl.addEventListener('mousedown', e => { if (DEMO && e.target.matches('input[type=datetime-local], .label')) { e.preventDefault(); nudge(); } });
   rowsEl.addEventListener('focusin', e => { const f = e.target.closest('.wrow'); if (f && +f.dataset.i !== state.sel) { const name = e.target.name; state.sel = +f.dataset.i; save(); render(); focusSel(); const nf = rowsEl.querySelector('.wrow.sel [name=' + name + ']'); if (nf) nf.focus(); } });
   const addBtn = document.getElementById('add'), resetBtn = document.getElementById('reset');
   if (addBtn) addBtn.addEventListener('click', () => { if (state.rows.length >= MAX_ROWS) { EarlyUI.toast(limitMsg()); return; } EarlyUI.use('range-add'); state.rows.push({ n: null, label: 'Range ' + (state.rows.length + 1), from: '', to: '' }); state.sel = state.rows.length - 1; save(); render(); });

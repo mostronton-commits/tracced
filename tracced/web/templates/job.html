@@ -988,7 +988,13 @@
       const aEsc = t => esc(String(t == null ? '' : t));
       const aWallet = w => '<div class="awr"><button type="button" class="awallet mono" data-w="' + aEsc(w.wallet) + '" title="Open this wallet\'s card">' + aEsc(w.short) + '</button>'
         + (w.why ? '<span class="awhy">' + aEsc(w.why) + '</span>' : '') + '</div>';
-      const aList = items => '<ul>' + items.map(t => '<li>' + aEsc(t) + '</li>').join('') + '</ul>';
+      // the agent writes wallets short ("3idduY…4i4V"); one that matches a single wallet of this analysis becomes a link to its card
+      const SHORTS = new Map(); all.forEach(o => { const k = short(o.w); SHORTS.set(k, SHORTS.has(k) ? null : o.w); });
+      const aText = t => aEsc(t).replace(/([1-9A-HJ-NP-Za-km-z]{6})(?:…|\.\.\.)([1-9A-HJ-NP-Za-km-z]{4})/g, (m, a, b) => {
+        const w = SHORTS.get(a + '…' + b);
+        return w ? '<button type="button" class="awallet awin mono" data-w="' + w + '" title="Open this wallet\'s card">' + m + '</button>' : m;
+      });
+      const aList = items => '<ul>' + items.map(t => '<li>' + aText(t) + '</li>').join('') + '</ul>';
       function aLeft(n) { if (n != null) document.getElementById('aleft').textContent = n + (n === 1 ? ' question' : ' questions') + ' left today.'; }
       async function aPost(path, body) {
         try {
@@ -1042,7 +1048,7 @@
         const { status, ok, d } = await aPost('/job/' + jobId + '/agent/ask', { q, lang: ALANG, chip: !!chip });
         aBusy = false;
         if (!ok) { aFail(slot, status, d); return; }
-        slot.innerHTML = '<ul class="aans' + (d.on_topic === false ? ' off' : '') + '">' + (d.answer || []).map(t => '<li>' + aEsc(t) + '</li>').join('') + '</ul>'
+        slot.innerHTML = '<ul class="aans' + (d.on_topic === false ? ' off' : '') + '">' + (d.answer || []).map(t => '<li>' + aText(t) + '</li>').join('') + '</ul>'
           + ((d.wallets || []).length ? '<div class="awl">' + d.wallets.map(aWallet).join('') + '</div>' : '');
         aLeft(d.left);
       }
