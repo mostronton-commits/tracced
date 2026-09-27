@@ -344,14 +344,6 @@
     launch.title = 'Jump to the first hours of trading, right after the token launched';
     launch.addEventListener('click', () => { focus(created, created + 3 * 3600, null); if (window.EarlyUI) EarlyUI.use('chart-nav', { to: 'launch' }); });
     tfs.appendChild(launch);
-    // log scale: a 100× pump squashes the early moves flat on a normal axis; the choice is remembered
-    const LOGK = 'early:chartlog', logb = document.createElement('button'); logb.type = 'button'; logb.className = 'tf back tlog'; logb.textContent = 'Log';
-    logb.title = 'Logarithmic price scale: early moves stay visible next to a big pump';
-    const setLog = on => { try { chart.priceScale('right').applyOptions({ mode: on && LW.PriceScaleMode ? LW.PriceScaleMode.Logarithmic : 0 }); } catch (e) {} logb.classList.toggle('on', on); logb.setAttribute('aria-pressed', on); };
-    let logOn = false; try { logOn = localStorage.getItem(LOGK) === '1'; } catch (e) {}
-    setLog(logOn);
-    logb.addEventListener('click', () => { logOn = !logOn; setLog(logOn); try { localStorage.setItem(LOGK, logOn ? '1' : '0'); } catch (e) {} if (window.EarlyUI) EarlyUI.use('chart-nav', { to: logOn ? 'log-on' : 'log-off' }); });
-    tfs.appendChild(logb);
     el.appendChild(tfs);
 
     return {

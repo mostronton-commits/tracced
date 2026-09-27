@@ -136,6 +136,16 @@ document.addEventListener('click', e => {
   });
 });
 
+/* a card or the agent opens under the site's top bar: --dtop is where the bar's bottom edge is on screen now */
+(function () {
+  let raf = 0;
+  const set = () => { raf = 0; const bar = document.querySelector('header.top'); const h = bar ? Math.max(0, Math.round(bar.getBoundingClientRect().bottom)) : 0;
+    document.documentElement.style.setProperty('--dtop', h + 'px'); };
+  const soon = () => { if (!raf) raf = requestAnimationFrame(set); };
+  addEventListener('scroll', soon, { passive: true }); addEventListener('resize', soon);
+  document.addEventListener('DOMContentLoaded', set);
+})();
+
 /* seven quick clicks on the wordmark (the home title or the footer) rain candles; egg.js loads only then */
 (function () {
   const src = document.currentScript && document.currentScript.src, v = src ? new URL(src).search : '';

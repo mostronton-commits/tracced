@@ -1050,8 +1050,6 @@ td.c-roi b { font-size: 13px; }
 .wrow input.dt { flex: none; min-width: 0; width: 124px; height: 32px; padding: 0 8px; font: 13px var(--mono); border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 .wrow input.dt:focus { outline: none; border-color: #86efac; box-shadow: 0 0 0 3px var(--sage); }
 .wrow input.dt.bad { border-color: var(--red); box-shadow: 0 0 0 3px #FEE2E2; }
-/* chart toolbar: the log switch lights up like a timeframe */
-.chartbox .tf.tlog.on { background: var(--mint); border-color: var(--mint); color: var(--navy); font-weight: 600; }
 
 /* ── the agent v2 (27.09): a dark head, quick questions first, a thread, the input at the bottom ── */
 .apanel .drawer-head { background: var(--navy); border-bottom: 1px solid #1E293B; color: #E2E8F0; }
@@ -1093,10 +1091,12 @@ td.c-roi b { font-size: 13px; }
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 15'%3E%3Cpath d='M4 0h14l-4 4H0zM0 5.5h14l4 4H4zM4 11h14l-4 4H0z'/%3E%3C/svg%3E") no-repeat center / contain;
           mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 15'%3E%3Cpath d='M4 0h14l-4 4H0zM0 5.5h14l4 4H4zM4 11h14l-4 4H0z'/%3E%3C/svg%3E") no-repeat center / contain; }
 
-/* the card's and the agent's dark head continue the site's top bar: the same 59px, and the drawer's light edge starts
-   below it, so no seam shows on the dark part */
+/* the card and the agent open under the site's top bar, never over it: their top follows the bar's bottom edge while
+   it is on screen (ui.js keeps --dtop), and reaches the top once the bar has scrolled away. The drawer's light edge
+   starts below their dark head, so no line shows on it */
+.drawer { top: var(--dtop, 0px); }
 .wcard .drawer-head, .apanel .drawer-head { height: 59px; padding-top: 0; padding-bottom: 0; box-sizing: border-box; }
 .wcard .wav { width: 36px; height: 36px; border-radius: 10px; }
 .drawer { border-left: 0; }
 .drawer::before { content: ''; position: absolute; left: 0; top: 59px; bottom: 0; width: 1px; background: var(--line); z-index: 3; pointer-events: none; }
-@media (max-width: 640px) { .drawer::before { display: none; } }
+@media (max-width: 640px) { .drawer::before { display: none; } .drawer { top: 0; } }   /* a phone: the card is the whole screen */
