@@ -195,12 +195,12 @@
     let soon = 0;
     function placeSoon() { if (!soon) soon = requestAnimationFrame(() => { soon = requestAnimationFrame(() => { soon = 0; place(); }); }); }
     chart.timeScale().subscribeVisibleTimeRangeChange(() => { place(); placeSoon(); });
-    let pickedW = 0;
+    let pickedW = 0, pickedDrawer = null;
     new ResizeObserver(() => {
       place();
       // turning a phone or narrowing a window by a third: re-pick the timeframe if the candles no longer fit
-      const w = box.clientWidth, v = visible();
-      if (!pickedW) { pickedW = w; return; }
+      const w = box.clientWidth, v = visible(), dr = document.body.classList.contains('drawer-open');
+      if (!pickedW || dr !== pickedDrawer) { pickedW = w; pickedDrawer = dr; return; }   // a card opening beside the chart keeps the timeframe
       if (!tf || !v || busy || Math.abs(w - pickedW) < pickedW * 0.3) return;
       pickedW = w;
       const want = pickTf(v.b - v.a);

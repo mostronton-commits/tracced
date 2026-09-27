@@ -41,8 +41,8 @@ Style: short, one fact a line, the most important first. No ratings, no advice, 
 DEFAULT_CONFIG = {
     "method": DEFAULT_METHOD,
     "watch": {"min_roi": 3.0, "min_hold_min": 10, "exclude": ["bot-like", "bundle", "fresh"], "n": 5},
-    "chips": ["Was this a bundled launch?", "Who took 3× or more and held over 10 minutes?",
-              "Where did the best exits happen?", "Who still holds, and how much?"],
+    "chips": ["Who sold the top?", "Was this a bundled launch?", "Who is still holding, and how much?",
+              "Who took 3× or more and held over 10 minutes?"],
 }
 
 LANGS = {"uk": "Ukrainian", "ru": "Russian", "en": "English", "pl": "Polish", "de": "German", "es": "Spanish",

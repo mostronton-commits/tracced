@@ -122,19 +122,22 @@
     </div>
 
     <aside class="drawer apanel" id="apanel" hidden aria-label="AI agent">
-      <div class="drawer-head"><div><b>✦ AI agent</b> <span class="muted small">reads this analysis only</span></div><button type="button" class="ghost x" id="aclose" title="Close" aria-label="Close">×</button></div>
+      <div class="drawer-head"><div class="aht"><b>✦ AI agent</b><span>reads this analysis only</span></div><button type="button" class="ghost x" id="aclose" title="Close" aria-label="Close">×</button></div>
       <div class="apanel-body">
-        <div class="aguest" id="aguest" hidden>
-          <p>The agent reads this analysis and tells you what happened in the range, what to weigh, and whose wallets stand out. Then it answers your questions about it.</p>
-          <button type="button" class="primary" id="aconnect">Connect a wallet to use it</button>
+        <div class="aempty" id="aempty">
+          <p class="aintro">Ask about this pump</p>
+          <div class="aquick">
+            {% for q in agent_chips %}<button type="button" class="aqbtn" data-q="{{ q }}">{{ q }}<span aria-hidden="true">→</span></button>
+            {% endfor %}<button type="button" class="aqbtn asum" data-sum="1">Summary of this pump<span aria-hidden="true">→</span></button>
+          </div>
+          <p class="muted small aguest" id="aguest" hidden>Connect a wallet to ask. Free, no transaction.</p>
         </div>
-        <div id="amain" hidden>
-          <div class="acards" id="acards"></div>
-          <div class="row achips" id="achips"></div>
-          <div class="athread" id="athread"></div>
-          <form class="aask" id="aform"><input id="aq" maxlength="500" placeholder="Ask about this analysis…" autocomplete="off" aria-label="Your question"><button type="submit" class="primary">Ask</button></form>
-          <p class="muted small">Facts from this analysis only, never advice or predictions. <span id="aleft"></span></p>
-        </div>
+        <div class="athread" id="athread"></div>
+      </div>
+      <div class="afoot">
+        <div class="achips" id="achips" hidden></div>
+        <form class="aask" id="aform"><input id="aq" maxlength="500" placeholder="Ask anything about this pump…" autocomplete="off" aria-label="Your question"><button type="submit" class="primary">Ask</button></form>
+        <p class="muted small anote">Facts from this analysis only. Not advice. <span id="aleft"></span></p>
       </div>
     </aside>
     <aside class="drawer wcard" id="drawer" hidden aria-label="Wallet card">
@@ -1000,17 +1003,17 @@
         b.disabled = true; toggleWallet(w, b.classList.contains('wname')).finally(() => { b.disabled = false; });
       });
 
-      // The agent: three cards about this analysis in the browser's language, then questions about it. It needs a
-      // connected wallet; the server keeps each set of cards, so opening the agent again, or by anyone, costs nothing.
-      const apanel = document.getElementById('apanel'), acards = document.getElementById('acards'), achips = document.getElementById('achips');
-      const athread = document.getElementById('athread'), aform = document.getElementById('aform'), aq = document.getElementById('aq');
-      const aguest = document.getElementById('aguest'), amain = document.getElementById('amain');
+      // The agent: quick questions and a summary on demand, then a thread of questions and answers. Asking needs a
+      // connected wallet; the server keeps each summary, so one someone already opened costs nothing.
+      const apanel = document.getElementById('apanel'), athread = document.getElementById('athread'), aform = document.getElementById('aform');
+      const aq = document.getElementById('aq'), aempty = document.getElementById('aempty'), achips = document.getElementById('achips'), aguest = document.getElementById('aguest');
       const ASSIST_ON = {{ 'true' if assistant_on else 'false' }}, aipop = document.getElementById('aipop'), aiwrap = document.getElementById('aiwrap');
-      const ALANG = navigator.language || 'en';
-      let aLoaded = false, aBusy = false;
+      const ALANG = navigator.language || 'en', SUMQ = 'Summary of this pump';
+      const QUICK = [...apanel.querySelectorAll('.aqbtn[data-q]')].map(b => b.dataset.q);
+      let aBusy = false, aSummed = false;
       const aEsc = t => esc(String(t == null ? '' : t));
-      const aWallet = w => '<button type="button" class="link mono awallet" data-w="' + aEsc(w.wallet) + '" title="Open this wallet\'s card">' + aEsc(w.short) + '</button>'
-        + (w.why ? ' <span class="awhy">— ' + aEsc(w.why) + '</span>' : '');
+      const aWallet = w => '<div class="awr"><button type="button" class="awallet mono" data-w="' + aEsc(w.wallet) + '" title="Open this wallet\'s card">' + aEsc(w.short) + '</button>'
+        + (w.why ? '<span class="awhy">' + aEsc(w.why) + '</span>' : '') + '</div>';
       const aList = items => '<ul>' + items.map(t => '<li>' + aEsc(t) + '</li>').join('') + '</ul>';
       function aLeft(n) { if (n != null) document.getElementById('aleft').textContent = n + (n === 1 ? ' question' : ' questions') + ' left today.'; }
       async function aPost(path, body) {
@@ -1020,51 +1023,60 @@
           return { status: r.status, ok: r.ok, d };
         } catch (e) { return { status: 0, ok: false, d: { error: 'Could not reach the server.' } }; }
       }
-      function aShow() {
-        aguest.hidden = acctOn; amain.hidden = !acctOn;
-        if (acctOn) loadCards();
+      function aState() {                                        // empty: the big buttons; once talking, small ones above the input
+        const started = athread.children.length > 0;
+        aempty.hidden = started; aguest.hidden = acctOn;
+        const asked = new Set([...athread.querySelectorAll('.aqq')].map(p => p.textContent));
+        const qs = QUICK.filter(q => !asked.has(q));
+        achips.innerHTML = qs.map(q => '<button type="button" class="chip achip" data-q="' + aEsc(q) + '">' + aEsc(q) + '</button>').join('')
+          + (aSummed ? '' : '<button type="button" class="chip achip" data-sum="1">Summary</button>');
+        achips.hidden = !started || !achips.innerHTML;
       }
-      async function loadCards() {
-        if (aLoaded || aBusy) return;
+      function aBubble(q) {
+        const item = document.createElement('div'); item.className = 'aqa';
+        item.innerHTML = '<p class="aqq">' + aEsc(q) + '</p><div class="aa"><p class="aload">Thinking<span>.</span><span>.</span><span>.</span></p></div>';
+        athread.appendChild(item); aState(); item.scrollIntoView({ block: 'end' });
+        return item.querySelector('.aa');
+      }
+      function aFail(slot, status, d) {
+        if (status === 401) { acctOn = false; slot.closest('.aqa').remove(); aState(); return true; }
+        slot.innerHTML = '<p class="aerr">' + aEsc(d.error || 'The agent did not answer.') + '</p>'; return true;
+      }
+      function needWallet(run) {
+        if (acctOn) { run(); return; }
+        EarlyWallet.open(() => { acctOn = true; loadMe(); aState(); run(); }, 'Connect a wallet to ask the agent. Free, no transaction.');
+      }
+      async function aSummary() {
+        if (aBusy || aSummed) return;
         aBusy = true;
-        acards.innerHTML = '<p class="muted aload">Reading the analysis…</p>';
+        const slot = aBubble(SUMQ);
         const { status, ok, d } = await aPost('/job/' + jobId + '/agent/cards', { lang: ALANG });
         aBusy = false;
-        if (status === 401) { acctOn = false; aShow(); return; }
-        if (!ok) { acards.innerHTML = '<p class="aerr">' + aEsc(d.error || 'The agent did not answer.') + '</p>'; return; }
-        aLoaded = true;
-        const c = d.cards || {}, sec = (h, body) => '<section class="acard"><h4>' + h + '</h4>' + body + '</section>';
-        acards.innerHTML = (c.story && c.story.length ? sec('What happened', aList(c.story)) : '')
-          + (c.risks && c.risks.length ? sec('What to weigh', aList(c.risks)) : '')
-          + sec('Who to watch', '<p class="muted small">' + aEsc(c.method || '') + '</p>'
-            + (c.watch && c.watch.length ? '<ul>' + c.watch.map(w => '<li>' + aWallet(w) + '</li>').join('') + '</ul>' : '<p class="muted small">No wallet here fits this method.</p>'));
-        achips.innerHTML = (d.chips || []).map(q => '<button type="button" class="chip achip">' + aEsc(q) + '</button>').join('');
-        aLeft(d.left);
+        if (!ok) { aFail(slot, status, d); return; }
+        const c = d.cards || {}, card = (cls, h, body) => '<section class="acard ' + cls + '"><h4>' + h + '</h4>' + body + '</section>';
+        slot.innerHTML = (c.story && c.story.length ? card('story', 'What happened', aList(c.story)) : '')
+          + (c.risks && c.risks.length ? card('risk', 'What to weigh', aList(c.risks)) : '')
+          + card('watch', 'Who to watch', c.watch && c.watch.length ? '<div class="awl">' + c.watch.map(aWallet).join('') + '</div>' : '<p class="muted small">No wallet here fits the method.</p>');
+        aSummed = true; aState(); aLeft(d.left);
       }
       async function aAsk(q, chip) {
         q = (q || '').trim();
         if (!q || aBusy) return;
         aBusy = true;
         EarlyUI.track('agent-ask', { chip: !!chip });
-        const item = document.createElement('div');
-        item.className = 'aqa';
-        item.innerHTML = '<p class="aqq">' + aEsc(q) + '</p><p class="muted aload">Thinking…</p>';
-        athread.appendChild(item);
-        item.scrollIntoView({ block: 'nearest' });
+        const slot = aBubble(q);
         const { status, ok, d } = await aPost('/job/' + jobId + '/agent/ask', { q, lang: ALANG, chip: !!chip });
         aBusy = false;
-        const slot = item.querySelector('.aload');
-        if (status === 401) { acctOn = false; aShow(); item.remove(); return; }
-        if (!ok) { slot.className = 'aerr'; slot.textContent = d.error || 'The agent did not answer.'; return; }
-        const parts = (d.answer || []).map(t => '<li>' + aEsc(t) + '</li>').concat((d.wallets || []).map(w => '<li>' + aWallet(w) + '</li>'));
-        slot.outerHTML = '<ul class="aans' + (d.on_topic === false ? ' off' : '') + '">' + parts.join('') + '</ul>';
+        if (!ok) { aFail(slot, status, d); return; }
+        slot.innerHTML = '<ul class="aans' + (d.on_topic === false ? ' off' : '') + '">' + (d.answer || []).map(t => '<li>' + aEsc(t) + '</li>').join('') + '</ul>'
+          + ((d.wallets || []).length ? '<div class="awl">' + d.wallets.map(aWallet).join('') + '</div>' : '');
         aLeft(d.left);
       }
       document.getElementById('askbtn').addEventListener('click', () => {
         EarlyUI.track('agent-open');
         if (!ASSIST_ON) { aipop.hidden = !aipop.hidden; return; }
         apanel.hidden = !apanel.hidden;
-        if (!apanel.hidden) { closeCard(); aShow(); }
+        if (!apanel.hidden) { closeCard(); aState(); }
         document.body.classList.toggle('drawer-open', !apanel.hidden);   // on a phone the page under it stays put
       });
       if (!ASSIST_ON) {
@@ -1073,10 +1085,12 @@
         document.addEventListener('click', e => { if (!aipop.hidden && !e.target.closest('#aiwrap')) aipop.hidden = true; });
       }
       document.getElementById('aclose').addEventListener('click', () => { apanel.hidden = true; document.body.classList.remove('drawer-open'); EarlyUI.use('agent-close'); });
-      document.getElementById('aconnect').addEventListener('click', () => EarlyWallet.open(() => { acctOn = true; loadMe(); aShow(); }));
-      aform.addEventListener('submit', e => { e.preventDefault(); const q = aq.value; aq.value = ''; aAsk(q, false); });
-      achips.addEventListener('click', e => { const b = e.target.closest('.achip'); if (b) aAsk(b.textContent, true); });
-      apanel.addEventListener('click', e => { const b = e.target.closest('.awallet'); if (b) { cardSrc = 'agent'; toggleWallet(b.dataset.w, true); } });
+      aform.addEventListener('submit', e => { e.preventDefault(); const q = aq.value.trim(); if (!q) return; needWallet(() => { aq.value = ''; aAsk(q, false); }); });
+      apanel.addEventListener('click', e => {
+        const w = e.target.closest('.awallet'); if (w) { cardSrc = 'agent'; toggleWallet(w.dataset.w, true); return; }
+        const b = e.target.closest('.aqbtn, .achip'); if (!b) return;
+        if (b.dataset.sum) needWallet(aSummary); else needWallet(() => aAsk(b.dataset.q, true));
+      });
       // a phone has no hover: a tap on a part of the closed-positions bar says what the mouse would have shown
       document.addEventListener('click', e => { const seg = e.target.closest('.ddist .dbar i'); if (seg) EarlyUI.toast(seg.title); });
 

@@ -2307,7 +2307,7 @@ async def job_page(request):
                   rows_json=_json_script(_table(result["rows"])) if result else "", bundle_min=tags.BUNDLE_MIN, burst_ms=tags.BURST_MS,
                   max_my_tags=acct_mod.MAX_MY_TAGS, is_admin=bool(request.get("acct")) and request.get("acct") in app["admins"],
                   age_read=wallet_age_mod.MAX_PAGES * wallet_age_mod.LIMIT,   # скільки транзакцій гаманця читає перевірка віку
-                  is_demo=is_demo,
+                  is_demo=is_demo, agent_chips=app["agent_store"].config()["chips"][:3],   # the agent's quick questions, drawn before any call
                   sm=sm, TAGS=tags.DEFS, created=created or (job.t_from - 24 * HOUR), now=int(time.time() * 1000),
                   cov_text=report.coverage_text((result or {}).get("coverage")), 
                   assistant_on=app.get("assistant") is not None,
