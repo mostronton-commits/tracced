@@ -541,7 +541,8 @@ if AioHTTPTestCase:
             await asyncio.to_thread(self.app["jobs"].q.join)         # запущений аналіз робить свої запити: чекаємо його
             before = self.st.requests
             h = await (await self.client.get("/health")).json()
-            self.assertEqual(h["credits"], 50_000)
+            self.assertNotIn("credits", h)                           # залишок місяця не публічний
+            self.assertEqual(self.app["credits"]["left"], 50_000)
             self.assertEqual(self.st.requests, before)               # /health не питає Solana Tracker
             self.app["admins"] = {TEST_PK}
             s.update(credits_month=0, credits_reserve_pct=0)
@@ -872,6 +873,88 @@ if AioHTTPTestCase:
             for tf, span in asked:
                 self.assertLessEqual(span / chart_mod.TF_SEC[tf], MAX_CANDLES + 1, tf)   # свічок за запит не більше стелі
                 self.assertGreater(span, 0, tf)
+
+        async def test_a_paid_run_from_another_site_is_refused(self):
+            r = await self.client.post("/analyze", allow_redirects=False, headers={"Origin": "https://dev.tracced.xyz"},
+                                       data={"mint": "G" * 40, "from": "2001-09-09T01:46", "to": "2001-09-09T02:06"})
+            self.assertEqual(r.status, 403)                                     # піддомен — той самий «сайт» для куки, але не наш
+
+        async def test_the_day_in_requests_stops_new_runs_before_the_count_does(self):
+            self.app["admins"] = set()
+            s = self.app["s"]
+            s["run_requests_per_day"], s["run_cap_requests"], s["runs_per_day"] = 2000, 2000, 5
+            me = {"Cookie": wallet_cookie(TEST_PK), "Origin": f"http://{self.client.host}:{self.client.port}"}
+            rng = lambda start: {"mint": MINT, "from": f"2001-09-09T{start}", "to": "2001-09-09T02:06"}   # noqa: E731
+            r = await self.client.post("/analyze", data=rng("01:46"), allow_redirects=False, headers=me)
+            self.assertEqual(r.status, 302, await r.text())
+            await asyncio.to_thread(self.app["jobs"].q.join)
+            spent = self.app["jobs"].get(r.headers["Location"].split("/")[-1]).spent
+            self.assertGreater(spent, 0)
+            self.assertEqual(self.app["runs_daily"].left("req:global", 2000), 2000 - spent)   # що прогін витратив — у денному бюджеті
+            r = await self.client.post("/analyze", data=rng("01:50"), allow_redirects=False, headers=me)
+            self.assertEqual(r.status, 503)                                     # витрачене + ще один прогін на стелі > день
+            self.assertIn("data budget for new analyses", await r.text())
+
+        async def test_a_failed_run_gives_back_only_the_counts_it_took(self):
+            from types import SimpleNamespace
+            daily = self.app["runs_daily"]
+            daily.add("global", 3)
+            self.app["jobs"].on_error(SimpleNamespace(owner=TEST_PK, replay=None, spent=0, charged=[], log=[]))
+            self.assertEqual(daily.left("global", 10), 7)                       # бета-тестер місця не брав — і не повертає
+            daily.add("dev:x", 1)
+            self.app["jobs"].on_error(SimpleNamespace(owner=TEST_PK, replay=None, spent=0, charged=["dev:x"], log=[]))
+            self.assertEqual((daily.left("global", 10), daily.left("dev:x", 5)), (8, 5))
+
+        async def test_the_chart_budget_counts_each_wallets_network_too(self):
+            s = self.app["s"]
+            s["browse_per_day"], s["browse_per_day_net"] = 100, 3
+            a, b, c = (acct_mod.b58encode(bytes([n]) * 32) for n in (0x51, 0x52, 0x53))
+            for pk, mint in ((a, "C" * 40), (b, "D" * 40)):
+                r = await self.client.get(f"/token?mint={mint}", headers={"Cookie": wallet_cookie(pk)})
+                self.assertEqual(r.status, 200, mint)
+            r = await self.client.get(f"/token?mint={'E' * 40}", headers={"Cookie": wallet_cookie(c)})
+            self.assertEqual(r.status, 429)                                     # третій свіжий гаманець з тієї самої мережі
+            self.assertIn("Your network has used today", await r.text())
+
+        async def test_a_full_demo_queue_opens_the_stored_result(self):
+            seed_demo(self.tmp.name, self.app)
+            self.app["s"]["demo_queue_max"] = 0
+            r = await self.client.post("/analyze", allow_redirects=False, headers=self.same_site,
+                                       data={"mint": MINT, "from": chart.to_input(DEMO_A), "to": chart.to_input(DEMO_B)})
+            self.assertEqual(r.headers["Location"], f"/job/{DEMO_JID}")         # без програвання, одразу збережене
+
+        async def test_heavy_result_pages_are_rate_limited_per_network(self):
+            from tracced.web.app import Throttle
+            seed_demo(self.tmp.name, self.app)
+            self.app["heavy_throttle"] = Throttle(max_fails=3, window_s=60, block_s=60)
+            for _ in range(3):
+                self.assertEqual((await self.client.get(f"/job/{DEMO_JID}.json", headers=GUEST)).status, 200)
+            self.assertEqual((await self.client.get(f"/job/{DEMO_JID}.json", headers=GUEST)).status, 429)
+            self.assertEqual((await self.client.get(f"/job/{DEMO_JID}.csv", headers=GUEST)).status, 429)
+            self.assertEqual((await self.client.get(f"/job/{DEMO_JID}", headers=GUEST)).status, 429)
+
+        async def test_a_beta_tester_skips_the_daily_counts_but_not_the_cap_per_run(self):
+            from tracced.web import usage as usage_mod
+            self.app["admins"] = set()
+            self.app["s"]["ranges_per_token"] = 5
+            me = {"Cookie": wallet_cookie(TEST_PK), "Origin": f"http://{self.client.host}:{self.client.port}"}
+            usage_mod.save_wallet_set(self.app["usage_dir"] / "beta.json", {TEST_PK})
+            starts = {1: "01:46", 2: "01:50", 3: "01:52", 4: "01:54"}
+            rng = lambda h: {"mint": MINT, "from": f"2001-09-09T{starts[h]}", "to": "2001-09-09T02:06"}   # noqa: E731
+            for h in (1, 2):                                                     # денна стеля тут 1: тестера вона не зупиняє
+                r = await self.client.post("/analyze", data=rng(h), allow_redirects=False, headers=me)
+                self.assertEqual(r.status, 302, await r.text())
+                self.assertNotIn("notice=", r.headers["Location"])
+                await asyncio.to_thread(self.app["jobs"].q.join)
+                self.assertEqual(self.app["jobs"].get(r.headers["Location"].split("/")[-1]).s_over["run_cap_requests"], 2000)   # стеля прогону лишається
+            self.assertIn("Beta tester: no daily limit on analyses", await (await self.client.get(f"/token?mint={MINT}", headers=me)).text())
+            self.assertEqual(self.app["runs_daily"].left("global", 100), 100)    # спільну добову стелю сайту тестер не з'їдає
+            usage_mod.save_wallet_set(self.app["usage_dir"] / "beta.json", set())
+            r = await self.client.post("/analyze", data=rng(3), allow_redirects=False, headers=me)
+            self.assertNotIn("notice=", r.headers["Location"])                   # поза списком — звичайний день: один є…
+            await asyncio.to_thread(self.app["jobs"].q.join)
+            r = await self.client.post("/analyze", data=rng(4), allow_redirects=False, headers=me)
+            self.assertIn("notice=limit", r.headers["Location"])                 # …і на ньому все
 
         async def test_live_mode_quota_cap_and_delete(self):
             # гаманець: 1 прогін на день; той самий діапазон удруге — безкоштовно; 3 діапазони на токен; видалити може автор або адмін
@@ -2028,6 +2111,48 @@ if AioHTTPTestCase:
             r = await self.client.post("/auth/verify", json={"pubkey": pk, "signature": sig, "message": msg, "wallet": "Phantom"},
                                        headers={"Origin": self.origin})
             return r, pk, msg, sig
+
+        async def test_new_wallets_from_one_network_stop_at_the_days_cap_known_ones_do_not(self):
+            self.app["s"]["new_accounts_per_ip_per_day"] = 2
+            first = SigningKey.generate()
+            for sk in (first, None):
+                r, _, _, _ = await self._sign_in(sk)
+                self.assertEqual(r.status, 200, await r.text())
+            r, _, _, _ = await self._sign_in()
+            self.assertEqual(r.status, 429)                                     # третій новий гаманець з цієї мережі за добу
+            self.assertIn("Too many new wallets", (await r.json())["error"])
+            r, _, _, _ = await self._sign_in(first)
+            self.assertEqual(r.status, 200, await r.text())                    # знайомий гаманець входить як завжди
+
+        async def test_sign_in_codes_from_one_network_are_throttled(self):
+            for _ in range(30):
+                self.assertEqual((await self.client.post("/auth/nonce", headers={"Origin": self.origin})).status, 200)
+            self.assertEqual((await self.client.post("/auth/nonce", headers={"Origin": self.origin})).status, 429)
+
+        async def test_a_spent_code_is_not_counted_as_a_guess(self):
+            sk = SigningKey.generate()
+            r, pk, msg, sig = await self._sign_in(sk)
+            self.assertEqual(r.status, 200)
+            for _ in range(12):                                                 # той самий код удруге — «прострочено», не вгадування
+                r = await self.client.post("/auth/verify", json={"pubkey": pk, "signature": sig, "message": msg, "wallet": "Phantom"},
+                                           headers={"Origin": self.origin})
+                self.assertEqual(r.status, 401)
+            r, _, _, _ = await self._sign_in(sk)
+            self.assertEqual(r.status, 200, await r.text())                    # і мережу за це не зачинили
+
+        async def test_a_cookie_with_odd_characters_is_a_guest_not_a_crash(self):
+            r = await self.client.get("/", headers={"Cookie": "early_acct=" + "1" * 44 + ".9999999999.\u00e9"})
+            self.assertEqual(r.status, 200)
+            self.assertIn('data-acct="0"', await r.text())
+
+        async def test_account_changes_stop_at_the_days_cap(self):
+            self.app["s"]["acct_writes_per_day"] = 2
+            r, _, _, _ = await self._sign_in()
+            h = self._hdr(r)
+            for i in range(2):
+                self.assertEqual((await self.client.post("/me/lists", json={"name": f"L{i}"}, headers=h)).status, 200)
+            r = await self.client.post("/me/lists", json={"name": "L2"}, headers=h)
+            self.assertEqual(r.status, 429)                                     # безкоштовний гаманець не роздує журнал циклом
 
         def _hdr(self, r):
             """Куки явно в заголовку: тестовий клієнт не шле Secure-куки по http."""

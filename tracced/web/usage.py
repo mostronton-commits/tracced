@@ -824,14 +824,18 @@ def save_json(path, obj):
     os.replace(tmp, path)
 
 
-def load_exclude(path):
-    """Гаманці, які власник позначив тестовими: у поведінку не йдуть (як і його власні)."""
+def load_wallet_set(path):
+    """Набір гаманців з файлу {"wallets": [...]}, який веде власник у /admin; биті записи відкидаються."""
     d = load_json(path, {}) or {}
     return {w for w in d.get("wallets") or [] if isinstance(w, str) and PK_RE.match(w)}
 
 
-def save_exclude(path, wallets):
+def save_wallet_set(path, wallets):
     save_json(path, {"wallets": sorted(wallets)})
+
+
+# тестові гаманці власника (exclude.json): у поведінку не йдуть, як і його власні
+load_exclude, save_exclude = load_wallet_set, save_wallet_set
 
 
 # ───────────────────────── on-chain факти користувачів ─────────────────────────
