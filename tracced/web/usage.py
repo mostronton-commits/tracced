@@ -143,8 +143,9 @@ CARD_SPEND = {"card-profile", "card-trades", "card-age"}
 FEATURES = {"run": "Analyses", "names": "Wallet names", "enrich": "Wallet age and funders (background)",
             "overview": "Token overviews", "chart": "Chart candles", "card-profile": "Card: last 30 days",
             "card-trades": "Card: trades on the token", "card-age": "Card: age and funder", "demo": "Demo capture",
-            "credits": "Balance checks", "onchain": "This dashboard: on-chain facts", "agent": "AI agent"}
-WHO = {"wallets": "Wallet users", "team": "You and test wallets", "guests": "Guests", "system": "The server"}
+            "credits": "Balance checks", "onchain": "This dashboard: on-chain facts", "agent": "AI agent",
+            "api-check": "Partner API: token checks"}
+WHO = {"wallets": "Wallet users", "team": "You and test wallets", "guests": "Guests", "partners": "API partners", "system": "The server"}
 # кліки людською мовою: таблиця «що клікають» і хронологія гаманця
 CLICKS = {"card-open": "Opened a wallet card", "card-close": "Closed a wallet card", "card-period": "Switched 7D/30D in a card",
           "pin": "Pinned a wallet to the chart", "filter": "Changed a filter", "hide": "Hid a tag", "filters-reset": "Reset the filters",
@@ -172,6 +173,8 @@ def who_of(pk, team):
     """Хто це з погляду дашборда: гаманець-користувач, команда (власник і позначені тестові), гість чи сам сервер."""
     if pk == "guest":
         return "guests"
+    if isinstance(pk, str) and pk.startswith("api:"):
+        return "partners"                             # ключ партнерського API: «api:<id ключа>»
     if not isinstance(pk, str) or not PK_RE.match(pk):
         return "system"
     return "team" if pk in team else "wallets"
@@ -709,6 +712,37 @@ def wallet_detail(events, pk, *, account=None, jobs=(), onchain=None, agent_log=
     return {"pubkey": pk, "who": who_of(pk, team), "account": account or {}, "onchain": (onchain or {}).get(pk) or {},
             "totals": totals, "runs": runs, "timeline": timeline, "agent": agent,
             "first_ms": (account or {}).get("created_ms"), "last_ms": max((e["ts_ms"] for e in acts), default=None)}
+
+
+# ───────────────────────── партнерське API ─────────────────────────
+
+def month_start_ms(now_ms):
+    """Початок календарного місяця за UTC, у мс."""
+    d = datetime.datetime.fromtimestamp(now_ms / 1000, datetime.timezone.utc)
+    return int(datetime.datetime(d.year, d.month, 1, tzinfo=datetime.timezone.utc).timestamp() * 1000)
+
+
+def api_usage(events, now_ms, recent_n=30):
+    """Партнерське API за місяць: на кожен ключ — перевірки сьогодні й за місяць, скільки пройшло, скільки з кешу,
+    запити Solana Tracker, коли востаннє; і останні виклики стрічкою. День — за UTC, як і денна межа ключа."""
+    day0 = now_ms - now_ms % 86_400_000
+    per, recent = {}, []
+    for e in events:
+        who = e.get("pubkey")
+        if not isinstance(who, str) or not who.startswith("api:"):
+            continue
+        k = per.setdefault(who[4:], {"today": 0, "month": 0, "passed": 0, "cached": 0, "st": 0, "last_ms": None})
+        if e.get("event") == "api":
+            k["month"] += 1
+            k["today"] += int(e.get("ts_ms", 0) >= day0)
+            k["passed"] += int(bool(e.get("passes")))
+            k["cached"] += int(bool(e.get("cached")))
+            k["last_ms"] = max(k["last_ms"] or 0, int(e.get("ts_ms") or 0))
+            recent.append(e)
+        elif e.get("event") == "spend":
+            k["st"] += int(e.get("st") or 0)
+    recent.sort(key=lambda e: -int(e.get("ts_ms") or 0))
+    return {"keys": per, "recent": [dict(e, key=e["pubkey"][4:]) for e in recent[:recent_n]]}
 
 
 # ───────────────────────── скільки лишилось у постачальників ─────────────────────────

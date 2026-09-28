@@ -18,6 +18,7 @@ PAGES = [
     ("tags", "Tags", "🏷️", "Eight rules, each one checkable on chain"),
     ("limits", "Limits", "⏳", "What is free, what needs a wallet, what it costs us"),
     ("account", "Your account", "🔑", "Sign-in, lists, your own tags, repeats"),
+    ("api", "API", "🔌", "A token check for partners, in beta"),
     ("roadmap", "Roadmap", "🗺️", "Shipped, next, and what we will not build"),
     ("project", "The project", "📌", "Why it exists and what it refuses to do"),
 ]

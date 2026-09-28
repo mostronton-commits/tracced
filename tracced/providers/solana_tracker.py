@@ -101,6 +101,12 @@ class SolanaTracker(PumpDataSource):
                 time.sleep(1.0 * (attempt + 1))
         raise last
 
+    def token_report(self, mint):
+        """Уся відповідь `/tokens/{mint}` як є: токен, пули (права творця, спалення пулу, ліквідність) і ризик
+        (частки dev, пачок, снайперів, інсайдерів, топ-10). Один запит; для перевірки партнерського API."""
+        d = self._get(f"/tokens/{mint}")
+        return d if isinstance(d, dict) else {}
+
     def token_info(self, mint):
         d = self._get(f"/tokens/{mint}")
         tok = d.get("token", {}) or {}
