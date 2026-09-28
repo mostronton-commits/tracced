@@ -39,9 +39,12 @@ for a day, and the age and funder stay in the result.
 | Wallets that get exact exits | {{ '{:,}'.format(s.max_wallet_lookups) }} |
 | Smallest position in the table | ${{ s.min_invested_usd }} bought inside the range |
 | Wallets whose age is checked with the analysis, first by PnL | {{ s.age_lookups_max }} |
-| Other wallets checked from their cards, per person a day | {{ s.age_card_per_day }} |
-| Requests a day: charts (guest) / charts and wallet cards (wallet) / the whole site | {{ '{:,}'.format(s.browse_per_day_guest) }} / {{ '{:,}'.format(s.browse_per_day) }} / {{ '{:,}'.format(s.browse_global_per_day) }} |
+| Other wallets checked from their cards, per person a day, and per network | {{ s.age_card_per_day }} |
+| Requests a day: charts (guest) / charts and wallet cards (wallet) / wallets of one network / the whole site | {{ '{:,}'.format(s.browse_per_day_guest) }} / {{ '{:,}'.format(s.browse_per_day) }} / {{ '{:,}'.format(s.browse_per_day_net) }} / {{ '{:,}'.format(s.browse_global_per_day) }} |
 | New analyses on the whole site, per day | {{ s.runs_global_per_day }} |
+{% if s.run_requests_per_day %}| Requests new analyses on the whole site may spend in a day | {{ '{:,}'.format(s.run_requests_per_day) }} |
+{% endif %}| Wallets signing in for the first time, from one network a day | {{ s.new_accounts_per_ip_per_day }} |
+| Changes to your lists, tags and notes, and exports, per wallet a day | {{ '{:,}'.format(s.acct_writes_per_day) }} |
 | Questions to the AI agent, per person a day | {{ s.agent_questions_per_day }} |
 | Results the agent writes its cards for, per person a day (cards someone already opened are free) | {{ s.agent_cards_per_day }} |
 

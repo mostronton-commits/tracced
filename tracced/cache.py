@@ -11,10 +11,11 @@ import time
 
 
 class JsonCache:
-    def __init__(self, path, ttl_hours=72, flush_every=25):
+    def __init__(self, path, ttl_hours=72, flush_every=25, max_entries=None):
         self.path = path
         self.ttl = ttl_hours * 3600
         self.flush_every = flush_every
+        self.max_entries = max_entries          # потолок записей (None — без потолка): кэш не растёт по чужим запросам без конца
         self._dirty = 0
         self._lock = threading.RLock()          # данные: get/put/снимок для записи
         self._write_lock = threading.Lock()     # файл: одна запись за раз
@@ -26,6 +27,13 @@ class JsonCache:
             except Exception:
                 self.data = {}   # битый кэш не должен ронять прогон
             self._prune(time.time())
+            self._cap()
+
+    def _cap(self):
+        """Сверх потолка — выбросить самые старые записи. С запасом 10 %, чтобы не сортировать на каждый put. Под `_lock`."""
+        if self.max_entries and len(self.data) > self.max_entries * 1.1:
+            old = sorted(self.data.items(), key=lambda kv: kv[1].get("ts", 0) if isinstance(kv[1], dict) else 0)
+            self.data = dict(old[-self.max_entries:])
 
     def _prune(self, now):
         """Выбросить протухшие записи (без TTL — хранить всё). Вызывать под `_lock`."""
@@ -48,6 +56,7 @@ class JsonCache:
     def put(self, key, value):
         with self._lock:
             self.data[key] = {"value": value, "ts": time.time()}
+            self._cap()
             self._dirty += 1
             due = self._dirty >= self.flush_every
         if due:
@@ -61,6 +70,7 @@ class JsonCache:
             now = time.time()
             for key, value in items.items():
                 self.data[key] = {"value": value, "ts": now}
+            self._cap()
             self._dirty += 1
             due = self._dirty >= self.flush_every
         if due:

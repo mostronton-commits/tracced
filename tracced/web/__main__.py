@@ -1,7 +1,9 @@
 """python -m tracced.web — запуск сторінки (у Docker: порт лише на 127.0.0.1 хоста)."""
+import asyncio
 import logging
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 from aiohttp import web
 
@@ -24,7 +26,7 @@ def main():
     cfg = load_config(os.getenv("EARLY_CONFIG", "config.yaml"))
     s = settings.load(cfg)
     identity = JsonCache("cache/early/identity.json", ttl_hours=s["identity_ttl_hours"]) if s.get("st_identity") else None
-    st = EarlyST(key, pause=float(s.get("pause_s", 0.35)), chart_cache=JsonCache("cache/early/chart.json", ttl_hours=72),
+    st = EarlyST(key, pause=float(s.get("pause_s", 0.35)), chart_cache=JsonCache("cache/early/chart.json", ttl_hours=72, max_entries=600),
                  identity_cache=identity,
                  stats_cache=JsonCache("cache/early/wallet_token.json", ttl_hours=s["wallet_stats_ttl_hours"],
                                        flush_every=200))   # великий файл: при паралельних гаманцях дамп кожні 25 записів гальмує всіх
@@ -42,6 +44,12 @@ def main():
                               fallbacks=os.getenv("ASSISTANT_FALLBACKS"))
         logging.getLogger("early.web").info("assistant: %s @ %s", assistant.model, assistant.url)
     app = create_app(st, s, cfg, ages=ages, assistant=assistant, background=True)   # фон дашборда власника: лише живий сервер
+
+    async def more_threads(_app):
+        # blocking work goes to threads (rows, the chart, the agent, files): the default pool is cpu+4, and eight slow
+        # calls to an outside service could hold every thread while the rest of the site waits behind them
+        asyncio.get_running_loop().set_default_executor(ThreadPoolExecutor(max_workers=32, thread_name_prefix="web"))
+    app.on_startup.append(more_threads)
     port = int(os.getenv("WEB_PORT", "8095"))
     web.run_app(app, host=os.getenv("WEB_HOST", "0.0.0.0"), port=port, print=None)
     return 0

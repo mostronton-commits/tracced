@@ -56,6 +56,21 @@ class FeedbackStore:
         except OSError:
             return []
 
+    def _tail(self, n):
+        """Останні n рядків, не читаючи весь файл: скринька росте, а форма шукає повтор на кожен лист."""
+        try:
+            with open(self.path, "rb") as f:
+                f.seek(0, os.SEEK_END)
+                pos, data = f.tell(), b""
+                while pos > 0 and data.count(b"\n") <= n:
+                    step = min(65536, pos)
+                    pos -= step
+                    f.seek(pos)
+                    data = f.read(step) + data
+        except OSError:
+            return []
+        return data.decode("utf-8", errors="replace").splitlines(keepends=True)[-n:]   # перший, обрізаний, лишається за межею
+
     def _state(self):
         try:
             with open(self.state_path, encoding="utf-8") as f:
@@ -73,7 +88,7 @@ class FeedbackStore:
     def recent(self, n=200):
         """Останні n листів, новіші першими, кожен з `id` і `read`; битий рядок пропускається."""
         with self._lock:
-            lines, read = self._lines()[-n:], self._state()["read"]
+            lines, read = self._tail(n), self._state()["read"]
         out = []
         for line in reversed(lines):
             try:

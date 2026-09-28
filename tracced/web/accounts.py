@@ -197,7 +197,7 @@ def sign_acct(secret, pubkey, exp):
 
 def read_acct(secret, token, now=None):
     """Адреса з куки, або None, якщо кука чужа, зіпсована чи прострочена."""
-    if not token or not isinstance(token, str):
+    if not token or not isinstance(token, str) or not token.isascii() or len(token) > 200:   # чужі символи: compare_digest кидав би TypeError → 500
         return None
     parts = token.split(".")
     if len(parts) != 3 or not valid_pubkey(parts[0]):

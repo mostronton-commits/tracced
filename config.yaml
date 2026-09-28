@@ -37,6 +37,8 @@ early:
   age_card_per_day: 50          # paid age/funder checks from wallet cards, per person a day (cached wallets are free)
   age_card_global_per_day: 500  # and for the whole site: one check can cost up to ~70 RPC credits
   runs_global_per_day: 40       # was 20 (owner, 24.09): a run costs ~100-350 requests on Pro, the month guard stays
+  run_requests_per_day: 25000   # the day in requests, not in runs: what finished runs spent plus the cap of every run
+                                # in flight must fit, so 40 runs at the 6,000 cap cannot spend a week of the plan in a day
   ranges_per_token: 5           # was 3
 
   # Charts of live tokens spend from the same budget (an overview is ~2 requests, a chunk of candles is 1).

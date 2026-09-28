@@ -16,6 +16,10 @@ services:
       - ./config.yaml:/app/config.yaml:ro
     networks: [proxy]
     restart: unless-stopped
+    # walls for a flood or a runaway analysis: the bots on the same server keep their memory and CPU
+    mem_limit: 3g
+    cpus: "2.5"
+    pids_limit: 512
     logging:
       driver: json-file
       options: { max-size: "20m", max-file: "5" }

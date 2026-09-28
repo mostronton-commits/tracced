@@ -19,6 +19,13 @@ class TestCache(unittest.TestCase):
         c.put("W", {"pnl": 100})
         self.assertEqual(c.get("W"), {"pnl": 100})
 
+    def test_a_ceiling_drops_the_oldest_records(self):
+        c = JsonCache(None, ttl_hours=0, max_entries=10)
+        for i in range(12):
+            c.put(f"k{i}", i)
+        self.assertEqual(len(c.data), 10)                                       # понад стелю — найстаріші геть
+        self.assertEqual((c.get("k0"), c.get("k1"), c.get("k2"), c.get("k11")), (None, None, 2, 11))
+
     def test_miss(self):
         c = JsonCache(self.path)
         self.assertIsNone(c.get("nope"))

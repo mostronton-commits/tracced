@@ -277,7 +277,7 @@
         <span class="uflag fb-{{ f.kind }}">{{ f.kind }}</span>
         <span class="dtc muted" data-ms="{{ f.ts_ms }}">{{ f.ts_ms|dt }}</span>
         {% if f.pk %}<a class="mono" href="/admin/w/{{ f.pk }}">{{ short(f.pk) }}</a>{% else %}<span class="muted">guest</span>{% endif %}
-        {% if f.page and f.page.startswith('/') and not f.page[1:2] in ('/', '\\') %}<a class="muted" href="{{ f.page }}">{{ f.page[:40] }}</a>{% endif %}
+        {% if f.page_ok %}<a class="muted" href="{{ f.page }}">{{ f.page[:40] }}</a>{% elif f.page %}<span class="muted">{{ f.page[:40] }}</span>{% endif %}
         <span class="muted">{{ {'m': 'phone', 'd': 'computer'}.get(f.dev, '') }}</span>
         <span class="fbact">
           <button type="button" class="ghost" data-fb-act="{{ 'unread' if f.read else 'read' }}">{{ 'Mark as new' if f.read else 'Mark as read' }}</button>

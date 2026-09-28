@@ -367,6 +367,23 @@ if AioHTTPTestCase:
             self.assertIn("@trader", html)
             self.assertIn("new message", await (await self.client.get("/admin")).text())
 
+        async def test_contact_turns_away_odd_tokens_link_lists_and_a_flood_of_guests(self):
+            import time as _time
+            from tracced.web.app import Throttle, _form_token
+            site, base = dict(GUEST, **self.origin), {"kind": "idea", "text": "A fine idea", "t": _form_token(_time.time() - 10)}
+            for odd in ("\u00b2\u00b2.abc", "9" * 5000 + ".abc"):
+                r = await self.client.post("/feedback", json=dict(base, t=odd), headers=site)
+                self.assertEqual((r.status, self.app["feedback"].recent()), (200, []))   # дивна мітка: не 500, і нічого не пишемо
+            r = await self.client.post("/feedback", json=dict(base, contact="https://a.io https://b.io"), headers=site)
+            self.assertEqual(r.status, 400)                                     # контакт — один нік чи посилання, не список
+            self.app["feedback_throttle"] = Throttle(max_fails=5, window_s=3600, block_s=3600)
+            self.app["s"]["feedback_per_day_guest"] = 1
+            self.assertEqual((await self.client.post("/feedback", json=base, headers=site)).status, 200)
+            r = await self.client.post("/feedback", json=dict(base, text="Another one"), headers=site)
+            self.assertEqual(r.status, 429)                                     # день гостей скінчився…
+            r = await self.client.post("/feedback", json=dict(base, text="From a user"), headers=self.origin)
+            self.assertEqual(r.status, 200)                                     # …а гаманець усе ще може написати
+
         async def test_the_owner_reads_and_deletes_messages(self):
             store = self.app["feedback"]
             a = store.add({"ts_ms": 1, "kind": "bug", "text": "one"})
