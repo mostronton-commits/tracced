@@ -10,7 +10,9 @@
     <button type="button" class="ghost copy" data-copy="{{ d.pubkey }}" title="Copy address">⧉</button>
     <a class="ext" href="https://solscan.io/account/{{ d.pubkey }}" target="_blank" rel="noopener" title="Solscan">Solscan ↗</a>
     {% if is_admin %}<span class="uflag right">your wallet</span>
-    {% else %}<button type="button" class="ghost right" id="uexclude" data-wallet="{{ d.pubkey }}" data-on="{{ '0' if excluded else '1' }}"
+    {% else %}<button type="button" class="ghost right" id="ubeta" data-wallet="{{ d.pubkey }}" data-on="{{ '0' if beta_on else '1' }}"
+      title="Beta testers have no daily limit on analyses; the cap per run and the month's reserve still apply">{{ 'Beta tester · remove' if beta_on else 'Make a beta tester' }}</button>
+    <button type="button" class="ghost" id="uexclude" data-wallet="{{ d.pubkey }}" data-on="{{ '0' if excluded else '1' }}"
       title="A test or team wallet: its steps stop counting as a user's (its costs still count)">{{ 'Counted as a test wallet · undo' if excluded else 'Mark as a test wallet' }}</button>{% endif %}
   </div>
   <p class="muted small">
@@ -80,11 +82,14 @@
 </section>
 <script>
 (function () {
-  const b = document.getElementById('uexclude'); if (!b) return;
-  b.addEventListener('click', async () => {
-    b.disabled = true;
-    try { await EarlyWallet.post('/admin/usage/exclude', { wallet: b.dataset.wallet, on: b.dataset.on === '1' }); location.reload(); }
-    catch (e) { b.disabled = false; EarlyUI.toast(e.message); }
+  // the two switches of a wallet: a test wallet (out of the numbers), a beta tester (no daily limit on analyses)
+  [['uexclude', '/admin/usage/exclude'], ['ubeta', '/admin/beta']].forEach(([id, url]) => {
+    const b = document.getElementById(id); if (!b) return;
+    b.addEventListener('click', async () => {
+      b.disabled = true;
+      try { await EarlyWallet.post(url, { wallet: b.dataset.wallet, on: b.dataset.on === '1' }); location.reload(); }
+      catch (e) { b.disabled = false; EarlyUI.toast(e.message); }
+    });
   });
 })();
 </script>

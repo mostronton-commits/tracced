@@ -166,6 +166,21 @@
 {% endif %}
 
 {% if tab == 'wallets' %}
+<section class="card me usage ubeta">
+  <div class="row mehead"><h2>Beta testers</h2><span class="muted small">no daily limit on analyses; the cap per run and the month's reserve still apply</span></div>
+  <div class="ubeta-list">
+    {% for w in beta %}<span class="ubeta-w"><a class="mono" href="/admin/w/{{ w }}" title="{{ w }}">{{ short(w) }}</a><button type="button" class="ghost x" data-beta-off="{{ w }}" title="Remove from beta testers" aria-label="Remove {{ short(w) }}">×</button></span>
+    {% else %}<span class="muted small">None yet.</span>{% endfor %}
+  </div>
+  <form class="row ubeta-add" id="betaform"><input id="betain" class="mono" placeholder="Wallet address" maxlength="44" autocomplete="off" spellcheck="false" aria-label="Wallet address to add"><button type="submit">Add</button></form>
+  <script>
+  (function () {
+    const post = (wallet, on) => EarlyWallet.post('/admin/beta', { wallet, on }).then(() => location.reload()).catch(e => EarlyUI.toast(e.message));
+    document.getElementById('betaform').addEventListener('submit', e => { e.preventDefault(); const v = document.getElementById('betain').value.trim(); if (v) post(v, true); });
+    document.querySelectorAll('[data-beta-off]').forEach(b => b.addEventListener('click', () => post(b.dataset.betaOff, false)));
+  })();
+  </script>
+</section>
 <section class="card me usage">
   {% if u.users %}
   <div class="tablewrap"><table class="facts melist"><thead><tr>
@@ -175,7 +190,7 @@
   </tr></thead><tbody>
   {% for w in u.users %}{% set o = w.onchain or {} %}{% set i = o.idn or {} %}{% set pr = o.p30 or {} %}
     <tr>
-      <td><span class="wid"><a class="mono" href="/admin/w/{{ w.pubkey }}" title="{{ w.pubkey }}">{{ short(w.pubkey) }}</a>{% if w.who == 'team' %} <span class="uflag">team</span>{% endif %}</span></td>
+      <td><span class="wid"><a class="mono" href="/admin/w/{{ w.pubkey }}" title="{{ w.pubkey }}">{{ short(w.pubkey) }}</a>{% if w.who == 'team' %} <span class="uflag">team</span>{% endif %}{% if w.pubkey in beta %} <span class="uflag">beta</span>{% endif %}</span></td>
       <td class="small">{% if i.type == 'kol' or 'kol' in (i.tags or []) %}★ {% endif %}{{ i.name or '' }}{% if i.twitter %} @{{ i.twitter|replace('@', '') }}{% endif %}{% if i and not i.name and not i.twitter %}<span class="muted">{{ i.type or (i.tags or [''])[0] }}</span>{% endif %}{% if not i %}<span class="muted">{{ w.app or '—' }}</span>{% endif %}</td>
       <td class="muted small"><span class="dtc" data-ms="{{ w.last_ms or 0 }}">{{ (w.last_ms or 0)|dt }}</span></td>
       <td class="num mono">{{ w.days }}</td><td class="num mono">{{ w.runs }}</td><td class="num mono">{{ w.cards }}</td><td class="num mono">{{ w.asks }}</td><td class="num mono">{{ w.saves }}</td>
@@ -256,19 +271,48 @@
   {% if feedback %}
   <div class="fblist">
   {% for f in feedback %}
-    <article class="fbitem">
+    <article class="fbitem{{ '' if f.read else ' unread' }}" data-fb="{{ f.id }}">
       <div class="fbmeta small">
+        {% if not f.read %}<span class="fbdot" title="New">●</span>{% endif %}
         <span class="uflag fb-{{ f.kind }}">{{ f.kind }}</span>
         <span class="dtc muted" data-ms="{{ f.ts_ms }}">{{ f.ts_ms|dt }}</span>
         {% if f.pk %}<a class="mono" href="/admin/w/{{ f.pk }}">{{ short(f.pk) }}</a>{% else %}<span class="muted">guest</span>{% endif %}
-        {% if f.page %}<a class="muted" href="{{ f.page }}">{{ f.page[:40] }}</a>{% endif %}
+        {% if f.page and f.page.startswith('/') and not f.page[1:2] in ('/', '\\') %}<a class="muted" href="{{ f.page }}">{{ f.page[:40] }}</a>{% endif %}
         <span class="muted">{{ {'m': 'phone', 'd': 'computer'}.get(f.dev, '') }}</span>
+        <span class="fbact">
+          <button type="button" class="ghost" data-fb-act="{{ 'unread' if f.read else 'read' }}">{{ 'Mark as new' if f.read else 'Mark as read' }}</button>
+          <button type="button" class="ghost" data-fb-act="delete" title="Delete for good">Delete</button>
+        </span>
       </div>
       <p class="fbtext">{{ f.text }}</p>
       {% if f.contact %}<p class="small">Reply to: <b>{{ f.contact }}</b></p>{% endif %}
     </article>
   {% endfor %}
   </div>
+  <script>
+  (function () {
+    // one message: read, new again, or deleted (a second click confirms, as with an analysis)
+    document.querySelector('.fblist').addEventListener('click', async e => {
+      const b = e.target.closest('[data-fb-act]'); if (!b) return;
+      const item = b.closest('[data-fb]'), act = b.dataset.fbAct;
+      if (act === 'delete' && !b.dataset.armed) {
+        b.dataset.armed = '1'; b.textContent = 'Delete?'; b.classList.add('armed');
+        setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.textContent = 'Delete'; b.classList.remove('armed'); } }, 5000);
+        return;
+      }
+      b.disabled = true;
+      try {
+        await EarlyWallet.post('/admin/feedback', { id: item.dataset.fb, action: act });
+        if (act === 'delete') { item.remove(); EarlyUI.toast('Message deleted.'); return; }
+        const read = act === 'read';
+        item.classList.toggle('unread', !read);
+        const dot = item.querySelector('.fbdot'); if (read && dot) dot.remove();
+        b.dataset.fbAct = read ? 'unread' : 'read'; b.textContent = read ? 'Mark as new' : 'Mark as read';
+      } catch (x) { EarlyUI.toast(x.message); }
+      finally { b.disabled = false; }
+    });
+  })();
+  </script>
   {% else %}<p class="muted">No messages yet. They come from Contact in the footer and from error pages.</p>{% endif %}
 </section>
 {% endif %}

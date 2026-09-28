@@ -10,6 +10,7 @@ import contextlib
 import contextvars
 import csv
 import hashlib
+import hmac
 import ipaddress
 import os
 import secrets
@@ -39,6 +40,7 @@ from . import replay
 from . import usage as usage_mod
 from .agent_store import AgentStore
 from .feedback import FeedbackStore, KINDS as FEEDBACK_KINDS, MAX_CONTACT as FEEDBACK_CONTACT, MAX_PAGE as FEEDBACK_PAGE, MAX_TEXT as FEEDBACK_TEXT
+from .feedback import links as feedback_links
 from .jobs import JobQueue, make_id, unnamed
 
 log = logging.getLogger("early.web")
@@ -501,6 +503,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_get("/admin", admin_page)
     app.router.add_get("/admin/w/{pk}", admin_wallet_page)
     app.router.add_post("/admin/usage/exclude", admin_usage_exclude)
+    app.router.add_post("/admin/beta", admin_beta)
+    app.router.add_post("/admin/feedback", admin_feedback)
     app.router.add_post("/admin/demo", admin_demo)
     app.router.add_post("/admin/agent", admin_agent_save)
     app.router.add_post("/admin/agent/preview", admin_agent_preview)
@@ -1590,6 +1594,12 @@ def _team(app):
     return set(app["admins"]) | usage_mod.load_exclude(app["usage_dir"] / "exclude.json")
 
 
+def _beta(app):
+    """Бета-тестери, яких власник веде в /admin: без денних лімітів на аналізи (стеля прогону і резерв місяця лишаються).
+    Файл, а не .env: список міняється без деплою і не лежить у публічному репозиторії."""
+    return usage_mod.load_wallet_set(app["usage_dir"] / "beta.json")
+
+
 USAGE_TTL = 60
 ADMIN_TABS = {"overview": "Overview", "analyses": "Analyses", "agent": "Agent", "wallets": "Wallets", "behavior": "Behavior",
               "costs": "Costs", "feedback": "Feedback", "log": "Log", "method": "Agent method"}
@@ -1639,8 +1649,9 @@ async def admin_page(request):
     feedback = app["feedback"].recent(200)
     store = app["agent_store"]
     meters = usage_mod.credit_meters(budget, now_ms=int(time.time() * 1000))
-    return render("admin.html", request, u=u, budget=budget, meters=meters, events=events, period=period, include_team=include_team, tab=tab, tabs=ADMIN_TABS,
-                  feedback=feedback, feedback_new=sum(1 for f in feedback if f.get("ts_ms", 0) >= u["since_ms"]),
+    return render("admin.html", request, u=u, budget=budget, meters=meters, beta=sorted(_beta(app)), events=events, period=period,
+                  include_team=include_team, tab=tab, tabs=ADMIN_TABS,
+                  feedback=feedback, feedback_new=sum(1 for f in feedback if not f.get("read")),
                   usage_tz=app["s"].get("usage_tz") or "UTC", periods=list(usage_mod.PERIODS),
                   agent_cfg=store.config(), agent_history=store.history(10), agent_log=store.recent(50),
                   agent_on=app.get("agent") is not None, agent_model=getattr(app.get("assistant"), "model", ""),
@@ -1665,7 +1676,8 @@ async def admin_wallet_page(request):
                                        onchain=usage_mod.load_json(app["usage_dir"] / "onchain.json", {}),
                                        agent_log=app["agent_store"].recent(2000), now_ms=now, tz=tz, team=team)
     d = await asyncio.to_thread(work)
-    return render("admin_wallet.html", request, d=d, excluded=pk in team and pk not in app["admins"], is_admin=pk in app["admins"], now=now)
+    return render("admin_wallet.html", request, d=d, excluded=pk in team and pk not in app["admins"], is_admin=pk in app["admins"], now=now,
+                  beta_on=pk in _beta(app))
 
 
 async def admin_usage_exclude(request):
@@ -1683,6 +1695,40 @@ async def admin_usage_exclude(request):
     usage_mod.save_exclude(path, ex)
     app["usage_cache"].clear()
     return web.json_response({"ok": True, "excluded": wallet in ex})
+
+
+async def admin_feedback(request):
+    """Лист у скриньці власника: прочитано, знову нове, видалити назовсім."""
+    app = request.app
+    pk, body, err = await _admin_json(request)
+    if err:
+        return err
+    fid, action, store = str(body.get("id") or ""), body.get("action"), app["feedback"]
+    if action in ("read", "unread"):
+        ok = await asyncio.to_thread(store.mark, fid, action == "read")
+    elif action == "delete":
+        ok = await asyncio.to_thread(store.delete, fid)
+    else:
+        return _jerr("Unknown action.")
+    if not ok:
+        return _jerr("No such message.", 404)
+    return web.json_response({"ok": True})
+
+
+async def admin_beta(request):
+    """Додати бета-тестера чи прибрати: його аналізи не впираються в денні ліміти. Список — файл, діє одразу, без деплою."""
+    app = request.app
+    pk, body, err = await _admin_json(request)
+    if err:
+        return err
+    wallet = str(body.get("wallet") or "").strip()
+    if not acct_mod.valid_pubkey(wallet):
+        return _jerr("That is not a wallet address.")
+    path = app["usage_dir"] / "beta.json"
+    beta = usage_mod.load_wallet_set(path)
+    beta = beta | {wallet} if body.get("on") else beta - {wallet}
+    usage_mod.save_wallet_set(path, beta)
+    return web.json_response({"ok": True, "beta": wallet in beta, "wallets": sorted(beta)})
 
 
 ME_COLUMNS = ["wallet", "symbol", "mint", "from_job", "entry_mcap", "invested_usd", "multiple", "tags", "my_tags", "lists", "added_utc"]
@@ -1909,40 +1955,72 @@ async def docs_page(request):
     return render("docs.html", request, body=body, title=title, nav=docs_mod.nav(DOCS_DIR, slug), prev=prev, nxt=nxt)
 
 
+FORM_MIN_S, FORM_MAX_S = 2, 6 * 3600          # швидше — не людина; довше — сторінку відкрили вчора
+SITE_PATH = re.compile(r"/(?![/\\])[^\s\\]*")   # сторінка цього сайту: «//evil.com» і «/\evil.com» браузер відкриває як чужий сайт
+
+
+def _form_token(now=None):
+    """Коли відкрили форму, з підписом сервера: бот, що шле запит без сторінки, такої мітки не має."""
+    ts = str(int(time.time() if now is None else now))
+    return ts + "." + hmac.new(_acct_secret().encode(), b"feedback:" + ts.encode(), hashlib.sha256).hexdigest()[:20]
+
+
+def _form_age(token, now=None):
+    """Скільки секунд тому відкрили форму; None — мітки нема або підпис не наш."""
+    ts, _, sig = str(token or "").partition(".")
+    if not ts.isdigit() or not sig or not hmac.compare_digest(sig, _form_token(int(ts)).partition(".")[2]):
+        return None
+    return (time.time() if now is None else now) - int(ts)
+
+
 async def feedback_page(request):
     """«Contact»: помилка, ідея, питання. Відкрито всім; зі сторінки помилки — одразу «Bug»."""
     kind = request.query.get("kind") if request.query.get("kind") in FEEDBACK_KINDS else "idea"
     _view(request, "feedback")
-    return render("feedback.html", request, kind=kind, kinds=FEEDBACK_KINDS, max_text=FEEDBACK_TEXT, max_contact=FEEDBACK_CONTACT)
+    return render("feedback.html", request, kind=kind, kinds=FEEDBACK_KINDS, max_text=FEEDBACK_TEXT, max_contact=FEEDBACK_CONTACT,
+                  form_token=_form_token())
 
 
 async def feedback_post(request):
-    """Лист власнику: у output/early/feedback/feedback.jsonl і на вкладку Feedback дашборда. Від спаму — поле-пастка,
-    яке людина не бачить, п'ять листів на годину з однієї адреси і спільна стеля на добу."""
+    """Лист власнику: у output/early/feedback/feedback.jsonl і на вкладку Feedback дашборда. Від спаму, по черзі:
+    поле-пастка, яке людина не бачить; мітка часу форми з підписом (без сторінки чи швидше за 2 с — не людина); не
+    більше двох посилань; той самий текст за добу вдруге не пишеться; п'ять спроб на годину з однієї мережі (IPv6 — /64,
+    відкинуті теж рахуються); спільна стеля на добу. Ботові на тихих відмовах — «дякуємо», щоб не підбирав обхід."""
     app = request.app
     if not _same_origin(request):
         return _jerr("Requests must come from this site.", 403)
-    ip, now = _client_ip(request), time.time()
-    wait = app["feedback_throttle"].wait_s(ip, now)
+    ip, now = _ip_key(_client_ip(request)), time.time()
+    throttle = app["feedback_throttle"]
+    wait = throttle.wait_s(ip, now)
     if wait:
         return _jerr(_wait_text(wait), 429)
     body = await _json_body(request, limit=8192)
     if body is None:
         return _jerr("Bad request body.")
-    if body.get("website"):                                     # пастку заповнює лише бот: йому — «дякуємо», і нічого не пишемо
+    age = _form_age(body.get("t"), now)
+    if body.get("website") or age is None or age < FORM_MIN_S:  # пастка, чужа мітка чи надто швидко: «дякуємо», і нічого не пишемо
+        throttle.miss(ip, now)
         return web.json_response({"ok": True})
+    if age > FORM_MAX_S:
+        return _jerr("This page has been open for hours. Reload it and send again.")
     text = str(body.get("text") or "").strip()
     if len(text) < 3:
         return _jerr("Write a few words first.")
     if len(text) > FEEDBACK_TEXT:
         return _jerr(f"Keep it under {FEEDBACK_TEXT:,} characters.")
+    if feedback_links(text) > 2:
+        throttle.miss(ip, now)
+        return _jerr("Keep it to two links at most.")
+    if await asyncio.to_thread(app["feedback"].seen, text, int(now * 1000)):
+        throttle.miss(ip, now)                                  # той самий текст уже в скриньці: удруге не пишемо
+        return web.json_response({"ok": True})
     if not app["usage_daily"].take("feedback:global", int(app["s"].get("feedback_per_day", 200))):
         return _jerr("Too many messages today. Try again tomorrow or reach us on X.", 429)
-    app["feedback_throttle"].miss(ip, now)
+    throttle.miss(ip, now)
     page = str(body.get("page") or "")
     pk, kind = request.get("acct"), body.get("kind") if body.get("kind") in FEEDBACK_KINDS else "other"
     app["feedback"].add({"ts_ms": int(now * 1000), "kind": kind, "text": text, "contact": str(body.get("contact") or "").strip()[:FEEDBACK_CONTACT],
-                         "page": page[:FEEDBACK_PAGE] if page.startswith("/") else "", "pk": pk, "dev": _device(request)})
+                         "page": page[:FEEDBACK_PAGE] if SITE_PATH.fullmatch(page) else "", "pk": pk, "dev": _device(request)})
     if pk:
         app["events"].add(pk, "feedback", kind=kind)
     return web.json_response({"ok": True})
@@ -1977,7 +2055,8 @@ async def token_page(request):
     q = request.query
     preset = None
     admin = bool(pk) and pk in app["admins"]
-    runs_left, runs_why = _runs_left(app, pk, _device_id(request), _client_ip(request)) if pk and not admin else (None, None)
+    beta = bool(pk) and not admin and pk in _beta(app)
+    runs_left, runs_why = _runs_left(app, pk, _device_id(request), _client_ip(request)) if pk and not admin and not beta else (None, None)
     notice = q.get("notice") if q.get("notice") in ("limit", "netcap", "sitecap") else None   # Analyze bounced off a daily cap
     if notice in ("limit", "netcap") and not runs_left == 0:
         notice = None                                   # стара адреса, чуже посилання чи гість: вікно лише тому, кому справді нема
@@ -2001,7 +2080,7 @@ async def token_page(request):
     if not rows:
         rows = [{"n": 1, "label": "Range 1", "from": "", "to": ""}]
     _view(request, "token", mint, demo=1 if demo and demo["mint"] == mint else None)
-    return render("token.html", request, info=info, mint=mint, s=s, is_demo=bool(demo and demo["mint"] == mint),
+    return render("token.html", request, info=info, mint=mint, s=s, is_demo=bool(demo and demo["mint"] == mint), beta=beta,
                   runs_left=runs_left, notice=notice, limit_kind=limit_kind, reset_ms=_next_midnight_ms(), demo_mint=(demo or {}).get("mint"),
                   n_demo=len(demo["ranges"]) if demo and demo["mint"] == mint else 0, bounced=q.get("notice") == "demo", created=info.get("created_time") or 0, now=int(time.time() * 1000),
                   rows_json=json.dumps(rows), jobs_json=json.dumps(jobs_done), preset_json=json.dumps(preset),
@@ -2142,7 +2221,8 @@ def _demo_replay(request, ip, mint, r, demo):
 async def analyze(request):
     """Demo ranges replay for everyone and an existing result opens for everyone. A new live run needs a connected
     wallet: a token holds at most `ranges_per_token` analyses, a wallet gets `runs_per_day` runs a day, and one run
-    may spend at most `run_cap_requests` — none of that applies to the admin wallets."""
+    may spend at most `run_cap_requests` — none of that applies to the admin wallets. Beta testers skip only the daily
+    counts (their own, their network's, the site's)."""
     app, s = request.app, request.app["s"]
     ip = _client_ip(request)
     form = await request.post()
@@ -2186,8 +2266,9 @@ async def analyze(request):
         _limit(app, pk, "run", "hourly")
         raise WebError(f"Too many analyses from this address. Try again in {max(1, round(wait / 60))} min.", 429)
     back = f"/token?mint={mint}&from={chart.to_input(t_from)}&to={chart.to_input(t_to)}"   # the range survives the notice
+    beta = not admin and pk in _beta(app)                               # a beta tester: no daily counts; the run cap and the month's reserve stay
     gcap = int(s.get("runs_global_per_day", 10))
-    if not admin and app["runs_daily"].left("global", gcap) <= 0:
+    if not admin and not beta and app["runs_daily"].left("global", gcap) <= 0:
         _limit(app, pk, "run", "site")
         raise web.HTTPFound(back + "&notice=sitecap")
     reserve = _credits_reserve(s)
@@ -2210,7 +2291,7 @@ async def analyze(request):
     # one person, one day's runs: the wallet, the browser and the network are counted together, so connecting another
     # wallet in the same browser adds nothing. No awaits from here to submit: the check and the charge are one step.
     dev, new_dev, charged = _device_id(request), None, []
-    if not admin:
+    if not admin and not beta:
         left_today, why = _runs_left(app, pk, dev, ip)
         if left_today <= 0 and why == "network":
             _limit(app, pk, "run", "network")
@@ -2224,7 +2305,7 @@ async def analyze(request):
         for key in charged:
             app["runs_daily"].add(key, 1)
     runs.miss(ip, time.time())                                          # звідси починаються витрати — рахуємо цей запуск
-    if not admin:
+    if not admin and not beta:
         app["runs_daily"].add("global", 1)
     over = {"budget_guard_pct": 0, "run_cap_requests": 0 if admin else int(s.get("run_cap_requests", 2000))}
     job = app["jobs"].submit(mint, t_from, t_to, symbol=info.get("symbol"), owner=pk, s_over=over, charged=charged)

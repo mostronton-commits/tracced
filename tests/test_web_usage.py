@@ -325,32 +325,86 @@ if AioHTTPTestCase:
             self.assertIn("Solana token address", errs[1]["msg"])
 
         async def test_write_to_us_reaches_the_owners_inbox(self):
+            import time as _time
+            from tracced.web.app import Throttle, _form_token
             r = await self.client.get("/feedback?kind=bug", headers=GUEST)
             html = await r.text()
             self.assertEqual(r.status, 200)
             self.assertIn('value="bug" checked', html)
-            msg = {"kind": "bug", "text": "The chart is empty on my phone", "contact": "@trader", "page": "/job/X?scope=all"}
+            self.assertIn('name="t" value="', html)                         # форма несе підписаний час відкриття
+            t = _form_token(_time.time() - 10)                              # відкрили десять секунд тому
+            msg = {"kind": "bug", "text": "The chart is empty on my phone", "contact": "@trader", "page": "/job/X?scope=all", "t": t}
+            site = dict(GUEST, **self.origin)
             r = await self.client.post("/feedback", json=msg, headers=GUEST)
             self.assertEqual(r.status, 403)                                  # лише з цього сайту
-            r = await self.client.post("/feedback", json=dict(msg, website="spam.example"), headers=dict(GUEST, **self.origin))
-            self.assertEqual((r.status, self.app["feedback"].recent()), (200, []))   # бот заповнив пастку: «дякуємо», і нічого
-            r = await self.client.post("/feedback", json=dict(msg, text="hi"), headers=dict(GUEST, **self.origin))
+            forged = t[:-1] + ("0" if t[-1] != "0" else "1")
+            for bot in (dict(msg, website="spam.example"), dict(msg, t=None), dict(msg, t=_form_token()), dict(msg, t=forged)):
+                r = await self.client.post("/feedback", json=bot, headers=site)
+                self.assertEqual((r.status, self.app["feedback"].recent()), (200, []))   # пастка, без мітки, за мить, чужий підпис: «дякуємо», і нічого
+            self.app["feedback_throttle"] = Throttle(max_fails=5, window_s=3600, block_s=3600)   # ці чотири теж рахувались: нова година
+            r = await self.client.post("/feedback", json=dict(msg, t=_form_token(_time.time() - 7 * 3600)), headers=site)
+            self.assertEqual(r.status, 400)                                  # сторінку відкрили години тому: перезавантажити
+            r = await self.client.post("/feedback", json=dict(msg, text="hi"), headers=site)
             self.assertEqual(r.status, 400)
-            r = await self.client.post("/feedback", json=msg, headers=dict(GUEST, **self.origin))
+            r = await self.client.post("/feedback", json=dict(msg, text="see https://a.io https://b.io https://c.io"), headers=site)
+            self.assertEqual(r.status, 400)                                  # понад два посилання
+            r = await self.client.post("/feedback", json=msg, headers=site)
             self.assertEqual(r.status, 200)
-            r = await self.client.post("/feedback", json=dict(msg, kind="idea", text="Add alerts", page="https://evil/x"), headers=self.origin)
-            self.assertEqual(r.status, 200)                                  # від гаманця власника (клієнт за замовчуванням)
+            r = await self.client.post("/feedback", json=dict(msg, kind="idea", text="Add alerts", page="//evil.example/x"), headers=self.origin)
+            self.assertEqual(r.status, 200)                                  # від гаманця власника; «//…» — чужий сайт, не пишеться
             got = self.app["feedback"].recent()
             self.assertEqual([(f["kind"], f["pk"], f["page"]) for f in got], [("idea", TEST_PK, ""), ("bug", None, "/job/X?scope=all")])
             self.assertEqual(got[1]["contact"], "@trader")
             self.assertEqual(self.app["events"].tail()[0]["event"], "feedback")
-            for _ in range(4):
-                r = await self.client.post("/feedback", json=msg, headers=dict(GUEST, **self.origin))
-            self.assertEqual(r.status, 429)                                  # з однієї адреси — п'ять на годину
+            r = await self.client.post("/feedback", json=dict(msg, text="  The chart is EMPTY on my phone "), headers=site)
+            self.assertEqual((r.status, len(self.app["feedback"].recent())), (200, 2))   # той самий текст удруге не пишеться
+            r = await self.client.post("/feedback", json=dict(msg, text="Another thing entirely"), headers=site)
+            self.assertEqual(r.status, 200)
+            r = await self.client.post("/feedback", json=dict(msg, text="And one more"), headers=site)
+            self.assertEqual(r.status, 429)                                  # п'ять на годину з однієї мережі, відкинуті теж рахуються
             html = await (await self.client.get("/admin?tab=feedback")).text()
             self.assertIn("The chart is empty on my phone", html)
             self.assertIn("@trader", html)
             self.assertIn("new message", await (await self.client.get("/admin")).text())
+
+        async def test_the_owner_reads_and_deletes_messages(self):
+            store = self.app["feedback"]
+            a = store.add({"ts_ms": 1, "kind": "bug", "text": "one"})
+            b = store.add({"ts_ms": 2, "kind": "idea", "text": "two"})
+            with open(store.path, "a", encoding="utf-8") as f:
+                f.write(json.dumps({"ts_ms": 3, "kind": "other", "text": "an old one, from before ids"}) + "\nnot json\n")
+            self.assertEqual([m["id"] for m in store.recent()], ["3", b, a])     # старий лист — за своїм часом
+            html = await (await self.client.get("/admin?tab=feedback")).text()
+            self.assertIn('<b class="ucount">3</b>', html)                   # три нових
+            self.assertIn("Mark as read", html)
+            post = lambda fid, act, h=None: self.client.post("/admin/feedback", json={"id": fid, "action": act}, headers=h or self.origin)   # noqa: E731
+            self.assertEqual((await post(a, "read")).status, 200)
+            self.assertEqual([m["read"] for m in store.recent()], [False, False, True])
+            self.assertIn('<b class="ucount">2</b>', await (await self.client.get("/admin?tab=feedback")).text())
+            self.assertEqual((await post(a, "unread")).status, 200)
+            self.assertFalse(store.recent()[-1]["read"])
+            self.assertEqual((await post(b, "delete")).status, 200)
+            self.assertEqual((await post("3", "delete")).status, 200)
+            self.assertEqual([m["id"] for m in store.recent()], [a])             # видалене зникло з файлу, битий рядок не заважав
+            self.assertEqual((await post(b, "delete")).status, 404)
+            self.assertEqual((await post(a, "burn")).status, 400)
+            self.assertEqual((await post(a, "delete", dict(GUEST, **self.origin))).status, 403)   # лише гаманець власника
+            self.assertEqual([m["id"] for m in store.recent()], [a])
+
+        async def test_the_owner_keeps_the_beta_list(self):
+            user = acct_mod.b58encode(b"\x41" * 32)
+            r = await self.client.post("/admin/beta", json={"wallet": user, "on": True}, headers=self.origin)
+            self.assertEqual((await r.json())["wallets"], [user])
+            html = await (await self.client.get("/admin?tab=wallets")).text()
+            self.assertIn("Beta testers", html)
+            self.assertIn(f'data-beta-off="{user}"', html)
+            self.assertIn("Beta tester · remove", await (await self.client.get(f"/admin/w/{user}")).text())
+            self.assertEqual((await self.client.post("/admin/beta", json={"wallet": "nope", "on": True}, headers=self.origin)).status, 400)
+            r = await self.client.post("/admin/beta", json={"wallet": user, "on": True}, headers=dict(GUEST, **self.origin))
+            self.assertEqual(r.status, 403)
+            r = await self.client.post("/admin/beta", json={"wallet": user, "on": False}, headers=self.origin)
+            self.assertEqual((await r.json())["wallets"], [])
+            self.assertIn("Make a beta tester", await (await self.client.get(f"/admin/w/{user}")).text())
 
         async def test_sign_out_tags_and_list_exports_are_actions(self):
             seed_demo(self.tmp.name, self.app)

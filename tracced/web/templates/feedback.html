@@ -11,6 +11,7 @@
     <textarea name="text" rows="6" maxlength="{{ max_text }}" required aria-label="Your message" placeholder="Your message"></textarea>
     <input type="text" name="contact" maxlength="{{ max_contact }}" aria-label="How to reach you" placeholder="X, Telegram or email (optional)">
     <input type="text" name="website" class="fbhp" tabindex="-1" autocomplete="off" aria-hidden="true">
+    <input type="hidden" name="t" value="{{ form_token }}">
     <div class="row"><button type="submit" class="primary">Send</button><span class="muted small" id="fbstat" role="status"></span></div>
   </form>
   <p class="fbdone" hidden>Sent. Thank you. <a href="/">Back to tracced</a></p>
@@ -26,7 +27,7 @@
     const btn = f.querySelector('button'); btn.disabled = true; stat.textContent = 'Sending…';
     try {
       const r = await fetch('/feedback', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind: (f.querySelector('[name=kind]:checked') || {}).value, text, contact: f.contact.value.trim(), website: f.website.value, page: from }) });
+        body: JSON.stringify({ kind: (f.querySelector('[name=kind]:checked') || {}).value, text, contact: f.contact.value.trim(), website: f.website.value, page: from, t: f.t.value }) });
       let d = {}; try { d = await r.json(); } catch (x) {}
       if (!r.ok) { stat.textContent = d.error || 'That did not go through. Try again in a minute.'; btn.disabled = false; return; }
       f.hidden = true; document.querySelector('.fbdone').hidden = false;

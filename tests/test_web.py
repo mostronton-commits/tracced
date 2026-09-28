@@ -873,6 +873,29 @@ if AioHTTPTestCase:
                 self.assertLessEqual(span / chart_mod.TF_SEC[tf], MAX_CANDLES + 1, tf)   # свічок за запит не більше стелі
                 self.assertGreater(span, 0, tf)
 
+        async def test_a_beta_tester_skips_the_daily_counts_but_not_the_cap_per_run(self):
+            from tracced.web import usage as usage_mod
+            self.app["admins"] = set()
+            self.app["s"]["ranges_per_token"] = 5
+            me = {"Cookie": wallet_cookie(TEST_PK), "Origin": f"http://{self.client.host}:{self.client.port}"}
+            usage_mod.save_wallet_set(self.app["usage_dir"] / "beta.json", {TEST_PK})
+            starts = {1: "01:46", 2: "01:50", 3: "01:52", 4: "01:54"}
+            rng = lambda h: {"mint": MINT, "from": f"2001-09-09T{starts[h]}", "to": "2001-09-09T02:06"}   # noqa: E731
+            for h in (1, 2):                                                     # денна стеля тут 1: тестера вона не зупиняє
+                r = await self.client.post("/analyze", data=rng(h), allow_redirects=False, headers=me)
+                self.assertEqual(r.status, 302, await r.text())
+                self.assertNotIn("notice=", r.headers["Location"])
+                await asyncio.to_thread(self.app["jobs"].q.join)
+                self.assertEqual(self.app["jobs"].get(r.headers["Location"].split("/")[-1]).s_over["run_cap_requests"], 2000)   # стеля прогону лишається
+            self.assertIn("Beta tester: no daily limit on analyses", await (await self.client.get(f"/token?mint={MINT}", headers=me)).text())
+            self.assertEqual(self.app["runs_daily"].left("global", 100), 100)    # спільну добову стелю сайту тестер не з'їдає
+            usage_mod.save_wallet_set(self.app["usage_dir"] / "beta.json", set())
+            r = await self.client.post("/analyze", data=rng(3), allow_redirects=False, headers=me)
+            self.assertNotIn("notice=", r.headers["Location"])                   # поза списком — звичайний день: один є…
+            await asyncio.to_thread(self.app["jobs"].q.join)
+            r = await self.client.post("/analyze", data=rng(4), allow_redirects=False, headers=me)
+            self.assertIn("notice=limit", r.headers["Location"])                 # …і на ньому все
+
         async def test_live_mode_quota_cap_and_delete(self):
             # гаманець: 1 прогін на день; той самий діапазон удруге — безкоштовно; 3 діапазони на токен; видалити може автор або адмін
             import time as _time

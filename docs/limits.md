@@ -20,6 +20,9 @@ people behind one address. Every count resets at midnight UTC, and the page show
 fails before it has fetched much, or is cut short by a server restart, gives its analysis back; one that fails after
 it already spent {{ s.refund_below_requests }} requests or more counts toward the day.
 
+Beta testers the owner invites have no daily count. The cap on what one run may spend and the month's data budget
+apply to them as to everyone.
+
 Loading what a result does not hold yet in a wallet card: the wallet's last 30 days on every token, and the rest
 of its age and first funder when it is not among the first {{ s.age_full_top }} by PnL that the analysis reads to
 the start (a busy wallet's first transaction, an app wallet's first SOL). What
