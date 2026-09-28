@@ -164,7 +164,8 @@
     async function focus(fromSec, toSec, exitS) {
       // bring the range into view; keep the user's timeframe and the loaded candles (no reload, no blink)
       const span = Math.max(toSec - fromSec, 300);
-      const padS = narrow() ? Math.max(span * 0.3, 1800) : Math.max(span * 1.2, 2 * 3600);   // a phone shows the range, not hours around it
+      // the range and its minutes around it: a 20–90 min range opens on 1m candles (hours around it forced 5m-1h)
+      const padS = narrow() ? Math.max(span * 0.3, 1800) : Math.max(span * 0.6, 1800);
       const a = Math.max(created, fromSec - padS), b = Math.min(now, (exitS && exitS < toSec + 8 * 3600 ? exitS : toSec) + padS);
       const want = pickTf(b - a);
       if (!tf || (b - a) / TF_SEC[tf] < 12 || (b - a) / TF_SEC[tf] > maxBars() * 1.5) {   // none yet, a few bars, or too many for the width
@@ -177,6 +178,7 @@
           if (loaded.b < b && !edge.right) await load(...capSpan(loaded.b, b + CHUNK[tf] / 4), 'right');
         }
       }
+      empty.hidden = data.size > 0;
       const v = visible();
       if (!v || a < v.a || b > v.b) chart.timeScale().setVisibleRange({ from: a, to: b });   // already in view → leave it
       el.querySelectorAll('.tf').forEach(btn => btn.classList.toggle('on', btn.dataset.tf === tf));
