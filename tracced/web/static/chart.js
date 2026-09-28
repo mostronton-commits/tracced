@@ -162,21 +162,25 @@
       el.querySelectorAll('.tf').forEach(btn => btn.classList.toggle('on', btn.dataset.tf === tf));
     }
     async function focus(fromSec, toSec, exitS) {
-      // bring the range into view; keep the user's timeframe and the loaded candles (no reload, no blink)
+      // bring the range into view; the user's timeframe and the loaded candles stay when they suit it (no reload, no blink)
       const span = Math.max(toSec - fromSec, 300);
-      const padS = narrow() ? Math.max(span * 0.3, 1800) : Math.max(span * 1.2, 2 * 3600);   // a phone shows the range, not hours around it
+      // the range and its minutes around it: a 20–90 min range opens on 1m candles (hours around it forced 5m-1h)
+      const padS = narrow() ? Math.max(span * 0.3, 1800) : Math.max(span * 0.6, 1800);
       const a = Math.max(created, fromSec - padS), b = Math.min(now, (exitS && exitS < toSec + 8 * 3600 ? exitS : toSec) + padS);
       const want = pickTf(b - a);
-      if (!tf || (b - a) / TF_SEC[tf] < 12 || (b - a) / TF_SEC[tf] > maxBars() * 1.5) {   // none yet, a few bars, or too many for the width
-        tf = want; gen++; data.clear(); times = []; loaded = { a: null, b: null }; edge = { left: false, right: false };
+      const fits = tf && (b - a) / TF_SEC[tf] >= 12 && (b - a) / TF_SEC[tf] <= maxBars() * 1.5;   // not a few bars, not too many for the width
+      // the loaded candles reach the range by one edge chunk; a range days away starts over around itself (an edge
+      // chunk is capped, so it stopped half way and the view landed on two stray candles)
+      const near = loaded.a !== null && a >= loaded.a - CHUNK[tf] / 2 && b <= loaded.b + CHUNK[tf] / 2;
+      if (!fits || !near) {
+        if (!fits) tf = want;
+        gen++; data.clear(); times = []; loaded = { a: null, b: null }; edge = { left: false, right: false };
         await load(...capSpan(a - CHUNK[tf] / 4, b + CHUNK[tf] / 4));
       } else {
-        if (loaded.a === null) await load(...capSpan(a - CHUNK[tf] / 4, b + CHUNK[tf] / 4));
-        else {
-          if (loaded.a > a && !edge.left) await load(...capSpan(a - CHUNK[tf] / 4, loaded.a), 'left');
-          if (loaded.b < b && !edge.right) await load(...capSpan(loaded.b, b + CHUNK[tf] / 4), 'right');
-        }
+        if (loaded.a > a && !edge.left) await load(...capSpan(a - CHUNK[tf] / 4, loaded.a), 'left');
+        if (loaded.b < b && !edge.right) await load(...capSpan(loaded.b, b + CHUNK[tf] / 4), 'right');
       }
+      empty.hidden = data.size > 0;
       const v = visible();
       if (!v || a < v.a || b > v.b) chart.timeScale().setVisibleRange({ from: a, to: b });   // already in view → leave it
       el.querySelectorAll('.tf').forEach(btn => btn.classList.toggle('on', btn.dataset.tf === tf));

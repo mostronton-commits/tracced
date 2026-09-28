@@ -5,7 +5,8 @@ tracced is early, so the caps are small while the load is watched. They will gro
 ## Free for everyone
 
 The demo token, every finished result, every page, and the chart of any token. Opening a finished analysis costs
-nothing and needs no account — that is what makes a shared link work.
+nothing and needs no account — that is what makes a shared link work. A finished analysis stays as it was run,
+whoever ran it: its range does not move, and a different range is a new row beside it.
 
 ## Needs a wallet
 

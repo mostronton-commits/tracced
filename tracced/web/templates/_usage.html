@@ -21,6 +21,28 @@
 {% endmacro %}
 {% macro buckets(title, items) %}<div class="ubk"><b>{{ title }}</b>{% for b in items %}<span>{{ b.label }} <i class="mono">{{ b.n }}</i></span>{% endfor %}</div>{% endmacro %}
 {% set p = u.pulse %}{% set q = '?p=' ~ period ~ ('&team=1' if include_team else '') %}
+{% macro usd2(v) %}${{ '%.2f'|format(v) }}{% endmacro %}
+{% set credit_help = {
+  'st': 'Requests left on the Solana Tracker key, which the site and dev share. The API gives only the balance: the plan size and the day it renews are set in config.yaml.',
+  'rpc': "Helius credits left of this server's monthly share, by the server's own counter: the account itself is shared with other projects. Resets on the 1st, UTC.",
+  'ai': "What the agent can still spend on OpenRouter: the key's own limit or the money on the account, whichever is lower."} %}
+
+{% if meters %}
+<section class="card me credits" aria-label="Credits left">
+  <div class="row mehead"><h2>Credits left</h2>{% if budget.credits_at %}<span class="muted small">checked <span class="dtc" data-ms="{{ budget.credits_at }}">{{ budget.credits_at|dt }}</span></span>{% endif %}</div>
+  <div class="cmeters">
+  {% for m in meters %}
+    <div class="cmeter {{ m.level }}" title="{{ credit_help[m.key] }}">
+      <div class="ctop"><span>{{ m.name }}</span>{% if m.pct is not none %}<i class="mono">{{ m.pct|round(0, 'floor')|int }}%</i>{% endif %}</div>
+      <b class="mono">{% if m.left is none %}—{% elif m.key == 'ai' %}{{ usd2(m.left) }}{% else %}{{ m.left|num }}{% endif %}</b>
+      {% if m.pct is not none %}<div class="cbar"><i style="width: {{ '%.1f'|format(m.pct) }}%"></i></div>{% endif %}
+      <span class="csub">{% if m.key == 'ai' %}{% if m.key_limit %}of {{ usd2(m.key_limit) }} key limit{% if m.account_left is not none %} · {{ usd2(m.account_left) }} on the account{% endif %}{% else %}on the account{% endif %}{% elif m.of %}of {{ m.of|num }}{% endif %}{% if m.renews_ms %} · {{ 'resets' if m.key == 'rpc' else 'renews' }} {{ m.renews_ms|day }}{% endif %}</span>
+      {% if m.empty %}<span class="cfore">used up</span>{% elif m.lasts %}<span class="cfore">enough at this pace</span>{% elif m.runs_out_ms %}<span class="cfore">runs out around {{ m.runs_out_ms|day }} at this pace</span>{% endif %}
+    </div>
+  {% endfor %}
+  </div>
+</section>
+{% endif %}
 
 <section class="card me usage uhead">
   <div class="row mehead"><h2>Usage</h2>
@@ -208,10 +230,9 @@
 {% set m = u.costs.month %}
 <section class="card me usage">
   <div class="stats">
-    <div title="Data API credits left on the key{% if budget.credits_at %}, checked at this time{% endif %}"><b>{{ budget.credits_left|num if budget.credits_left is not none else '—' }}</b><span>Solana Tracker left{% if budget.reserve %} · reserve {{ budget.reserve|num }}{% endif %}</span></div>
-    <div title="Solana Tracker requests the log counted since the 1st (UTC)"><b>{{ m.st|num }}</b><span>Solana Tracker · {{ m.month }}</span></div>
-    {% if budget.rpc %}<div title="Helius credits this month by the server's own counter{% if m.rpc_unlogged %}; {{ m.rpc_unlogged|num }} of them are not in the log (spent before it, or by scripts){% endif %}"><b>{{ budget.rpc.spent|num }}</b><span>Helius · of {{ budget.rpc.limit|num }}</span></div>{% endif %}
-    <div title="The agent's answers since the 1st"><b>{{ dollars(m.ai_usd) }}</b><span>AI · {{ m.month }}</span></div>
+    <div title="Solana Tracker requests the log counted since the 1st (UTC). What is left is at the top of the page"><b>{{ m.st|num }}</b><span>Solana Tracker spent · {{ m.month }}</span></div>
+    {% if budget.rpc %}<div title="Helius credits this month by the server's own counter{% if m.rpc_unlogged %}; {{ m.rpc_unlogged|num }} of them are not in the log (spent before it, or by scripts){% endif %}"><b>{{ budget.rpc.spent|num }}</b><span>Helius spent · {{ m.month }}</span></div>{% endif %}
+    <div title="The agent's answers since the 1st"><b>{{ dollars(m.ai_usd) }}</b><span>AI spent · {{ m.month }}</span></div>
     <div title="Live analyses started today by anyone but you"><b>{{ budget.runs_today }}</b><span>Runs today</span></div>
   </div>
   <div class="ucharts">

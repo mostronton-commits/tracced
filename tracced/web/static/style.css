@@ -101,6 +101,8 @@ h2.sec .muted { font-weight: 400; margin-left: 8px; }
 .rows { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 .wrow { display: grid; grid-template-columns: 26px minmax(120px, 1fr) auto auto auto auto auto 26px; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); transition: border-color .12s ease, background .12s ease; cursor: pointer; }
 .wrow.sel { border-color: #6ee7b7; background: #F6FEF9; }
+.wrow.locked input { background: var(--bg); color: var(--muted); cursor: default; }   /* an analyzed range: a record, not a field */
+.wrow.locked .label { cursor: default; } .wrow.locked .label:hover { border-color: transparent; background: none; }
 .wrow .n { font-family: var(--mono); color: var(--muted); font-size: 12px; align-self: center; }
 .wrow .label { font-size: 12.5px; color: var(--ink); align-self: center; font-family: var(--mono); padding: 4px 6px; border-radius: 6px; border: 1px dashed transparent; cursor: text; }
 .wrow .label:hover, .wrow .label:focus { border-color: var(--line); outline: none; background: #F8FAFC; }
@@ -633,6 +635,12 @@ button.tzseg { background: transparent; padding: 0; height: auto; font: inherit;
 .wlist a.winstall span { font-weight: 600; } .wlist a.winstall small { font-weight: 400; }
 .wstate:empty { display: none; }
 .wnote { margin: 6px 0 2px; padding: 8px 10px; border-radius: 8px; background: var(--sage); color: var(--ink); font-size: 13px; }
+.wdemo { display: block; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); border-bottom: 0; text-align: center;
+  font-weight: 600; font-size: 13px; }
+.wdemo:hover { text-decoration: underline; }
+/* a guest's wallet card: the connect step is a real button that says what it unlocks */
+.dconnect { display: grid; justify-items: start; gap: 6px; padding: 10px 12px; margin: 4px 0; border: 1px dashed #86EFAC; border-radius: var(--r);
+  background: #F0FDF4; }
 .saved { color: #B45309; margin-left: 5px; font-size: 12px; cursor: default; }
 button.saved { border: 0; background: transparent; padding: 0 2px; height: auto; cursor: pointer; } button.saved:hover { color: var(--red); background: transparent; }
 .savejob.on { color: #B45309; } .savejob:disabled { cursor: default; opacity: 1; }
@@ -946,6 +954,18 @@ td.c-roi b { font-size: 13px; }
 .unav .ujump a { color: var(--muted); border-bottom-color: transparent; } .unav .ujump a:hover { color: var(--ink); border-bottom-color: var(--line); }
 .usage .stats b small { font-size: 12px; font-weight: 500; }
 .usage .stats div { min-width: 150px; }
+/* Credits left: what each paid provider still has, above the dashboard's tabs */
+.credits .cmeters { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+.cmeter { display: grid; gap: 5px; align-content: start; border: 1px solid var(--line); border-radius: var(--r); padding: 11px 13px 12px;
+  background: var(--surface); cursor: help; }
+.cmeter .ctop { display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.cmeter .ctop i { font-style: normal; }
+.cmeter b { font-size: 22px; font-weight: 600; line-height: 1.15; }
+.cmeter .cbar { height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.cmeter .cbar i { display: block; height: 100%; border-radius: inherit; background: #34D399; }
+.cmeter .csub, .cmeter .cfore { font-size: 12px; color: var(--muted); }
+.cmeter.warn { border-color: #FCD34D; } .cmeter.warn .cbar i { background: #F59E0B; } .cmeter.warn .cfore { color: #B45309; }
+.cmeter.crit { border-color: #FCA5A5; } .cmeter.crit .cbar i { background: var(--red); } .cmeter.crit b, .cmeter.crit .cfore { color: var(--red); }
 .ucharts { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin: 4px 0 8px; }
 .ubars { margin: 0; border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px 8px; background: var(--surface); }
 .ubars figcaption { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 6px; }

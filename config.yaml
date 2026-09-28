@@ -29,6 +29,8 @@ early:
   # The month is guarded by the real balance: /credits is asked at most every 10 minutes, and a live run by anyone
   # but the owner starts only while the balance minus run_cap_requests stays above 5% of the plan (the Pro profile
   # sets credits_month 1,000,000 and credits_reserve_pct 5).
+  credits_renew_day: 24         # the plan renews on this day of the month (bought on 24.09.2026); the owner's dashboard
+                                # shows the date and whether the balance lasts until then. The API gives only the balance
   runs_per_day: 5               # per person: the wallet and the browser both count, so another wallet adds nothing
   runs_per_ip_per_day: 10       # per network: incognito plus a fresh wallet stops here; above 5, as an office or a phone carrier shares one address
   refund_below_requests: 50     # a failed run gives its analysis back only if it spent fewer requests than this

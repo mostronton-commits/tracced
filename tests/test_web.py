@@ -394,7 +394,7 @@ if AioHTTPTestCase:
             self.assertIn("Find the pump", html)
             self.assertIn('id="add"', html)
             self.assertIn('data-acct="0"', html)
-            self.assertIn("Analyze needs a connected wallet", html)
+            self.assertIn("Analyze asks for a wallet", html)
             self.assertIn("&#34;label&#34;: &#34;Range 1&#34;, &#34;from&#34;: &#34;&#34;", html)   # жодного готового діапазону
             self.assertIsNone(CYRILLIC.search(html))
             spent = self.st.requests - before
@@ -419,7 +419,7 @@ if AioHTTPTestCase:
             html = await r.text()
             self.assertEqual(r.status, 200)
             self.assertIn('data-acct="1"', html)
-            self.assertNotIn("Analyze needs a connected wallet", html)
+            self.assertNotIn("Analyze asks for a wallet", html)
 
         async def test_chart_budget_caps_spending_not_cached_pages_or_admins(self):
             # графік живого токена коштує запитів: гість має добову стелю на адресу, гаманець — свою, сайт — спільну;
@@ -1037,7 +1037,7 @@ if AioHTTPTestCase:
                 await asyncio.sleep(0.05)
             self.assertIn("↓ Export", html)
             self.assertIn("Bought in range", html)
-            self.assertIn("Adjust the range", html)
+            self.assertIn("Back to the chart", html)
             self.assertIn('id="chart"', html)
             self.assertIsNone(CYRILLIC.search(html))
             self.assertIn('id="filters"', html)                        # facts filters + selection + export
@@ -1075,7 +1075,7 @@ if AioHTTPTestCase:
             self.assertNotIn("Add to watchlist", page48)
             self.assertNotIn("soon-badge", page48)
             self.assertIn("Sold out", page48)                           # tiles renamed, with hints
-            self.assertIn("← Adjust the range", page48)                 # in the header now
+            self.assertIn("← Back to the chart", page48)                # an analyzed range stays as it is: the header goes back to the chart
             r = await self.client.get("/wallet_trades.json?job=" + loc.split("/")[-1] + "&wallet=A")
             self.assertEqual(r.status, 400)                              # not a base58 wallet in tests → readable error
             o = {"Origin": f"http://{self.client.host}:{self.client.port}"}
@@ -2182,7 +2182,7 @@ if AioHTTPTestCase:
             self.assertEqual(r.status, 200)
             self.assertIn(">Connect</button>", html)
             self.assertIn('data-acct="0"', html)
-            self.assertIn("Analyze needs a connected wallet", html)
+            self.assertIn("Analyze asks for a wallet", html)
             self.assertIsNone(CYRILLIC.search(html))
             r, pk, _, _ = await self._sign_in()
             r = await self.client.get("/", headers=self._hdr(r))
@@ -2286,6 +2286,21 @@ if AioHTTPTestCase:
                 self.assertIsNone(CYRILLIC.search(html))
             finally:
                 self.app["agent"], self.app["admins"] = None, set()
+
+        async def test_the_wallet_ask_is_short_says_beta_and_offers_the_demo_off_the_demo(self):
+            seed_demo(self.tmp.name, self.app)
+            for path in ("/", f"/job/{OTHER_JID}", f"/token?mint={OTHER_MINT}"):
+                html = await (await self.client.get(path, headers=GUEST)).text()
+                self.assertIn("<b>Beta, free for now.</b>", html, path)
+                self.assertIn(f'class="wdemo" href="/token?mint={MINT}">Not now? Watch the demo first', html, path)
+                self.assertNotIn("Sign a message to prove", html, path)          # one short line instead of three
+            for path in (f"/token?mint={MINT}", f"/job/{DEMO_JID}"):
+                html = await (await self.client.get(path, headers=GUEST)).text()
+                self.assertIn("<b>Beta, free for now.</b>", html, path)
+                self.assertNotIn('class="wdemo"', html, path)                     # already on the demo
+            html = await (await self.client.get(f"/job/{DEMO_JID}", headers=GUEST)).text()
+            self.assertIn("Beta, free for now. Connect a wallet to ask.", html)   # the agent's line for a guest
+            self.assertIn("Connect wallet for more data", html)                   # the card's step is a real button
 
         async def test_admin_sees_accounts_and_actions(self):
             seed_demo(self.tmp.name, self.app)

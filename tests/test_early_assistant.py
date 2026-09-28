@@ -87,5 +87,27 @@ class TestTransport(unittest.TestCase):
         self.assertEqual(json.loads(json.dumps(parse_json('{"x": "y"}'))), {"x": "y"})
 
 
+class TestBalance(unittest.TestCase):
+    """Скільки лишилось на відповіді: ліміт ключа (/key) і гроші на акаунті (/credits) OpenRouter."""
+
+    def test_the_key_limit_and_the_account(self):
+        answers = {"/key": {"data": {"limit": 3, "limit_remaining": 2.96, "limit_reset": None, "usage_weekly": 0.04}},
+                   "/credits": {"data": {"total_credits": 10, "total_usage": 0.04}}}
+        b = Assistant("k", get=lambda path: answers[path]).balance()
+        self.assertAlmostEqual(b.pop("account_left"), 9.96)
+        self.assertEqual(b, {"key_limit": 3.0, "key_left": 2.96, "key_reset": None, "week_usd": 0.04, "account": 10.0})
+
+    def test_what_the_provider_does_not_answer_is_left_out(self):
+        def get(path):
+            if path == "/credits":
+                raise urllib.error.URLError("down")
+            return {"data": {"limit": None, "usage_weekly": 0.5}}          # ключ без власного ліміту
+        self.assertEqual(Assistant("k", get=get).balance(), {"week_usd": 0.5})
+
+        def refused(path):
+            raise http(401)
+        self.assertIsNone(Assistant("k", get=refused).balance())
+
+
 if __name__ == "__main__":
     unittest.main()

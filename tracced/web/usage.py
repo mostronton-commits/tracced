@@ -711,6 +711,102 @@ def wallet_detail(events, pk, *, account=None, jobs=(), onchain=None, agent_log=
             "first_ms": (account or {}).get("created_ms"), "last_ms": max((e["ts_ms"] for e in acts), default=None)}
 
 
+# ───────────────────────── скільки лишилось у постачальників ─────────────────────────
+
+DAY_MS = 86_400_000
+UTC = datetime.timezone.utc
+
+
+def _ms(d):
+    return int(d.timestamp() * 1000)
+
+
+def _on_day(y, m, day):
+    """Опівніч UTC дня `day` місяця; у коротшому місяці — його останній день (31-ше в лютому — 28-ме)."""
+    last = (datetime.date(y + m // 12, m % 12 + 1, 1) - datetime.timedelta(days=1)).day
+    return datetime.datetime(y, m, min(day, last), tzinfo=UTC)
+
+
+def renewal(day, now_ms):
+    """(останнє, наступне) оновлення щомісячного тарифу в день `day`, опівночі UTC, у мс; (None, None) — день невідомий."""
+    if not isinstance(day, int) or not 1 <= day <= 31:
+        return None, None
+    now = datetime.datetime.fromtimestamp(now_ms / 1000, UTC)
+    this = _on_day(now.year, now.month, day)
+    if now >= this:
+        return _ms(this), _ms(_on_day(now.year + now.month // 12, now.month % 12 + 1, day))
+    y, m = (now.year, now.month - 1) if now.month > 1 else (now.year - 1, 12)
+    return _ms(_on_day(y, m, day)), _ms(this)
+
+
+def _reset_of(kind, now_ms):
+    """Наступне скидання ліміту ключа OpenRouter: опівночі UTC, тижні з понеділка; None — ліміт не скидається."""
+    now = datetime.datetime.fromtimestamp(now_ms / 1000, UTC)
+    midnight = datetime.datetime(now.year, now.month, now.day, tzinfo=UTC)
+    if kind == "daily":
+        return _ms(midnight + datetime.timedelta(days=1))
+    if kind == "weekly":
+        return _ms(midnight + datetime.timedelta(days=7 - now.weekday()))
+    if kind == "monthly":
+        return renewal(1, now_ms)[1]
+    return None
+
+
+def _runs_out(left, used, since_ms, now_ms):
+    """Коли залишок скінчиться, якщо витрачати так, як від `since_ms`; None — менше доби даних або нічого не витрачено."""
+    if left is None or not used or used <= 0 or since_ms is None or now_ms - since_ms < DAY_MS:
+        return None
+    return int(now_ms + left / (used * DAY_MS / (now_ms - since_ms)) * DAY_MS)
+
+
+def _meter(key, name, left, of, renews_ms, runs_out, now_ms, reserve=0, **extra):
+    pct = None if left is None or not of else max(0.0, min(100.0, 100.0 * left / of))
+    horizon = renews_ms or now_ms + 365 * DAY_MS                 # без оновлення: «вистачить» = на рік уперед
+    empty = left is not None and left <= 0                       # уже скінчилось (баланс ST буває і від'ємним)
+    lasts = False if empty else None if runs_out is None else runs_out >= horizon
+    if left is None:
+        level = "unknown"
+    elif left <= reserve or (pct is not None and pct < 5):
+        level = "crit"
+    elif (reserve and left < 2 * reserve) or (pct is not None and pct < 20) or lasts is False:
+        level = "warn"
+    else:
+        level = "ok"
+    return dict(extra, key=key, name=name, left=left, of=of or None, pct=pct, renews_ms=renews_ms, empty=empty,
+                runs_out_ms=runs_out if lasts is False and not empty else None, lasts=lasts, level=level)
+
+
+def credit_meters(budget, *, now_ms):
+    """Скільки лишилось у кожного платного постачальника зараз — смуга над вкладками дашборда, від періоду не залежить.
+
+    Solana Tracker: баланс ключа (один ключ на сайт і dev); API дає лише залишок, тож розмір тарифу — `credits_month`,
+    день оновлення — `credits_renew_day`. Helius: власний лічильник цього сервера — його частка акаунта на календарний
+    місяць UTC. AI: ліміт ключа OpenRouter і гроші на акаунті, діє менше з двох. Прогноз — за темпом від початку циклу
+    (для AI — від понеділка): `lasts` True — вистачить до оновлення, False — `runs_out_ms`, None — судити рано."""
+    b, out = budget or {}, []
+    of, left = int(b.get("credits_month") or 0), b.get("credits_left")
+    if of or left is not None:
+        last, nxt = renewal(b.get("renew_day"), now_ms)
+        used = max(0, of - left) if of and left is not None else None
+        out.append(_meter("st", "Solana Tracker", left, of, nxt, _runs_out(left, used, last, now_ms), now_ms,
+                          reserve=int(b.get("reserve") or 0)))
+    rpc = b.get("rpc") or {}
+    if rpc.get("limit"):
+        first, nxt = renewal(1, now_ms)
+        lim, spent = int(rpc["limit"]), int(rpc.get("spent") or 0)
+        out.append(_meter("rpc", "Helius", max(0, lim - spent), lim, nxt, _runs_out(max(0, lim - spent), spent, first, now_ms), now_ms))
+    ai = b.get("ai") or {}
+    lefts = [v for v in (ai.get("key_left"), ai.get("account_left")) if isinstance(v, (int, float))]
+    if lefts:
+        left_usd = max(0.0, min(lefts))
+        now = datetime.datetime.fromtimestamp(now_ms / 1000, UTC)
+        monday = _ms(datetime.datetime(now.year, now.month, now.day, tzinfo=UTC) - datetime.timedelta(days=now.weekday()))
+        out.append(_meter("ai", "AI agent", round(left_usd, 2), ai.get("key_limit") or ai.get("account"),
+                          _reset_of(ai.get("key_reset"), now_ms), _runs_out(left_usd, ai.get("week_usd"), monday, now_ms), now_ms,
+                          key_limit=ai.get("key_limit"), account_left=ai.get("account_left")))
+    return out
+
+
 # ───────────────────────── файли дашборда ─────────────────────────
 
 def load_json(path, default=None):

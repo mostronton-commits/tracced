@@ -15,7 +15,7 @@
       {% if jstatus != 'done' or not result %}<span class="chip st-{{ jstatus }}">{{ {'queued':'Queued','running':'Running','done':'Done','error':'Error'}[jstatus] }}</span>{% endif %}
       {% if jstatus == 'done' and result %}<button type="button" class="ghost savejob" id="savejob" title="Keep this analysis under My analyses">☆ Save analysis</button>{% endif %}
       {% if is_admin and jstatus == 'done' and result and not is_demo %}<button type="button" class="ghost" id="mkdemo" data-job="{{ job.id }}" title="Replace the demo token with this analysis (owner only)">Make it the demo</button>{% endif %}
-      <a class="button" href="{{ back }}"><span class="long">← Adjust the range</span><span class="short">← Range</span></a>
+      <a class="button" href="{{ back }}" title="The token's chart: this range stays as it is, a new one is marked beside it"><span class="long">← Back to the chart</span><span class="short">← Chart</span></a>
     </div>
   </div>
 
@@ -130,7 +130,7 @@
             {% for q in agent_chips %}<button type="button" class="aqbtn" data-q="{{ q }}">{{ q }}<span aria-hidden="true">→</span></button>
             {% endfor %}<button type="button" class="aqbtn asum" data-sum="1">Summary of this pump<span aria-hidden="true">→</span></button>
           </div>
-          <p class="muted small aguest" id="aguest" hidden>Connect a wallet to ask. Free, no transaction.</p>
+          <p class="muted small aguest" id="aguest" hidden>Beta, free for now. Connect a wallet to ask.</p>
         </div>
         <div class="athread" id="athread"></div>
       </div>
@@ -587,7 +587,8 @@
       const ch = EarlyChart(el, { mint: el.dataset.mint, created: +el.dataset.created, now: +el.dataset.now, interactive: false, symbol: el.dataset.symbol,
         windows: [{ n: '', label: 'Entry range', from: +el.dataset.from / 1000, to: +el.dataset.to / 1000 }], selected: 0, exit: +el.dataset.exit || null,
         onMarkers: m => { const h = document.getElementById('mhint'); h.hidden = !m.total; h.textContent = m.inView > m.labeled ? 'Amounts for the ' + m.labeled + ' largest of ' + m.inView + ' trades in view — zoom in for all' : ''; if (!h.textContent) h.hidden = true; } });
-      ch.init().then(() => { ch.focus(+el.dataset.from, +el.dataset.to, +el.dataset.exit || null); loadMarks(ch, el.dataset.mint, jobId); });
+      // straight to the range, its timeframe picked by the range's length (the token's age picked 1h for anything a few days old)
+      ch.focus(+el.dataset.from, +el.dataset.to, null).then(() => loadMarks(ch, el.dataset.mint, jobId));
 
       // wallet story: markers on the chart (green bought, red sold; a ring when the wallet shares a funder) + the drawer
       const bar = document.getElementById('onchart');
@@ -859,8 +860,9 @@
         catch (e) { if (drawer.dataset.w === w) dprof.innerHTML = '<p class="dline muted small">Could not reach the server.</p>'; return; }
         if (drawer.dataset.w !== w) return;                   // the card moved on to another wallet meanwhile
         if (r.status === 401) {
-          dprof.innerHTML = '<p class="dline"><button type="button" class="ghost" id="dprofgo" title="PnL, win rate and active hours over every token it traded, counted from its swaps">Connect a wallet to load</button></p>';
-          document.getElementById('dprofgo').addEventListener('click', () => EarlyWallet.open(() => { acctOn = true; loadMe().then(() => loadProfile(w)); }));
+          dprof.innerHTML = '<div class="dconnect"><button type="button" class="primary" id="dprofgo">Connect wallet for more data</button>'
+            + '<span class="muted small">PnL, win rate and active hours across all its tokens</span></div>';
+          document.getElementById('dprofgo').addEventListener('click', () => EarlyWallet.open(() => { acctOn = true; loadMe().then(() => loadProfile(w)); }, 'Connect a wallet to see all its tokens.'));
           return;
         }
         let d = {}; try { d = await r.json(); } catch (e) {}
@@ -945,7 +947,7 @@
         const r = await fetch('/wallet_trades.json?' + new URLSearchParams({ job: jobId, wallet: w }));
         if (!r.ok) {                                             // say why, never a dead click
           let err = {}; try { err = await r.json(); } catch (e) {}
-          if (r.status === 401) EarlyWallet.open(null, err.error || 'Connect a wallet to load this wallet\'s trades.'); else EarlyUI.toast(err.error || 'Could not load this wallet.');
+          if (r.status === 401) EarlyWallet.open(null, 'Connect a wallet to load its trades.'); else EarlyUI.toast(err.error || 'Could not load this wallet.');
           return;
         }
         const d = await r.json();
@@ -1025,7 +1027,7 @@
       }
       function needWallet(run) {
         if (acctOn) { run(); return; }
-        EarlyWallet.open(() => { acctOn = true; loadMe(); aState(); run(); }, 'Connect a wallet to ask the agent. Free, no transaction.');
+        EarlyWallet.open(() => { acctOn = true; loadMe(); aState(); run(); }, 'Connect a wallet to ask the agent.');
       }
       async function aSummary() {
         if (aBusy || aSummed) return;
