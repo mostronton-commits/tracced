@@ -20,6 +20,10 @@ RULES = ("dev", "bundle", "top10", "snipers", "insiders", "bundled_launch", "min
 CUTS = {"dev": (5, 20), "bundle": (5, 20), "top10": (20, 40), "snipers": (5, 15), "insiders": (5, 15),
         "bundled_launch": (20, 50)}
 LIQ_HIGH, LIQ_MEDIUM = 5_000, 20_000             # $ ліквідності пулу біржі: менше першої — high, менше другої — medium
+LP_BURN_MIN = 90                                  # % спалених LP-токенів пулу, з якого ліквідність уже не забрати
+# у пулах зі сконцентрованою ліквідністю нема LP-токенів — лише позиції маркетмейкерів, тож «спалено» до них не
+# застосовується (Solana Tracker завжди пише 0); їх оцінюємо лише за розміром ліквідності
+CONCENTRATED = ("dlmm", "clmm", "whirlpool", "orca")
 # на кривій лаунчпада ліквідність — сама крива: вивести її не можна, тож і ризику «забрали пул» нема
 CURVES = {"pumpfun", "meteora-curve", "raydium-launchpad", "raydium-launchlab", "launchlab", "boop", "moonit", "believe",
           "bonk", "letsbonk"}
@@ -76,7 +80,8 @@ def level(rule, f):
         market, burn, usd = f.get("market"), f.get("lp_burn"), f.get("liquidity_usd")
         if market in CURVES:
             return "low"
-        if isinstance(burn, (int, float)) and burn < 100:
+        pooled = not any(c in str(market or "") for c in CONCENTRATED)
+        if pooled and isinstance(burn, (int, float)) and burn < LP_BURN_MIN:
             return "high"                                    # пул не спалено: творець може забрати ліквідність
         if not isinstance(usd, (int, float)):
             return "unknown"

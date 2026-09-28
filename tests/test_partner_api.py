@@ -56,6 +56,12 @@ class TestRules(unittest.TestCase):
         self.assertEqual(lvl(market="raydium-cpmm", liq=10_000)["liquidity"], "medium")
         self.assertEqual(lvl(market="raydium-cpmm", liq=3_000)["liquidity"], "high")
         self.assertEqual((lvl(mint="X")["mint"], lvl(freeze="Y")["freeze"]), ("high", "high"))
+        # 28.09: pumpfun-amm спалено на 99 %, meteora-dyn на 97 % — це «не забрати», не ризик
+        self.assertEqual(lvl(market="pumpfun-amm", lp_burn=99, liq=266_509)["liquidity"], "low")
+        self.assertEqual(lvl(market="meteora-dyn-v2", lp_burn=97.08, liq=97_973)["liquidity"], "low")
+        # DLMM/CLMM не мають LP-токенів: 0 % «спалено» там нічого не означає, лишається розмір
+        self.assertEqual(lvl(market="meteora-dlmm", lp_burn=0, liq=227_557)["liquidity"], "low")
+        self.assertEqual(lvl(market="raydium-clmm", lp_burn=0, liq=3_000)["liquidity"], "high")
 
 
 class TestKeys(unittest.TestCase):

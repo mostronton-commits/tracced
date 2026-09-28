@@ -57,8 +57,9 @@ the three shares.
 | `bundled_launch` | What bundles took at launch, even if they sold since | under {{ API.CUTS.bundled_launch[0] }}% | {{ API.CUTS.bundled_launch[0] }}–{{ API.CUTS.bundled_launch[1] }}% | over {{ API.CUTS.bundled_launch[1] }}% |
 | `mint` | The creator can still mint more tokens | revoked | | enabled |
 | `freeze` | The creator can freeze holders' tokens | revoked | | enabled |
-| `liquidity` | Whether the pool's liquidity can be pulled, and whether there is enough | on a launchpad curve, or burned and over ${{ '{:,}'.format(API.LIQ_MEDIUM) }} | ${{ '{:,}'.format(API.LIQ_HIGH) }}–{{ '{:,}'.format(API.LIQ_MEDIUM) }} | not burned, or under ${{ '{:,}'.format(API.LIQ_HIGH) }} |
+| `liquidity` | Whether the largest pool's liquidity can be pulled, and whether there is enough | on a launchpad curve, or over ${{ '{:,}'.format(API.LIQ_MEDIUM) }} | ${{ '{:,}'.format(API.LIQ_HIGH) }}–{{ '{:,}'.format(API.LIQ_MEDIUM) }} | under {{ API.LP_BURN_MIN }}% of the pool's LP burned, or under ${{ '{:,}'.format(API.LIQ_HIGH) }} |
 
+Pools with concentrated liquidity (DLMM, CLMM, Whirlpool) have no LP tokens to burn, so only their size counts.
 Shares are of the whole supply. Early numbers move fast: a creator can sell half of a position within a minute. If
 you buy some time after the first check, check again right before.
 
