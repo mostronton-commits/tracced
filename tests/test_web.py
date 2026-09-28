@@ -394,7 +394,7 @@ if AioHTTPTestCase:
             self.assertIn("Find the pump", html)
             self.assertIn('id="add"', html)
             self.assertIn('data-acct="0"', html)
-            self.assertIn("Analyze needs a connected wallet", html)
+            self.assertIn("Analyze asks for a wallet", html)
             self.assertIn("&#34;label&#34;: &#34;Range 1&#34;, &#34;from&#34;: &#34;&#34;", html)   # жодного готового діапазону
             self.assertIsNone(CYRILLIC.search(html))
             spent = self.st.requests - before
@@ -419,7 +419,7 @@ if AioHTTPTestCase:
             html = await r.text()
             self.assertEqual(r.status, 200)
             self.assertIn('data-acct="1"', html)
-            self.assertNotIn("Analyze needs a connected wallet", html)
+            self.assertNotIn("Analyze asks for a wallet", html)
 
         async def test_chart_budget_caps_spending_not_cached_pages_or_admins(self):
             # графік живого токена коштує запитів: гість має добову стелю на адресу, гаманець — свою, сайт — спільну;
@@ -2182,7 +2182,7 @@ if AioHTTPTestCase:
             self.assertEqual(r.status, 200)
             self.assertIn(">Connect</button>", html)
             self.assertIn('data-acct="0"', html)
-            self.assertIn("Analyze needs a connected wallet", html)
+            self.assertIn("Analyze asks for a wallet", html)
             self.assertIsNone(CYRILLIC.search(html))
             r, pk, _, _ = await self._sign_in()
             r = await self.client.get("/", headers=self._hdr(r))
