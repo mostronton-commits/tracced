@@ -172,7 +172,7 @@
     {% for w in beta %}<span class="ubeta-w"><a class="mono" href="/admin/w/{{ w }}" title="{{ w }}">{{ short(w) }}</a><button type="button" class="ghost x" data-beta-off="{{ w }}" title="Remove from beta testers" aria-label="Remove {{ short(w) }}">×</button></span>
     {% else %}<span class="muted small">None yet.</span>{% endfor %}
   </div>
-  <form class="row ubeta-add" id="betaform"><input id="betain" class="mono" placeholder="Wallet address" maxlength="44" autocomplete="off" spellcheck="false" aria-label="Wallet address to add"><button type="submit">Add</button></form>
+  <form class="row ubeta-add" id="betaform"><input type="text" id="betain" class="mono" placeholder="Wallet address" maxlength="44" autocomplete="off" spellcheck="false" aria-label="Wallet address to add"><button type="submit">Add</button></form>
   <script>
   (function () {
     const post = (wallet, on) => EarlyWallet.post('/admin/beta', { wallet, on }).then(() => location.reload()).catch(e => EarlyUI.toast(e.message));
@@ -270,7 +270,7 @@
 {% set names = {} %}{% for k in api_keys %}{% set _ = names.update({k.id: k.name}) %}{% endfor %}
 <section class="card me usage apiadm">
   <div class="row mehead"><h2>API keys</h2><span class="muted small">a token check for partners · <a href="/docs/api">what it returns</a></span></div>
-  <form class="row" id="apinew"><input id="apiname" placeholder="Partner name" maxlength="40" autocomplete="off" aria-label="Partner name"><button type="submit">New key</button></form>
+  <form class="row" id="apinew"><input type="text" id="apiname" placeholder="Partner name" maxlength="40" autocomplete="off" aria-label="Partner name"><button type="submit">New key</button></form>
   <div class="apishow" id="apishow" hidden>
     <p class="small"><b>Copy this key now:</b> it is shown once. Pass it to the partner; the server keeps only its fingerprint.</p>
     <code class="mono" id="apikey"></code>
