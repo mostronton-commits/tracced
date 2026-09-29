@@ -115,6 +115,13 @@ h2.sec .muted { font-weight: 400; margin-left: 8px; }
 .stats { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
 .stats div { border: 1px solid var(--line); border-radius: var(--r); padding: 8px 12px; min-width: 120px; background: var(--surface); }
 .stats b { display: block; font-size: 18px; font-weight: 600; font-family: var(--mono); } .stats span { color: var(--muted); font-size: 12px; }
+/* ключові числа власника зверху; нижній ряд — фон активності й витрат, тихіший */
+.ukeyh { margin: 4px 0 0; }
+.stats.ukey b { font-size: 21px; }
+.stats b small.of { font-size: 12px; font-weight: 400; color: var(--muted); }
+.stats.usub { margin-top: 0; }
+.stats.usub div { background: transparent; padding: 6px 10px; }
+.stats.usub b { font-size: 15px; }
 .toolbar { margin: 8px 0 10px; } .inline { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12.5px; } .inline input { width: 6em; height: 30px; }
 .log { background: var(--navy); color: #CBD5E1; border-radius: var(--r); padding: 12px 14px; font: 12.5px/1.5 var(--mono); white-space: pre-wrap; margin: 8px 0; }
 .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); scrollbar-width: thin; scrollbar-color: #CBD5E1 var(--surface);

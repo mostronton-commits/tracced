@@ -179,6 +179,24 @@ class TestSummary(unittest.TestCase):
         self.assertEqual([(c["days"], c["n"], c["of"]) for c in u["came_back"]], [(1, 1, 2), (7, 1, 1), (30, 0, 0)])
         self.assertEqual(u["activation"], {"n": 1, "of": 2})                          # B відкрив картку, C бачив лише головну
 
+    def test_the_owners_key_numbers(self):
+        k = self.summ(period="30d")["key"]
+        self.assertEqual((k["connected"], k["first_run"]), (3, 1))                       # A, B і C підключились; аналіз лише в A
+        self.assertEqual((k["analyses"], k["analysts"], k["returned"]), (2, 1, 1))        # A: два прогони в різні дні
+        self.assertEqual((k["active"], k["savers"], k["exports"], k["exporters"]), (3, 0, 1, 1))
+        self.assertEqual((k["st"]["avg"], k["st"]["median"]), (73, 73))                   # 105 і 41 запит з іменами й картками
+        extra = [ev(NOW - 5 * H, B, "analyze", job="J3"), ev(NOW - 5 * H + 60_000, B, "run", job="J3", mint="M4", symbol="FOUR", ok=1, st=10),
+                 ev(NOW - 4 * H, B, "analyze", job="J4"),
+                 ev(NOW - 4 * H + 60_000, B, "run", job="J4", mint="M4", symbol="FOUR", ok=0, st=4, err="feed down"),
+                 ev(NOW - 4 * H + 90_000, B, "save_wallets", n=3, job="J3")]
+        self.events = sorted(self.events + extra, key=lambda e: e["ts_ms"])
+        k = self.summ(period="7d")["key"]
+        self.assertEqual((k["connected"], k["first_run"]), (2, 1))                       # B і C; A підключився раніше за тиждень
+        self.assertEqual((k["analyses"], k["failed"], k["analysts"], k["returned"]), (3, 1, 2, 0))   # B двічі за день — не повернення
+        self.assertEqual((k["savers"], k["saved"]), (1, 3))
+        with_team = self.summ(period="7d", include_team=True)["key"]
+        self.assertEqual((with_team["analyses"], with_team["analysts"]), (4, 3))            # прогін власника — лише з командою
+
     def test_each_analysis_carries_its_names_age_checks_and_cards(self):
         u = self.summ(period="30d")
         runs = {(r["job"], r["st_run"]): r for r in u["runs"]}
