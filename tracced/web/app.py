@@ -1873,7 +1873,7 @@ async def api_check(request):
         reserve = _credits_reserve(s)
         left = await _credits_left(app) if reserve else None
         if left is not None and left < reserve:
-            return _jerr("The data budget for this month is nearly used up. Checks resume when it renews.", 503)
+            return _jerr("Checks are paused on our side. Try again later.", 503)   # про наш бюджет партнеру знати не треба
         st = app["st"]
 
         def work():

@@ -241,6 +241,9 @@ td.wcell .wid { white-space: nowrap; }       /* сам гаманець ніко
 .docs-body tbody tr:hover td { background: #FAFDFB; }
 .docs-body td code, .docs-body th code { white-space: nowrap; }
 .docs-body code { font-family: var(--mono); font-size: 12.5px; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+/* блок коду — одна темна плита, як журнал аналізу; без цього кожен рядок отримував власну плашку, а довгий вилазив за край */
+.docs-body pre { margin: 12px 0; padding: 12px 14px; background: var(--navy); border-radius: var(--r); overflow-x: auto; }
+.docs-body pre code { display: block; padding: 0; border: 0; border-radius: 0; background: none; color: #CBD5E1; font: 12.5px/1.6 var(--mono); white-space: pre; }
 .docs-body a { border-bottom-color: #CBD5E1; }
 
 /* Порівняння з іншими сервісами: наша колонка підсвічена, решта рівні між собою */

@@ -449,6 +449,8 @@ if AioHTTPTestCase:
             docs = await (await self.client.get("/docs/api")).text()
             self.assertIn("over 20%", docs)                                       # межі в документації — з коду
             self.assertIn("/api/v1/check", docs)
+            for secret in ("Solana Tracker", "budget", "X-API-Key"):             # публічна сторінка: ні постачальника, ні бюджету
+                self.assertNotIn(secret, docs)
 
         async def test_wrong_keys_from_one_network_are_throttled(self):
             for _ in range(20):
