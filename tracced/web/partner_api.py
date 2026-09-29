@@ -8,6 +8,7 @@ Solana Tracker забороняє передавати третім сторон
 """
 import hashlib
 import hmac
+import ipaddress
 import json
 import os
 import secrets
@@ -117,6 +118,36 @@ def evaluate(d, thresholds, now_s=None):
 
 # ───────────────────────── ключі ─────────────────────────
 
+def parse_ips(text, limit=20):
+    """Адреси серверів партнера з рядка через кому: IPv4, IPv6 чи мережі (10.0.0.0/24). Порожньо — [] (без прив'язки);
+    хоч одна хибна — None."""
+    out = []
+    for part in str(text or "").replace(";", ",").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            out.append(str(ipaddress.ip_network(part, strict=False)))
+        except ValueError:
+            return None
+    return out[:limit]
+
+
+def ip_allowed(ip, networks):
+    """Чи з дозволених адрес прийшов запит."""
+    try:
+        addr = ipaddress.ip_address(str(ip))
+    except ValueError:
+        return False
+    for n in networks or []:
+        try:
+            if addr in ipaddress.ip_network(n, strict=False):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
 def _hash(key):
     return hashlib.sha256(key.encode()).hexdigest()
 
@@ -132,21 +163,33 @@ class KeyStore:
     def __init__(self, path):
         self.path = str(path)
         self._lock = threading.Lock()
+        self._cache = (None, {})                    # (відбиток файлу, ключі): читаємо файл, лише коли він змінився
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
 
     def _load(self):
+        """Ключі з файлу; поки файл не змінився — з пам'яті (кожен запит до API інакше читав би диск). Копія: хто змінює,
+        той зберігає."""
         try:
-            with open(self.path, encoding="utf-8") as f:
-                d = json.load(f)
-        except (OSError, ValueError):
+            st = os.stat(self.path)
+        except OSError:
             return {}
-        return d if isinstance(d, dict) else {}
+        # кожен запис — новий файл (os.replace), тож inode міняється навіть у ту саму мілісекунду, коли час ще той самий
+        mtime = (st.st_ino, st.st_mtime_ns, st.st_size)
+        if self._cache[0] != mtime:
+            try:
+                with open(self.path, encoding="utf-8") as f:
+                    d = json.load(f)
+            except (OSError, ValueError):
+                d = {}
+            self._cache = (mtime, d if isinstance(d, dict) else {})
+        return json.loads(json.dumps(self._cache[1]))
 
     def _save(self, d):
         tmp = self.path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(d, f, indent=1)
         os.replace(tmp, self.path)
+        self._cache = (None, {})
 
     def all(self):
         """Усі ключі без відбитків, новіші першими."""
@@ -179,7 +222,7 @@ class KeyStore:
 
     def update(self, kid, **fields):
         """Змінити назву, вимикач, денну межу чи пороги. False — такого ключа нема."""
-        allowed = {"name", "enabled", "daily_cap", "thresholds"}
+        allowed = {"name", "enabled", "daily_cap", "thresholds", "ips"}
         with self._lock:
             d = self._load()
             if kid not in d:

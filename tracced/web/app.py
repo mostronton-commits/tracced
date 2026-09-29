@@ -430,6 +430,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["api_keys"] = api_mod.KeyStore(Path(out_dir).parent / "api" / "keys.json")   # ключі партнерів: лише відбитки
     app["api_cache"] = {}                                         # відповідь Solana Tracker на монету: хвилину з пам'яті
     app["api_throttle"] = Throttle(max_fails=int(s.get("api_per_10s", 50)), window_s=10, block_s=10)   # запитів ключа за 10 с
+    app["api_bad"] = Throttle(max_fails=20, window_s=60, block_s=60)   # спроб з невірним ключем з однієї мережі за хвилину
     app["ages"] = ages
     _share_st(st, app["st_slots"])
 
@@ -1814,6 +1815,11 @@ async def admin_api(request):
                 return _jerr("Thresholds are shares of the supply, from 0 to 100.")
             th[rule] = v
         ok = store.update(kid, thresholds=th)
+    elif action == "ips":
+        ips = api_mod.parse_ips(body.get("ips"))
+        if ips is None:
+            return _jerr("Addresses must be IPv4 or IPv6, or networks like 10.0.0.0/24, separated by commas.")
+        ok = store.update(kid, ips=ips)
     elif action == "delete":
         ok = store.delete(kid)
     else:
@@ -1837,12 +1843,19 @@ async def api_check(request):
     """Перевірка токена для партнера: рівні правил і чи пройшла монета пороги ключа — без сирих цифр і без оцінок
     (partner_api). Хвилину відповідь для тієї самої монети береться з пам'яті: швидше і нічого не коштує."""
     app, s = request.app, request.app["s"]
+    ip, now = _client_ip(request), time.time()
+    bad = app["api_bad"]
+    if bad.wait_s(_ip_key(ip), now):                    # перебір ключів з однієї мережі: хвилину нічого не приймаємо
+        return _jerr("Too many requests with a wrong key. Try again in a minute.", 429)
     rec = app["api_keys"].find(_api_key(request))
     if not rec:
+        bad.miss(_ip_key(ip), now)
         return _jerr("Unknown or missing API key. Send it as: Authorization: Bearer <key>.", 401)
     if not rec.get("enabled"):
         return _jerr("This API key is switched off.", 403)
-    who, now = "api:" + rec["id"], time.time()
+    if rec.get("ips") and not api_mod.ip_allowed(ip, rec["ips"]):   # ключ прив'язано до серверів партнера
+        return _jerr("This key does not work from this address.", 403)
+    who = "api:" + rec["id"]
     th = app["api_throttle"]
     if th.wait_s(who, now):
         return _jerr("Too many requests. Keep it under 5 a second.", 429)
@@ -1941,7 +1954,10 @@ def render(name, request, status=200, **ctx):
         ctx.setdefault("demo_token", (_demo(request.app) or {}).get("mint", ""))   # підвал веде на демо, якщо воно є
         ctx.setdefault("assistant_on", request.app.get("assistant") is not None)   # без ключа сторінки не обіцяють агента
         ctx.setdefault("early_note", EARLY_NOTE)
-    ctx.setdefault("umami_id", os.getenv("UMAMI_WEBSITE_ID", ""))   # аналітика вмикається лише там, де задано id
+    # аналітика вмикається лише там, де задано id, і ніколи на сторінках власника: там показується новий ключ API,
+    # а сторонній скрипт на сторінці бачить усе, що на ній є
+    admin_page = request is not None and request.path.startswith("/admin")
+    ctx.setdefault("umami_id", "" if admin_page else os.getenv("UMAMI_WEBSITE_ID", ""))
     ctx.setdefault("umami_domains", os.getenv("UMAMI_DOMAINS", "tracced.xyz,www.tracced.xyz"))   # і лише на цих доменах: локальні запуски з тим самим id не рахуються
     html = env.get_template(name).render(**ctx)
     return web.Response(text=html, content_type="text/html", status=status)

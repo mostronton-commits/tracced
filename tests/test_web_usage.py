@@ -435,12 +435,37 @@ if AioHTTPTestCase:
             self.assertEqual((await post({"action": "delete"}, dict(GUEST, **self.origin))).status, 403)   # лише гаманець власника
             self.assertEqual((await post({"action": "delete"})).status, 200)
             self.assertEqual((await self.client.get(f"/api/v1/check?mint={mint}", headers={"Authorization": f"Bearer {new}", "Cookie": ""})).status, 401)
+            # прив'язка до адрес: з чужої — ні, з дозволеної — так (тестовий клієнт приходить з 127.0.0.1)
+            kid2, key2 = self.app["api_keys"].create("tied")
+            tied = {"Authorization": f"Bearer {key2}", "Cookie": ""}
+            self.assertEqual((await self.client.post("/admin/api", json={"action": "ips", "id": kid2, "ips": "10.0.0.1"}, headers=self.origin)).status, 200)
+            self.assertEqual((await self.client.get(f"/api/v1/check?mint={mint}", headers=tied)).status, 403)
+            self.assertEqual((await self.client.post("/admin/api", json={"action": "ips", "id": kid2, "ips": "127.0.0.1, 10.0.0.0/8"}, headers=self.origin)).status, 200)
+            self.assertEqual((await self.client.get(f"/api/v1/check?mint={mint}", headers=tied)).status, 200)
+            self.assertEqual((await self.client.post("/admin/api", json={"action": "ips", "id": kid2, "ips": "nope"}, headers=self.origin)).status, 400)
             costs = await (await self.client.get("/admin?tab=costs")).text()
             self.assertIn("API partners", costs)
             self.assertIn("Partner API: token checks", costs)
             docs = await (await self.client.get("/docs/api")).text()
             self.assertIn("over 20%", docs)                                       # межі в документації — з коду
             self.assertIn("/api/v1/check", docs)
+
+        async def test_wrong_keys_from_one_network_are_throttled(self):
+            for _ in range(20):
+                r = await self.client.get("/api/v1/check?mint=" + "D" * 40, headers={"Authorization": "Bearer tr_wrong", "Cookie": ""})
+                self.assertEqual(r.status, 401)
+            r = await self.client.get("/api/v1/check?mint=" + "D" * 40, headers={"Authorization": "Bearer tr_wrong", "Cookie": ""})
+            self.assertEqual(r.status, 429)                                     # перебір ключів — хвилина паузи
+
+        async def test_no_third_party_analytics_on_the_owners_pages(self):
+            import os
+            os.environ["UMAMI_WEBSITE_ID"] = "test-site"
+            try:
+                self.assertIn("cloud.umami.is", await (await self.client.get("/", headers=GUEST)).text())
+                for path in ("/admin", "/admin?tab=api"):
+                    self.assertNotIn("cloud.umami.is", await (await self.client.get(path)).text(), path)   # там показується ключ
+            finally:
+                del os.environ["UMAMI_WEBSITE_ID"]
 
         async def test_the_owner_reads_and_deletes_messages(self):
             store = self.app["feedback"]

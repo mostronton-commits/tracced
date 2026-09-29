@@ -77,7 +77,26 @@ A key has a daily limit, set with you, and takes up to 5 requests a second. The 
 | 502 | The data source did not answer; try again in a few seconds |
 | 503 | This month's data budget is nearly used up; checks resume when it renews |
 
+A key can also be tied to your servers' addresses. Then it does not work from anywhere else, even if it leaks.
+
 ## What it does not catch
 
 A creator's wallets hidden behind an exchange or a chain of transfers, and bundles spread out over time. No check
 catches everything; use it as a filter, not a guarantee.
+
+## Terms of use (beta)
+
+Using a key means accepting these terms:
+
+- **Keep the key on your server.** Never put it in a web page, an app or a public repository. Tell us at once if it
+  leaks, and we will issue a new one.
+- **Use the answers to check tokens for your own product.** Showing a token's levels to your users is fine, with
+  "rules by tracced" and a link to this page. Reselling the answers, or passing them on as a dataset, is not.
+- **Do not call a token "safe", "audited" or "verified by tracced".** The check reports facts against written rules; it
+  says nothing about where a price goes.
+- **Provided as is, without warranty.** Not financial advice. tracced is not liable for losses from decisions made
+  with it.
+- **We can change the rules, the limits or this page, or switch a key off, at any time.** During the beta the check is
+  free.
+- **What we keep:** for each call, the key, the token, the time and the result, to run the service and to count its
+  cost. Nothing about your users.

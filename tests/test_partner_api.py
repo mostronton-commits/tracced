@@ -97,6 +97,21 @@ class TestKeys(unittest.TestCase):
         for bad in ("", "tr_" + "é" * 10, "tr_" + "a" * 200, "nope", None):
             self.assertIsNone(self.store.find(bad))
 
+    def test_a_second_store_sees_a_key_written_by_the_first(self):
+        other = api.KeyStore(self.store.path)                                   # той самий файл, інший процес чи потік
+        kid, key = self.store.create("p")
+        self.assertEqual(other.find(key)["id"], kid)                            # пам'ять не ховає зміну файлу
+        self.store.update(kid, enabled=False)
+        self.assertFalse(other.find(key)["enabled"])
+
+    def test_addresses_a_key_is_tied_to(self):
+        self.assertEqual(api.parse_ips(" 1.2.3.4, 10.0.0.0/24 ;2001:db8::1"), ["1.2.3.4/32", "10.0.0.0/24", "2001:db8::1/128"])
+        self.assertEqual(api.parse_ips(""), [])
+        self.assertIsNone(api.parse_ips("1.2.3.4, nope"))
+        nets = api.parse_ips("1.2.3.4, 10.0.0.0/24")
+        self.assertTrue(api.ip_allowed("10.0.0.77", nets) and api.ip_allowed("1.2.3.4", nets))
+        self.assertFalse(api.ip_allowed("1.2.3.5", nets) or api.ip_allowed("not-an-ip", nets))
+
 
 if __name__ == "__main__":
     unittest.main()

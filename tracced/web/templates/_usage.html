@@ -293,6 +293,7 @@
     <form class="row apiset" data-api-form>
       <label class="small">Limit a day <input type="number" name="daily_cap" min="1" max="100000" value="{{ k.daily_cap }}"></label>
       {% for r in api_rules %}<label class="small">{{ r }} over <input type="number" name="{{ r }}" min="0" max="100" step="1" value="{{ ((k.thresholds or {}).get(r, 20))|int }}">%</label>{% endfor %}
+      <label class="small apiips" title="The key works only from these addresses: the partner's servers. Empty: from anywhere">Only from <input type="text" name="ips" placeholder="any address" value="{{ (k.ips or [])|join(', ') }}" autocomplete="off" spellcheck="false"></label>
       <button type="submit">Save</button>
     </form>
   </article>
@@ -342,6 +343,7 @@
         {% endfor %}try {
           await post({ action: 'limit', id, daily_cap: f.elements.daily_cap.value });
           await post(th);
+          await post({ action: 'ips', id, ips: f.elements.ips.value });
           EarlyUI.toast('Saved.'); location.reload();
         } catch (x) { EarlyUI.toast(x.message); }
       });
