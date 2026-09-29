@@ -115,13 +115,27 @@ h2.sec .muted { font-weight: 400; margin-left: 8px; }
 .stats { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
 .stats div { border: 1px solid var(--line); border-radius: var(--r); padding: 8px 12px; min-width: 120px; background: var(--surface); }
 .stats b { display: block; font-size: 18px; font-weight: 600; font-family: var(--mono); } .stats span { color: var(--muted); font-size: 12px; }
-/* ключові числа власника зверху; нижній ряд — фон активності й витрат, тихіший */
-.ukeyh { margin: 4px 0 0; }
-.stats.ukey b { font-size: 21px; }
-.stats b small.of { font-size: 12px; font-weight: 400; color: var(--muted); }
-.stats.usub { margin-top: 0; }
-.stats.usub div { background: transparent; padding: 6px 10px; }
-.stats.usub b { font-size: 15px; }
+/* ключові числа власника: сітка 4×2 — число, частка смужкою або міні-графік за 30 днів; решта одним тихим рядком */
+.khead { display: flex; align-items: baseline; gap: 10px; margin: 2px 0 12px; }
+.khead h3 { margin: 0; font-size: 15px; }
+.kgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.kcard { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--surface); cursor: help; transition: border-color .15s ease, transform .15s ease; }
+.kcard:hover { border-color: #CBD5E1; transform: translateY(-1px); }
+.klabel { font: 600 10.5px/1.2 var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.knum { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font: 600 28px/1.05 var(--mono); color: var(--ink); letter-spacing: -.01em; }
+.kpct, .kbad { font: 600 11px/1 var(--mono); font-style: normal; letter-spacing: 0; padding: 4px 7px; border-radius: 999px; }
+.kpct { background: var(--sage); color: #047857; } .kpct.zero { background: var(--bg); color: var(--muted); }
+.kbad { background: #FEE2E2; color: var(--red); }
+.kbar { height: 6px; border-radius: 999px; background: #EEF2F6; overflow: hidden; }
+.kbar i { display: block; height: 100%; border-radius: 999px; background: #34D399; }
+.kspark { display: block; width: 100%; height: 26px; }
+.kspark .b { fill: #6EE7B7; } .kspark .bad { fill: #FCA5A5; } .kspark .z { fill: var(--line); }
+.kfoot { margin-top: auto; font-size: 12px; color: var(--muted); }
+.kline { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 12px 2px 4px; font-size: 12.5px; color: var(--muted); }
+.kline span { cursor: help; } .kline b { font: 600 12.5px/1 var(--mono); color: var(--ink); }
+@media (max-width: 860px) { .kgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .knum { font-size: 24px; } }
+@media (prefers-reduced-motion: reduce) { .kcard { transition: none; } .kcard:hover { transform: none; } }
 .toolbar { margin: 8px 0 10px; } .inline { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12.5px; } .inline input { width: 6em; height: 30px; }
 .log { background: var(--navy); color: #CBD5E1; border-radius: var(--r); padding: 12px 14px; font: 12.5px/1.5 var(--mono); white-space: pre-wrap; margin: 8px 0; }
 .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); scrollbar-width: thin; scrollbar-color: #CBD5E1 var(--surface);

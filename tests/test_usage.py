@@ -185,6 +185,7 @@ class TestSummary(unittest.TestCase):
         self.assertEqual((k["analyses"], k["analysts"], k["returned"]), (2, 1, 1))        # A: два прогони в різні дні
         self.assertEqual((k["active"], k["savers"], k["exports"], k["exporters"]), (3, 0, 1, 1))
         self.assertEqual((k["st"]["avg"], k["st"]["median"]), (73, 73))                   # 105 і 41 запит з іменами й картками
+        self.assertEqual(sum(d["new"] for d in self.summ(period="30d")["daily"]), 3)          # нові за днями: без власника
         extra = [ev(NOW - 5 * H, B, "analyze", job="J3"), ev(NOW - 5 * H + 60_000, B, "run", job="J3", mint="M4", symbol="FOUR", ok=1, st=10),
                  ev(NOW - 4 * H, B, "analyze", job="J4"),
                  ev(NOW - 4 * H + 60_000, B, "run", job="J4", mint="M4", symbol="FOUR", ok=0, st=4, err="feed down"),

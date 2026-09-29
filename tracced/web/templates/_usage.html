@@ -56,30 +56,35 @@
 </section>
 
 {% macro eur(req) %}{% if req is none %}—{% elif st_eur_million %}{% set v = req * st_eur_million / 1000000 %}€{{ '%.3f'|format(v) if v < 0.1 else '%.2f'|format(v) }}{% else %}{{ req|round|int|num }} req{% endif %}{% endmacro %}
+{% macro spark(series, key, bad=None) %}{% set mx = [series|map(attribute=key)|max, 1]|max %}<svg class="kspark" viewBox="0 0 120 26" preserveAspectRatio="none" aria-hidden="true">{% for d in series %}{% if d[key] %}{% set h = [d[key] / mx * 24, 2]|max %}<rect x="{{ loop.index0 * 4 }}" y="{{ 26 - h }}" width="3" height="{{ h }}" class="b"/>{% if bad and d[bad] %}{% set hb = [d[bad] / mx * 24, 2]|max %}<rect x="{{ loop.index0 * 4 }}" y="{{ 26 - hb }}" width="3" height="{{ hb }}" class="bad"/>{% endif %}{% else %}<rect x="{{ loop.index0 * 4 }}" y="25" width="3" height="1" class="z"/>{% endif %}{% endfor %}</svg>{% endmacro %}
+{% macro share(n, of) %}{% if of %}{% set v = 100 * n / of %}<i class="kpct{{ ' zero' if not n }}">{{ v|round|int }}%</i>{% endif %}{% endmacro %}
+{% macro bar(n, of) %}<div class="kbar"><i style="width: {{ '%.1f'|format(100 * n / of if of else 0) }}%"></i></div>{% endmacro %}
 {% if tab == 'overview' %}{% set k = u.key %}
 <section class="card me usage">
-  <h3 class="small ukeyh">Key numbers</h3>
-  <div class="stats ukey">
-    <div title="Wallets that connected for the first time in this period"><b>{{ k.connected }}</b><span>Connected</span></div>
-    <div title="Of the wallets that connected in this period, how many have run at least one analysis since"><b>{{ k.first_run }}<small class="of"> of {{ k.connected }}</small></b><span>First analysis · {{ pct(k.first_run, k.connected) }}</span></div>
-    <div title="Live analyses that finished in this period, failed ones included (today on the right)"><b>{{ k.analyses }}{% if k.failed %} <small class="neg">{{ k.failed }} failed</small>{% endif %}</b><span>Analyses · today {{ p.runs_today }}</span></div>
-    <div title="Wallets that ran analyses on two or more different days in this period ({{ usage_tz }} days), of the wallets that ran any: coming back, not a second click the same minute"><b>{{ k.returned }}<small class="of"> of {{ k.analysts }}</small></b><span>Came back · 2+ days</span></div>
-    <div title="Wallets that saved at least one wallet to a list, of the wallets active in this period; how many wallets went into lists on the right"><b>{{ k.savers }}<small class="of"> of {{ k.active }}</small></b><span>Saved wallets · {{ k.saved }} in lists</span></div>
-    <div title="Exports of a result table or a list, and how many wallets made them"><b>{{ k.exports }}</b><span>Exports · by {{ k.exporters }}</span></div>
-    <div title="Solana Tracker requests per analysis in this period{% if st_eur_million %}, in euros at €{{ st_eur_million|round|int }} for a million requests{% endif %}; the median on the right. On average {{ (k.st.avg or 0)|round|int }} requests{% if k.rpc.avg %} and {{ k.rpc.avg|round|int }} Helius credits{% endif %}"><b>{{ eur(k.st.avg) }}</b><span>Per analysis · median {{ eur(k.st.median) }}</span></div>
+  <div class="khead"><h3>Key numbers</h3><span class="muted small">{{ {'today': 'today', '7d': 'last 7 days', '30d': 'last 30 days', 'all': 'all time'}.get(period, 'last 7 days') }}</span></div>
+  <div class="kgrid">
+    <div class="kcard" title="Wallets that connected for the first time in this period. Below: new wallets a day, the last 30 days">
+      <span class="klabel">Connected</span><b class="knum">{{ k.connected }}</b>{{ spark(u.daily, 'new') }}<span class="kfoot">new wallets a day · 30 d</span></div>
+    <div class="kcard" title="Of the wallets that connected in this period, how many have run at least one analysis since">
+      <span class="klabel">First analysis</span><b class="knum">{{ k.first_run }}{{ share(k.first_run, k.connected) }}</b>{{ bar(k.first_run, k.connected) }}<span class="kfoot">of {{ k.connected }} connected</span></div>
+    <div class="kcard" title="Wallets that ran analyses on two or more different days in this period ({{ usage_tz }} days), of the wallets that ran any: coming back, not a second click the same minute">
+      <span class="klabel">Came back</span><b class="knum">{{ k.returned }}{{ share(k.returned, k.analysts) }}</b>{{ bar(k.returned, k.analysts) }}<span class="kfoot">of {{ k.analysts }} who analysed · on 2+ days</span></div>
+    <div class="kcard" title="Wallets that saved at least one wallet to a list, of the wallets active in this period">
+      <span class="klabel">Saved wallets</span><b class="knum">{{ k.savers }}{{ share(k.savers, k.active) }}</b>{{ bar(k.savers, k.active) }}<span class="kfoot">of {{ k.active }} active · {{ k.saved }} in lists</span></div>
+    <div class="kcard" title="Wallets that did anything in this period. Below: active wallets a day, the last 30 days">
+      <span class="klabel">Active</span><b class="knum">{{ u.funnel_base }}</b>{{ spark(u.daily, 'active') }}<span class="kfoot">today {{ p.dau }} · a day, 30 d</span></div>
+    <div class="kcard" title="Live analyses that finished in this period, failed ones included. Below: analyses a day, the last 30 days, failed in red">
+      <span class="klabel">Analyses</span><b class="knum">{{ k.analyses }}{% if k.failed %}<i class="kbad">{{ k.failed }} failed</i>{% endif %}</b>{{ spark(u.daily, 'runs', bad='failed') }}<span class="kfoot">today {{ p.runs_today }} · a day, 30 d</span></div>
+    <div class="kcard" title="Exports of a result table or a list, and how many wallets made them">
+      <span class="klabel">Exports</span><b class="knum">{{ k.exports }}</b><span class="kfoot">by {{ k.exporters }} wallet{{ '' if k.exporters == 1 else 's' }}</span></div>
+    <div class="kcard" title="Solana Tracker requests per analysis in this period{% if st_eur_million %}, in euros at €{{ st_eur_million|round|int }} for a million requests{% endif %}. On average {{ (k.st.avg or 0)|round|int }} requests{% if k.rpc.avg %} and {{ k.rpc.avg|round|int }} Helius credits{% endif %}">
+      <span class="klabel">Per analysis</span><b class="knum">{{ eur(k.st.avg) }}</b><span class="kfoot">average · median {{ eur(k.st.median) }}</span></div>
   </div>
-  <div class="stats usub">
-    <div title="Wallets that did anything in this period (today on the right)"><b>{{ u.funnel_base }}</b><span>Active · today {{ p.dau }}</span></div>
-    <div title="All accounts since the start, the team included"><b data-count="{{ p.accounts_all }}" data-fmt="int">{{ p.accounts_all }}</b><span>Accounts, all</span></div>
-    <div title="Questions asked to the AI agent"><b>{{ u.questions }}</b><span>Agent questions</span></div>
-    <div title="Solana Tracker requests spent by everyone (today on the right)"><b>{{ p.st|num }}</b><span>Solana Tracker · today {{ p.st_today|num }}</span></div>
-    <div title="Helius credits spent by everyone (today on the right)"><b>{{ p.rpc|num }}</b><span>Helius · today {{ p.rpc_today|num }}</span></div>
-    <div title="What the agent's answers cost, as OpenRouter reports it (today on the right)"><b>{{ dollars(p.ai_usd) }}</b><span>AI · today {{ dollars(p.ai_usd_today) }}</span></div>
-  </div>
-  <div class="ucharts">
-    {{ bars(u.daily, 'active', title='Active wallets a day · 30 d') }}
-    {{ bars(u.daily, 'runs', bad='failed', title='Analyses a day · failed in red') }}
-  </div>
+  <p class="kline">
+    <span title="All accounts since the start, the team included">Accounts <b data-count="{{ p.accounts_all }}" data-fmt="int">{{ p.accounts_all }}</b></span>
+    <span title="Questions asked to the AI agent">Agent questions <b>{{ u.questions }}</b></span>
+    <span title="Spent by everyone in this period: Solana Tracker requests, Helius credits, and what the agent's answers cost (today on the right)">Spent: Solana Tracker <b>{{ p.st|num }}</b> · Helius <b>{{ p.rpc|num }}</b> · AI <b>{{ dollars(p.ai_usd) }}</b></span>
+  </p>
   {% set errs = u.errors|sum(attribute='times') %}{% set lims = u.limits|sum(attribute='times') %}
   {% set st_low = budget.credits_left is not none and budget.reserve and budget.credits_left < 2 * budget.reserve %}
   {% set rpc_high = budget.rpc and budget.rpc.limit and budget.rpc.spent > 0.8 * budget.rpc.limit %}
