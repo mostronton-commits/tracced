@@ -384,6 +384,91 @@ if AioHTTPTestCase:
             r = await self.client.post("/feedback", json=dict(base, text="From a user"), headers=self.origin)
             self.assertEqual(r.status, 200)                                     # …а гаманець усе ще може написати
 
+        async def test_the_partner_api_answers_with_rules_and_the_owner_controls_every_key(self):
+            try:
+                from tests.test_partner_api import st_report
+            except ImportError:
+                from test_partner_api import st_report
+            asked = []
+
+            def report(mint):
+                self.st.requests += 1
+                asked.append(mint)
+                return st_report()
+            self.st.token_report = report
+            r = await self.client.post("/admin/api", json={"action": "create", "name": "pumpling"}, headers=self.origin)
+            d = await r.json()
+            kid, key = d["id"], d["key"]
+            partner = {"Authorization": f"Bearer {key}", "Cookie": ""}
+            mint = "D" * 40
+            r = await self.client.get(f"/api/v1/check?mint={mint}", headers=partner)
+            body = await r.json()
+            self.assertEqual(r.status, 200, body)
+            self.assertEqual((body["passes"], body["failed"], body["flags"], body["cached"]), (False, ["bundle", "top10"], "2 of 9", False))
+            self.assertNotIn("27.7", json.dumps(body))                          # лише рівні, без сирих часток
+            r = await self.client.get(f"/api/v1/check?mint={mint}", headers={"X-API-Key": key, "Cookie": ""})
+            self.assertEqual(((await r.json())["cached"], len(asked)), (True, 1))   # удруге за хвилину — з пам'яті, без запиту
+            self.assertEqual([(e["pubkey"], e["st"]) for e in self.lines("spend", what="api-check")], [("api:" + kid, 1)])
+            self.assertEqual([e["passes"] for e in self.lines("api")], [0, 0])
+            for headers, url, status in ((GUEST, f"/api/v1/check?mint={mint}", 401), ({"Authorization": "Bearer tr_nope", "Cookie": ""}, f"/api/v1/check?mint={mint}", 401),
+                                         (partner, "/api/v1/check?mint=0xnot", 400)):
+                self.assertEqual((await self.client.get(url, headers=headers)).status, status, url)
+            post = lambda body, h=None: self.client.post("/admin/api", json=dict(body, id=kid), headers=h or self.origin)   # noqa: E731
+            self.assertEqual((await post({"action": "thresholds", "dev": 30, "bundle": 30, "top10": 30})).status, 200)
+            r = await self.client.get(f"/api/v1/check?mint={mint}", headers=partner)
+            self.assertTrue((await r.json())["passes"])                           # пороги ключа вирішують одразу
+            self.assertEqual((await post({"action": "limit", "daily_cap": 3})).status, 200)
+            self.assertEqual((await self.client.get(f"/api/v1/check?mint={mint}", headers=partner)).status, 429)   # трьох на сьогодні досить
+            self.assertEqual((await post({"action": "limit", "daily_cap": 100})).status, 200)
+            self.assertEqual((await post({"action": "enable", "on": False})).status, 200)
+            self.assertEqual((await self.client.get(f"/api/v1/check?mint={mint}", headers=partner)).status, 403)   # вимкнено — одразу
+            html = await (await self.client.get("/admin?tab=api")).text()
+            for part in ("pumpling", "Switch on", "Solana Tracker requests", "Recent checks", "passed"):
+                self.assertIn(part, html)
+            self.assertNotIn(key, html)                                           # ключ на сторінці не показується вдруге
+            new = (await (await post({"action": "rotate"})).json())["key"]
+            await post({"action": "enable", "on": True})
+            self.assertEqual((await self.client.get(f"/api/v1/check?mint={mint}", headers=partner)).status, 401)   # старий ключ не діє
+            self.assertEqual((await self.client.get(f"/api/v1/check?mint={mint}", headers={"Authorization": f"Bearer {new}", "Cookie": ""})).status, 200)
+            self.assertEqual((await post({"action": "thresholds", "dev": 300, "bundle": 1, "top10": 1})).status, 400)
+            self.assertEqual((await post({"action": "limit", "daily_cap": 0})).status, 400)
+            self.assertEqual((await post({"action": "delete"}, dict(GUEST, **self.origin))).status, 403)   # лише гаманець власника
+            self.assertEqual((await post({"action": "delete"})).status, 200)
+            self.assertEqual((await self.client.get(f"/api/v1/check?mint={mint}", headers={"Authorization": f"Bearer {new}", "Cookie": ""})).status, 401)
+            # прив'язка до адрес: з чужої — ні, з дозволеної — так (тестовий клієнт приходить з 127.0.0.1)
+            kid2, key2 = self.app["api_keys"].create("tied")
+            tied = {"Authorization": f"Bearer {key2}", "Cookie": ""}
+            self.assertEqual((await self.client.post("/admin/api", json={"action": "ips", "id": kid2, "ips": "10.0.0.1"}, headers=self.origin)).status, 200)
+            self.assertEqual((await self.client.get(f"/api/v1/check?mint={mint}", headers=tied)).status, 403)
+            self.assertEqual((await self.client.post("/admin/api", json={"action": "ips", "id": kid2, "ips": "127.0.0.1, 10.0.0.0/8"}, headers=self.origin)).status, 200)
+            self.assertEqual((await self.client.get(f"/api/v1/check?mint={mint}", headers=tied)).status, 200)
+            self.assertEqual((await self.client.post("/admin/api", json={"action": "ips", "id": kid2, "ips": "nope"}, headers=self.origin)).status, 400)
+            costs = await (await self.client.get("/admin?tab=costs")).text()
+            self.assertIn("API partners", costs)
+            self.assertIn("Partner API: token checks", costs)
+            docs = await (await self.client.get("/docs/api")).text()
+            self.assertIn("over 20%", docs)                                       # межі в документації — з коду
+            self.assertIn("/api/v1/check", docs)
+            for secret in ("Solana Tracker", "budget", "X-API-Key"):             # публічна сторінка: ні постачальника, ні бюджету
+                self.assertNotIn(secret, docs)
+
+        async def test_wrong_keys_from_one_network_are_throttled(self):
+            for _ in range(20):
+                r = await self.client.get("/api/v1/check?mint=" + "D" * 40, headers={"Authorization": "Bearer tr_wrong", "Cookie": ""})
+                self.assertEqual(r.status, 401)
+            r = await self.client.get("/api/v1/check?mint=" + "D" * 40, headers={"Authorization": "Bearer tr_wrong", "Cookie": ""})
+            self.assertEqual(r.status, 429)                                     # перебір ключів — хвилина паузи
+
+        async def test_no_third_party_analytics_on_the_owners_pages(self):
+            import os
+            os.environ["UMAMI_WEBSITE_ID"] = "test-site"
+            try:
+                self.assertIn("cloud.umami.is", await (await self.client.get("/", headers=GUEST)).text())
+                for path in ("/admin", "/admin?tab=api"):
+                    self.assertNotIn("cloud.umami.is", await (await self.client.get(path)).text(), path)   # там показується ключ
+            finally:
+                del os.environ["UMAMI_WEBSITE_ID"]
+
         async def test_the_owner_reads_and_deletes_messages(self):
             store = self.app["feedback"]
             a = store.add({"ts_ms": 1, "kind": "bug", "text": "one"})

@@ -21,6 +21,7 @@ import math
 import re
 import threading
 import time
+import urllib.error
 from pathlib import Path
 
 from aiohttp import web
@@ -37,6 +38,7 @@ from . import docs as docs_mod
 from . import chart
 from . import demo as demo_mod
 from . import replay
+from . import partner_api as api_mod
 from . import usage as usage_mod
 from .agent_store import AgentStore
 from .feedback import FeedbackStore, KINDS as FEEDBACK_KINDS, MAX_CONTACT as FEEDBACK_CONTACT, MAX_PAGE as FEEDBACK_PAGE, MAX_TEXT as FEEDBACK_TEXT
@@ -425,6 +427,10 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["usage_cache"], app["view_last"] = {}, {}                 # порахований дашборд на хвилину; останній перегляд сторінки
     app["credits"] = {"left": None, "at": 0}                     # залишок кредитів Data API: питаємо не частіше ніж раз на 10 хв
     app["ai_balance"] = {"v": None, "at": 0}                     # залишок на відповіді агента (OpenRouter): так само раз на 10 хв
+    app["api_keys"] = api_mod.KeyStore(Path(out_dir).parent / "api" / "keys.json")   # ключі партнерів: лише відбитки
+    app["api_cache"] = {}                                         # відповідь Solana Tracker на монету: хвилину з пам'яті
+    app["api_throttle"] = Throttle(max_fails=int(s.get("api_per_10s", 50)), window_s=10, block_s=10)   # запитів ключа за 10 с
+    app["api_bad"] = Throttle(max_fails=20, window_s=60, block_s=60)   # спроб з невірним ключем з однієї мережі за хвилину
     app["ages"] = ages
     _share_st(st, app["st_slots"])
 
@@ -512,6 +518,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_post("/admin/usage/exclude", admin_usage_exclude)
     app.router.add_post("/admin/beta", admin_beta)
     app.router.add_post("/admin/feedback", admin_feedback)
+    app.router.add_post("/admin/api", admin_api)
+    app.router.add_get("/api/v1/check", api_check)
     app.router.add_post("/admin/demo", admin_demo)
     app.router.add_post("/admin/agent", admin_agent_save)
     app.router.add_post("/admin/agent/preview", admin_agent_preview)
@@ -1653,7 +1661,7 @@ def _beta(app):
 
 USAGE_TTL = 60
 ADMIN_TABS = {"overview": "Overview", "analyses": "Analyses", "agent": "Agent", "wallets": "Wallets", "behavior": "Behavior",
-              "costs": "Costs", "feedback": "Feedback", "log": "Log", "method": "Agent method"}
+              "costs": "Costs", "api": "API", "feedback": "Feedback", "log": "Log", "method": "Agent method"}
 
 
 async def _budget(app):
@@ -1700,7 +1708,13 @@ async def admin_page(request):
     feedback = [dict(f, page_ok=bool(SITE_PATH.fullmatch(str(f.get("page") or "")))) for f in app["feedback"].recent(200)]
     store = app["agent_store"]
     meters = usage_mod.credit_meters(budget, now_ms=int(time.time() * 1000))
+    api_keys, api_stats = [], {"keys": {}, "recent": []}
+    if tab == "api":                                     # ключі партнерів і що кожен робить за цей місяць
+        now_ms = int(time.time() * 1000)
+        month = await asyncio.to_thread(app["events"].read, usage_mod.month_start_ms(now_ms))
+        api_keys, api_stats = app["api_keys"].all(), usage_mod.api_usage(month, now_ms)
     return render("admin.html", request, u=u, budget=budget, meters=meters, beta=sorted(_beta(app)), events=events, period=period,
+                  api_keys=api_keys, api_stats=api_stats, api_rules=api_mod.THRESHOLD_RULES,
                   include_team=include_team, tab=tab, tabs=ADMIN_TABS,
                   feedback=feedback, feedback_new=sum(1 for f in feedback if not f.get("read")),
                   usage_tz=app["s"].get("usage_tz") or "UTC", periods=list(usage_mod.PERIODS),
@@ -1766,6 +1780,127 @@ async def admin_feedback(request):
     return web.json_response({"ok": True})
 
 
+async def admin_api(request):
+    """Ключі партнерського API: створити, перевипустити, увімкнути чи вимкнути, денна межа, пороги, видалити. Сам ключ
+    повертається лише при створенні й перевипуску: його одразу передати партнеру, на сервері лишається відбиток."""
+    app = request.app
+    pk, body, err = await _admin_json(request)
+    if err:
+        return err
+    store, action, kid = app["api_keys"], body.get("action"), str(body.get("id") or "")
+    if action == "create":
+        kid, key = store.create(body.get("name"))
+        return web.json_response({"ok": True, "id": kid, "key": key})
+    if action == "rotate":
+        key = store.rotate(kid)
+        return web.json_response({"ok": True, "key": key}) if key else _jerr("No such key.", 404)
+    if action == "enable":
+        ok = store.update(kid, enabled=bool(body.get("on")))
+    elif action == "limit":
+        try:
+            cap = int(body.get("daily_cap"))
+        except (TypeError, ValueError):
+            return _jerr("The limit must be a whole number.")
+        if not 1 <= cap <= 100_000:
+            return _jerr("The limit must be between 1 and 100,000 checks a day.")
+        ok = store.update(kid, daily_cap=cap)
+    elif action == "thresholds":
+        th = {}
+        for rule in api_mod.THRESHOLD_RULES:
+            try:
+                v = float(body.get(rule))
+            except (TypeError, ValueError):
+                return _jerr(f"The {rule} threshold must be a number.")
+            if not 0 <= v <= 100 or v != v:
+                return _jerr("Thresholds are shares of the supply, from 0 to 100.")
+            th[rule] = v
+        ok = store.update(kid, thresholds=th)
+    elif action == "ips":
+        ips = api_mod.parse_ips(body.get("ips"))
+        if ips is None:
+            return _jerr("Addresses must be IPv4 or IPv6, or networks like 10.0.0.0/24, separated by commas.")
+        ok = store.update(kid, ips=ips)
+    elif action == "delete":
+        ok = store.delete(kid)
+    else:
+        return _jerr("Unknown action.")
+    return web.json_response({"ok": True}) if ok else _jerr("No such key.", 404)
+
+
+API_CACHE_S = 60
+
+
+def _api_key(request):
+    """Ключ партнера із заголовка: `Authorization: Bearer <key>` або `X-API-Key`. У рядку запиту не приймаємо: він
+    осідає в журналах проксі й в історії браузера."""
+    auth = request.headers.get("Authorization") or ""
+    if auth[:7].lower() == "bearer ":
+        return auth[7:].strip()
+    return (request.headers.get("X-API-Key") or "").strip()
+
+
+async def api_check(request):
+    """Перевірка токена для партнера: рівні правил і чи пройшла монета пороги ключа — без сирих цифр і без оцінок
+    (partner_api). Хвилину відповідь для тієї самої монети береться з пам'яті: швидше і нічого не коштує."""
+    app, s = request.app, request.app["s"]
+    ip, now = _client_ip(request), time.time()
+    bad = app["api_bad"]
+    if bad.wait_s(_ip_key(ip), now):                    # перебір ключів з однієї мережі: хвилину нічого не приймаємо
+        return _jerr("Too many requests with a wrong key. Try again in a minute.", 429)
+    rec = app["api_keys"].find(_api_key(request))
+    if not rec:
+        bad.miss(_ip_key(ip), now)
+        return _jerr("Unknown or missing API key. Send it as: Authorization: Bearer <key>.", 401)
+    if not rec.get("enabled"):
+        return _jerr("This API key is switched off.", 403)
+    if rec.get("ips") and not api_mod.ip_allowed(ip, rec["ips"]):   # ключ прив'язано до серверів партнера
+        return _jerr("This key does not work from this address.", 403)
+    who = "api:" + rec["id"]
+    th = app["api_throttle"]
+    if th.wait_s(who, now):
+        return _jerr("Too many requests. Keep it under 5 a second.", 429)
+    th.miss(who, now)
+    mint = (request.query.get("mint") or "").strip()
+    if not MINT_RE.match(mint):
+        return _jerr("Pass a Solana token address as ?mint=.")
+    if not app["usage_daily"].take(who, int(rec.get("daily_cap") or api_mod.DEFAULT_DAILY_CAP)):
+        return _jerr("Today's limit for this key is used up. It resets at 00:00 UTC.", 429)
+    cache, hit = app["api_cache"], app["api_cache"].get(mint)
+    cached = bool(hit and now - hit[0] < int(s.get("api_cache_s", API_CACHE_S)))
+    if cached:
+        report = hit[1]
+    else:
+        reserve = _credits_reserve(s)
+        left = await _credits_left(app) if reserve else None
+        if left is not None and left < reserve:
+            return _jerr("Checks are paused on our side. Try again later.", 503)   # про наш бюджет партнеру знати не треба
+        st = app["st"]
+
+        def work():
+            with st.meter():
+                req0 = st.requests_here()
+                try:
+                    return st.token_report(mint), None
+                except urllib.error.HTTPError as e:
+                    return None, e.code
+                except Exception:  # noqa: BLE001 — будь-яка інша відмова джерела: партнеру 502, не 500
+                    return None, 502
+                finally:
+                    _spend(app, who, "api-check", st=st.requests_here() - req0, mint=mint)
+        report, err = await asyncio.to_thread(work)
+        if report is None:
+            return _jerr("No such token in the data source.", 404) if err in (400, 404) else \
+                _jerr("The data source did not answer. Try again in a few seconds.", 502)
+        if len(cache) > 5000:
+            cache.clear()
+        cache[mint] = (now, report)
+    out = api_mod.evaluate(report, rec.get("thresholds") or api_mod.DEFAULT_THRESHOLDS, now)
+    app["events"].add(who, "api", mint=mint, passes=int(out["passes"]), cached=1 if cached else None,
+                      failed=",".join(out["failed"]) or None)
+    return web.json_response(dict({"mint": mint, "checked_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now)),
+                                   "cached": cached}, **out))
+
+
 async def admin_beta(request):
     """Додати бета-тестера чи прибрати: його аналізи не впираються в денні ліміти. Список — файл, діє одразу, без деплою."""
     app = request.app
@@ -1819,7 +1954,10 @@ def render(name, request, status=200, **ctx):
         ctx.setdefault("demo_token", (_demo(request.app) or {}).get("mint", ""))   # підвал веде на демо, якщо воно є
         ctx.setdefault("assistant_on", request.app.get("assistant") is not None)   # без ключа сторінки не обіцяють агента
         ctx.setdefault("early_note", EARLY_NOTE)
-    ctx.setdefault("umami_id", os.getenv("UMAMI_WEBSITE_ID", ""))   # аналітика вмикається лише там, де задано id
+    # аналітика вмикається лише там, де задано id, і ніколи на сторінках власника: там показується новий ключ API,
+    # а сторонній скрипт на сторінці бачить усе, що на ній є
+    admin_page = request is not None and request.path.startswith("/admin")
+    ctx.setdefault("umami_id", "" if admin_page else os.getenv("UMAMI_WEBSITE_ID", ""))
     ctx.setdefault("umami_domains", os.getenv("UMAMI_DOMAINS", "tracced.xyz,www.tracced.xyz"))   # і лише на цих доменах: локальні запуски з тим самим id не рахуються
     html = env.get_template(name).render(**ctx)
     return web.Response(text=html, content_type="text/html", status=status)
@@ -1998,7 +2136,8 @@ async def index(request):
 async def docs_page(request):
     """Документація: markdown з docs/ поруч із кодом, той самий деплой, те саме оформлення сайту."""
     slug = request.match_info.get("slug") or "index"
-    body, title = docs_mod.page(DOCS_DIR, slug, {"s": request.app["s"], "TAGS": tags.DEFS, "assistant_on": request.app.get("assistant") is not None})
+    body, title = docs_mod.page(DOCS_DIR, slug, {"s": request.app["s"], "TAGS": tags.DEFS, "assistant_on": request.app.get("assistant") is not None,
+                                                 "API": api_mod})   # межі правил API — з коду, щоб сторінка не розійшлась із тим, що рахує сервер
     if body is None:
         raise web.HTTPNotFound(text="There is no such page in the documentation.")
     prev, nxt = docs_mod.around(DOCS_DIR, slug)

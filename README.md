@@ -67,6 +67,7 @@ more on request, on a phone too, where each wallet becomes a card.
 | [Limits](https://tracced.xyz/docs/limits) | What is free, what needs a wallet, what it costs |
 | [Your account](https://tracced.xyz/docs/account) | Sign-in, lists, your own tags, repeats |
 | [Compare](https://tracced.xyz/docs/compare) | Next to Axiom and GMGN |
+| [API](https://tracced.xyz/docs/api) | A token check for partners, in beta: rules and levels, no scores |
 | [Roadmap](https://tracced.xyz/docs/roadmap) | Shipped, next, and what we will not build |
 | [The project](https://tracced.xyz/docs/project) | Why it exists and what it refuses to do |
 
