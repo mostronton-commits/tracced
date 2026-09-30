@@ -34,6 +34,10 @@ class TestTransport(unittest.TestCase):
         self.assertEqual(p["response_format"], {"type": "json_object"})
         self.assertEqual(p["usage"], {"include": True})                                 # ціна кожної відповіді — в журнал
         self.assertEqual([m["role"] for m in p["messages"]], ["system", "user"])
+        self.assertEqual(p["provider"]["data_collection"], "deny")                      # hosts that keep nothing
+        self.assertIn("deepseek", p["provider"]["ignore"])                              # and none hosted in CN / SG / ID
+        p["provider"]["ignore"].append("x")
+        self.assertNotIn("x", a.payload("sys", "usr")["provider"]["ignore"])            # one request cannot change the next
 
     def test_json_chat_returns_the_object_and_what_it_cost(self):
         post = FakePost(['Sure! {"story": ["a"]} hope it helps'])
