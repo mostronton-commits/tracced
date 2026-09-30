@@ -167,6 +167,43 @@ def short(w):
     return f"{w[:6]}…{w[-4:]}" if isinstance(w, str) and len(w) > 12 else str(w)
 
 
+def sold_share(trades, ev):
+    """(продано з початку позиції %, продано цією угодою %) — від купленого, разом із цим продажем. None — купівель не видно.
+
+    trades — угоди гаманця на токені (Solana Tracker, ledger.normalize). Власник, 30.09: «продано 40%», потім «продано 60%
+    від початкової, тобто ще 20%». Позиція починається з першої купівлі після повного виходу: докупка після «sold all» —
+    нова позиція. Поточну угоду рахуємо самі: Solana Tracker може ще її не бачити; пізніших угод не беремо."""
+    upto = int(ev.get("ts") or 0) * 1000 + 999
+    bought = sold = 0.0
+    for t in sorted((t for t in trades or [] if t.get("tx") != ev.get("sig")), key=lambda t: t.get("time") or 0):
+        q = float(t.get("qty") or 0)
+        if q <= 0 or (t.get("time") or 0) > upto:
+            continue
+        if t.get("type") == "buy":
+            if bought and bought - sold <= 0.01 * bought:    # попередню позицію закрито: рахуємо нову
+                bought = sold = 0.0
+            bought += q
+        elif t.get("type") == "sell":
+            sold += q
+    if bought <= 0:
+        return None
+    step = float(ev.get("amount") or 0)
+    return min(100, round(100 * (sold + step) / bought)), min(100, round(100 * step / bought))
+
+
+def sold_text(ev):
+    """«sold all»; «sold 60% (+20%)», коли вже продавав з цієї позиції; «sold 40%» за першим продажем; частка цієї угоди,
+    коли історії позиції немає; нічого, коли не знаємо навіть її."""
+    if ev.get("all"):
+        return "sold all"
+    total, step = ev.get("total"), ev.get("step")
+    if total is not None:
+        if total >= 99:
+            return "sold all"
+        return f"sold {total}%" + (f" (+{step}%)" if step is not None and step < total else "")
+    return f"sold {ev['pct']}%" if ev.get("pct") else ""
+
+
 def size_dot(usd, sizes=None):
     """Колір крапки — розмір угоди, як у каналах угод: три діапазони, межі — alerts_size_usd."""
     lo, hi = (list(sizes or SIZES) + list(SIZES))[:2]
@@ -176,10 +213,9 @@ def size_dot(usd, sizes=None):
 def message(ev, wallet, sub, token, site="https://tracced.xyz", ca=True, sizes=None):
     """Текст повідомлення (HTML-розмітка Telegram) у вигляді каналів угод (власник, 30.09):
     1) крапка — розмір угоди (🟢 🟡 🔴), тікер — посилання на графік у tracced; купівля — 🆕 для нової позиції або
-       «bought more», продаж — «sold all» чи скільки продано; капа; tx;
+       «bought more», продаж — скільки позиції продано з початку («sold 60% (+20%)») або «sold all»; капа; tx;
     2) адреса токена — лише в першому повідомленні про цей токен у чаті (`ca`);
-    3) чий гаманець: мітки людини, а без них коротка адреса (посилання на гаманець у Solscan); у дужках памп, з якого його
-       зберегли; сума.
+    3) чий гаманець: мітки людини, а без них коротка адреса (посилання на гаманець у Solscan); сума.
     Чуже (назва токена, мітки, памп) обрізане до екранування: розрізана посередині &amp; зламала б розмітку, і Telegram не
     прийняв би повідомлення."""
     def e(v, n):
@@ -190,15 +226,14 @@ def message(ev, wallet, sub, token, site="https://tracced.xyz", ca=True, sizes=N
     head = [f"{size_dot(ev['usd'], sizes)} {name}" + (" 🆕" if buy and ev.get("new") else "")]
     if buy and ev.get("new") is False:
         head.append("bought more")
-    if not buy and (ev.get("all") or ev.get("pct")):
-        head.append("sold all" if ev.get("all") else f"sold {ev['pct']}%")
+    if not buy and sold_text(ev):
+        head.append(sold_text(ev))
     if (token or {}).get("mcap"):
         head.append(f"MC {money(token['mcap'])}")
     head.append(f"<a href=\"https://solscan.io/tx/{ev['sig']}\">tx</a>")
     tags = [e(t, 24) for t in (sub.get("tags") or [])[:3]]
     who = f"<a href=\"https://solscan.io/account/{wallet}\">{', '.join(tags) if tags else short(wallet)}</a>"
-    src = f" [from ${e(sub['src'], 24)}]" if sub.get("src") else ""
-    return " · ".join(head) + (f"\n<code>{ev['mint']}</code>" if ca else "") + f"\n{who}{src} · <b>{money(ev['usd'])}</b>"
+    return " · ".join(head) + (f"\n<code>{ev['mint']}</code>" if ca else "") + f"\n{who} · <b>{money(ev['usd'])}</b>"
 
 
 def token_facts(report):

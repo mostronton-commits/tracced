@@ -100,7 +100,14 @@
     let tf = null, data = new Map(), times = [], loaded = { a: null, b: null }, busy = false, gen = 0;
     let edge = { left: false, right: false };   // the feed has nothing further that way: stop asking for it
     let windows = normWins(opts.windows), selected = opts.selected || 0, exitSec = sec(opts.exit), marker = null, events = [];
-    let ghosts = [], onGhost = null;              // pumps the finder saw: a pale band and a label to take it, while nothing is marked
+    // The first visit's demo (owner, 30.09): no line of text about clicking, and no bands the page picked by itself. A
+    // cursor clicks where buying starts, then where the pump takes off, a band grows between the two clicks, and it goes
+    // round until the person clicks the chart. 'two' — both clicks; {after} — the second, from the first mark
+    let demo = null;
+    const demoEl = document.createElement('div'); demoEl.className = 'clickdemo'; demoEl.hidden = true; demoEl.setAttribute('aria-hidden', 'true');
+    demoEl.innerHTML = '<i class="cd-band"></i><i class="cd-ring r1"></i><i class="cd-ring r2"></i>'
+      + '<svg class="cd-cur" viewBox="0 0 16 22"><path d="M1.5 1.5v16.2l4.3-4.1 2.8 6.4 2.8-1.2-2.8-6.3h5.9z"/></svg>';
+    el.appendChild(demoEl);
 
     async function fetchChunk(a, b) {
       const q = new URLSearchParams({ mint: opts.mint, tf, a: Math.floor(a), b: Math.ceil(b) });
@@ -267,16 +274,6 @@
         lbl.addEventListener('click', e => { e.stopPropagation(); if (opts.onSelect) opts.onSelect(i); else focus(w.from, w.to, null); });
         d.appendChild(lbl); layer.appendChild(d);
       });
-      ghosts.forEach((g, i) => {
-        if (!g.from || !g.to || g.to < v.a || g.from > v.b) return;
-        const x1 = xOf(g.from), x2 = xOf(g.to); if (x1 == null || x2 == null) return;
-        const d = document.createElement('div'); d.className = 'win ghost';
-        d.style.left = Math.min(x1, W) + 'px'; d.style.width = Math.max(2, Math.min(x2, W) - Math.min(x1, W)) + 'px';
-        const b = document.createElement('button'); b.type = 'button'; b.className = 'lbl gl';
-        b.textContent = g.label + ' · use'; b.title = 'Found on the chart: the stretch where buying started, up to the take-off. Click to take it as the range';
-        b.addEventListener('click', e => { e.stopPropagation(); if (onGhost) onGhost(i); });
-        d.appendChild(b); layer.appendChild(d);
-      });
       // events of the token's own life: the move off the launchpad, the payments for visibility. Thin full-height
       // lines, because trade markers already live next to the candles and must not compete with these.
       // A badge at the point where it happened, not a line through the whole chart: these events sit within a
@@ -298,6 +295,21 @@
       });
       if (exitSec && exitSec >= v.a && exitSec <= v.b) { const x = xOf(exitSec); if (x != null) { const d = document.createElement('div'); d.className = 'exitline'; d.style.left = x + 'px'; d.title = 'Trades up to'; layer.appendChild(d); } }
       if (marker && marker >= v.a && marker <= v.b) { const x = xOf(marker); if (x != null) { const d = document.createElement('div'); d.className = 'marker'; d.style.left = x + 'px'; layer.appendChild(d); } }
+      placeDemo(v, W);
+    }
+    function placeDemo(v, W) {
+      // the clicks sit in the middle of what is on screen; the second one, right of the first mark while it is in view
+      if (!demo || !v) { demoEl.hidden = true; return; }
+      let x1 = W * 0.34, x2 = W * 0.62;
+      if (demo.after) {
+        x1 = demo.after >= v.a && demo.after <= v.b ? xOf(demo.after) : null;
+        if (x1 == null || x1 > W - 60) { demoEl.hidden = true; return; }
+        x2 = Math.min(W - 24, x1 + Math.max(80, W * 0.2));
+      }
+      demoEl.hidden = false; demoEl.classList.toggle('one', !!demo.after);
+      demoEl.style.width = W + 'px';
+      demoEl.style.setProperty('--x1', Math.round(x1) + 'px'); demoEl.style.setProperty('--x2', Math.round(x2) + 'px');
+      demoEl.style.setProperty('--y', Math.round((box.clientHeight - 34) * 0.56) + 'px');
     }
     if (opts.interactive) chart.subscribeClick(p => { if (p.time && opts.onClick) opts.onClick(p.time * 1000); });
 
@@ -366,7 +378,8 @@
       setEvents(list) { events = (list || []).map(e => ({ ...e, sec: sec(e.ms) })).filter(e => e.sec); place(); },
       setExit(v) { exitSec = sec(v); place(); },
       setMarker(v) { marker = sec(v); place(); },
-      setGhosts(list, pick) { ghosts = normWins(list); onGhost = pick || null; place(); },
+      setDemo(m) { const next = m === 'two' ? 'two' : m && m.after ? { after: sec(m.after) } : null;
+        if (JSON.stringify(next) !== JSON.stringify(demo)) { demo = next; place(); } },
       setWalletMarkers(list) { wallets = list || []; renderMarkers(); },
       focus: (from, to, exit) => focus(sec(from), sec(to), sec(exit)),
       setTf, init: async first => { if (first) await setTf(first, false, 'recent'); else await setTf(pickTf(now - created), false); },

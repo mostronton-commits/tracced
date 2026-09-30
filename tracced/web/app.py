@@ -1340,6 +1340,24 @@ async def _token_facts(app, mint):
     return facts
 
 
+async def _sold_share(app, wallet, ev):
+    """Угоди гаманця на цьому токені з Solana Tracker (1 запит, свіжі) → скільки позиції продано з початку. None — не вийшло:
+    повідомлення тоді каже частку цієї угоди від того, що було перед нею."""
+    st = app["st"]
+
+    def work():
+        with st.meter():
+            n0 = st.requests_here()
+            try:
+                return st.wallet_token_trades(wallet, ev["mint"], max_pages=2, fresh=True)
+            except Exception:  # noqa: BLE001
+                return None
+            finally:
+                _spend(app, "system", "alerts", st=st.requests_here() - n0, mint=ev["mint"])
+    trades = await asyncio.to_thread(work)
+    return alerts_mod.sold_share(trades, ev) if trades else None
+
+
 def _hour_budget(app, chat):
     """Не більше alerts_per_hour повідомлень на чат за годину. None — можна; 'first' — щойно вичерпано (одне
     попередження); False — мовчимо до наступної години."""
@@ -1380,6 +1398,10 @@ async def _alert_tx(app, http, wallet, sig):
         if not subs:
             continue
         token = await _token_facts(app, ev["mint"])
+        if ev["side"] == "sell" and not ev.get("all"):          # скільки позиції продано з початку: «sold 60% (+20%)»
+            share = await _sold_share(app, wallet, ev)
+            if share:
+                ev["total"], ev["step"] = share
         for sub in subs:
             b = _hour_budget(app, sub["chat"])
             if b is False:

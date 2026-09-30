@@ -57,10 +57,10 @@ An alert reads like a trades channel, three lines:
 
 - the dot is the trade's size: 🟢 under ${{ '{:,}'.format(s.alerts_size_usd[0]) }}, 🟡 up to ${{ '{:,}'.format(s.alerts_size_usd[1]) }}, 🔴 from
   ${{ '{:,}'.format(s.alerts_size_usd[1]) }}. Then the token, a link to its chart here; 🆕 when the wallet held none of it,
-  *bought more* when it did, and for a sale *sold all* or the share it sold; the market cap and the transaction;
+  *bought more* when it did; for a sale, how much of the position is sold since its first buy, and how much this sale
+  took: *sold 60% (+20%)*, then *sold all*; the market cap and the transaction;
 - the token's address, only in the first alert about that token;
-- whose trade: your tags for the wallet (its short address when it has none), the pump you found it in, and the
-  amount.
+- whose trade: your tags for the wallet (its short address when it has none), and the amount.
 
 A trade made through an app that pays the network fee for its users (FOMO and the like) counts the same: the wallet
 still signs it.

@@ -391,7 +391,7 @@ if AioHTTPTestCase:
             r = await self.client.get(f"/token?mint={other}", headers=GUEST)
             html = await r.text()
             self.assertEqual(r.status, 200)                             # гість бачить голий графік і ставить межі
-            self.assertIn("setGhosts", html)                             # found pumps wait on the chart, no button
+            self.assertIn("ch.setDemo(", html)                           # the clicks shown on the chart, no bands, no button
             self.assertIn('id="add"', html)
             self.assertIn('data-acct="0"', html)
             self.assertIn("Analyze asks for a wallet", html)
@@ -682,7 +682,7 @@ if AioHTTPTestCase:
             self.assertEqual(self.app["runs_daily"].left(_ip_key("127.0.0.1"), 3), 0)
             html = await (await self.client.get(f"/token?mint={MINT}", headers={"Cookie": wallet_cookie(a) + f"; early_dev={dev}"})).text()
             self.assertIn("You've used your 2 free analyses for today", html)   # вікно чекає на Analyze і без повідомлення
-            self.assertIn("No free analyses left today", html)
+            self.assertIn("None left today", html)
             await asyncio.to_thread(self.app["jobs"].q.join)
             s["runs_per_day"], s["runs_per_ip_per_day"] = 1, 10
             self.app["admins"] = {TEST_PK}
@@ -947,7 +947,7 @@ if AioHTTPTestCase:
                 self.assertNotIn("notice=", r.headers["Location"])
                 await asyncio.to_thread(self.app["jobs"].q.join)
                 self.assertEqual(self.app["jobs"].get(r.headers["Location"].split("/")[-1]).s_over["run_cap_requests"], 2000)   # стеля прогону лишається
-            self.assertIn("Beta tester: no daily limit on analyses", await (await self.client.get(f"/token?mint={MINT}", headers=me)).text())
+            self.assertIn("Beta tester · no daily limit", await (await self.client.get(f"/token?mint={MINT}", headers=me)).text())
             self.assertEqual(self.app["runs_daily"].left("global", 100), 100)    # спільну добову стелю сайту тестер не з'їдає
             usage_mod.save_wallet_set(self.app["usage_dir"] / "beta.json", set())
             r = await self.client.post("/analyze", data=rng(3), allow_redirects=False, headers=me)
@@ -1074,8 +1074,10 @@ if AioHTTPTestCase:
             self.assertIsNone(CYRILLIC.search(html))
             self.assertIn('id="rows"', html)
             self.assertIn('data-rows=', html)
-            self.assertIn('data-hints=', html)
-            self.assertIn("function candidates()", html)                 # a rule, not a model
+            self.assertNotIn('data-hints=', html)                          # no bands the page picks by itself (owner, 30.09)
+            self.assertNotIn("setGhosts", html)
+            self.assertIn("ch.setDemo(", html)                              # the clicks shown on the chart instead of a line of text
+            self.assertNotIn("Click the chart twice", html)
             self.assertNotIn("Let AI choose", html)
             self.assertNotIn("Coming next", html)
             self.assertIn("&#34;label&#34;: &#34;Range 1&#34;, &#34;from&#34;: &#34;&#34;", html)   # a bare chart: hints wait for the button
@@ -1083,7 +1085,7 @@ if AioHTTPTestCase:
             self.assertIn('id="chart"', html)
             self.assertIn("lightweight-charts", html)
             self.assertIn("static/chart.js", html)
-            self.assertIn("and analyze", html)
+            self.assertIn("<b>Analyze</b>", html)
             self.assertNotIn("<svg", html.split("<footer")[0])         # the page body draws with the chart library, not inline SVG
 
         async def test_token_page_preset_from_result(self):

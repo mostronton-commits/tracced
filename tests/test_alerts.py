@@ -110,12 +110,12 @@ class TestCodesAndText(unittest.TestCase):
 
     def test_the_message_reads_like_a_trades_channel(self):
         ev = {"side": "buy", "mint": TOKEN, "usd": 1234.5, "sig": "SIG9", "new": True}
-        sub = {"lists": ["Main"], "src": "W&F", "tags": ["<u>whale</u>", "kol"]}
+        sub = {"lists": ["Main"], "src": "W&F", "tags": ["<u>whale</u>", "kol"]}      # the pump it came from stays out
         text = A.message(ev, W, sub, {"symbol": "<i>X</i>", "mcap": 250_000}, "https://dev.tracced.xyz")
         self.assertEqual(text.split("\n"), [
             '🟡 <a href="https://dev.tracced.xyz/token?mint=' + TOKEN + '"><b>$&lt;i&gt;X&lt;/i&gt;</b></a> 🆕 · MC $250K · <a href="https://solscan.io/tx/SIG9">tx</a>',
             "<code>" + TOKEN + "</code>",
-            '<a href="https://solscan.io/account/' + W + '">&lt;u&gt;whale&lt;/u&gt;, kol</a> [from $W&amp;F] · <b>$1.2K</b>'])
+            '<a href="https://solscan.io/account/' + W + '">&lt;u&gt;whale&lt;/u&gt;, kol</a> · <b>$1.2K</b>'])
         self.assertNotIn(">" + A.short(W) + "<", text)                               # a tag stands for the wallet: no address
         self.assertNotIn("Main", text)
         again = A.message(ev, W, sub, {"symbol": "X"}, ca=False)
@@ -133,6 +133,22 @@ class TestCodesAndText(unittest.TestCase):
         self.assertEqual(A.size_dot(50, None), "🟢")
         ev = {"side": "sell", "mint": TOKEN, "usd": 25_000, "sig": "S", "all": True}
         self.assertTrue(A.message(ev, W, {}, {}).startswith("🔴 "))                  # a big sell is red, a big buy too
+
+    def test_sold_from_the_start_of_the_position(self):
+        tr = lambda kind, qty, tx, t=1: {"type": kind, "qty": qty, "tx": tx, "time": t * 1000}
+        ev = {"side": "sell", "mint": TOKEN, "amount": 200, "sig": "B", "ts": 100, "usd": 50}
+        self.assertEqual(A.sold_share([tr("buy", 1000, "a"), tr("sell", 400, "A", 2)], ev), (60, 20))     # 40% before, 20% now
+        self.assertEqual(A.sold_share([tr("buy", 1000, "a")], dict(ev, amount=400)), (40, 40))            # the first sale
+        self.assertEqual(A.sold_share([tr("buy", 1000, "a"), tr("sell", 400, "A", 2), tr("sell", 200, "B", 3)], ev), (60, 20))   # ST already has it
+        self.assertEqual(A.sold_share([tr("buy", 1000, "a"), tr("sell", 1000, "x", 2), tr("buy", 500, "c", 3)], dict(ev, amount=250)), (50, 50))   # a new position
+        self.assertEqual(A.sold_share([tr("buy", 1000, "a"), tr("sell", 300, "late", 500)], ev), (20, 20))   # a later trade is not this one's past
+        self.assertIsNone(A.sold_share([tr("sell", 10, "s")], ev))                                          # no buys seen: unknown
+        self.assertEqual(A.sold_text(dict(ev, total=60, step=20)), "sold 60% (+20%)")
+        self.assertEqual(A.sold_text(dict(ev, total=40, step=40)), "sold 40%")
+        self.assertEqual(A.sold_text(dict(ev, total=99, step=5)), "sold all")
+        self.assertEqual(A.sold_text(dict(ev, all=True, total=70, step=10)), "sold all")
+        self.assertEqual(A.sold_text(dict(ev, pct=35)), "sold 35%")                                        # no history: this sale's share
+        self.assertIn("</a> · sold 60% (+20%) · <a", A.message(dict(ev, total=60, step=20), W, {}, {"symbol": "X"}))
 
     def test_a_sell_says_how_much_went(self):
         ev = {"side": "sell", "mint": TOKEN, "usd": 221, "sig": "S"}

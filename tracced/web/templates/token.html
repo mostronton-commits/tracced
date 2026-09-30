@@ -4,7 +4,7 @@
 {% block head %}<script src="/static/vendor/lightweight-charts.standalone.production.js?v={{ v }}"></script><script src="/static/chart.js?v={{ v }}"></script>{% endblock %}
 {% block body %}
 <section class="card token" id="token" data-mint="{{ mint }}" data-symbol="{{ info.symbol or '' }}"
-         data-rows='{{ rows_json }}' data-jobs='{{ jobs_json }}' data-preset='{{ preset_json }}' data-hints='{{ hints_json }}' data-min-peak="{{ min_peak }}" data-max-rows="{{ s.ranges_per_token }}" data-finder-max="{{ s.finder_pumps }}"
+         data-rows='{{ rows_json }}' data-jobs='{{ jobs_json }}' data-preset='{{ preset_json }}' data-max-rows="{{ s.ranges_per_token }}"
          data-created="{{ created }}" data-now="{{ now }}" data-demo="{{ 1 if is_demo else 0 }}" data-acct="{{ 1 if acct else 0 }}" data-runs="{{ s.runs_per_day|per_day }}" data-max-hours="{{ s.max_window_hours }}"{% if bounced %} data-bounced="Only the {{ "ranges" if n_demo > 1 else "range" }} below {{ "are" if n_demo > 1 else "is" }} recorded. Pick one and press Analyze."{% endif %}>
   <div class="tokenhead">
     <div>
@@ -23,15 +23,16 @@
 
   <div class="stepbar">
     <span class="stepn">02</span>
-    <div class="stepx"><b>Choose the range</b><span id="pickhelp">Click the chart twice: where buying starts, where the pump takes off. <small>Drag to pan · scroll to zoom</small></span></div>
+    <div class="stepx"><b>Choose the range</b></div>
 
   </div>
-  <div class="chartbox" id="chart"><div class="charthint" id="charthint" hidden></div></div>
+  <div class="chartbox" id="chart"></div>
 
-  <div class="stepbar small"><span class="stepn">03</span><div class="stepx"><b>Check the bounds and analyze</b>{% if is_demo %}<span>Press Analyze on a pump to watch the run.</span>{% elif not acct %}<span>Beta, free for now. Analyze asks for a wallet: a signature, no transaction.</span>
-  {% elif beta %}<span>Beta tester: no daily limit on analyses · up to {{ s.ranges_per_token }} ranges per token.</span>
-  {% elif runs_left is not none %}<span>{% if runs_left > 0 %}<span class="runsleft">{{ runs_left }} of {{ s.runs_per_day }}</span> free analyses left today{% else %}<span class="runsleft none">No free analyses left today</span>: the count resets at midnight UTC{% endif %} · up to {{ s.ranges_per_token }} ranges per token. {{ early_note }}</span>
-  {% else %}<span>{{ (s.runs_per_day|per_day)|capitalize }}, up to {{ s.ranges_per_token }} ranges per token. {{ early_note }}</span>{% endif %}</div></div>
+  {% set limits_tip = 'Up to ' ~ s.ranges_per_token ~ ' ranges per token, ' ~ s.max_window_hours ~ ' h each. ' ~ early_note %}
+  <div class="stepbar small"><span class="stepn">03</span><div class="stepx"><b>Analyze</b>{% if is_demo %}<span>Press Analyze on a pump to watch the run</span>{% elif not acct %}<span title="Analyze asks for a wallet: a signature, no transaction. {{ limits_tip }}">Free in beta</span>
+  {% elif beta %}<span title="{{ limits_tip }}">Beta tester · no daily limit</span>
+  {% elif runs_left is not none %}<span title="{{ limits_tip }}">{% if runs_left > 0 %}<span class="runsleft">{{ runs_left }} of {{ s.runs_per_day }}</span> left today{% else %}<span class="runsleft none">None left today</span> · resets at 00:00 UTC{% endif %}</span>
+  {% else %}<span title="{{ limits_tip }}">{{ (s.runs_per_day|per_day)|capitalize }}</span>{% endif %}</div></div>
   <template id="row-tpl">
     <form class="wrow" method="post" action="/analyze">
       <input type="hidden" name="mint" value="{{ mint }}">
@@ -60,8 +61,7 @@
   {% endif %}
   {% if not is_demo %}<div class="row rowsfoot">
     <button type="button" class="ghost" id="add">+ Add range</button>
-    <button type="button" class="ghost" id="reset" title="Back to the detected pumps">Reset</button>
-    <span class="muted small">Range up to {{ s.max_window_hours }} h</span>
+    <button type="button" class="ghost" id="reset" title="Clear the ranges you marked">Reset</button>
   </div>{% endif %}
 </section>
 
@@ -73,7 +73,7 @@
   const JOBS_BY_WINDOW = new Map(); JOBS.forEach(id => JOBS_BY_WINDOW.set(id.split('_x')[0], id));   // older results still carry a horizon suffix
   const DEMO = root.dataset.demo === '1', RAN = 'early:ran:';   // demo: the result opens only after this browser pressed Analyze on that range
   let ACCT = root.dataset.acct === '1';                          // a new live run needs a wallet; the ask comes at Analyze, not before
-  const MAX_ROWS = +root.dataset.maxRows || 3, FINDER_MAX = +root.dataset.finderMax || 2;
+  const MAX_ROWS = +root.dataset.maxRows || 3;
   const RUNS = root.dataset.runs || 'one live analysis a day', MAX_HOURS = +root.dataset.maxHours || 24;
   const limitMsg = () => MAX_ROWS + ' ranges per token is the limit here. ' + (state.rows.some(r => r.deletable) ? 'Delete one of yours to add another.' : 'Open one of the analyzed ranges instead.');
   if (root.dataset.bounced) EarlyUI.toast(root.dataset.bounced, 6000);
@@ -131,29 +131,25 @@
       if (step === 0) { r.from = fmt(ms); r.to = ''; step = 1; ch.setMarker(ms); EarlyUI.use('range-set', { end: 'from' }); }
       else { r.to = fmt(ms); if (parse(r.to) <= parse(r.from)) { const t = r.from; r.from = r.to; r.to = t; } step = 0; ch.setMarker(null);
              try { localStorage.setItem('early:hinted', '1'); } catch (x) {} EarlyUI.use('range-set', { end: 'to' }); }
-      hint(); ghosts();
+      hint();
       save(); f.querySelector('[name=from]').value = show(r.from); f.querySelector('[name=to]').value = show(r.to);
-      const sm = f.querySelector('.sum'), st = sumText(r); sm.textContent = st || (step === 1 ? 'Start set · now the end' : ''); sm.classList.toggle('muted', !st);
+      const sm = f.querySelector('.sum'), st = sumText(r); sm.textContent = st || (step === 1 ? tfmt(parse(r.from)) + ' → …' : ''); sm.classList.toggle('muted', !st);
       refreshLink(f, r); ch.setWindows(winList(), state.sel);
     },
   });
   let step = 0;
-  /* The one thing the first trader could not find: that the chart itself is the control. A line of text beside it
-     was not read, so the prompt sits on the canvas and answers the only question at that moment: click where? */
-  const hintEl = document.getElementById('charthint');
+  /* The one thing the first trader could not find: that the chart itself is the control. A line of text was not read,
+     and its three copies cluttered the page (owner, 30.09), so a first-time visitor sees the clicks themselves: a cursor on
+     the chart clicks where buying starts and where the pump takes off, round and round, until they click. Whoever has
+     marked a range once does not see it again */
   if (!DEMO) document.getElementById('chart').classList.add('pickable');   // a crosshair, because the canvas is the control
   const TOUCH = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches), VERB = TOUCH ? 'Tap' : 'Click';
-  if (TOUCH) { const ph = document.getElementById('pickhelp'); if (ph) ph.innerHTML = 'Tap the chart twice: where buying starts, where the pump takes off. <small>Swipe to pan · pinch to zoom</small>'; }
   function hint() {
-    if (DEMO) { hintEl.hidden = true; return; }
-    const r = state.rows[state.sel] || {};
     let done = false;
     try { done = localStorage.getItem('early:hinted') === '1'; } catch (e) {}
-    if (step === 1) { hintEl.textContent = '2 · ' + VERB + ' where the pump takes off'; hintEl.hidden = false; return; }
-    if (locked(r)) { hintEl.textContent = VERB + ' the chart to mark a new range'; hintEl.hidden = done; return; }
-    // an empty range can only be set here or by a quick range above, so the prompt stays until it is set
-    hintEl.textContent = '1 · ' + VERB + ' the chart where buying starts';
-    hintEl.hidden = !!(r.from && r.to);
+    const r = state.rows[state.sel] || {};
+    if (DEMO || done || locked(r)) { ch.setDemo(null); return; }
+    ch.setDemo(step === 1 && r.from ? { after: parse(r.from) } : (r.from && r.to ? null : 'two'));
   }
   /* The token's own life on the chart: when trading left the launchpad, when someone paid DexScreener for
      visibility. Costs no Solana Tracker requests, and a failure just leaves the chart without them. */
@@ -231,7 +227,7 @@
       f.querySelector('.n').textContent = i + 1;
       f.querySelector('.label').textContent = r.label || 'Range';
       const s = f.querySelector('.sum'), txt = sumText(r);
-      s.textContent = txt || (i === state.sel && !DEMO ? VERB + ' the chart twice, or take a pump found on it' : 'Not set yet');
+      s.textContent = txt || (i === state.sel && !DEMO ? '' : 'not set');
       s.classList.toggle('muted', !txt);
       if (i === editing && !DEMO && !locked(r)) f.classList.add('edit');
       f.querySelector('.editt').hidden = DEMO || locked(r);
@@ -250,7 +246,7 @@
     });
     if (addBtn) { addBtn.disabled = state.rows.length >= MAX_ROWS; addBtn.title = addBtn.disabled ? limitMsg() : ''; }
     ch.setWindows(winList(), state.sel);
-    hint(); ghosts();
+    hint();
   }
   function dropRow(i) { state.rows.splice(i, 1); if (!state.rows.length) state.rows.push({ n: 1, label: 'Range 1', from: '', to: '' }); state.sel = Math.min(state.sel, state.rows.length - 1); save(); render(); focusSel(); }
   function focusSel() { const r = state.rows[state.sel]; if (r && r.from && r.to) ch.focus(parse(r.from), parse(r.to), null); }
@@ -296,47 +292,11 @@
   if (addBtn) addBtn.addEventListener('click', () => { if (state.rows.length >= MAX_ROWS) { EarlyUI.toast(limitMsg()); return; } EarlyUI.use('range-add'); state.rows.push({ n: null, label: 'Range ' + (state.rows.length + 1), from: '', to: '' }); state.sel = state.rows.length - 1; save(); render(); });
   if (resetBtn) resetBtn.addEventListener('click', () => { EarlyUI.use('range-reset'); try { localStorage.removeItem(KEY); } catch (e) {} state = { rows: INITIAL.map(r => ({...r})), sel: 0 }; render(); focusSel(); });
 
-  const HINTS = JSON.parse(root.dataset.hints || '[]'), MIN_PEAK = +root.dataset.minPeak || 1e6;
-  // pumps the finder sees (the server's detector, else the loaded candles) wait on the chart as pale bands while the
-  // range is empty: one click on a band's label takes it (Find the pump, without a button nobody noticed)
-  function scanCandles() {                              // base = lowest close of the trailing 24 candles; breakout ≥ 1.3× base; peak ≥ 2× base within 6 h
-    const cs = ch.candles(), out = []; let i = 24;
-    while (i < cs.length) {
-      let bi = i - 24; for (let j = i - 24; j < i; j++) if (cs[j].close < cs[bi].close) bi = j;
-      const base = cs[bi].close;
-      if (base > 0 && cs[i].close >= base * 1.3) {
-        let peak = 0; for (let j = i; j < cs.length && cs[j].time <= cs[i].time + 6 * 3600; j++) peak = Math.max(peak, cs[j].high || cs[j].close);
-        if (peak >= base * 2 && peak >= MIN_PEAK) {
-          out.push({ from: fmt(cs[bi].time * 1000), to: fmt(cs[i].time * 1000), label: 'Pump ×' + (peak / base).toFixed(1) });
-          if (out.length >= FINDER_MAX) break;
-          i += 24; continue;
-        }
-      }
-      i++;
-    }
-    return out;
-  }
-  function candidates() {
-    if (HINTS.length) return HINTS.map(h => ({ from: fmt(h.from), to: fmt(h.to), label: 'Pump ×' + h.mag }));
-    return scanCandles();
-  }
-  let ghostList = [];
-  function ghosts() {
-    const r = state.rows[state.sel];
-    ghostList = !DEMO && r && !r.from && !r.to && step === 0 ? candidates().slice(0, FINDER_MAX) : [];
-    ch.setGhosts(ghostList.map(c => ({ from: parse(c.from), to: parse(c.to), label: c.label })), i => {
-      const c = ghostList[i], cur = state.rows[state.sel]; if (!c || !cur) return;
-      EarlyUI.track('find-pump');
-      Object.assign(cur, { label: c.label, from: c.from, to: c.to });
-      save(); render(); focusSel();
-      const f = rowsEl.querySelector('.wrow.sel'); if (f) { f.classList.remove('pulse'); void f.offsetWidth; f.classList.add('pulse'); }
-    });
-  }
   render();
   // ranges on the page: open straight on them (all of them when there are several); a bare token: its latest hours
   const ws = winList().filter(w => w.from && w.to);
   if (ws.length) ch.focus(Math.min(...ws.map(w => w.from)), Math.max(...ws.map(w => w.to)), null);
-  else Promise.resolve(ch.init('1m')).then(ghosts);         // the candle scan needs the candles loaded
+  else ch.init('1m');
 })();
 </script>
 {% endblock %}
