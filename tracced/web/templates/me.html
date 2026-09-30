@@ -54,7 +54,7 @@
   </tr></thead><tbody>
   {% for w in wallets %}
     <tr data-w="{{ w.wallet }}" data-lists="{{ (w.lists or ['main'])|join(' ') }}" tabindex="0" title="Open the wallet card">
-      <td><span class="wlrow"><span class="wavs" aria-hidden="true"></span><span class="mono wadr">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</span><span class="mytags">{% for t in w.my_tags or [] %}<button type="button" class="tag mine" title="Click to remove">{{ t }}</button>{% endfor %}<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd" title="Add your own tag: it names the wallet here and in the alerts" aria-label="Add your own tag"{% if (w.my_tags or [])|length >= max_my_tags %} hidden{% endif %}><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg></button></span></span></td>
+      <td><span class="wlrow"><span class="mono wadr">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</span><span class="mytags">{% for t in w.my_tags or [] %}<button type="button" class="tag mine" title="Click to remove">{{ t }}</button>{% endfor %}<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd" title="Add your own tag: it names the wallet here and in the alerts" aria-label="Add your own tag"{% if (w.my_tags or [])|length >= max_my_tags %} hidden{% endif %}><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg></button></span></span></td>
       <td class="rm"><button type="button" class="ghost x" data-rm-wallet title="Remove from this list" aria-label="Remove from this list">×</button></td>
     </tr>
   {% endfor %}
@@ -87,11 +87,6 @@
       <div id="dprof"></div>
     </section>
     <section class="dsec" id="dwsec" hidden><div class="dcross" id="dcross"></div></section>
-    <section class="dsec" id="dtsec" hidden>
-      <h4>Trades on <span id="dtsym"></span> <span class="muted" id="dtcount"></span></h4>
-      <table class="story"><thead><tr><th>Time</th><th></th><th class="num">Amount</th><th class="num">Tokens</th><th class="num">Cap</th></tr></thead><tbody id="dtrades"></tbody></table>
-      <p class="muted small dline" id="dnote"></p>
-    </section>
   </div>
 </aside>
 {% endif %}
@@ -140,7 +135,6 @@
   const MAX_TAGS = {{ max_my_tags }}, esc = EarlyTags.esc, short = w => w.slice(0, 6) + '…' + w.slice(-4);
   const PLUS = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg>';
   const rowOf = w => document.querySelector('tr[data-w="' + CSS.escape(w) + '"]');
-  document.querySelectorAll('tr[data-w] .wavs').forEach(el => { el.innerHTML = EarlyCard.identicon(el.closest('tr').dataset.w); });
   let period = '30';
   const profiles = new Map();
   function closeCard() {
@@ -155,12 +149,12 @@
     tags.forEach(t => { const b = document.createElement('button'); b.type = 'button'; b.className = 'tag mine'; b.title = 'Click to remove'; b.textContent = t; box.insertBefore(b, inp); });
     inp.hidden = true; inp.value = ''; add.hidden = tags.length >= MAX_TAGS;
   }
-  // the card is the result's card (owner, 30.09): who it is, its age and funder, our tags, where else you met it, its
-  // trades on the token you found it on; all from the saved analyses, the 30 days from the profile
-  const TAGDEF = {{ TAGS|tojson }}, QUIET = new Set(['seen-before', 'pre-range', 're-bought']), cards = new Map();
+  // the card is about the wallet itself (owner, 30.09 and 01.10): who it is, its age and funder, where else you met it,
+  // its 30 days on every token; nothing about the token it was saved from
+  const cards = new Map();
   const CHAIN = '<svg class="lnk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" aria-hidden="true"><g transform="rotate(-45 12 12)"><rect x="1.2" y="7.4" width="12.4" height="9.2" rx="4.6"/><rect x="10.4" y="7.4" width="12.4" height="9.2" rx="4.6"/></g></svg>';
   const fm = v => EarlyUI.fmtShort(v), money = v => (v == null || isNaN(v) ? '—' : (v < 0 ? '-$' : '$') + fm(Math.abs(v)));
-  const nf = v => (+v || 0).toLocaleString('en-US'), plural = (n, x) => n + ' ' + x + (n === 1 ? '' : 's');
+  const nf = v => (+v || 0).toLocaleString('en-US');
   const ageText = ms => { const d = (Date.now() - ms) / 86400000;
     return d >= 365 ? (d / 365).toFixed(d >= 3650 ? 0 : 1) + 'y' : d >= 1 ? Math.floor(d) + 'd' : Math.max(1, Math.floor(d * 24)) + 'h'; };
   function nameOf(w) {
@@ -172,21 +166,18 @@
     document.getElementById('dav').innerHTML = idn && idn.avatar ? '<img src="' + esc(idn.avatar) + '" alt="" referrerpolicy="no-referrer">' : EarlyCard.identicon(w);
     document.getElementById('dname').textContent = nameOf(w);
     document.getElementById('dids').innerHTML = idn ? EarlyTags.idMarks(idn) : '';
-    const out = [], age = d.age, fresh = (d.tags || []).includes('fresh');
+    // the card in Lists is about the wallet, not the token it was saved from (owner, 30.09): its age today, its funder
+    const out = [], age = d.age;
     if (age && age.ms && age.exact) {
-      if (fresh && d.etime > age.ms)                                 // fresh is about the buy: "17h at buy", not its age today
-        out.push('<span class="dchip age young" title="Fresh: this wallet was ' + ageText(Date.now() - (d.etime - age.ms)) + ' old when it first bought there. Created '
-          + EarlyTZ.fmt(age.ms, true) + '">' + ageText(Date.now() - (d.etime - age.ms)) + ' at buy</span>');
-      else out.push('<span class="dchip age' + (Date.now() - age.ms < 86400000 ? ' young' : '') + '" title="Wallet age today. First transaction ' + EarlyTZ.fmt(age.ms, true) + '">' + ageText(age.ms) + '</span>');
+      out.push('<span class="dchip age' + (Date.now() - age.ms < 86400000 ? ' young' : '') + '" title="Wallet age today. First transaction ' + EarlyTZ.fmt(age.ms, true) + '">' + ageText(age.ms) + '</span>');
     } else if (age && age.ms) out.push('<span class="dchip age" title="More than ' + nf(age.n || 6000) + ' transactions: its first one is older than the ones read">' + Math.floor((+age.n || 6000) / 1000) + 'k+ tx</span>');
     const f = d.funder;
     if (f && d.exchange) out.push('<a class="dchip fund cex" href="https://solscan.io/account/' + esc(f) + '" target="_blank" rel="noopener" title="First SOL came straight from ' + esc(d.exchange[1]) + ', an exchange">↘ ' + esc(d.exchange[0]) + '</a>');
     else if (f) out.push('<a class="dchip fund mono" href="https://solscan.io/account/' + esc(f) + '" target="_blank" rel="noopener" title="First SOL came from ' + esc(f)
-      + (d.service ? ', an exchange or an app' : d.funded > 1 ? ', which funded ' + d.funded + ' wallets in that analysis (bundle)' : '') + '">↘ ' + short(f)
-      + (!d.service && d.funded > 1 ? '<small>×' + d.funded + '</small>' : '') + '</a>');
+      + (d.service ? ', an exchange or an app' : '') + '">↘ ' + short(f) + '</a>');
     document.getElementById('dchips').innerHTML = out.join('');
     const cx = d.seen || [];
-    document.getElementById('dcross').innerHTML = cx.length ? '<b>' + CHAIN + ' Seen in ' + cx.length + ' of your other analyses</b><ul>' + cx.map(c =>
+    document.getElementById('dcross').innerHTML = cx.length ? '<b>' + CHAIN + ' Also in ' + cx.length + ' of your saved analyses</b><ul>' + cx.map(c =>
       '<li><a href="/job/' + encodeURIComponent(c.job) + '">' + esc(c.symbol || '?') + ' · ' + EarlyTZ.fmt(c.from, false)
       + (c.mult ? ' · ' + (+c.mult).toFixed(1) + '×' : '') + (c.real ? ' · ' + money(c.real) : '') + '</a></li>').join('') + '</ul>' : '';
     document.getElementById('dwsec').hidden = !cx.length;
@@ -196,35 +187,17 @@
       try { const r = await fetch('/me/wallet.json?' + new URLSearchParams({ wallet: w }), { credentials: 'same-origin' }); if (r.ok) cards.set(w, await r.json()); } catch (e) {}
     }
     if (drawer.dataset.w !== w) return;
-    renderIdent(w); renderTags(w); loadTrades(w);
-  }
-  async function loadTrades(w) {
-    const d = cards.get(w) || {}, sec = document.getElementById('dtsec'), tb = document.getElementById('dtrades');
-    if (!d.job) { sec.hidden = true; return; }
-    document.getElementById('dtsym').textContent = d.symbol ? '$' + d.symbol : 'the token';
-    document.getElementById('dtcount').textContent = d.buys ? plural(d.buys, 'buy') + (d.sells != null ? ' · ' + plural(+d.sells, 'sell') : '') : '';
-    tb.innerHTML = '<tr><td colspan="5" class="muted small">Loading…</td></tr>'; sec.hidden = false;
-    let t = null;
-    try { const r = await fetch('/wallet_trades.json?' + new URLSearchParams({ job: d.job, wallet: w }), { credentials: 'same-origin' }); if (r.ok) t = await r.json(); } catch (e) {}
-    if (drawer.dataset.w !== w) return;
-    if (!t || !t.trades || !t.trades.length) { tb.innerHTML = '<tr><td colspan="5" class="muted small">No trades to show.</td></tr>'; return; }
-    tb.innerHTML = t.trades.map(x => '<tr class="' + esc(x.side) + '"><td class="mono dtc" data-ms="' + x.t + '">' + EarlyTZ.fmt(x.t, false) + '</td><td>'
-      + (x.side === 'buy' ? '<b class="buy">▲ buy</b>' : '<b class="sell">▼ sell</b>') + '</td><td class="num mono">' + money(x.usd) + '</td><td class="num mono">'
-      + (x.qty ? fm(x.qty) : '—') + '</td><td class="num mono">' + (x.mcap ? fm(x.mcap) : '—') + '</td></tr>').join('');
-    document.getElementById('dnote').textContent = (t.complete === false ? 'Exits not fetched: only trades inside the range are known. ' : '') + (t.truncated ? 'First ' + t.trades.length + ' of ' + t.n + '.' : '');
+    renderIdent(w); renderTags(w);
   }
   function renderTags(w) {
     const mine = (META[w] || {}).my_tags || [], d = cards.get(w) || {};
     document.getElementById('dname').textContent = nameOf(w);
-    const ours = (d.tags || []).filter(t => t && !QUIET.has(t)).map(t => EarlyTags.chip(t === 'bundle' && d.funded > 1 && !d.service ? 'bundle ×' + d.funded : t, TAGDEF[t], { text: true })).join('');
-    document.getElementById('dtags').innerHTML = ours + mine.map(t => '<button type="button" class="tag mine" title="Your tag · click to remove">' + esc(t) + '</button>').join('')
+    document.getElementById('dtags').innerHTML = mine.map(t => '<button type="button" class="tag mine" title="Your tag · click to remove">' + esc(t) + '</button>').join('')
       + (mine.length < MAX_TAGS ? '<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd wide" title="Your own tag for this wallet: it names the wallet here and in the Telegram alerts" aria-label="Add your own tag">' + PLUS + '<span>tag</span></button>' : '');
   }
   function renderSrc(w) {
     const m = META[w] || {}, names = (m.lists || []).map(id => LISTNAMES[id] || id);
-    document.getElementById('dsrc').innerHTML = (m.from_job
-        ? '<p class="dline">Found in the <a href="/job/' + encodeURIComponent(m.from_job) + '">' + esc(m.symbol ? '$' + m.symbol : 'saved') + ' pump</a>' + (m.pump ? ' <span class="muted">· ' + esc(m.pump) + '</span>' : '') + '</p>' : '')
-      + '<p class="dline muted small">In ' + esc(names.join(', ') || 'no list') + (m.added_ms ? ' · saved ' + EarlyTZ.fmt(m.added_ms, false) : '') + '</p>';
+    document.getElementById('dsrc').innerHTML = '<p class="dline muted small">In ' + esc(names.join(', ') || 'no list') + (m.added_ms ? ' · saved ' + EarlyTZ.fmt(m.added_ms, false) : '') + '</p>';
   }
   async function saveTags(w, tags) {
     try { const d = await post('/me/wallets/tags', { wallet: w, tags }); (META[w] = META[w] || {}).my_tags = d.tags || []; }
@@ -258,7 +231,7 @@
     document.getElementById('dcopy').dataset.copy = w;
     document.getElementById('dsol').href = 'https://solscan.io/account/' + w;
     document.getElementById('dids').innerHTML = ''; document.getElementById('dchips').innerHTML = '';
-    document.getElementById('dwsec').hidden = true; document.getElementById('dtsec').hidden = true;
+    document.getElementById('dwsec').hidden = true;
     renderTags(w); renderSrc(w); loadProfile(w); loadCard(w);
   }
   if (drawer) {

@@ -1289,9 +1289,10 @@ async def me_tg_unlink(request, pk):
 
 @_acct_route
 async def me_wallet_json(request, pk):
-    """Картка гаманця зі списку — та сама, що на результаті (власник, 30.09: «чому вона не повна»): хто це (ім'я, X,
-    застосунок), вік, спонсор і біржа, наші мітки, коли вперше купив у діапазоні, і в яких ще збережених аналізах людини він
-    траплявся. Усе з уже збережених результатів — жодного запиту до Solana Tracker; 30 днів — окремо, /wallet_profile.json."""
+    """Картка гаманця зі списку (власник, 30.09): хто це (ім'я, X, застосунок), вік, спонсор і біржа, і в яких ще збережених
+    аналізах людини він траплявся. Лише про сам гаманець — нічого про токен, з аналізу якого його зберегли (власник, 01.10):
+    ні міток, ні угод, ні «скільки гаманців профінансував той самий спонсор». Усе з уже збережених результатів — жодного
+    запиту до Solana Tracker; 30 днів — окремо, /wallet_profile.json."""
     app = request.app
     w = request.query.get("wallet", "")
     acct = app["accounts"].load(pk)
@@ -1303,19 +1304,12 @@ async def me_wallet_json(request, pk):
         jobs = app["jobs"]
         src = jobs.get(meta.get("from_job") or "")
         src = src if src and src.status == "done" and src.result else None
-        out = {"wallet": w, "job": (src.canon or src.id) if src else meta.get("from_job"), "symbol": meta.get("symbol"),
-               "mint": meta.get("mint"), "idn": None, "age": None, "funder": None, "exchange": None, "service": False,
-               "funded": 0, "tags": [], "etime": 0, "buys": 0, "sells": None, "seen": []}
+        out = {"wallet": w, "idn": None, "age": None, "funder": None, "exchange": None, "service": False, "seen": []}
         if src:
             r = src.result
-            row = next((x for x in r.get("rows") or [] if x.get("wallet") == w), None) or {}
-            funders = r.get("funders") or {}
-            fnd = funders.get(w)
+            fnd = (r.get("funders") or {}).get(w)
             out.update(idn=(r.get("identities") or {}).get(w), age=(r.get("ages") or {}).get(w), funder=fnd,
-                       exchange=exch_mod.KNOWN.get(fnd) if fnd else None, service=bool(fnd) and fnd in set(r.get("services") or []),
-                       funded=sum(1 for f in funders.values() if f == fnd) if fnd else 0, tags=list(row.get("tag_list") or []),
-                       etime=int(row.get("first_range_buy_ms") or row.get("first_buy_ms") or 0),
-                       buys=int(row.get("buys") or 0), sells=row.get("sells"))
+                       exchange=exch_mod.KNOWN.get(fnd) if fnd else None, service=bool(fnd) and fnd in set(r.get("services") or []))
         saved = sorted((acct.get("analyses") or {}).items(), key=lambda kv: -((kv[1] or {}).get("added_ms") or 0))
         for jid, _ in saved[:200]:                               # «Seen in», як на результаті: збережене самою людиною, новіше першим
             other = jobs.get(jid)
@@ -1990,10 +1984,9 @@ async def me_page(request):
     lists = [dict(v, id=k, n=sum(1 for w in wallets if k in (w.get("lists") or []))) for k, v in a["lists"].items()]
     _view(request, "me")
     tg = a.get("telegram") or {}
-    wmeta = {w["wallet"]: {**{k: w.get(k) for k in ("from_job", "symbol", "my_tags", "lists", "added_ms")},
-                           "pump": (w.get("pump") or {}).get("range")} for w in wallets}   # what the card shows, by wallet
+    wmeta = {w["wallet"]: {k: w.get(k) for k in ("my_tags", "lists", "added_ms")} for w in wallets}   # what the card shows, by wallet
     return render("me.html", request, wallets=wallets, analyses=analyses, max_my_tags=acct_mod.MAX_MY_TAGS, wmeta=wmeta,
-                  demo_mint=(demo or {}).get("mint"), lists=lists, max_lists=acct_mod.MAX_LISTS, TAGS=tags.DEFS,
+                  demo_mint=(demo or {}).get("mint"), lists=lists, max_lists=acct_mod.MAX_LISTS,
                   alerts_ok=_alerts_allowed(request.app, pk) and _alerts_live(request.app),   # без бота картка не обіцяє того, чого нема
                   tg={"linked": bool(tg.get("chat")), "user": tg.get("user") or ""},
                   prefs=alerts_mod.prefs_of(a.get("alerts"), request.app["s"].get("alerts_min_usd")))

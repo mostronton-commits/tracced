@@ -136,11 +136,13 @@ document.addEventListener('click', e => {
   });
 });
 
-/* a card or the agent opens under the site's top bar: --dtop is where the bar's bottom edge is on screen now */
+/* a card or the agent opens under the site's top bar and ends above the footer: --dtop is where the bar's bottom edge
+   is on screen now, --dbot how much of the footer is in view (owner, 30.09: the card covered the whole footer) */
 (function () {
   let raf = 0;
   const set = () => { raf = 0; const bar = document.querySelector('header.top'); const h = bar ? Math.max(0, Math.round(bar.getBoundingClientRect().bottom)) : 0;
-    document.documentElement.style.setProperty('--dtop', h + 'px'); };
+    const foot = document.querySelector('footer.foot'), b = foot ? Math.max(0, Math.round(innerHeight - foot.getBoundingClientRect().top)) : 0;
+    document.documentElement.style.setProperty('--dtop', h + 'px'); document.documentElement.style.setProperty('--dbot', b + 'px'); };
   const soon = () => { if (!raf) raf = requestAnimationFrame(set); };
   addEventListener('scroll', soon, { passive: true }); addEventListener('resize', soon);
   document.addEventListener('DOMContentLoaded', set);

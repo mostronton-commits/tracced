@@ -17,8 +17,8 @@ it (the first one stays). **Export** there gives the list on screen, or all of t
 says which lists hold each wallet.
 
 A row in a list is the wallet and your tags for it: **+** adds one right there. Click the row for the wallet's card,
-the same as on a result: who it is if anyone knows, its age and first funder, its trades on the token you found it on,
-the other analyses you saved it in, and its last 7 or 30 days on every token.
+about the wallet itself: who it is if anyone knows, its age and first funder, the other analyses you saved it in, and its
+last 7 or 30 days on every token. Nothing about the token you found it on: that stays on the result.
 
 ## Your own tags
 

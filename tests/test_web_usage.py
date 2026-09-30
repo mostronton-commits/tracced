@@ -532,13 +532,16 @@ if AioHTTPTestCase:
             r = await self.client.post("/me/wallets", json={"job": DEMO_JID, "wallets": [W1]}, headers=self.origin)
             self.assertEqual(r.status, 200, await r.text())
             d = await (await self.client.get(f"/me/wallet.json?wallet={W1}")).json()
-            self.assertEqual((d["wallet"], d["job"]), (W1, DEMO_JID))
-            for k in ("idn", "age", "funder", "exchange", "tags", "etime", "seen"):
+            self.assertEqual(d["wallet"], W1)
+            for k in ("idn", "age", "funder", "exchange", "seen"):
                 self.assertIn(k, d)
+            for k in ("job", "symbol", "mint", "tags", "etime", "buys", "sells", "funded"):   # nothing about the token it came from
+                self.assertNotIn(k, d)
             self.assertEqual((await self.client.get("/me/wallet.json?wallet=" + acct_mod.b58encode(b"\x43" * 32))).status, 404)   # not in your lists
             self.assertEqual((await self.client.get(f"/me/wallet.json?wallet={W1}", headers=GUEST)).status, 401)
             html = await (await self.client.get("/me")).text()
-            self.assertIn('id="dtsec"', html)                                                # trades on its token, as on a result
+            self.assertIn('id="dprof"', html)                                                # its 30 days on every token
+            self.assertNotIn('id="dtsec"', html)                                             # no trades on the token it came from
             self.assertNotIn("tgsample", html)                                               # no sample message in Lists
 
         async def test_sign_out_tags_and_list_exports_are_actions(self):
