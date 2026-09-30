@@ -73,6 +73,9 @@
       showPill(v);                                       // the page stays: swap the top-bar button for the wallet pill
       f(v);
     } catch (e) {
+      // a failed sign-in is invisible to the server (it breaks in the wallet), so it goes to the analytics: which kind, never the address
+      const why = rejected(e) ? 'rejected' : /format/i.test((e && e.message) || '') ? 'format' : 'error';
+      if (window.EarlyUI) EarlyUI.track('connect-fail', { app: a.name, why });
       state(rejected(e) ? 'Signature rejected. Nothing was sent.' : ((e && e.message) || 'Something went wrong.'));
     } finally { busy = false; }
   }

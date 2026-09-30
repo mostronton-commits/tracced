@@ -30,7 +30,9 @@ B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 _B58_INDEX = {c: i for i, c in enumerate(B58)}
 PUBKEY_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 JOB_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
-NONCE_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
+# лише літери й цифри: так каже граматика Sign In With Solana (nonce = 8*(ALPHA / DIGIT)), і Phantom перевіряє кожен
+# текст, схожий на вхід, — з «-» чи «_» у коді він відмовляє: «signature request cannot be shown due to invalid formatting»
+NONCE_RE = re.compile(r"^[A-Za-z0-9]{8,64}$")
 
 STATEMENT = "Sign in to analyze tokens and save wallets. No transaction, no fees."
 _HEAD = " wants you to sign in with your Solana account:"
@@ -172,7 +174,7 @@ class NonceStore:
         now = time.time() if now is None else now
         with self.lock:
             self._prune(now)
-            n = secrets.token_urlsafe(24)
+            n = secrets.token_hex(16)     # 128 біт, лише 0-9a-f: див. NONCE_RE
             self.live[n] = now + self.ttl_s
         return n
 

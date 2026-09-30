@@ -1,5 +1,6 @@
 """Акаунт гаманця без сервера: base58, текст для підпису, підпис ed25519, nonce, кука, сховище."""
 import base64
+import re
 import os
 import tempfile
 import unittest
@@ -40,19 +41,40 @@ class TestBase58(unittest.TestCase):
 class TestMessage(unittest.TestCase):
     def test_build_and_parse(self):
         pk = addr(1)
-        msg = A.build_message("tracced.xyz", pk, "n0nce_x-1", "2026-09-20T10:00:00Z")
-        self.assertEqual(A.parse_message(msg), {"domain": "tracced.xyz", "pubkey": pk, "nonce": "n0nce_x-1",
+        msg = A.build_message("tracced.xyz", pk, "n0nceX1abc", "2026-09-20T10:00:00Z")
+        self.assertEqual(A.parse_message(msg), {"domain": "tracced.xyz", "pubkey": pk, "nonce": "n0nceX1abc",
                                                  "issued_at": "2026-09-20T10:00:00Z"})
         self.assertIn("No transaction, no fees.", msg)
         self.assertEqual(msg.count("\n"), 6)
 
     def test_rejects_anything_else(self):
         pk = addr(1)
-        good = A.build_message("tracced.xyz", pk, "n0nce_x-1", "2026-09-20T10:00:00Z")
+        good = A.build_message("tracced.xyz", pk, "n0nceX1abc", "2026-09-20T10:00:00Z")
         for bad in (good + "\n", good + " ", good.replace("Nonce: ", "nonce: "), good.replace("\n\n", "\n", 1),
                     good.replace("No transaction", "A transaction"), "", None, "x" * 3000, good.replace("tracced.xyz", "")):
             with self.assertRaises(ValueError, msg=repr(bad)[:60]):
                 A.parse_message(bad)
+
+    def test_a_nonce_outside_the_sign_in_grammar_is_refused(self):
+        with self.assertRaises(ValueError):
+            A.parse_message(A.build_message("tracced.xyz", addr(1), "n0nce_x-1", "2026-09-20T10:00:00Z"))
+
+    def test_every_message_fits_the_sign_in_with_solana_grammar(self):
+        """Phantom перевіряє кожне повідомлення, схоже на вхід, за граматикою SIWS і відмовляє, якщо хоч одне поле
+        поза нею. Тут та сама граматика для полів, які ми пишемо: домен без схеми, адреса, однорядкове пояснення з
+        дозволених символів, nonce лише з літер і цифр (≥ 8), час за RFC 3339. Коди — справжні, з NonceStore."""
+        siws = re.compile(
+            r"^(?P<domain>[A-Za-z0-9.-]+(?::[0-9]+)?) wants you to sign in with your Solana account:\n"
+            r"[1-9A-HJ-NP-Za-km-z]{32,44}\n\n"
+            r"[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;= -]+\n\n"
+            r"Nonce: [A-Za-z0-9]{8,}\n"
+            r"Issued At: [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})$")
+        ns = A.NonceStore(cap=5000)
+        for i in range(2000):
+            msg = A.build_message("tracced.xyz", addr(1), ns.issue(now=100 + i), A.issued_at(1_790_000_000 + i))
+            self.assertRegex(msg, siws)
+            A.parse_message(msg)                                              # і наш сервер його приймає
+        self.assertRegex(A.build_message("dev.tracced.xyz", addr(1), ns.issue(now=1), A.issued_at()), siws)
 
     def test_issued_at(self):
         self.assertEqual(A.issued_at(0), "1970-01-01T00:00:00Z")
@@ -66,7 +88,7 @@ class TestSignature(unittest.TestCase):
     def test_verify(self):
         sk = SigningKey.generate()
         pk = A.b58encode(bytes(sk.verify_key))
-        msg = A.build_message("tracced.xyz", pk, "n0nce_x-1", A.issued_at())
+        msg = A.build_message("tracced.xyz", pk, "n0nceX1abc", A.issued_at())
         sig = sk.sign(msg.encode()).signature
         self.assertTrue(A.verify_signature(pk, msg, A.b58encode(sig)))
         self.assertTrue(A.verify_signature(pk, msg, base64.b64encode(sig).decode()))
