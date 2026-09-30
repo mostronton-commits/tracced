@@ -30,9 +30,8 @@ DEFAULT_URL = "https://api.mainnet-beta.solana.com"
 # найновіший формат транзакцій, який ми читаємо. З 0 нода не віддає транзакції версії 1 (Axiom Flash, FOMO та інші з
 # 2026 року): перша транзакція гаманця такої версії лишала його без спонсора. jsonParsed у версії 1 той самий (30.09)
 TX_VERSION = 1
-# «спонсора нема», записане до цього моменту (деплой читання версії 1 на dev, 30.09 18:19 UTC), могло бути помилкою ноди
-# на транзакції версії 1, а не фактом: такий запис перевіряється знову (рев'ю 30.09)
-TX_V1_FROM = 1790792367
+# «спонсора нема» без позначки txv (записане до читання версії 1) могло бути помилкою ноди на транзакції версії 1, а не
+# фактом: такий запис перевіряється знову. Позначка, не дата: прод отримує це читання пізніше за dev (рев'ю 30.09, 01.10)
 HEAVY = {"getSignaturesForAddress", "getTransaction"}   # платна нода Solana Tracker бере за них по 10 кредитів
 # Helius: повна історія, по 1 кредиту за виклик, і свій метод «від найстарішої» (getTransactionsForAddress, 10 кредитів),
 # що знаходить першу транзакцію зайнятого гаманця одним викликом замість гортання (перевірено 24.09.2026: у гаманця
@@ -369,7 +368,7 @@ class WalletAge:
         key = f"funder:{wallet}"
         can_scan = HELIUS_HOST in self.tx_url
         cached = self._get(key)
-        if cached is not None and not cached.get("funder") and isinstance(self.cache, JsonCache) and self.cache.get(key, since=TX_V1_FROM) is None:
+        if cached is not None and not cached.get("funder") and (cached.get("txv") or 0) < TX_VERSION:
             cached = None
         if cached is not None and (cached.get("funder") or not scan or cached.get("scanned", True) or not can_scan):
             self.cache_hits += 1
@@ -382,7 +381,7 @@ class WalletAge:
             found, via = funder_from_tx(tx, wallet), "first"
             if found is None and can_scan and scan:
                 found, via = self._first_sol_in(wallet), "scan"
-        out = {"funder": found, "scanned": bool(found) or scan or not can_scan}
+        out = {"funder": found, "scanned": bool(found) or scan or not can_scan, "txv": TX_VERSION}
         if found:
             out["via"] = via                              # звідки: скільки спонсорів дає лише пошук за 10 кредитів
         if self.cache is not None:

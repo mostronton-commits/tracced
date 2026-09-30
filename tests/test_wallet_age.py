@@ -253,9 +253,14 @@ class TestWalletAge(unittest.TestCase):
         self.assertFalse(wa.funder_pending("APP"))
         self.assertEqual(wa.cache["funder:APP"]["via"], "scan")                 # спонсор лише з пошуку: видно в кеші
         old = Cache()
-        old["funder:OLD"] = {"funder": None}                                     # записаний до цієї позначки: дочитаний
+        old["funder:OLD"] = {"funder": None, "txv": 1}                           # прочитаний версією 1: дочитаний, без запитів
         wa = WalletAge(url=HX, post=FakePost([]), sleep=lambda s: None, pace_s=0, cache=old)
         self.assertEqual((wa.funder("OLD", "s"), wa.funder_pending("OLD")), (None, False))
+        old["funder:APP"] = {"funder": None}                                     # без позначки: могла бути версія 1, яку не читали
+        post = FakePost([tx(0), {"data": [tx(0), tx(3_000_000, "V1FUNDER")]}])
+        wa = WalletAge(url=HX, post=post, sleep=lambda s: None, pace_s=0, cache=old)
+        self.assertEqual(wa.funder("APP", "s"), "V1FUNDER")                       # перечитано, і тепер з позначкою
+        self.assertEqual(old["funder:APP"]["txv"], 1)
 
     def test_an_age_cached_before_it_could_be_trusted_is_read_again_with_its_funder(self):
         """20.09 кеш наповнювала нода, що бачила лише останні години історії: «перша транзакція» гаманця виходила

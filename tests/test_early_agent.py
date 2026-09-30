@@ -181,8 +181,11 @@ class TestAskedWallets(unittest.TestCase):
 
     def test_a_full_address_that_did_not_buy_is_said_so(self):
         z = "H" * 44
-        d, _ = digest(self.res, asked=[z])
+        d, wmap = digest(self.res, asked=[z])
         self.assertEqual(d["asked_about"], [{"wallet": agent.short(z), "bought_in_this_range": "no"}])
+        self.assertNotIn(agent.short(z), wmap)                          # no link to a card that does not exist
+        d, _ = digest(dict(self.res, info=dict(self.res.get("info") or {}, mint=z)), asked=[z])
+        self.assertNotIn("asked_about", d)                              # the token's own address is not a wallet
 
     def test_apps_count_wallets_and_their_profit(self):
         d, _ = digest(self.res)

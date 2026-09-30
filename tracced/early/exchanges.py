@@ -17,6 +17,8 @@ def load(path):
         raw = json.loads(pathlib.Path(path).read_text(encoding="utf-8")).get("addresses") or {}
     except (OSError, ValueError, AttributeError, TypeError):
         return {}
+    if not isinstance(raw, dict):                     # чужий формат файла не валить сервер на старті (рев'ю 01.10)
+        return {}
     return {a: [str(v[0]), str(v[1] if len(v) > 1 else v[0])] for a, v in raw.items() if isinstance(v, list) and v}
 
 

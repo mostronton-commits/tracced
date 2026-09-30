@@ -108,6 +108,10 @@ def refresh(st, s, peaks, now_ms=None):
             peaks[c["mint"]] = (_num(a.get("highest_market_cap")), now_ms, c["created_ms"])
         except Exception:  # noqa: BLE001 — без піку токен лишається, якщо капа сама вища за поріг; спроба знову пізніше
             peaks[c["mint"]] = (0.0, now_ms, c["created_ms"])
+    for c in cands:              # пік, який ми бачили самі, вищий за відомий: пам'ятаємо його — інакше токен, що виріс після
+        hit = peaks.get(c["mint"])   # запиту піку, зникав би зі стрічки, щойно впаде (рев'ю 01.10). Невдалий запит (0) не чіпаємо
+        if hit and 0 < hit[0] < c["cap"]:
+            peaks[c["mint"]] = (c["cap"], hit[1], hit[2])
     horizon = (float(s.get("fresh_hours", 24)) + 24) * HOUR_MS
     for m in [m for m, v in peaks.items() if now_ms - (v[2] if len(v) > 2 and v[2] else v[1]) > horizon]:
         del peaks[m]

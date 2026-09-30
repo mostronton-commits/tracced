@@ -78,7 +78,12 @@ if AioHTTPTestCase:
             from unittest import mock
             with mock.patch("aiohttp.web_request.BaseRequest.remote", new_callable=mock.PropertyMock, return_value="203.0.113.9"):
                 d = await (await self.client.get("/health", headers=DEV)).json()
-            self.assertEqual(d, {"ok": True})
+                pub = await (await self.client.get("/health")).json()                   # the public site too (review 01.10)
+            self.assertEqual((d, pub), ({"ok": True}, {"ok": True}))
+
+        async def test_a_trailing_dot_is_the_same_private_name(self):
+            self.assertEqual((await self.client.get("/", headers={"Host": "dev.example."})).status, 403)
+            self.assertEqual((await self.client.get("/", headers={"Host": "dev.example.:443"})).status, 403)
 
         async def test_the_public_site_is_untouched(self):
             r = await self.client.get("/")

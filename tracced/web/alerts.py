@@ -188,9 +188,12 @@ def sold_share(trades, ev):
             sold += q
     if bought <= 0:
         return None
-    before = ev.get("before")
-    if before is not None and before > (bought - sold) * 1.05 + 1e-9:
-        return None                                  # на гаманці більше, ніж він купив: токени прийшли переказом — частка брехала б
+    before, left = ev.get("before"), bought - sold
+    # що було на гаманці перед продажем, має зійтися з історією, в обидва боки (рев'ю 01.10): більше — токени прийшли
+    # переказом; менше — Solana Tracker ще не бачить частини продажів, у купівлі зсунута кома (~0.3% угод) чи угод
+    # понад дві сторінки. Тоді частка брехала б, і повідомлення каже частку цієї угоди від того, що було перед нею
+    if before is not None and not (left * 0.95 - 1e-9 <= before <= left * 1.05 + 1e-9):
+        return None
     step = float(ev.get("amount") or 0)
     return min(100, round(100 * (sold + step) / bought)), min(100, round(100 * step / bought))
 
@@ -204,7 +207,8 @@ def sold_text(ev):
     if total is not None and total >= 99:            # «усе» каже лише ланцюг (ev["all"]): тут частина ще на гаманці
         total = None
     if total is not None:
-        return f"sold {total}%" + (f" (+{step}%)" if step is not None and step < total else "")
+        pc = lambda v: f"{v}%" if v >= 1 else "<1%"   # продав дрібку: не «sold 0%»
+        return f"sold {pc(total)}" + (f" (+{pc(step)})" if step is not None and step < total else "")
     return f"sold {ev['pct']}%" if ev.get("pct") else ""
 
 

@@ -289,12 +289,20 @@ def digest(r, watch=None, asked=None):
     roi_rank = {x["wallet"]: i + 1 for i, x in enumerate(by_roi)}
     pnl_rank = {x["wallet"]: i + 1 for i, x in enumerate(sorted(rows, key=lambda x: -(x.get("realized_usd") or 0)))}
     asked_about = []
+    funded = {}
+    for f in funders.values():
+        if f:
+            funded[f] = funded.get(f, 0) + 1
     for w in asked or []:
         if w in rowmap:
             asked_about.append(dict(facts(rowmap[w]), rank_by_profit=f"{pnl_rank[w]} of {len(rows)}",
                                     rank_by_roi=f"{roi_rank[w]} of {len(by_roi)}" if w in roi_rank else None))
+        elif w == info.get("mint"):
+            continue                                  # адреса самого токена — не гаманець (рев'ю 01.10)
         else:
-            asked_about.append({"wallet": sw(w), "bought_in_this_range": "no"})
+            # не покупець: у мапу адрес не йде (посилання на картку дало б 404); спонсор гаманців аналізу — так і сказано
+            asked_about.append({"wallet": short(w), "bought_in_this_range": "no",
+                                "funded_wallets_here": funded.get(w) or None})
     asked_about = [{k: v for k, v in a.items() if v is not None} for a in asked_about]
     apps = {}
     for x in rows:

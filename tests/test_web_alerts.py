@@ -20,6 +20,8 @@ if AioHTTPTestCase:
         from tests.test_web import FakeWebST, TEST_PK, W1, wallet_cookie
     except ImportError:
         from test_web import FakeWebST, TEST_PK, W1, wallet_cookie
+    from unittest import mock
+    from tracced.web import app as app_mod
     from tracced.web.app import create_app, tg_reply
 
     class TestAlertsWeb(AioHTTPTestCase):
@@ -84,6 +86,73 @@ if AioHTTPTestCase:
             self.app["tg"]["on"] = True
             self.app["tg"]["token"] = ""
             self.assertEqual((await self.client.post("/me/telegram/link", json={}, headers=self.origin)).status, 503)
+
+
+    class TestAlertsReview(TestAlertsWeb):
+        """Рев'ю 01.10: чужий код не забирає чат, заблокований бот не глушить інших, серія угод не платить за кожну."""
+
+        def upd(self, text, chat=424242, user="owner"):
+            return {"update_id": 1, "message": {"chat": {"id": chat, "type": "private"}, "from": {"username": user}, "text": text}}
+
+        async def code_for(self, cookie):
+            self.client.session.headers["Cookie"] = cookie
+            r = await self.client.post("/me/telegram/link", json={}, headers=self.origin)
+            return (await r.json())["url"].split("start=")[1]
+
+        async def test_a_linked_chat_is_not_taken_by_someone_elses_link(self):
+            self.app["s"]["alerts_open"] = True
+            mine = await self.code_for(wallet_cookie(TEST_PK))
+            self.assertIn("Connected", tg_reply(self.app, self.upd("/start " + mine))[1])
+            theirs = await self.code_for(wallet_cookie(W1))                                # someone sends their link to me
+            text = tg_reply(self.app, self.upd("/start " + theirs))[1]
+            self.assertIn("already gets alerts", text)
+            self.assertEqual(self.app["accounts"].load(TEST_PK)["telegram"]["chat"], 424242)   # still mine
+            self.assertNotIn("telegram", self.app["accounts"].load(W1))                         # they learn nothing
+
+        async def test_no_link_before_the_bot_is_known(self):
+            self.app["tg"]["name"] = ""
+            self.assertEqual((await self.client.post("/me/telegram/link", json={}, headers=self.origin)).status, 503)
+
+        async def test_a_blocked_bot_drops_only_that_subscriber(self):
+            a, b = {"pk": "A", "chat": 1}, {"pk": "B", "chat": 2}
+            self.app["alerts_wm"] = {"W1": [a, b], "W2": [a]}
+            app_mod._unwatch(self.app, "A")
+            self.assertEqual(self.app["alerts_wm"], {"W1": [b]})
+
+        async def test_a_burst_pays_only_for_what_it_can_send(self):
+            self.app["s"]["alerts_per_hour"] = 2
+            sub = {"pk": TEST_PK, "chat": 7, "prefs": {"buys": True, "sells": True, "min_usd": 0}, "tags": [], "src": ""}
+            self.app["alerts_wm"] = {"WAL": [sub]}
+            ev = {"side": "sell", "mint": "M" * 32, "usd": 500.0, "amount": 10.0, "before": 100.0, "pct": 10, "sig": "", "ts": 1, "mcap": 1e6}
+            calls = {"facts": 0, "share": 0, "sent": 0}
+
+            async def facts(app, mint):
+                calls["facts"] += 1
+                return {"symbol": "X"}
+
+            async def share(app, w, e):
+                calls["share"] += 1
+                return None
+
+            async def send(app, http, chat, text, pk=None):
+                calls["sent"] += 1
+                return True
+
+            async def rpc(*a, **k):
+                return {"tx": 1}
+
+            async def price(app, http):
+                return 150.0
+            with mock.patch.object(app_mod, "_rpc", rpc), mock.patch.object(app_mod, "_sol_price", price), \
+                    mock.patch.object(app_mod, "_token_facts", facts), mock.patch.object(app_mod, "_sold_share", share), \
+                    mock.patch.object(app_mod, "_tg_send", send), mock.patch.object(app_mod, "_st_open", mock.AsyncMock(return_value=True)), \
+                    mock.patch.object(app_mod.alerts_mod, "classify", lambda tx, w, px: [dict(ev)]):
+                await asyncio.gather(*(app_mod._alert_tx_safe(self.app, None, "WAL", f"sig{i}") for i in range(20)))
+            self.assertEqual(calls["sent"], 3)                                             # two alerts and one "skipped" line
+            self.assertEqual((calls["facts"], calls["share"]), (2, 2))                     # paid lookups only for the two
+            self.app["alerts_wm"] = {}
+            with mock.patch.object(app_mod, "_rpc", mock.AsyncMock(side_effect=AssertionError("no one watches"))):
+                await app_mod._alert_tx_safe(self.app, None, "WAL", "late")               # nobody watches: not even the node is asked
 
 
 if __name__ == "__main__":

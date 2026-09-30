@@ -153,6 +153,10 @@ class TestCodesAndText(unittest.TestCase):
         self.assertEqual(A.sold_text(dict(ev, total=40, step=40)), "sold 40%")
         self.assertEqual(A.sold_text(dict(ev, total=99, step=5, pct=5)), "sold 5%")                         # the chain says part is left
         self.assertIsNone(A.sold_share([tr("buy", 100, "a")], dict(ev, amount=150, before=200)))           # 200 held, 100 bought: a transfer
+        self.assertIsNone(A.sold_share([tr("buy", 1000, "a")], dict(ev, before=600)))                     # a sale ST does not see yet
+        self.assertIsNone(A.sold_share([tr("buy", 1_000_000, "a")], dict(ev, before=1000)))                # a buy with a shifted decimal point
+        self.assertEqual(A.sold_share([tr("buy", 1000, "a"), tr("sell", 400, "A", 2)], dict(ev, before=600)), (60, 20))   # history agrees
+        self.assertEqual(A.sold_text(dict(ev, total=0, step=0)), "sold <1%")
         self.assertEqual(A.sold_text(dict(ev, all=True, total=70, step=10)), "sold all")
         self.assertEqual(A.sold_text(dict(ev, pct=35)), "sold 35%")                                        # no history: this sale's share
         self.assertIn("</a> · sold 60% (+20%) · <a", A.message(dict(ev, total=60, step=20), W, {}, {"symbol": "X"}))

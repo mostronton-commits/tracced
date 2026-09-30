@@ -607,7 +607,9 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
     #    повідомлень на сайт, що ламається (рядки сервера з bg — не активність людей, тож читаються з усього журналу) ──
     evp = [e for e in events if e["ts_ms"] >= p0]
     sent = [e for e in evp if e.get("event") == "alert" and person(e.get("pubkey"))]
-    back = [e for e in evp if e.get("event") == "view" and e.get("src") == "alert"]
+    # повернення з алертів — як і надіслані, без команди: власник, що сам клацає свої алерти, давав CTR 300% (рев'ю 01.10).
+    # Гості лишаються: вбудований браузер Telegram зазвичай без входу, і це ті самі підписники
+    back = [e for e in evp if e.get("event") == "view" and e.get("src") == "alert" and (e.get("pubkey") == "guest" or person(e.get("pubkey")))]
     afails, unlinks = {}, {}
     for e in evp:
         if e.get("event") == "alert_fail":

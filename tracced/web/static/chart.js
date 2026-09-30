@@ -10,7 +10,8 @@
 
   function fmtMcap(v) {
     if (v == null || isNaN(v)) return '—';
-    const sign = v < 0 ? '-' : ''; v = Math.abs(v);
+    if (v < 0) return '';                       // a cap is never below zero: the axis goes there only to make room for markers
+    const sign = ''; v = Math.abs(v);
     for (const [lim, suf] of [[1e9, 'B'], [1e6, 'M'], [1e3, 'K']]) {
       if (v >= lim * 0.9995) { const x = Math.max(v / lim, 1); let s = x < 10 ? x.toFixed(1) : x.toFixed(0); if (s.includes('.')) s = s.replace(/\.?0+$/, ''); return sign + s + suf; }
     }
@@ -264,7 +265,7 @@
     function place() {
       layer.innerHTML = '';
       const v = visible(); if (!v) return;
-      const W = box.clientWidth - scaleW();   // price scale on the right
+      const W = box.clientWidth - scaleW(), bands = [];   // price scale on the right
       windows.forEach((w, i) => {
         if (!w.from || !w.to || w.to < v.a || w.from > v.b) return;
         const x1 = xOf(w.from), x2 = xOf(w.to); if (x1 == null || x2 == null) return;
@@ -272,8 +273,10 @@
         d.style.left = Math.min(x1, W) + 'px'; d.style.width = Math.max(2, Math.min(x2, W) - Math.min(x1, W)) + 'px';
         const lbl = document.createElement('span'); lbl.className = 'lbl'; lbl.textContent = (w.n || (i + 1)) + (w.label && i === selected ? ' · ' + w.label : ''); lbl.title = w.label || '';
         lbl.addEventListener('click', e => { e.stopPropagation(); if (opts.onSelect) opts.onSelect(i); else focus(w.from, w.to, null); });
-        d.appendChild(lbl); layer.appendChild(d);
+        d.appendChild(lbl); layer.appendChild(d); bands.push({ x: Math.min(x1, W), lbl });
       });
+      // a label ends where the next range starts, so "1 · Pump 1" never hides the 2 of a close neighbour (phone, 01.10)
+      bands.forEach(b => { const nx = Math.min(W, ...bands.filter(o => o.x > b.x).map(o => o.x)); b.lbl.style.maxWidth = Math.max(16, nx - b.x - 8) + 'px'; });
       // events of the token's own life: the move off the launchpad, the payments for visibility. Thin full-height
       // lines, because trade markers already live next to the candles and must not compete with these.
       // A badge at the point where it happened, not a line through the whole chart: these events sit within a
@@ -281,7 +284,8 @@
       const drawn = {}, placed = [];           // дві оплати за хвилину одна від одної — один значок, обидві в підказці
       events.forEach(e => {
         if (!e.sec || e.sec < v.a || e.sec > v.b) return;
-        const x = xOf(e.sec); if (x == null || x > W) return;
+        const x0 = xOf(e.sec); if (x0 == null || x0 > W) return;
+        const x = Math.max(12, Math.min(x0, W - 12));   // a badge at the very edge stays whole (phone, 01.10: the M was cut in half)
         const kind = e.kind || 'ev', prev = drawn[kind];
         if (prev && Math.abs(x - prev.x) < 16) { prev.n++; prev.el.title += '\n' + (e.title || ''); prev.el.dataset.n = prev.n; return; }
         const y = stackY(x, Math.min(Math.max(18, yOf(e.sec) ?? 40), box.clientHeight - 30), placed, box.clientHeight - 30);   // never below the box, whatever the scale says
@@ -364,10 +368,10 @@
     // timeframe buttons
     const tfs = document.createElement('div'); tfs.className = 'tfs';
     Object.keys(TF_SEC).forEach(k => { const b = document.createElement('button'); b.type = 'button'; b.className = 'tf'; b.dataset.tf = k; b.textContent = k; b.addEventListener('click', () => { setTf(k, true); if (window.EarlyUI) EarlyUI.use('tf', { tf: k }); }); tfs.appendChild(b); });
-    const back = document.createElement('button'); back.type = 'button'; back.className = 'tf back'; back.textContent = '⌖ Back to range'; back.title = 'Bring the range you marked back into view'; back.hidden = !windows.some(w => w && w.from && w.to);   // a result page has its range from the start
+    const back = document.createElement('button'); back.type = 'button'; back.className = 'tf back'; back.innerHTML = '<span class="wide">⌖ Back to range</span><span class="narrow">⌖ Range</span>'; back.title = 'Bring the range you marked back into view'; back.hidden = !windows.some(w => w && w.from && w.to);   // a result page has its range from the start
     back.addEventListener('click', () => { const w = windows[selected] || windows[0]; if (w && w.from && w.to) focus(w.from, w.to, null); if (window.EarlyUI) EarlyUI.use('chart-nav', { to: 'range' }); });
     tfs.appendChild(back);
-    const launch = document.createElement('button'); launch.type = 'button'; launch.className = 'tf back'; launch.textContent = '⇤ First hours';
+    const launch = document.createElement('button'); launch.type = 'button'; launch.className = 'tf back'; launch.innerHTML = '<span class="wide">⇤ First hours</span><span class="narrow">⇤ Start</span>';
     launch.title = 'Jump to the first hours of trading, right after the token launched';
     launch.addEventListener('click', () => { focus(created, created + 3 * 3600, null); if (window.EarlyUI) EarlyUI.use('chart-nav', { to: 'launch' }); });
     tfs.appendChild(launch);

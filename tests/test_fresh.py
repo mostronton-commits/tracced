@@ -72,6 +72,23 @@ class TestRefresh(unittest.TestCase):
         F.refresh(st, S, peaks, NOW + 60 * H)
         self.assertEqual(peaks, {})                                                         # older than the window plus a day: forgotten
 
+    def test_a_peak_the_tape_saw_itself_is_kept(self):
+        # review 01.10: ATH asked at $1.2M said $1.5M, then the token ran to $4M and fell to $1.5M: it stays, with its $4M
+        class ST:
+            cap = 1.2e6
+            def _get(self, path):
+                if path.startswith("/search"):
+                    return {"data": [row("R", self.cap)], "hasMore": False}
+                return {"highest_market_cap": 1.5e6}
+        st, peaks = ST(), {}
+        need = dict(S, fresh_min_ath=2e6)
+        self.assertEqual(F.refresh(st, need, peaks, NOW), [])                               # $1.5M peak: under the bar
+        st.cap = 4e6
+        self.assertEqual([x["peak"] for x in F.refresh(st, need, peaks, NOW + H)], [4e6])
+        st.cap = 1.5e6
+        out = F.refresh(st, need, peaks, NOW + 2 * H)
+        self.assertEqual([(x["mint"], x["peak"], x["drop"]) for x in out], [("R", 4e6, 62)])   # not gone once it dumps
+
     def test_the_junk_the_server_cannot_see(self):
         rows = [row("WASH", 2.7e6, vol=2.72e6, fees=2.8), row("FAKE", 3e8, liq=1e6, vol=1e8), row("DEAD", 2e6, vol=1e6),
                 row("OK", 2e6, vol=4e6, fees=300)]
