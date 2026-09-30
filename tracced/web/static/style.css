@@ -50,6 +50,9 @@ button.primary, .button.primary { background: var(--mint); border-color: #86efac
 button.primary:hover, .button.primary:hover { background: #99EDC6; border-color: #6ee7b7; }
 button.ghost { border-color: transparent; background: transparent; color: var(--muted); padding: 7px 8px; }
 button.ghost:hover { color: var(--ink); background: #F1F5F9; border-color: transparent; }
+/* a button that is only a glyph (×, ★, ⧉) centres it: the base button lines its content up on the left, so with a fixed
+   width the glyph sat beside its own hover plate (owner's screenshots, 30.09) */
+button.x, button.copy, button.dstar { justify-content: center; }
 
 .chip { display: inline-flex; align-items: center; justify-content: center; padding: 3px 9px; line-height: 1; border-radius: 999px; font-size: 12px; font-weight: 500; border: 1px solid var(--line); background: var(--surface); color: var(--muted); }   /* текст по центру пігулки, а не по базовій лінії шрифту */
 .chip.st-running { background: var(--mint); border-color: #86efac; color: var(--ink); }
@@ -838,7 +841,9 @@ td.wcell .tags .tag { margin-left: 0; }
 .dh-top b { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dh-addr { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; }
 .dh-addr .mono { font-size: 12px; }
-.dh-addr .ext { margin-left: 4px; }
+.dh-addr .ext { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin: 0; border: 0;
+                border-radius: 6px; color: #64748B; font-size: 13px; }   /* the same square as the copy button, no underline under a lone arrow */
+.dh-addr .ext:hover { background: #F1F5F9; color: var(--ink); }
 .dsec-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .dsec-h h4 { margin: 0; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
@@ -1030,13 +1035,33 @@ td.c-roi b { font-size: 13px; }
 .utabs a { border: 0; border-bottom: 2px solid transparent; padding: 11px 12px 10px; font-size: 13.5px; color: var(--muted); white-space: nowrap; }
 .utabs a:hover { color: var(--ink); }
 .utabs a.on { color: var(--ink); font-weight: 600; border-bottom-color: #34D399; }
-.ubks { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px 18px; margin: 4px 0 14px; }
-.ubk { font-size: 12.5px; color: var(--muted); } .ubk b { display: block; color: var(--ink); font-size: 12.5px; margin-bottom: 3px; }
-.ubk span { display: inline-block; margin: 2px 10px 0 0; } .ubk i { font-style: normal; color: var(--ink); font-weight: 600; }
+/* the analyses tab: five tiles in a row, then small histograms that say their biggest bar in words */
+.kgrid.k5 { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-bottom: 16px; }
+.uhists { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin: 0 0 18px; }
+.uh { margin: 0; padding: 12px 14px 10px; border: 1px solid var(--line); border-radius: 12px; min-width: 0; }
+.uh figcaption { margin-bottom: 8px; } .uh figcaption b { display: block; font-size: 13px; }
+.uh figcaption span { font-size: 12px; color: var(--muted); } .uh figcaption em { font-style: normal; font-weight: 600; color: var(--ink); }
+.uhr { display: grid; grid-template-columns: minmax(64px, auto) 1fr 28px; gap: 8px; align-items: center; min-height: 22px; font-size: 12px; }
+.uhr .l { white-space: nowrap; }
+.uhr .t { height: 8px; background: #F1F5F9; border-radius: 999px; overflow: hidden; }
+.uhr .t i { display: block; height: 100%; background: #CBD5E1; border-radius: 999px; }
+.uhr.hi .t i { background: #34D399; }
+.uhr .n { text-align: right; font-weight: 600; font-size: 12px; } .uhr.zero { color: #94A3B8; } .uhr.zero .n { font-weight: 400; }
+/* the behavior tab: a question, its answer in one line, then the bars behind it */
+.uqa { padding: 2px 0 18px; } .uqa + .uqa { border-top: 1px solid var(--line); padding-top: 16px; }
+.uqa h3 { margin: 0 0 4px; font-size: 15px; }
+.uans { margin: 0 0 12px; font-size: 14px; color: var(--muted); } .uans b { color: var(--ink); }
+.ufun .n small { color: var(--muted); font-weight: 400; font-size: 11px; }
+.ufun.low .bar i { background: #FCA5A5; }
+.ufacts { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 14px; color: var(--muted); } .ufacts b { color: var(--ink); }
+.ukey { margin: -6px 0 4px; }
+.ugh { margin: 12px 0 2px; font: 600 10.5px/1.2 var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.uall { margin-top: 8px; } .uall summary { cursor: pointer; font-size: 12.5px; color: var(--muted); width: max-content; } .uall summary:hover { color: var(--ink); }
+.uunused { margin: 14px 0 0; color: var(--muted); } .uunused b { color: var(--ink); font-weight: 600; }
 .uwatch { margin: 4px 0 6px; padding-left: 18px; font-size: 13.5px; } .uwatch li { margin: 3px 0; }
 .usage h3.small { margin: 16px 0 6px; }
 @media (max-width: 640px) {
-  .ufun { grid-template-columns: 1fr 48px; } .ufun .bar { grid-column: 1 / -1; grid-row: 2; }
+  .ufun { grid-template-columns: 1fr auto; } .ufun .bar { grid-column: 1 / -1; grid-row: 2; }
   .utabs { margin: 4px -14px 0; padding: 0 14px; }            /* картка на телефоні має відступ 14px */
   .unav .ujump { margin-left: 0; }
   .usage .stats div { min-width: calc(50% - 4px); flex: 1 1 calc(50% - 4px); }
@@ -1086,7 +1111,7 @@ td.c-roi b { font-size: 13px; }
 @media (min-width: 1200px) {
   /* 30.09, 4K: a fixed right margin left the page glued to the card with the whole spare width on the left. Now the page
      stays centred while the card fits in the right margin, and moves left only as far as the card needs */
-  body.drawer-open main.wide {
+  body.drawer-open main.wide, body.drawer-open main.withcard {
     --dl: max(0px, min(calc((100vw - var(--page)) / 2), calc(100vw - 480px - var(--page))));
     margin-left: var(--dl); margin-right: max(480px, calc(100vw - var(--page) - var(--dl)));
     max-width: min(var(--page), calc(100vw - 480px));
@@ -1153,7 +1178,7 @@ td.c-roi b { font-size: 13px; }
    it is on screen (ui.js keeps --dtop), and reaches the top once the bar has scrolled away */
 .drawer { top: var(--dtop, 0px); }
 .wcard .wav { width: 36px; height: 36px; border-radius: 10px; }
-@media (max-width: 640px) { .drawer { top: 0; } }   /* a phone: the card is the whole screen */
+@media (max-width: 640px) { .drawer { top: 0; z-index: 50; } }   /* a phone: the card is the whole screen, over the top bar too (it hid the card's head) */
 
 /* the home list: a row under the pointer keeps its light line (links elsewhere darken theirs) */
 .rrow:hover { border-color: var(--line); }
@@ -1200,6 +1225,9 @@ header.top { position: relative; z-index: 45; }
   background: #F1F5F9; border: 1px solid var(--line); font-size: 12px; color: var(--ink); }
 .factive button { padding: 0 6px; line-height: 1; }
 .kline.counts { margin: 2px 2px 8px; }
+/* one zone above the chart: the counts, then the findings on the same line while they fit */
+.sumzone { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; margin: 2px 0 12px; }
+.sumzone .kline.counts { margin: 0 2px; } .sumzone .fpills { margin: 0; }
 
 /* сповіщення в Telegram на сторінці списків: одна смужка (підключення і налаштування), дзвіночок на вкладці списку */
 .tgbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 4px 0 12px; padding: 10px 14px;
@@ -1213,3 +1241,28 @@ header.top { position: relative; z-index: 45; }
 .ltab .lbell { display: inline-block; margin-left: 5px; vertical-align: -2px; color: #15803D; }
 .lalert.on { color: #15803D; font-weight: 600; }
 
+
+/* ── Lists (30.09): a row is who the wallet is to you and the pump you found it in; a click opens its card ── */
+.mewl tbody tr { cursor: pointer; }
+.mewl tbody tr:hover td { background: #F8FAFC; }
+.mewl tbody tr.carded td { background: var(--sage); }
+.mewl tbody tr:focus-visible { outline: 2px solid #6EE7B7; outline-offset: -2px; }
+.mewl .wlrow { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.mewl .wavs { width: 26px; height: 26px; flex: none; border-radius: 7px; overflow: hidden; }
+.mewl .wavs svg { display: block; width: 100%; height: 100%; }
+.mewl .wnm { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.mewl .wnm b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.mewl td.src a { white-space: nowrap; }
+.mewl td.rm { width: 1%; text-align: right; }
+.mewl td.rm .x { width: 30px; height: 30px; padding: 0; font-size: 16px; }
+.wcard .dsrc { padding-top: 10px; padding-bottom: 10px; } .wcard .dsrc .dline { margin: 0; padding: 2px 0; border: 0; }
+@media (max-width: 720px) {
+  /* Lists on a phone: one line a wallet — who, the pump, × — not the result table's card grid */
+  .mewl tbody tr { display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 12px; }
+  .mewl td { flex: none; }
+  .mewl td:first-child { flex: 1 1 auto; min-width: 0; }
+  .mewl td.src { font-size: 12.5px; white-space: nowrap; } .mewl td.src .small { display: none; }   /* the day is in the card */
+  .mewl tbody tr { gap: 8px; } .mewl td.rm { width: auto; }   /* 1% of a flex row is 3px: the × fell outside */
+  .mewl .wnm { flex-direction: column; align-items: flex-start; gap: 1px; }
+  .mewl .wnm b { max-width: 100%; white-space: nowrap; }
+}

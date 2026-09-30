@@ -12,6 +12,7 @@ import csv
 import hashlib
 import hmac
 import ipaddress
+import datetime
 import os
 import secrets
 import io
@@ -1706,9 +1707,27 @@ async def me_remove_analysis(request, pk):
     return web.json_response({"ok": ok})
 
 
+JOB_DAY_RE = re.compile(r"_(\d{8})-(\d{4})_(\d{4})$")
+
+
+def _pump_of(job_id):
+    """«Sep 15, 19:30–19:50» з канонічного id аналізу (98kfF7_20260915-1930_1950): коли був памп, з якого гаманець.
+    Час — UTC, як в id; інший вигляд id — нічого."""
+    m = JOB_DAY_RE.search(job_id or "")
+    if not m:
+        return None
+    try:
+        d = datetime.datetime.strptime(m.group(1), "%Y%m%d")
+    except ValueError:
+        return None
+    a, b = m.group(2), m.group(3)
+    return {"day": f"{d:%b} {d.day}", "range": f"{d:%b} {d.day}, {a[:2]}:{a[2:]}–{b[:2]}:{b[2:]} UTC"}
+
+
 def _account_view(app, pk):
     a = app["accounts"].load(pk)
-    wallets = sorted((dict(v, wallet=w) for w, v in a["wallets"].items()), key=lambda v: v.get("added_ms") or 0, reverse=True)
+    wallets = sorted((dict(v, wallet=w, pump=_pump_of(v.get("from_job"))) for w, v in a["wallets"].items()),
+                     key=lambda v: v.get("added_ms") or 0, reverse=True)
     analyses = sorted((dict(v, job=j) for j, v in a["analyses"].items()), key=lambda v: v.get("added_ms") or 0, reverse=True)
     return a, wallets, analyses
 
@@ -1728,7 +1747,9 @@ async def me_page(request):
     lists = [dict(v, id=k, n=sum(1 for w in wallets if k in (w.get("lists") or []))) for k, v in a["lists"].items()]
     _view(request, "me")
     tg = a.get("telegram") or {}
-    return render("me.html", request, wallets=wallets, analyses=analyses, max_my_tags=acct_mod.MAX_MY_TAGS,
+    wmeta = {w["wallet"]: {**{k: w.get(k) for k in ("from_job", "symbol", "my_tags", "lists", "added_ms")},
+                           "pump": (w.get("pump") or {}).get("range")} for w in wallets}   # what the card shows, by wallet
+    return render("me.html", request, wallets=wallets, analyses=analyses, max_my_tags=acct_mod.MAX_MY_TAGS, wmeta=wmeta,
                   demo_mint=(demo or {}).get("mint"), lists=lists, max_lists=acct_mod.MAX_LISTS, TAGS=tags.DEFS,
                   alerts_ok=_alerts_allowed(request.app, pk), tg={"linked": bool(tg.get("chat")), "user": tg.get("user") or ""},
                   prefs=alerts_mod.prefs_of(a.get("alerts"), request.app["s"].get("alerts_min_usd")))
@@ -3347,17 +3368,25 @@ async def wallet_profile_json(request):
     """The wallet's last days on every token, counted by our own ledger from its raw swaps: PnL, win rate, holds.
 
     1-5 requests, cached for a day. Only wallets that appear in this analysis are looked up (the site does not
-    resell Solana Tracker for arbitrary addresses). A cached profile is free for anyone; a new one needs a
-    connected wallet and is paid from the same daily budget as charts."""
+    resell Solana Tracker for arbitrary addresses), or, without `job`, a wallet the connected person keeps in a
+    list (the card in Lists): it came from an analysis when it was saved. A cached profile is free for anyone; a
+    new one needs a connected wallet and is paid from the same daily budget as charts."""
     app = request.app
-    job = app["jobs"].get(request.query.get("job", ""))
-    if not job or job.status != "done" or not job.result:
-        raise web.HTTPNotFound(text="No result yet.")
+    job = None
+    if request.query.get("job"):
+        job = app["jobs"].get(request.query.get("job", ""))
+        if not job or job.status != "done" or not job.result:
+            raise web.HTTPNotFound(text="No result yet.")
     wallet = request.query.get("wallet", "")
     if not MINT_RE.match(wallet):
         raise WebError("That does not look like a wallet address.")
-    if wallet not in {r.get("wallet") for r in job.result.get("rows") or []}:
-        raise web.HTTPNotFound(text="That wallet is not in this analysis.")
+    if job is not None:
+        if wallet not in {r.get("wallet") for r in job.result.get("rows") or []}:
+            raise web.HTTPNotFound(text="That wallet is not in this analysis.")
+    elif not request.get("acct"):
+        raise ConnectRequired(message="Connect a wallet to load this wallet's last 30 days.")
+    elif wallet not in (app["accounts"].load(request["acct"]).get("wallets") or {}):
+        raise web.HTTPNotFound(text="That wallet is not in your lists.")
     cache, key = app["profile_cache"], f"v{profile.VERSION}:{wallet}"
     hit = cache.get(key)
     if hit is not None:
@@ -3377,7 +3406,7 @@ async def wallet_profile_json(request):
             finally:
                 n = st.requests_here() - req0
                 settle(n)
-                _spend(app, pk, "card-profile", st=n, job=job.canon or job.id)
+                _spend(app, pk, "card-profile", st=n, job=(job.canon or job.id) if job else None)
     try:
         out = await asyncio.to_thread(work)
     except Exception as e:  # noqa: BLE001

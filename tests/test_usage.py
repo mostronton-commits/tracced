@@ -171,6 +171,20 @@ class TestSummary(unittest.TestCase):
         self.assertEqual(self.summ(period="today", tz=warsaw)["pulse"]["dau"], 2)        # A і нічний C
         self.assertEqual(self.summ(period="today")["pulse"]["dau"], 1)
 
+    def test_what_they_use_and_what_nobody_pressed(self):
+        acc = [{"pubkey": A, "created_ms": NOW - 3 * D}, {"pubkey": B, "created_ms": NOW - 3 * D}]
+        evs = [ev(NOW - H, A, "ui", name="sort", page="job"), ev(NOW - H, B, "ui", name="sort", page="job"),
+               ev(NOW - H, A, "ui", name="card-close", page="job"), ev(NOW - H, A, "ui", name="tf", page="token"),
+               ev(NOW - H, A, "error", where="favicon.ico", status=404, msg="404: Not Found")]
+        u = usage.summarize(evs, accounts=acc, now_ms=NOW, period="7d")
+        self.assertEqual([f["name"] for f in u["features_top"]], ["sort", "tf"])             # closing a panel is not a feature
+        self.assertEqual([(g["page"], [f["name"] for f in g["rows"]]) for g in u["feature_groups"]],
+                         [("job", ["sort", "card-close"]), ("token", ["tf"])])
+        self.assertIn("Exported", u["unused"])
+        self.assertNotIn("Sorted the table", u["unused"])
+        self.assertNotIn("Pressed Find the pump (Before the pump)", u["unused"])           # a button that is gone is not "unused"
+        self.assertEqual(u["errors"], [])                                                   # the browser's own icon request
+
     def test_funnel_visits_and_coming_back(self):
         u = self.summ(period="7d")
         self.assertEqual(u["funnel_base"], 3)
@@ -234,7 +248,7 @@ class TestSummary(unittest.TestCase):
         t = self.summ(period="30d", include_team=True)["tokens"]
         self.assertEqual([(x["mint"], x["runs"]) for x in t["top"][:2]], [("M1", 2), ("M2", 1)])
         self.assertEqual({b["label"]: b["n"] for b in t["age"]}["1–6 h"], 1)
-        self.assertEqual(t["pads"], [{"pad": "pump.fun", "n": 1}])
+        self.assertEqual(t["pads"], [{"pad": "pump.fun", "label": "pump.fun", "n": 1}])
 
     def test_ranges_failures_errors_and_devices(self):
         self.events += [ev(NOW - H, A, "error", where="job", status=502, msg="The chain node did not answer."),

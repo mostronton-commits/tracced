@@ -68,10 +68,13 @@ def classify(tx, wallet, sol_usd):
     (mint, amount), = moved.items()
     sig = ((tx.get("transaction") or {}).get("signatures") or [""])[0]
     ts = int(tx.get("blockTime") or time.time())
+    before, after = pre_t.get(mint, 0.0), post_t.get(mint, 0.0)
+    # нова позиція — до купівлі був нуль чи пил (до 1 %); «продав усе» — після продажу лишився нуль чи пил, як «sold out» на сайті
     if amount > 0 and quote <= -QUOTE_MIN_USD:
-        return [{"side": "buy", "mint": mint, "amount": amount, "usd": -quote, "sig": sig, "ts": ts}]
+        return [{"side": "buy", "mint": mint, "amount": amount, "usd": -quote, "sig": sig, "ts": ts, "new": before <= 0.01 * after}]
     if amount < 0 and quote >= QUOTE_MIN_USD:
-        return [{"side": "sell", "mint": mint, "amount": -amount, "usd": quote, "sig": sig, "ts": ts}]
+        return [{"side": "sell", "mint": mint, "amount": -amount, "usd": quote, "sig": sig, "ts": ts, "all": after <= 0.01 * before,
+                 "pct": min(100, round(-100 * amount / before)) if before > 0 else None}]
     return []                                  # токен пішов без грошей (переказ) чи прийшов без плати (airdrop)
 
 
@@ -116,7 +119,9 @@ def watch_map(accounts, admins=(), open_to_all=False, max_wallets=50, default_mi
                 continue
             if n >= max_wallets:
                 break
-            out.setdefault(w, []).append({"pk": a["pubkey"], "chat": tg["chat"], "lists": ls, "prefs": prefs})
+            # звідки гаманець (памп, з якого його зберегли) і власні мітки людини — щоб з повідомлення було видно, чий він
+            out.setdefault(w, []).append({"pk": a["pubkey"], "chat": tg["chat"], "lists": ls, "prefs": prefs,
+                                          "src": meta.get("symbol") or "", "tags": list(meta.get("my_tags") or [])[:3]})
             n += 1
     return out
 
@@ -158,15 +163,28 @@ def short(w):
 
 
 def message(ev, wallet, sub, token, site="https://tracced.xyz"):
-    """Текст повідомлення (HTML-розмітка Telegram): що сталось, хто, в якому списку, на скільки і посилання."""
+    """Текст повідомлення (HTML-розмітка Telegram) у вигляді, звичному з каналів угод (власник, 30.09):
+    1) кружок купівлі чи продажу, тікер — посилання на графік у tracced, 🆕 для нової позиції або скільки продано, капа, tx;
+    2) адреса токена: натиснув — скопіював;
+    3) чий гаманець: мітки людини, а без них коротка адреса (посилання на гаманець у Solscan); у дужках памп, з якого його
+       зберегли; сума.
+    Чуже (назва токена, мітки, памп) обрізане до екранування: розрізана посередині &amp; зламала б розмітку, і Telegram не
+    прийняв би повідомлення."""
+    def e(v, n):
+        return html.escape(str(v)[:n])
     buy = ev["side"] == "buy"
-    sym = html.escape(str((token or {}).get("symbol") or ev["mint"][:6]))[:24]
-    cap = (token or {}).get("mcap")
-    lists = ", ".join(html.escape(str(x))[:32] for x in sub.get("lists") or [])
-    return (f"{'🟢' if buy else '🔴'} <b>{'Buy' if buy else 'Sell'} · {sym}</b>\n"
-            f"<code>{short(wallet)}</code>{' · ' + lists if lists else ''}\n"
-            f"{'bought' if buy else 'sold'} <b>{money(ev['usd'])}</b>" + (f" at <b>{money(cap)}</b> cap" if cap else "") + "\n"
-            f"<a href=\"{site}/token?mint={ev['mint']}\">Chart on tracced</a> · <a href=\"https://solscan.io/tx/{ev['sig']}\">Solscan</a>")
+    sym = (token or {}).get("symbol")
+    name = f"<a href=\"{site}/token?mint={ev['mint']}\"><b>{'$' + e(sym, 24) if sym else short(ev['mint'])}</b></a>"
+    head = [f"{'🟢' if buy else '🔴'} {name}" + (" 🆕" if buy and ev.get("new") else "")]
+    if not buy and (ev.get("all") or ev.get("pct")):
+        head.append("sold all" if ev.get("all") else f"sold {ev['pct']}%")
+    if (token or {}).get("mcap"):
+        head.append(f"MC {money(token['mcap'])}")
+    head.append(f"<a href=\"https://solscan.io/tx/{ev['sig']}\">tx</a>")
+    tags = [e(t, 24) for t in (sub.get("tags") or [])[:3]]
+    who = f"<a href=\"https://solscan.io/account/{wallet}\">{', '.join(tags) if tags else short(wallet)}</a>"
+    src = f" [from ${e(sub['src'], 24)}]" if sub.get("src") else ""
+    return " · ".join(head) + f"\n<code>{ev['mint']}</code>\n{who}{src} · <b>{money(ev['usd'])}</b>"
 
 
 def token_facts(report):

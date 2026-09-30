@@ -16,11 +16,16 @@ follow. A wallet can sit in several. At `/me` every list has its own tab with it
 it (the first one stays). **Export** there gives the list on screen, or all of them, as CSV or TXT, and the CSV
 says which lists hold each wallet.
 
+A row in a list is who the wallet is to you and where you found it: your tags (or its address) and the pump you
+saved it from, a link back to that analysis. Click the row for the wallet's card: its last 7 or 30 days on every
+token, the lists that hold it, and your tags.
+
 ## Your own tags
 
-Each saved wallet takes tags you write yourself, at `/me` or in the wallet's card. Type a short word, press Enter.
-Click a tag to remove it. Tagging a wallet in its card adds it to your *Watchlist*, because a tag is a reason to
-watch it.
+Each saved wallet takes tags you write yourself, in the wallet's card, on a result or in your lists. Type a short
+word, press Enter. Click a tag to remove it. Tagging a wallet in its card on a result adds it to your *Watchlist*,
+because a tag is a reason to watch it. A tag is the wallet's name for you: your lists and your Telegram alerts show
+it instead of the address.
 
 Up to six per wallet, lowercased, so `Insider` and `insider ` do not become two different things. They never mix
 with the tags an analysis computes, and they come out in the CSV.

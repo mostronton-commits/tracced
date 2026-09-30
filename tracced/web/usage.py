@@ -156,6 +156,12 @@ CLICKS = {"card-open": "Opened a wallet card", "card-close": "Closed a wallet ca
           "range-add": "Added a range", "range-reset": "Reset the ranges", "tf": "Changed the timeframe", "chart-nav": "Jumped on the chart",
           "list-tab": "Switched a list", "copy": "Copied an address", "ext": "Followed a link out", "cur": "Switched USD/SOL",
           "tz": "Switched UTC/local", "leave": "Left a page", "egg": "Found an easter egg"}
+# що на сайті можна натиснути зараз: з цього списку — «ніхто не користувався» (прибрані кнопки сюди не входять,
+# інакше вони висіли б у списку вічно)
+UI_FEATURES = ("card-open", "card-period", "pin", "sort", "filter", "hide", "filters-toggle", "filters-reset", "funder", "finding",
+               "select", "select-all", "export", "show-more", "agent-open", "range-set", "range-add", "range-reset", "tf",
+               "chart-nav", "list-tab", "copy", "ext", "cur", "tz")
+PAGE_NAMES = {"job": "On a result", "token": "On a token's chart", "me": "In Lists", "home": "On the home page", "docs": "In the docs"}
 FUNNEL = (("result", "Opened a result"), ("card", "Opened a wallet card"), ("run", "Ran an analysis"),
           ("keep", "Saved or exported"), ("agent", "Asked the agent"))
 LIMITS = {"run": "Live analyses", "browse": "Charts of new tokens", "age-card": "Age checks from cards",
@@ -534,6 +540,16 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
         f["times"] += 1
         f["wallets"].add(e["pubkey"])
     features = sorted(({**f, "wallets": len(f["wallets"])} for f in feats.values()), key=lambda f: (-f["wallets"], -f["times"]))
+    # те саме, згруповане за сторінкою, де натискали; і те, чого ніхто не натискав, — кандидати сховати чи прибрати
+    feature_groups = []
+    for pg in list(PAGE_NAMES) + sorted({f["page"] or "" for f in features} - set(PAGE_NAMES)):
+        items = [f for f in features if (f["page"] or "") == pg]
+        if items:
+            feature_groups.append({"page": pg, "label": PAGE_NAMES.get(pg, "Elsewhere"), "rows": items})
+    # «найчастіше» — лише дії, а не закриття панелей і пасхалки: закрити картку після відкриття — не окрема функція
+    features_top = [f for f in features if f["name"] not in ("card-close", "agent-close", "filters-toggle", "egg")][:8]
+    used = {f["name"] for f in features}
+    unused = [CLICKS[n] for n in UI_FEATURES if n not in used and n in CLICKS]
     viewers = {}
     for e in in_p:
         if e["event"] == "view" and e.get("page") == "token" and e.get("ref"):
@@ -556,7 +572,7 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
     for e in runs_p:
         if e.get("pad"):
             pads[e["pad"]] = pads.get(e["pad"], 0) + 1
-    tokens["pads"] = sorted(({"pad": k, "n": n} for k, n in pads.items()), key=lambda x: -x["n"])
+    tokens["pads"] = sorted(({"pad": k, "label": k, "n": n} for k, n in pads.items()), key=lambda x: -x["n"])
     lim = {}
     for e in in_p:
         if e["event"] == "limit":
@@ -568,7 +584,7 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
     limits = sorted(({**x, "wallets": len(x["wallets"])} for x in lim.values()), key=lambda x: -x["times"])
     errs = {}
     for e in in_p:
-        if e["event"] == "error":
+        if e["event"] == "error" and e.get("where") != "favicon.ico":        # браузер сам питає іконку: людина цієї помилки не бачить
             x = errs.setdefault((e.get("where"), e.get("status"), e.get("msg")), {"where": e.get("where"), "status": e.get("status"),
                                                                               "msg": e.get("msg"), "times": 0, "wallets": set()})
             x["times"] += 1
@@ -591,7 +607,7 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
             "pulse": pulse, "key": key_nums, "daily": series, "funnel": funnel, "funnel_base": len(active), "returning": returning,
             "sessions": sessions, "came_back": came_back, "activation": {"n": len(activated), "of": len(new)},
             "ttfa_median_h": _median(ttfa), "runs": runs[:100], "runs_n": len(runs), "run_stats": run_stats, "costs": costs,
-            "ai": ai, "users": users, "features": features, "tokens": tokens, "limits": limits, "onchain": onchain_sum,
+            "ai": ai, "users": users, "features": features, "feature_groups": feature_groups, "features_top": features_top, "unused": unused, "tokens": tokens, "limits": limits, "onchain": onchain_sum,
             "errors": errors, "fails": sorted(({"err": k, "n": n} for k, n in fails.items()), key=lambda x: -x["n"]),
             "devices": {"phone": len(phone), "computer": len(computer)},
             "questions": sum(1 for e in in_p if e["event"] == "agent" and e.get("kind") == "ask")}
