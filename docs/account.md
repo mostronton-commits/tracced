@@ -94,7 +94,7 @@ is used and what it costs to run:
   30 days of trading as counted by tracced's own ledger, and public identity labels (a KOL name or an X account, if
   it has one).
 
-Only the owner sees it. It is never sold or shared, and it is kept for about a year. Signing out stops it.
+Only the owner sees it. It is never sold or shared, and it is kept for 13 months. Signing out stops it.
 
 Without a wallet, the log holds nothing about you: visits are counted by Umami, which sets no cookies and never gets
 a wallet address.

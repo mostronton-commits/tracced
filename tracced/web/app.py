@@ -58,7 +58,7 @@ MINT_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 MAX_CANDLES = 1500          # скільки свічок має сенс просити за раз: більше — і джерело мовчки обріже відповідь
 ACCT_COOKIE = "early_acct"          # вхід гаманцем — єдиний вхід на сайті
 DEVICE_COOKIE = "early_dev"         # випадкове число браузера для добової стелі аналізів; нічого іншого в ньому нема
-DEVICE_DAYS = 365
+DEVICE_DAYS = 90            # лічильник доби не потребує року: 90 днів — і менше, що пояснювати в політиці (юр. огляд 01.10)
 ACCT_DAYS = 30
 
 env = Environment(loader=FileSystemLoader(str(HERE / "templates")),
