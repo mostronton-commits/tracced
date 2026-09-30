@@ -1172,7 +1172,7 @@ header.top { position: relative; z-index: 45; }
 /* 30.09: the range is set on the chart or by a quick range; the time fields wait behind ✎, since the first traders typed
    dates instead of clicking the chart */
 .chartbox .overlay .win.ghost { background: rgba(167, 243, 208, .07); border-left: 1px dashed rgba(52, 211, 153, .7); border-right: 1px dashed rgba(52, 211, 153, .7); }
-.chartbox .overlay .win.ghost .gl { font: 600 11px/1 var(--sans); color: var(--navy); background: var(--mint); border: 0; border-radius: 999px; padding: 5px 9px; cursor: pointer; box-shadow: 0 4px 14px -6px rgba(0, 0, 0, .6); }
+.chartbox .overlay .win.ghost .gl { top: auto; bottom: 12px; left: 50%; transform: translateX(-50%); max-width: none; font: 600 11px/1 var(--sans); color: var(--navy); background: var(--mint); border: 0; border-radius: 999px; padding: 5px 9px; cursor: pointer; box-shadow: 0 4px 14px -6px rgba(0, 0, 0, .6); }
 .chartbox .overlay .win.ghost .gl:hover { background: #6EE7B7; }
 .wrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
 .wrow .label { flex: 0 1 auto; min-width: 90px; }
