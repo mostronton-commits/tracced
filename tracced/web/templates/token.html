@@ -26,7 +26,7 @@
     <div class="stepx"><b>Choose the range</b></div>
 
   </div>
-  <div class="chartbox" id="chart"></div>
+  <div class="chartbox" id="chart"><div class="charthint" id="charthint" hidden></div></div>
 
   {% set limits_tip = 'Up to ' ~ s.ranges_per_token ~ ' ranges per token, ' ~ s.max_window_hours ~ ' h each. ' ~ early_note %}
   <div class="stepbar small"><span class="stepn">03</span><div class="stepx"><b>Analyze</b>{% if is_demo %}<span>Press Analyze on a pump to watch the run</span>{% elif not acct %}<span title="Analyze asks for a wallet: a signature, no transaction. {{ limits_tip }}">Free in beta</span>
@@ -138,18 +138,19 @@
     },
   });
   let step = 0;
-  /* The one thing the first trader could not find: that the chart itself is the control. A line of text was not read,
-     and its three copies cluttered the page (owner, 30.09), so a first-time visitor sees the clicks themselves: a cursor on
-     the chart clicks where buying starts and where the pump takes off, round and round, until they click. Whoever has
-     marked a range once does not see it again */
+  /* The one thing the first trader could not find: that the chart itself is the control. So while the range is empty
+     the chart shows it twice over: a label on it says what to click, and a cursor clicks there, a band growing between
+     the two clicks. The label changes after the first click and both go with the second (owner, 30.09: a line of text
+     beside the chart was not read; an animation only for first-time visitors was never seen by the owner) */
   if (!DEMO) document.getElementById('chart').classList.add('pickable');   // a crosshair, because the canvas is the control
   const TOUCH = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches), VERB = TOUCH ? 'Tap' : 'Click';
+  const hintEl = document.getElementById('charthint');
   function hint() {
-    let done = false;
-    try { done = localStorage.getItem('early:hinted') === '1'; } catch (e) {}
     const r = state.rows[state.sel] || {};
-    if (DEMO || done || locked(r)) { ch.setDemo(null); return; }
-    ch.setDemo(step === 1 && r.from ? { after: parse(r.from) } : (r.from && r.to ? null : 'two'));
+    const empty = !DEMO && !locked(r) && (step === 1 || !(r.from && r.to));
+    ch.setDemo(!empty ? null : step === 1 && r.from ? { after: parse(r.from) } : 'two');
+    hintEl.textContent = step === 1 ? 'Now ' + VERB.toLowerCase() + ' where the pump takes off' : VERB + ' where buying starts';
+    hintEl.hidden = !empty;
   }
   /* The token's own life on the chart: when trading left the launchpad, when someone paid DexScreener for
      visibility. Costs no Solana Tracker requests, and a failure just leaves the chart without them. */

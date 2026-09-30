@@ -11,25 +11,34 @@
   <p class="muted small">Each person gets {{ s.runs_per_day|per_day }} with a connected wallet; the demo is always open.</p>
 </section>
 {% else %}
+{% if alerts_ok %}
+{# the alerts are a thing of their own (owner, 30.09: a strip inside the lists looked weak): what they are, the switch,
+   the settings, and one example of what comes to the chat #}
+<section class="card tgcard{{ ' on' if tg.linked }}" id="tgbar">
+  <div class="tgrow">
+    <span class="tglogo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.7 4.4 3.4 11.1c-1.2.5-1.2 1.2-.2 1.5l4.4 1.4 1.7 5.2c.2.6.4.8.8.8.4 0 .6-.2.9-.5l2.1-2 4.4 3.3c.8.4 1.4.2 1.6-.8l2.9-13.6c.3-1.2-.5-1.7-1.3-1.4Z" fill="currentColor"/></svg></span>
+    <div class="tgtx">
+      <b>Telegram alerts</b>
+      <span id="tgtext">{% if tg.linked %}<i class="tgdot"></i>Connected as <b>{{ tg.user or 'your Telegram' }}</b>{% else %}The buys and sells of your wallets, seconds after they happen{% endif %}</span>
+    </div>
+    <div class="tgprefs" id="tgprefs"{% if not tg.linked %} hidden{% endif %}>
+      <button type="button" class="tgt{{ ' on' if prefs.buys }}" id="tgbuys" aria-pressed="{{ 'true' if prefs.buys else 'false' }}">Buys</button>
+      <button type="button" class="tgt{{ ' on' if prefs.sells }}" id="tgsells" aria-pressed="{{ 'true' if prefs.sells else 'false' }}">Sells</button>
+      <label class="tgmin">from $<input type="number" id="tgmin" min="0" step="10" value="{{ prefs.min_usd|round|int }}" aria-label="Smallest trade to alert on, in dollars"></label>
+    </div>
+    <button type="button" class="primary tgbtn" id="tgconnect"{% if tg.linked %} hidden{% endif %}>Connect Telegram</button>
+    <button type="button" class="link" id="tgunlink"{% if not tg.linked %} hidden{% endif %}>Disconnect</button>
+  </div>
+  <p class="tghint" id="tghint"{% if not tg.linked %} hidden{% endif %}>Turn on the bell <i class="lbell"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2V7.4a4 4 0 0 1 8 0v3.8l1.2 1.4H2.8z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/></svg></i> on a list below: the trades of its wallets come to the chat.</p>
+  <div class="tgsample" aria-hidden="true"><div class="tgbub">🟡 <span class="tgl"><b>$BRICK</b></span> 🆕 · MC $464K · <span class="tgl">tx</span><br><br><span class="tgl">whale</span> · <b>$2K</b></div></div>
+</section>
+{% endif %}
 <section class="card me" id="list">
   <div class="row mehead">
     <h2>Lists</h2><span class="muted small" id="wcount">{{ wallets|length }} wallet{{ '' if wallets|length == 1 else 's' }}</span>
     {% if wallets %}<div class="menu right"><button type="button" class="ghost" data-menu>↓ Export</button>
       <div class="menu-panel r" hidden><a href="/me/wallets.csv" id="xcsv">CSV <small>all columns</small></a><button type="button" id="xtxt">TXT <small>addresses only</small></button></div></div>{% endif %}
   </div>
-  {% if alerts_ok %}
-  <div class="tgbar{{ ' on' if tg.linked }}" id="tgbar">
-    <span class="tgico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2V7.4a4 4 0 0 1 8 0v3.8l1.2 1.4H2.8z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/></svg></span>
-    <span class="tgtext" id="tgtext">{% if tg.linked %}Telegram <b>{{ tg.user or 'connected' }}</b>{% else %}Alerts in Telegram: buys and sells of the wallets in a list with the bell on{% endif %}</span>
-    <span class="tgprefs" id="tgprefs"{% if not tg.linked %} hidden{% endif %}>
-      <label><input type="checkbox" id="tgbuys"{% if prefs.buys %} checked{% endif %}> Buys</label>
-      <label><input type="checkbox" id="tgsells"{% if prefs.sells %} checked{% endif %}> Sells</label>
-      <label>from $<input type="number" id="tgmin" min="0" step="10" value="{{ prefs.min_usd|round|int }}" aria-label="Smallest trade to alert on, in dollars"></label>
-    </span>
-    <button type="button" class="primary" id="tgconnect"{% if tg.linked %} hidden{% endif %}>Connect Telegram</button>
-    <button type="button" class="link" id="tgunlink"{% if not tg.linked %} hidden{% endif %}>Disconnect</button>
-  </div>
-  {% endif %}
   <div class="ltabs" role="tablist" id="ltabs">
     <button type="button" class="ltab on" data-list="" role="tab">All <b>{{ wallets|length }}</b></button>
     {% for l in lists %}<button type="button" class="ltab" data-list="{{ l.id }}" data-alerts="{{ 1 if l.alerts else 0 }}" role="tab">{{ l.name }} <b>{{ l.n }}</b>{% if alerts_ok %}<i class="lbell" title="Alerts on"{% if not l.alerts %} hidden{% endif %}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2V7.4a4 4 0 0 1 8 0v3.8l1.2 1.4H2.8z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/></svg></i>{% endif %}</button>{% endfor %}
@@ -37,14 +46,13 @@
     <span class="lacts" id="lacts" hidden>{% if alerts_ok %}<button type="button" class="link lalert" id="lalert"></button> · {% endif %}<button type="button" class="link" id="lrename">Rename</button> · <button type="button" class="link" id="ldelete">Delete this list</button></span>
   </div>
   {% if wallets %}
-  {# a list is for watching: who the wallet is to you and which pump you found it in. Its numbers open in the card (owner, 30.09) #}
+  {# a list is for watching: the wallet and your tags for it, added right in the row; its numbers open in the card (owner, 30.09) #}
   <div class="tablewrap"><table class="facts melist mewl"><thead><tr>
-    <th>Wallet</th><th title="The analysis you saved it from">Found in</th><th></th>
+    <th>Wallet <span class="muted">· your tags</span></th><th></th>
   </tr></thead><tbody>
   {% for w in wallets %}
     <tr data-w="{{ w.wallet }}" data-lists="{{ (w.lists or ['main'])|join(' ') }}" tabindex="0" title="Open the wallet card">
-      <td><span class="wlrow"><span class="wavs" aria-hidden="true"></span><span class="wnm">{% if w.my_tags %}<b>{{ w.my_tags|join(', ') }}</b>{% endif %}<span class="mono{{ ' muted' if w.my_tags }}">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</span></span></span></td>
-      <td class="src">{% if w.from_job %}<a href="/job/{{ w.from_job }}" title="Open that analysis{% if w.pump %}: {{ w.pump.range }}{% endif %}">{{ '$' ~ w.symbol if w.symbol else (w.mint or '')[:6] }} pump</a>{% if w.pump %} <span class="muted small">{{ w.pump.day }}</span>{% endif %}{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td><span class="wlrow"><span class="wavs" aria-hidden="true"></span><span class="mono wadr">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</span><span class="mytags">{% for t in w.my_tags or [] %}<button type="button" class="tag mine" title="Click to remove">{{ t }}</button>{% endfor %}<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd" title="Add your own tag: it names the wallet here and in the alerts" aria-label="Add your own tag"{% if (w.my_tags or [])|length >= max_my_tags %} hidden{% endif %}><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg></button></span></span></td>
       <td class="rm"><button type="button" class="ghost x" data-rm-wallet title="Remove from this list" aria-label="Remove from this list">×</button></td>
     </tr>
   {% endfor %}
@@ -132,10 +140,12 @@
     drawer.hidden = true; document.body.classList.remove('drawer-open');
     document.querySelectorAll('tr.carded').forEach(r => r.classList.remove('carded'));
   }
-  function nameRow(w) {                                    // the row says what the card says: your tags, then the address
-    const m = META[w] || {}, tr = rowOf(w); if (!tr) return;
-    const tags = m.my_tags || [];
-    tr.querySelector('.wnm').innerHTML = (tags.length ? '<b>' + esc(tags.join(', ')) + '</b>' : '') + '<span class="mono' + (tags.length ? ' muted' : '') + '">' + short(w) + '</span>';
+  function nameRow(w) {                                    // the row's tags follow the card's
+    const tr = rowOf(w); if (!tr) return;
+    const box = tr.querySelector('.mytags'), inp = box.querySelector('.tagin'), add = box.querySelector('.tagadd'), tags = (META[w] || {}).my_tags || [];
+    box.querySelectorAll('.tag.mine').forEach(b => b.remove());
+    tags.forEach(t => { const b = document.createElement('button'); b.type = 'button'; b.className = 'tag mine'; b.title = 'Click to remove'; b.textContent = t; box.insertBefore(b, inp); });
+    inp.hidden = true; inp.value = ''; add.hidden = tags.length >= MAX_TAGS;
   }
   function renderTags(w) {
     const mine = (META[w] || {}).my_tags || [];
@@ -184,6 +194,23 @@
   }
   if (drawer) {
     const tbody = document.querySelector('.mewl tbody');
+    // tags right in the row, as fast as before the card: + opens a field, Enter keeps the word, a click on a tag drops it
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-w]'); if (!tr) return;
+      const w = tr.dataset.w, mine = e.target.closest('.mytags .tag.mine');
+      if (mine) { saveTags(w, ((META[w] || {}).my_tags || []).filter(t => t !== mine.textContent)); return; }
+      if (e.target.closest('.mytags .tagadd')) { const inp = tr.querySelector('.tagin'); inp.hidden = false; e.target.closest('.tagadd').hidden = true; inp.focus(); }
+    });
+    tbody.addEventListener('keydown', e => {
+      const inp = e.target.closest('.mytags .tagin'); if (!inp) return;
+      const w = inp.closest('tr').dataset.w;
+      if (e.key === 'Escape') { e.stopPropagation(); nameRow(w); return; }
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const v = inp.value.trim(); if (!v) { nameRow(w); return; }
+      saveTags(w, ((META[w] || {}).my_tags || []).concat([v]));
+    });
+    tbody.addEventListener('focusout', e => { const inp = e.target.closest('.mytags .tagin'); if (inp && !inp.value.trim()) setTimeout(() => { if (!inp.contains(document.activeElement)) nameRow(inp.closest('tr').dataset.w); }, 0); });
     tbody.addEventListener('click', e => {
       if (e.target.closest('a, button, input')) return;          // the source link and × do their own thing
       const tr = e.target.closest('tr[data-w]'); if (tr) openCard(tr.dataset.w);
@@ -258,8 +285,8 @@
   }
   function tgShow(d) {
     tgLinked = !!d.linked; tgbar.classList.toggle('on', tgLinked);
-    document.getElementById('tgtext').innerHTML = tgLinked ? 'Telegram <b>' + EarlyTags.esc(d.user || 'connected') + '</b>' : 'Alerts in Telegram: buys and sells of the wallets in a list with the bell on';
-    document.getElementById('tgprefs').hidden = !tgLinked;
+    document.getElementById('tgtext').innerHTML = tgLinked ? '<i class="tgdot"></i>Connected as <b>' + EarlyTags.esc(d.user || 'your Telegram') + '</b>' : 'The buys and sells of your wallets, seconds after they happen';
+    document.getElementById('tgprefs').hidden = !tgLinked; document.getElementById('tghint').hidden = !tgLinked;
     document.getElementById('tgconnect').hidden = tgLinked; document.getElementById('tgunlink').hidden = !tgLinked;
   }
   async function tgConnect() {
@@ -280,9 +307,14 @@
     });
     let saveT = 0;
     const savePrefs = () => { clearTimeout(saveT); saveT = setTimeout(async () => {
-      try { await post('/me/alerts', { buys: document.getElementById('tgbuys').checked, sells: document.getElementById('tgsells').checked,
+      const on = id => document.getElementById(id).getAttribute('aria-pressed') === 'true';
+      try { await post('/me/alerts', { buys: on('tgbuys'), sells: on('tgsells'),
         min_usd: +document.getElementById('tgmin').value || 0 }); EarlyUI.toast('Saved'); } catch (x) { oops(x); } }, 600); };
-    ['tgbuys', 'tgsells', 'tgmin'].forEach(id => document.getElementById(id).addEventListener('change', savePrefs));
+    ['tgbuys', 'tgsells'].forEach(id => document.getElementById(id).addEventListener('click', e => {
+      const b = e.currentTarget, v = b.getAttribute('aria-pressed') !== 'true';
+      b.setAttribute('aria-pressed', String(v)); b.classList.toggle('on', v); savePrefs();
+    }));
+    document.getElementById('tgmin').addEventListener('change', savePrefs);
   }
   if (lalert) lalert.addEventListener('click', async () => {
     if (!current) return;

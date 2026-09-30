@@ -27,7 +27,7 @@ DEFAULTS = {
     # свіжі пампи на головній (власник, 30.09): створені за добу, капа ≥ $1M, ліквідність ≥ $80K, пік ≥ $2M; обіг за
     # добу ≥ 0.2 капи відсікає накручені клони (у них 0.00–0.08); холдери й угоди — щоб верх не займало сміття
     "fresh_on": True, "fresh_hours": 24, "fresh_min_mcap": 1_000_000, "fresh_min_liquidity": 80_000, "fresh_min_ath": 2_000_000,
-    "fresh_min_turnover": 0.2, "fresh_min_holders": 500, "fresh_min_trades": 1000, "fresh_show": 8, "fresh_max_candidates": 20,
+    "fresh_min_turnover": 0.2, "fresh_min_fees_sol": 1, "fresh_min_sell_ratio": 0.3, "fresh_min_holders": 500, "fresh_min_trades": 1000, "fresh_show": 8, "fresh_max_candidates": 20,
     "fresh_refresh_min": 10, "fresh_ath_ttl_min": 60,
     "alerts_size_usd": [1000, 10000],   # колір крапки — сума угоди: 🟢 до $1K, 🟡 до $10K, 🔴 від $10K (власник, 30.09)
     "alerts_ws_urls": ["wss://solana-rpc.publicnode.com", "wss://api.mainnet-beta.solana.com"],

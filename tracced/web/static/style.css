@@ -1269,15 +1269,38 @@ header.top { position: relative; z-index: 45; }
 .sumzone { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; margin: 2px 0 12px; }
 .sumzone .kline.counts { margin: 0 2px; } .sumzone .fpills { margin: 0; }
 
-/* сповіщення в Telegram на сторінці списків: одна смужка (підключення і налаштування), дзвіночок на вкладці списку */
-.tgbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 4px 0 12px; padding: 10px 14px;
-  border: 1px solid var(--line); border-radius: var(--r); background: var(--bg); font-size: 13.5px; }
-.tgbar.on { background: #F0FDF4; border-color: #BBF7D0; }
-.tgico svg, .lbell svg { width: 15px; height: 15px; display: block; }
-.tgbar .tgtext { flex: 1 1 260px; color: var(--ink); }
-.tgprefs { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.tgprefs label { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 13px; }
-.tgprefs input[type=number] { width: 80px; padding: 4px 6px; }
+/* сповіщення в Telegram: окрема картка над списками (власник, 30.09: смужка всередині списків виглядала слабко) —
+   що це, перемикач, налаштування і зразок повідомлення праворуч; дзвіночок на вкладці списку */
+.tgcard { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 28px; align-items: center;
+  background: linear-gradient(135deg, #F2F9FE 0%, #FFFFFF 60%); border-color: #D6EBF8; }
+.tgrow { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; min-width: 0; }
+.tglogo { flex: none; width: 42px; height: 42px; border-radius: 50%; background: #2AABEE; color: #fff; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 6px 16px -8px rgba(42, 171, 238, .9); }
+.tglogo svg { width: 22px; height: 22px; margin-left: -2px; }
+.tgtx { display: flex; flex-direction: column; gap: 2px; flex: 1 1 220px; min-width: 0; }
+.tgtx > b { font-size: 16px; } .tgtx span { color: var(--muted); font-size: 13.5px; } .tgtx span b { color: var(--ink); }
+.tgdot { display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 50%; background: #22C55E; box-shadow: 0 0 0 3px rgba(34, 197, 94, .18); vertical-align: 1px; }
+.tgprefs { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tgt { height: 32px; padding: 0 12px; border-radius: 999px; font-size: 13px; color: var(--muted); background: var(--surface); }
+.tgt.on { color: #075985; background: #E0F2FE; border-color: #7DD3FC; }
+.tgt.on::before { content: "✓"; font-weight: 700; margin-right: 2px; }
+.tgmin { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 13px; }
+.tgmin input[type=number] { width: 84px; height: 32px; padding: 0 8px; }
+.tgbtn { background: #2AABEE; border-color: #229ED9; color: #fff; }
+.tgbtn:hover { background: #229ED9; border-color: #1E8EC4; }
+.tghint { grid-column: 1; margin: 12px 0 0; color: var(--muted); font-size: 13px; } .tghint .lbell { color: #15803D; margin: 0 2px; }
+.tghint .lbell svg { display: inline-block; vertical-align: -3px; }
+.tgsample { grid-column: 2; grid-row: 1 / span 2; padding: 12px 14px; border-radius: 14px; background: #D9E8F2; }
+.tgbub { position: relative; max-width: 230px; padding: 8px 11px; border-radius: 12px 12px 12px 4px; background: #fff; color: var(--ink);
+  font: 12.5px/1.35 var(--sans); box-shadow: 0 1px 1px rgba(15, 23, 42, .08); white-space: nowrap; }
+.tgbub .tgl { color: #1E88D0; }
+@media (max-width: 860px) { .tgcard { grid-template-columns: 1fr; } .tgsample { display: none; } }
+/* Lists: your tags right in the row, added there */
+.mewl .wadr { flex: none; }
+.mewl .mytags { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
+.mewl .mytags .tag.mine { margin: 0; }
+.mewl .mytags .tagin { width: 120px; height: 24px; min-width: 0; padding: 0 7px; font-size: 12px; }
+.lbell svg { width: 15px; height: 15px; display: block; }
 .ltab .lbell { display: inline-block; margin-left: 5px; vertical-align: -2px; color: #15803D; }
 .lalert.on { color: #15803D; font-weight: 600; }
 
@@ -1307,20 +1330,35 @@ header.top { position: relative; z-index: 45; }
   .mewl .wnm b { max-width: 100%; white-space: nowrap; }
 }
 
-/* ── home: fresh pumps of the last day, each a way into its chart (30.09) ── */
-.fgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
-.ftok { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 12px;
-  background: var(--surface); color: var(--ink); transition: border-color .12s ease, transform .12s ease; }
-.ftok:hover { border-color: #CBD5E1; transform: translateY(-1px); }
-.fimg { position: relative; flex: none; width: 34px; height: 34px; border-radius: 50%; overflow: hidden; background: #F1F5F9;
-  display: flex; align-items: center; justify-content: center; font-weight: 600; color: var(--muted); }
+/* ── home: the day's fresh pumps as a tape along the bottom of the hero, right to left, stopping under the pointer ── */
+.ftape { position: relative; z-index: 1; display: flex; align-items: center; gap: 18px; max-width: var(--page); margin: 0 auto;
+  padding: 0 24px 26px; }
+.ftape-h { flex: none; display: inline-flex; align-items: center; gap: 8px; font: 600 11.5px/1 var(--mono); letter-spacing: .08em;
+  text-transform: uppercase; color: var(--mint); cursor: help; }
+.ftape-h small { color: #64748B; font-weight: 500; letter-spacing: .02em; }
+.flive { width: 8px; height: 8px; border-radius: 50%; background: #34D399; animation: flive 1.8s ease-out infinite; }
+@keyframes flive { 0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, .6); } 100% { box-shadow: 0 0 0 10px rgba(52, 211, 153, 0); } }
+.ftape-win { flex: 1; min-width: 0; overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 48px, #000 calc(100% - 48px), transparent 100%);
+          mask-image: linear-gradient(90deg, transparent 0, #000 48px, #000 calc(100% - 48px), transparent 100%); }
+.ftape-track { display: flex; width: max-content; animation: ftape var(--dur, 40s) linear infinite; }
+.ftape:hover .ftape-track, .ftape:focus-within .ftape-track { animation-play-state: paused; }
+@keyframes ftape { to { transform: translateX(-50%); } }
+.ftk { display: inline-flex; align-items: center; gap: 9px; margin-right: 10px; padding: 6px 14px 6px 6px; border: 1px solid rgba(167, 243, 208, .16);
+  border-radius: 999px; background: rgba(15, 23, 42, .78); color: #E2E8F0; font-size: 13px; white-space: nowrap;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease; }
+.ftk:hover { border-color: rgba(167, 243, 208, .6); background: rgba(6, 78, 59, .45); transform: translateY(-1px); }
+.fimg { position: relative; flex: none; width: 26px; height: 26px; border-radius: 50%; overflow: hidden; background: #1E293B;
+  display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px; color: #94A3B8; }
 .fimg::before { content: attr(data-l); }
 .fimg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.ftx { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-.fl1 { display: flex; align-items: baseline; gap: 6px; min-width: 0; } .fl1 b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fl1 small { color: #94A3B8; font-size: 11px; white-space: nowrap; } .fage { margin-left: auto; font: 11px var(--mono); color: var(--muted); }
-.fl2 { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .fl2 b { color: var(--ink); font-weight: 600; }
-.fl2 i { font-style: normal; }
-@media (max-width: 1100px) { .fgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 560px) { .fgrid { grid-template-columns: 1fr; } }
-@media (prefers-reduced-motion: reduce) { .ftok { transition: none; } .ftok:hover { transform: none; } }
+.ftk b { color: #F8FAFC; font-weight: 600; }
+.fpk { font: 600 12.5px var(--mono); color: #6EE7B7; }
+.fdr { font: 12px var(--mono); color: #FCA5A5; } .fup { font: 12px var(--mono); color: #6EE7B7; } .fag { font: 12px var(--mono); color: #64748B; }
+@media (max-width: 640px) { .ftape { flex-direction: column; align-items: stretch; gap: 12px; padding: 0 0 22px; } .ftape-h { padding: 0 16px; } }
+@media (prefers-reduced-motion: reduce) { .ftape-track { animation: none; } .ftape-win { overflow-x: auto; } .flive { animation: none; } .ftk { transition: none; } }
+/* the label on the chart while the range is empty: it pops in, then breathes, and goes with the second click */
+.chartbox .charthint:not([hidden]) { animation: hint-in .35s cubic-bezier(.2, 1.4, .4, 1) both, hint-breathe 2.4s ease-in-out .4s infinite; }
+@keyframes hint-in { from { opacity: 0; transform: translate(-50%, -6px) scale(.9); } }
+@keyframes hint-breathe { 50% { box-shadow: 0 0 0 6px rgba(167, 243, 208, .18); } }
+@media (prefers-reduced-motion: reduce) { .chartbox .charthint:not([hidden]) { animation: none; } }

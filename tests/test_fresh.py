@@ -9,9 +9,10 @@ NOW = 1_790_800_000_000
 H = 3_600_000
 
 
-def row(mint, cap, liq=100_000, vol=None, sym="X", age_h=5, image=""):
+def row(mint, cap, liq=100_000, vol=None, sym="X", age_h=5, image="", fees=50.0, buys=1000, sells=800):
     return {"mint": mint, "symbol": sym, "name": sym, "marketCapUsd": cap, "liquidityUsd": liq,
-            "volume_24h": cap if vol is None else vol, "createdAt": NOW - age_h * H, "image": image}
+            "volume_24h": cap if vol is None else vol, "createdAt": NOW - age_h * H, "image": image,
+            "fees": {"total": fees}, "buys": buys, "sells": sells}
 
 
 class TestPick(unittest.TestCase):
@@ -20,6 +21,14 @@ class TestPick(unittest.TestCase):
         c = F.candidates([row("UDR", 3.45e9, 5.3e6, 4.65e5), row("SI", 5e6, 2.65e5, 1.56e7), row("SI", 5e6, 2.65e5, 1.56e7),
                           row("LOW", 9e5), row("DRY", 2e6, liq=5e4), {"bad": 1}, None], S)
         self.assertEqual([x["mint"] for x in c], ["SI"])                      # no clone, no double, nothing under the bars
+
+    def test_an_always_rising_chart_stays_out(self):
+        # JUMP, 30.09: $2.9M cap, a day's volume 12× the cap, no fees paid by anyone, 32,380 buys to 4,345 sells
+        jump = row("JUMP", 2.9e6, 4.1e5, 3.5e7, fees=0.0, buys=32380, sells=4345)
+        bandit = row("BANDIT", 1.3e6, 1.09e5, 1e6, fees=358.9, buys=2879, sells=1909)
+        self.assertEqual([x["mint"] for x in F.candidates([jump, bandit], S)], ["BANDIT"])
+        self.assertEqual(F.candidates([row("A", 2e6, fees=0.4)], S), [])                     # hardly any fees: no live trading
+        self.assertEqual(F.candidates([row("B", 2e6, buys=1000, sells=100)], S), [])          # one sell to ten buys
 
     def test_the_peak_decides_and_sorts(self):
         c = F.candidates([row("A", 1.5e6), row("B", 3e6), row("C", 1.2e6)], S)

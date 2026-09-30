@@ -1050,7 +1050,7 @@ if AioHTTPTestCase:
             html = await (await self.client.get("/")).text()
             self.assertIn('id="fresh"', html)
             self.assertIn('href="/token?mint=' + "M" * 44 + '"', html)            # a way into its chart
-            self.assertIn("peak <b>$12M</b>", html)
+            self.assertIn('<span class="fpk" title="The highest market cap it reached">$12M</span>', html)
             self.assertIn("−75%", html)
             self.assertIsNone(CYRILLIC.search(html))
             self.app["fresh"].update(rows=[], at=0)

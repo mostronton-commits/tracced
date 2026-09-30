@@ -233,7 +233,8 @@ def message(ev, wallet, sub, token, site="https://tracced.xyz", ca=True, sizes=N
     head.append(f"<a href=\"https://solscan.io/tx/{ev['sig']}\">tx</a>")
     tags = [e(t, 24) for t in (sub.get("tags") or [])[:3]]
     who = f"<a href=\"https://solscan.io/account/{wallet}\">{', '.join(tags) if tags else short(wallet)}</a>"
-    return " · ".join(head) + (f"\n<code>{ev['mint']}</code>" if ca else "") + f"\n{who} · <b>{money(ev['usd'])}</b>"
+    # рядки через порожній рядок: у стрічці Telegram так легше читати (власник, 30.09)
+    return "\n\n".join([" · ".join(head)] + ([f"<code>{ev['mint']}</code>"] if ca else []) + [f"{who} · <b>{money(ev['usd'])}</b>"])
 
 
 def token_facts(report):

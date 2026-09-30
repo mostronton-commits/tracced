@@ -112,7 +112,7 @@ class TestCodesAndText(unittest.TestCase):
         ev = {"side": "buy", "mint": TOKEN, "usd": 1234.5, "sig": "SIG9", "new": True}
         sub = {"lists": ["Main"], "src": "W&F", "tags": ["<u>whale</u>", "kol"]}      # the pump it came from stays out
         text = A.message(ev, W, sub, {"symbol": "<i>X</i>", "mcap": 250_000}, "https://dev.tracced.xyz")
-        self.assertEqual(text.split("\n"), [
+        self.assertEqual(text.split("\n\n"), [
             '🟡 <a href="https://dev.tracced.xyz/token?mint=' + TOKEN + '"><b>$&lt;i&gt;X&lt;/i&gt;</b></a> 🆕 · MC $250K · <a href="https://solscan.io/tx/SIG9">tx</a>',
             "<code>" + TOKEN + "</code>",
             '<a href="https://solscan.io/account/' + W + '">&lt;u&gt;whale&lt;/u&gt;, kol</a> · <b>$1.2K</b>'])
@@ -120,7 +120,8 @@ class TestCodesAndText(unittest.TestCase):
         self.assertNotIn("Main", text)
         again = A.message(ev, W, sub, {"symbol": "X"}, ca=False)
         self.assertNotIn(TOKEN + "</code>", again)                                   # the token's address only the first time
-        self.assertEqual(len(again.split("\n")), 2)
+        self.assertEqual(len(again.split("\n\n")), 2)
+        self.assertNotIn("\n\n\n", text)
         bare = A.message(dict(ev, new=False), W, {}, {})
         self.assertIn(">" + A.short(W) + "</a> · <b>$1.2K</b>", bare)              # no tag: the short address
         self.assertTrue(bare.startswith("🟡 <a href=\"https://tracced.xyz/token?mint=" + TOKEN + "\"><b>" + A.short(TOKEN) + "</b></a> · bought more · <a"), bare)

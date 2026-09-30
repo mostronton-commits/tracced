@@ -4,7 +4,8 @@
 за добу лише 1 такий токен з 22 свіжих, GeckoTerminal віддає нові пули по 20 — це хвилини, не доба.
 
 Накрутку капи відсікає обіг: у клонів з капою $200M–3.4B і ~3000 холдерів обіг за добу 0.00–0.08 капи, у справжніх
-пампів — 0.2–11. Тут лише чиста логіка і запити через переданий клієнт; коли оновлювати — вирішує app.py."""
+пампів — 0.2–11. «Вічно зростаючі» токени — нуль комісій трейдерів і мало продажів. Тут лише чиста логіка і запити
+через переданий клієнт; коли оновлювати — вирішує app.py."""
 import time
 import urllib.parse
 
@@ -38,6 +39,12 @@ def candidates(rows, s):
         if cap < float(s.get("fresh_min_mcap", 1_000_000)) or liq < float(s.get("fresh_min_liquidity", 80_000)):
             continue
         if vol < float(s.get("fresh_min_turnover", 0.2)) * cap:
+            continue
+        # «вічно зростаючий» графік (JUMP, AXIS, 30.09): ні пріоритетних комісій, ні чайових — жодного живого бота чи
+        # трейдера, і на вісім купівель один продаж. У справжніх пампів комісій 200–3200 SOL, продажів 0.66–0.85 від купівель
+        fees = _num((r.get("fees") or {}).get("total")) if isinstance(r.get("fees"), dict) else _num(r.get("fees"))
+        buys, sells = _num(r.get("buys")), _num(r.get("sells"))
+        if fees < float(s.get("fresh_min_fees_sol", 1)) or (buys and sells < float(s.get("fresh_min_sell_ratio", 0.3)) * buys):
             continue
         seen.add(r["mint"])
         img = r.get("image") or ""

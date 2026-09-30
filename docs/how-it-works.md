@@ -17,9 +17,11 @@ nothing: the trades are already here.
 A token gets there when, in the last {{ s.fresh_hours|int }} hours, it was created, reached a
 ${{ '{:,}'.format(s.fresh_min_ath|int) }} market cap, still holds ${{ '{:,}'.format(s.fresh_min_mcap|int) }} with
 ${{ '{:,}'.format(s.fresh_min_liquidity|int) }} of liquidity, and is really traded: a day's volume of at least
-{{ (100 * s.fresh_min_turnover)|round|int }}% of its cap. That last rule drops clones with caps in the hundreds of
-millions and almost no trading, a common trick with new tokens. Biggest peak first, refreshed every
-{{ s.fresh_refresh_min|int }} minutes. A click opens the chart, where you mark the range.
+{{ (100 * s.fresh_min_turnover)|round|int }}% of its cap, traders paying network fees, and at least
+{{ (100 * s.fresh_min_sell_ratio)|round|int }} sells for every 100 buys. Those rules drop two common tricks: clones with
+caps in the hundreds of millions and almost no trading, and charts that only go up, bought by one bot that pays no
+fees and never sells. Biggest peak first; the list is refreshed at most every {{ s.fresh_refresh_min|int }} minutes,
+and only while someone opens the home page. A click opens the chart, where you mark the range.
 
 ## Where the numbers come from
 
