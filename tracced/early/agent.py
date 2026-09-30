@@ -16,6 +16,9 @@ import copy
 import json
 import re
 import statistics
+from collections import Counter
+
+from . import exchanges
 import time
 
 from .assistant import AssistantError
@@ -236,7 +239,8 @@ def digest(r, watch=None, asked=None):
                "sold": f"{x['sold_share_pct']:g}%" if x.get("sold_share_pct") is not None else None,
                "held": held(x.get("hold_minutes")), "buys": x.get("buys"), "sells": x.get("sells"), "tags": tags(x)}
         if f:
-            out["funded_by"] = sw(f) + (" (exchange or app)" if f in services else "")
+            ex = exchanges.name_of(f)
+            out["funded_by"] = f"{ex} (exchange)" if ex else sw(f) + (" (exchange or app)" if f in services else "")
         out["apps"] = apps_of(x["wallet"])
         return {k: v for k, v in out.items() if v not in (None, [], "")}
 
@@ -318,7 +322,8 @@ def digest(r, watch=None, asked=None):
         "tags": {"checked_for_age_and_funder": checked, "fresh": len(fresh), "in_bundles": len(bundle),
                  "snipers": sum(1 for x in rows if "sniper" in (x.get("tag_list") or [])),
                  "bot_like": sum(1 for x in rows if "bot-like" in (x.get("tag_list") or [])),
-                 "funded_by_exchanges_or_apps": sum(1 for f in funders.values() if f in services)},
+                 "funded_by_exchanges_or_apps": sum(1 for f in funders.values() if f in services or exchanges.name_of(f)),
+                 "funded_straight_from_exchanges": dict(Counter(n for n in map(exchanges.name_of, funders.values()) if n).most_common(6))},
         "bundles": bundles,
         "token_creator_bought_in_range": facts(rowmap[creator]) if creator in rowmap else "no",
         "top_by_pnl": [facts(x) for x in rows[:12]],

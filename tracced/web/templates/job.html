@@ -44,6 +44,7 @@
 
     {% if cov_text %}<p class="muted small cov">{{ cov_text }}</p>{% endif %}
 
+    <p class="verdict" id="verdict" hidden></p>
     <div class="stats">
       <div title="Wallets that bought inside the range — the list below"><b data-count="{{ sm.n }}" data-fmt="int">0</b><span>Bought in range</span></div>
       <div title="Sold 99% or more of what they bought"><b data-count="{{ sm.exited }}" data-fmt="int">0</b><span>Sold out</span></div>
@@ -210,6 +211,11 @@
       // what arrives after the page: the background checks (funders, ages, names) and the account (repeats, lists)
       let funders = {}, bundle = {}, crossings = {}, idents = {}, ages = {}, ageDone = false, palette = new Map();
       let services = new Set();                                  // funders that are exchanges or apps: they make no bundle
+      // known exchange hot wallets (Dune's open list): the funder column names the exchange, and one click shows every
+      // wallet funded from it, all its addresses together
+      const EXCH = {{ exchanges|tojson }};
+      const fundKey = w => { const x = funders[w]; return x && EXCH[x] ? 'x:' + EXCH[x][0] : (x || ''); };
+      const fundLabel = k => k && k.startsWith('x:') ? k.slice(2) : short(k);
       const onChart = [], MAX_ON_CHART = 10, BUY_C = '#34D399', SELL_C = '#F87171';
       const BUNDLE_PAL = ['#C4B5FD', '#FDBA74', '#7DD3FC', '#F9A8D4', '#FCD34D', '#A5B4FC', '#5EEAD4', '#FDA4AF', '#D8B4FE', '#BEF264'];
       const BUNDLE_MIN = {{ bundle_min }}, BURST_MS = {{ burst_ms }}, TAGDEF = {{ TAGS|tojson }};
@@ -244,7 +250,7 @@
         bundle = {};
         Object.entries(groups).forEach(([x, ws]) => {
           let keep = ws;
-          if (services.has(x)) {                                // most of them born together: a bundler here, so all of them
+          if (services.has(x) || EXCH[x]) {                     // most of them born together: a bundler here, so all of them
             const b = burst(ws), dated = ws.filter(w => ages[w] && ages[w].exact && ages[w].ms).length;
             keep = b.length * 2 > dated ? ws : b;
           }
@@ -276,6 +282,11 @@
       function fundHtml(o) {
         // who sent the wallet its first SOL; the full address in the tooltip, since two short ones can look alike
         const fnd = funders[o.w]; if (!fnd) return '';
+        if (EXCH[fnd]) {
+          const [ex, lab] = EXCH[fnd];
+          return '<button type="button" class="link fundb cex" data-fund="x:' + esc(ex) + '" title="First SOL came straight from ' + esc(lab) + ' (' + fnd
+            + ') · an exchange, not one operator · click to show every wallet funded from ' + esc(ex) + '">' + esc(ex) + '</button>';
+        }
         const b = bundle[o.w], col = bundleColor(o.w), svc = services.has(fnd) ? ' · an exchange or an app (1,000+ transactions a day), not one operator' : '';
         return '<button type="button" class="link mono fundb' + (svc ? ' svc' : '') + '" data-fund="' + fnd + '" title="' + fnd + svc + ' · click to show every wallet it funded">'
           + (col ? '<i class="dot" style="--c:' + col + '"></i>' : '') + short(fnd) + '</button>' + (b ? '<small class="muted"> ×' + b.n + '</small>' : '');
@@ -319,7 +330,7 @@
       function exportSet() { return selected.size ? order.filter(o => selected.has(o.w)) : pass; }
       const okRow = o => o.inv >= f.inv && (f.pnl === null || o.real >= f.pnl) && o.sold >= f.sold && (!f.profit || o.real > 0) &&
         (!f.buysMax || o.buys <= f.buysMax) && (!f.hold || (o.hold || 0) >= f.hold) && (!f.exits || o.exit) &&
-        (!f.funder || funders[o.w] === f.funder) && (!f.repeat || !!crossings[o.w]) && !f.hide.some(t => o.tags.includes(t));
+        (!f.funder || fundKey(o.w) === f.funder) && (!f.repeat || !!crossings[o.w]) && !f.hide.some(t => o.tags.includes(t));
       function draw() {
         // the first `limit` rows that pass, plus any wallet pinned to the chart further down; a pinned wallet the
         // filters reject is drawn last and without a number, and is not in `pass`, so no action counts it. The same
@@ -348,9 +359,20 @@
           if (oc) tr.style.setProperty('--c', oc.bundleColor || BUY_C); else tr.style.removeProperty('--c');
         });
       }
+      // "nothing to dig here": when nearly all of the top wallets by PnL (the ones checked for age and funder) are fresh or
+      // in bundles, the launch was organised and the list holds few organic buyers. Said once the check is done
+      const VERDICT_PCT = {{ s.verdict_organised_pct or 90 }}, VERDICT_TOP = {{ s.age_lookups_max or 0 }};   // not AGE_N: apply() runs before it is declared
+      function verdict() {
+        const el = document.getElementById('verdict'), top = all.slice(0, VERDICT_TOP); if (!el) return;
+        const n = top.filter(o => o.tags.includes('fresh') || o.tags.includes('bundle')).length;
+        const pct = top.length >= 20 ? Math.round(100 * n / top.length) : 0;
+        el.hidden = !(ageDone && VERDICT_PCT && pct >= VERDICT_PCT);
+        if (!el.hidden) el.innerHTML = '<b>Organised launch.</b> ' + n + ' of the top ' + top.length + ' by PnL (' + pct + '%) are fresh or bundled wallets: little here is organic buying.';
+      }
       function apply() {
         pass = order.filter(okRow);
         draw();
+        verdict();
         const na = nActive(), n = pass.length, left = Math.max(0, n - limit);
         shown.textContent = (left ? Math.min(n, limit) + ' of ' + n + ' shown' : n + ' of ' + all.length) + (na ? ' · filtered' : '');
         more.hidden = !left; document.getElementById('more100').hidden = left <= 100; document.getElementById('moren').textContent = n;
@@ -532,7 +554,7 @@
       const msort = document.getElementById('msort');
       function sortBy(k, dir, text) {
         sortKey = k; sortDir = dir;
-        const val = o => k === 'funder' ? (funders[o.w] || '') : o[k];
+        const val = o => k === 'funder' ? fundKey(o.w) : o[k];
         order.sort((a, b) => text ? String(val(a) || '').localeCompare(String(val(b) || '')) * dir : ((+val(a) || 0) - (+val(b) || 0)) * dir);
         limit = LIMIT;
         table.querySelectorAll('th.sortable').forEach(x => x.classList.toggle('desc', x.dataset.key === k && dir < 0));
@@ -747,7 +769,9 @@
           out.push(st === 'connect' ? '<button type="button" class="dchip age q" id="dagego" title="' + why + '">age?</button>'
             : '<span class="dchip age q" title="' + why + '">' + (busy ? '…' : '?') + '</span>');
         }
-        if (fnd) out.push('<button type="button" class="dchip fund mono" id="dfund" data-fund="' + fnd + '" title="First SOL came from '
+        if (fnd && EXCH[fnd]) out.push('<button type="button" class="dchip fund cex" id="dfund" data-fund="x:' + esc(EXCH[fnd][0]) + '" title="First SOL came straight from '
+          + esc(EXCH[fnd][1]) + ' (' + fnd + '), an exchange · click to show every wallet funded from ' + esc(EXCH[fnd][0]) + ' here">↘ ' + esc(EXCH[fnd][0]) + '</button>');
+        else if (fnd) out.push('<button type="button" class="dchip fund mono" id="dfund" data-fund="' + fnd + '" title="First SOL came from '
           + fnd + (bn && bn.n > 1 ? ', which funded ' + bn.n + ' wallets here (bundle)' : services.has(fnd) ? ', an exchange or an app: over 1,000 transactions a day, so the wallets it funded are not a bundle' : '')
           + ' · click to show every wallet it funded here">↘ ' + short(fnd) + (bn && bn.n > 1 ? '<small>×' + bn.n + '</small>' : '') + '</button>');
         document.getElementById('dchips').innerHTML = out.join('');
@@ -755,7 +779,7 @@
         if (df) df.addEventListener('click', () => {                   // the table shows who else this funder paid for
           f.funder = df.dataset.fund; saveF(); limit = LIMIT; apply(); closeCard();
           EarlyUI.use('funder', { on: true });
-          EarlyUI.toast('Showing the wallets funded by ' + short(df.dataset.fund) + ' · Reset in the filters clears it');
+          EarlyUI.toast('Showing the wallets funded by ' + fundLabel(df.dataset.fund) + ' · Reset in the filters clears it');
         });
         const go = document.getElementById('dagego');
         if (go) go.addEventListener('click', () => EarlyWallet.open(() => { acctOn = true; ageTried.delete(w); loadMe().then(() => loadAge(w)); }));
@@ -971,7 +995,8 @@
           const fnd = fb.dataset.fund, b = bundle[w];
           f.funder = f.funder === fnd ? '' : fnd; saveF(); limit = LIMIT; apply();
           EarlyUI.use('funder', { on: !!f.funder });
-          EarlyUI.toast(f.funder ? 'Showing the ' + (b ? b.n : 1) + ' wallets funded by ' + short(fnd) + ' · click again to clear' : 'Funder filter cleared');
+          const nf = fnd.startsWith('x:') ? all.filter(o => fundKey(o.w) === fnd).length : (b ? b.n : 1);
+          EarlyUI.toast(f.funder ? 'Showing the ' + nf + ' wallets funded by ' + fundLabel(fnd) + ' · click again to clear' : 'Funder filter cleared');
           return;
         }
         if (e.target.closest('.t-seen-before.seen')) { cardSrc = 'seen'; toggleWallet(w, true); return; }
@@ -1093,7 +1118,7 @@
         if (++polls >= 120) return;
         setTimeout(() => { if (document.hidden) document.addEventListener('visibilitychange', tick, { once: true }); else tick(); }, 5000);
       };
-      const refresh = () => { if (!drawer.hidden && drawer.dataset.w) { renderIdent(drawer.dataset.w); renderWalletInfo(drawer.dataset.w); if (window.EarlyTZ) EarlyTZ.apply(); } };
+      const refresh = () => { verdict(); if (!drawer.hidden && drawer.dataset.w) { renderIdent(drawer.dataset.w); renderWalletInfo(drawer.dataset.w); if (window.EarlyTZ) EarlyTZ.apply(); } };
       // one dropped answer (a deploy, a flaky network) is asked again; the fourth in a row ends the checks for this view
       const lost = () => { if (++fails <= 3) { again(); return; } if (en) en.hidden = true; ageDone = true; refresh(); };
       const tick = async () => {

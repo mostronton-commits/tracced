@@ -91,6 +91,13 @@ most of what looked like bundles was one app's service wallet (154 of the buyers
 token, one wallet created 200 wallets in 41 minutes, and all of them bought within minutes of the launch: that is
 still a bundle, however busy its funder.
 
+When the first SOL came straight from a known exchange, "Funded by" names the exchange instead of an address:
+{{ EXCH_N }} hot wallets from Dune's open list (OKX, Binance, Coinbase, Bybit, Kraken, MEXC, KuCoin and others). A click shows
+every wallet funded from that exchange, all its addresses together. An exchange never makes a bundle.
+
+When {{ s.verdict_organised_pct }}% or more of the top {{ s.age_lookups_max }} by PnL are fresh or in bundles, the result
+says "Organised launch" above its numbers: one hand ran the launch, and little in the list is organic buying.
+
 Until the check reaches a wallet, `fresh`, `bundle` and the filters that hide them do not know about it yet. Below
 the first {{ s.age_lookups_max }} they stay unknown unless a card is opened: a bundle there counts only the wallets
 that were checked.

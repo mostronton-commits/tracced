@@ -1163,3 +1163,11 @@ td.c-roi b { font-size: 13px; }
 
 /* the site's top bar sits above the card and the agent, so its wallet menu (Lists, Sign out) opens over them */
 header.top { position: relative; z-index: 45; }
+
+/* спонсор — відома біржа: назва замість адреси; «Organised launch» — угорі результату, коли майже весь топ свіжий чи в бандлах */
+.fundb.cex { font: 500 12px var(--sans); padding: 2px 8px; border-radius: 999px; background: #EEF2F6; color: var(--ink); border: 1px solid var(--line); text-decoration: none; }
+.fundb.cex:hover { border-color: #CBD5E1; }
+.dchip.fund.cex { font-family: var(--sans); }
+.verdict { margin: 4px 0 10px; padding: 9px 12px; border: 1px solid #FECACA; border-left: 3px solid var(--red); border-radius: var(--r); background: #FEF2F2; font-size: 13.5px; color: #7F1D1D; }
+.verdict b { color: #991B1B; }
+

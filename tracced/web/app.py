@@ -30,7 +30,7 @@ from markupsafe import Markup
 
 from ..cache import JsonCache
 from ..config import DEFAULTS as CFG_DEFAULTS
-from ..early import agent as agent_mod, assistant as assistant_mod, ledger, pipeline, profile, report, scope, tags, wallet_age as wallet_age_mod, window
+from ..early import agent as agent_mod, assistant as assistant_mod, exchanges as exch_mod, ledger, pipeline, profile, report, scope, tags, wallet_age as wallet_age_mod, window
 from ..early.store import TradeStore
 from ..providers import dexscreener
 from . import accounts as acct_mod
@@ -374,6 +374,8 @@ def _check_services(r, ages):
     навіть порожнім: так видно, що результат цю перевірку вже пройшов."""
     check = getattr(ages, "is_service", None)
     services = set(r.get("services") or [])
+    # відома біржа (список Dune у early/data) — сервіс без жодного запиту: і кредит не йде, і бандла від неї не буде
+    services |= {f for f in set((r.get("funders") or {}).values()) if exch_mod.name_of(f)}
     if check is not None and not (getattr(ages, "paused", None) or (lambda: False))():
         from collections import Counter
         for f, n in Counter((r.get("funders") or {}).values()).items():
@@ -2137,7 +2139,7 @@ async def index(request):
 async def docs_page(request):
     """Документація: markdown з docs/ поруч із кодом, той самий деплой, те саме оформлення сайту."""
     slug = request.match_info.get("slug") or "index"
-    body, title = docs_mod.page(DOCS_DIR, slug, {"s": request.app["s"], "TAGS": tags.DEFS, "assistant_on": request.app.get("assistant") is not None,
+    body, title = docs_mod.page(DOCS_DIR, slug, {"s": request.app["s"], "TAGS": tags.DEFS, "EXCH_N": len(exch_mod.KNOWN), "assistant_on": request.app.get("assistant") is not None,
                                                  "API": api_mod})   # межі правил API — з коду, щоб сторінка не розійшлась із тим, що рахує сервер
     if body is None:
         raise web.HTTPNotFound(text="There is no such page in the documentation.")
@@ -2626,7 +2628,8 @@ async def job_page(request):
                   age_read=wallet_age_mod.MAX_PAGES * wallet_age_mod.LIMIT,   # скільки транзакцій гаманця читає перевірка віку
                   is_demo=is_demo, agent_chips=app["agent_store"].config()["chips"][:3],   # the agent's quick questions, drawn before any call
                   sm=sm, TAGS=tags.DEFS, created=created or (job.t_from - 24 * HOUR), now=int(time.time() * 1000),
-                  cov_text=report.coverage_text((result or {}).get("coverage")), 
+                  cov_text=report.coverage_text((result or {}).get("coverage")), exchanges=exch_mod.KNOWN,
+                 
                   assistant_on=app.get("assistant") is not None,
                   scope=sc, scopes=scope.scopes_for(app["s"]), has_scopes=bool((result or {}).get("wallet_trades")),
                   scope_end=(scope.end_for(sc, job.t_to, (result or {}).get("window", {}).get("end", 0)) if result else None))
