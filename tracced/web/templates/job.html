@@ -388,7 +388,7 @@
           t: '<b>The creator</b> bought here: ' + money(dev.inv) + ' in' + (dev.got ? ', ' + money(dev.got) + ' out' : ', nothing sold yet') });
         const fr = all.filter(o => o.tags.includes('fresh')).length, checked = Math.min(all.length, VERDICT_TOP || all.length) || 1;
         if (fr >= 10 && fr / checked >= 0.1) out.push({ k: 'fresh', sev: 'warn', act: ['only', 'fresh'], why: 'fresh wallets',
-          t: '<b>' + fr + ' fresh wallets</b>: created just before they bought' });
+          t: '<b>' + fr + ' fresh wallets</b>: under a day old when they bought' });
         const ex = {}; all.forEach(o => { const x = funders[o.w]; if (x && EXCH[x]) ex[EXCH[x][0]] = (ex[EXCH[x][0]] || 0) + 1; });
         const exN = Object.values(ex).reduce((a, b) => a + b, 0), funded = all.filter(o => funders[o.w]).length;
         if (exN >= 10 && funded && exN / funded >= 0.05) out.push({ k: 'cex', sev: 'info', act: ['only', 'cex'], why: 'wallets funded from exchanges',
