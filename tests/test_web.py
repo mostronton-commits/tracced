@@ -1119,7 +1119,8 @@ if AioHTTPTestCase:
                     break
                 await asyncio.sleep(0.05)
             self.assertIn("↓ Export", html)
-            self.assertIn("Bought in range", html)
+            self.assertIn("spent in the range", html)                     # counts in one line; findings above them
+            self.assertIn('id="finds"', html)
             self.assertIn("Back to the chart", html)
             self.assertIn('id="chart"', html)
             self.assertIsNone(CYRILLIC.search(html))
@@ -1157,7 +1158,7 @@ if AioHTTPTestCase:
             self.assertIn("Save analysis", page48)
             self.assertNotIn("Add to watchlist", page48)
             self.assertNotIn("soon-badge", page48)
-            self.assertIn("Sold out", page48)                           # tiles renamed, with hints
+            self.assertIn("sold out", page48)                           # counts line, with hints
             self.assertIn("← Back to the chart", page48)                # an analyzed range stays as it is: the header goes back to the chart
             r = await self.client.get("/wallet_trades.json?job=" + loc.split("/")[-1] + "&wallet=A")
             self.assertEqual(r.status, 400)                              # not a base58 wallet in tests → readable error

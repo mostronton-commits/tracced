@@ -45,13 +45,14 @@
     {% if cov_text %}<p class="muted small cov">{{ cov_text }}</p>{% endif %}
 
     <p class="verdict" id="verdict" hidden></p>
-    <div class="stats">
-      <div title="Wallets that bought inside the range — the list below"><b data-count="{{ sm.n }}" data-fmt="int">0</b><span>Bought in range</span></div>
-      <div title="Sold 99% or more of what they bought"><b data-count="{{ sm.exited }}" data-fmt="int">0</b><span>Sold out</span></div>
-      <div title="Sold less than half of what they bought"><b data-count="{{ sm.holding }}" data-fmt="int">0</b><span>Still holding</span></div>
-      <div title="Highest average exit cap ÷ average entry cap among these wallets, buys before the range included"><b data-count="{{ sm.best_multiple or 0 }}" data-fmt="mult">0</b><span>Best ROI</span></div>
-      <div title="What these wallets spent inside the range"><b class="amt" data-usd="{{ (sm.invested_range or 0)|round(0)|int }}"{% if sm.invested_range_sol is not none %} data-sol="{{ sm.invested_range_sol|round(2) }}"{% endif %} data-count="{{ (sm.invested_range or 0)|round(0)|int }}" data-fmt="usd">0</b><span>Spent in range</span></div>
-    </div>
+    <div class="finds" id="finds" hidden></div>
+    <p class="kline counts">
+      <span title="Wallets that bought inside the range — the list below"><b data-count="{{ sm.n }}" data-fmt="int">0</b> bought</span>
+      <span title="Sold 99% or more of what they bought"><b data-count="{{ sm.exited }}" data-fmt="int">0</b> sold out</span>
+      <span title="Sold less than half of what they bought"><b data-count="{{ sm.holding }}" data-fmt="int">0</b> still holding</span>
+      <span title="Highest average exit cap ÷ average entry cap among these wallets, buys before the range included">best <b data-count="{{ sm.best_multiple or 0 }}" data-fmt="mult">0</b></span>
+      <span title="What these wallets spent inside the range"><b class="amt" data-usd="{{ (sm.invested_range or 0)|round(0)|int }}"{% if sm.invested_range_sol is not none %} data-sol="{{ sm.invested_range_sol|round(2) }}"{% endif %} data-count="{{ (sm.invested_range or 0)|round(0)|int }}" data-fmt="usd">0</b> spent in the range</span>
+    </p>
     {% if not sm.has_sol %}<p class="muted small solnote" hidden>This analysis was saved before tracced started recording SOL amounts, so its figures stay in dollars.</p>{% endif %}
     <p class="muted small">{{ c.n_wallets|num }} traded in the range · {{ c.dust|num }} below ${{ s.min_invested_usd }} · {{ ((c.pre_range_only or 0) + (c.before_range_only or 0))|num }} sold only · {{ c.n_trades|num }} trades</p>
 
@@ -193,11 +194,11 @@
       const SKEY = 'early:sel:' + jobId, FKEY = 'early:filters:' + jobId;
       try { JSON.parse(localStorage.getItem(SKEY) || '[]').forEach(w => selected.add(w)); } catch (e) {}
       const saveSel = () => { try { localStorage.setItem(SKEY, JSON.stringify([...selected])); } catch (e) {} };
-      const FDEF = { inv: 0, pnl: null, sold: 0, buysMax: 0, hold: 0, exits: false, profit: false, hide: [], funder: '', repeat: false };
+      const FDEF = { inv: 0, pnl: null, sold: 0, buysMax: 0, hold: 0, exits: false, profit: false, hide: [], funder: '', repeat: false, only: '' };
       const f = Object.assign({}, FDEF);
       try { const saved = JSON.parse(localStorage.getItem(FKEY) || '{}'); Object.keys(FDEF).forEach(k => { if (k in saved) f[k] = saved[k]; }); } catch (e) {}
       f.hide = (f.hide || []).filter(t => !['seen-before', 'pre-range', 're-bought'].includes(t));   // a saved hide these chips no longer offer could not be undone
-      f.exits = f.profit = f.repeat = false;                          // the "Only" chips are gone: a saved one would hide rows for good
+      f.exits = f.profit = f.repeat = false; f.only = '';             // the "Only" chips are gone and a finding's filter is for this visit: a saved one would hide rows for good
       const saveF = () => { try { localStorage.setItem(FKEY, JSON.stringify(f)); } catch (e) {} };
       const panel = document.getElementById('filters'), ftoggle = document.getElementById('ftoggle'), clearsel = document.getElementById('clearsel');
       const watch = document.getElementById('watch');
@@ -206,7 +207,7 @@
         panel.querySelectorAll('[data-t]').forEach(b => { b.classList.toggle('on', !!f[b.dataset.t]); b.setAttribute('aria-pressed', String(!!f[b.dataset.t])); });
         panel.querySelectorAll('[data-hide]').forEach(b => b.classList.toggle('off', f.hide.includes(b.dataset.hide)));
       }
-      function nActive() { return [f.inv, f.pnl !== null, f.sold, f.buysMax, f.hold, f.exits, f.profit, f.funder, f.repeat].filter(Boolean).length + f.hide.length; }
+      function nActive() { return [f.inv, f.pnl !== null, f.sold, f.buysMax, f.hold, f.exits, f.profit, f.funder, f.repeat, f.only].filter(Boolean).length + f.hide.length; }
 
       // what arrives after the page: the background checks (funders, ages, names) and the account (repeats, lists)
       let funders = {}, bundle = {}, crossings = {}, idents = {}, ages = {}, ageDone = false, palette = new Map();
@@ -330,7 +331,8 @@
       function exportSet() { return selected.size ? order.filter(o => selected.has(o.w)) : pass; }
       const okRow = o => o.inv >= f.inv && (f.pnl === null || o.real >= f.pnl) && o.sold >= f.sold && (!f.profit || o.real > 0) &&
         (!f.buysMax || o.buys <= f.buysMax) && (!f.hold || (o.hold || 0) >= f.hold) && (!f.exits || o.exit) &&
-        (!f.funder || fundKey(o.w) === f.funder) && (!f.repeat || !!crossings[o.w]) && !f.hide.some(t => o.tags.includes(t));
+        (!f.funder || fundKey(o.w) === f.funder) && (!f.repeat || !!crossings[o.w]) && !f.hide.some(t => o.tags.includes(t)) &&
+        (!f.only || (f.only === 'cex' ? !!(funders[o.w] && EXCH[funders[o.w]]) : o.tags.includes(f.only)));
       function draw() {
         // the first `limit` rows that pass, plus any wallet pinned to the chart further down; a pinned wallet the
         // filters reject is drawn last and without a number, and is not in `pass`, so no action counts it. The same
@@ -369,10 +371,56 @@
         el.hidden = !(ageDone && VERDICT_PCT && pct >= VERDICT_PCT);
         if (!el.hidden) el.innerHTML = '<b>Organised launch.</b> ' + n + ' of the top ' + top.length + ' by PnL (' + pct + '%) are fresh or bundled wallets: little here is organic buying.';
       }
+      // What tracced found that a terminal does not show: at most three facts, each only when it matters, and each one
+      // a way into the table. Bundles, fresh wallets and funders come after the page, so this runs again as they do
+      const FIND_MAX = 3; let findActs = [];
+      function findings() {
+        const el = document.getElementById('finds'); if (!el) return;
+        const inv = o => +o.inv || 0, tot = all.reduce((s, o) => s + inv(o), 0) || 1, out = [];
+        const bw = all.filter(o => bundle[o.w]);                                  // wallets that share a funder here
+        if (bw.length) {
+          const ops = new Set(bw.map(o => funders[o.w] || bundle[o.w].funder)).size, sh = 100 * bw.reduce((s, o) => s + inv(o), 0) / tot;
+          if (sh >= 10) out.push({ k: 'bundle', sev: 'warn', act: ['only', 'bundle'], why: 'wallets in bundles',
+            t: '<b>' + ops + ' operator' + (ops === 1 ? '' : 's') + '</b> bought ' + Math.round(sh) + '% of the range through ' + bw.length + ' wallets' });
+        }
+        const dev = all.find(o => o.tags.includes('dev'));
+        if (dev) out.push({ k: 'dev', sev: 'warn', act: ['only', 'dev'], why: "the token's creator",
+          t: '<b>The creator</b> bought here: ' + money(dev.inv) + ' in' + (dev.got ? ', ' + money(dev.got) + ' out' : ', nothing sold yet') });
+        const fr = all.filter(o => o.tags.includes('fresh')).length, checked = Math.min(all.length, VERDICT_TOP || all.length) || 1;
+        if (fr >= 10 && fr / checked >= 0.1) out.push({ k: 'fresh', sev: 'warn', act: ['only', 'fresh'], why: 'fresh wallets',
+          t: '<b>' + fr + ' fresh wallets</b>: created just before they bought' });
+        const ex = {}; all.forEach(o => { const x = funders[o.w]; if (x && EXCH[x]) ex[EXCH[x][0]] = (ex[EXCH[x][0]] || 0) + 1; });
+        const exN = Object.values(ex).reduce((a, b) => a + b, 0), funded = all.filter(o => funders[o.w]).length;
+        if (exN >= 10 && funded && exN / funded >= 0.05) out.push({ k: 'cex', sev: 'info', act: ['only', 'cex'], why: 'wallets funded from exchanges',
+          t: '<b>' + exN + ' wallets</b> came straight from exchanges: ' + Object.entries(ex).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n, c]) => esc(n) + ' ' + c).join(', ') });
+        const rep = all.filter(o => crossings[o.w]).length;
+        if (rep >= 3) out.push({ k: 'repeat', sev: 'good', act: ['repeat'], why: 'wallets early in your other pumps',
+          t: '<b>' + rep + ' wallets</b> were early in your other pumps too' });
+        const prof = all.map(o => +o.real || 0).filter(v => v > 0).sort((a, b) => b - a), ptot = prof.reduce((a, b) => a + b, 0);
+        if (prof.length >= 20 && ptot > 0) {
+          const s10 = 100 * prof.slice(0, 10).reduce((a, b) => a + b, 0) / ptot;
+          if (s10 >= 40) out.push({ k: 'top', sev: 'info', act: ['sort', 'real'], why: 'the wallets by PnL',
+            t: '<b>Top 10</b> took ' + Math.round(s10) + '% of all the profit' });
+        }
+        findActs = out.slice(0, FIND_MAX);
+        el.innerHTML = findActs.map((x, i) => '<button type="button" class="find ' + x.sev + '" data-i="' + i + '"><span>' + x.t + '</span><span class="go">Show →</span></button>').join('');
+        el.hidden = !findActs.length;
+      }
+      document.getElementById('finds').addEventListener('click', e => {
+        const b = e.target.closest('.find'), x = b && findActs[+b.dataset.i]; if (!x) return;
+        Object.assign(f, FDEF, { hide: [] });                               // exactly its wallets: other filters would hide some of them
+        if (x.act[0] === 'only') f.only = x.act[1];
+        if (x.act[0] === 'repeat') f.repeat = true;
+        saveF(); syncInputs(); limit = LIMIT;
+        if (x.act[0] === 'sort') sortBy('real', -1); else apply();
+        EarlyUI.use('finding', { k: x.k });
+        EarlyUI.toast('Showing ' + x.why + ' · Reset in the filters clears it');
+        document.getElementById('facts').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
       function apply() {
         pass = order.filter(okRow);
         draw();
-        verdict();
+        verdict(); findings();
         const na = nActive(), n = pass.length, left = Math.max(0, n - limit);
         shown.textContent = (left ? Math.min(n, limit) + ' of ' + n + ' shown' : n + ' of ' + all.length) + (na ? ' · filtered' : '');
         more.hidden = !left; document.getElementById('more100').hidden = left <= 100; document.getElementById('moren').textContent = n;
@@ -1118,7 +1166,7 @@
         if (++polls >= 120) return;
         setTimeout(() => { if (document.hidden) document.addEventListener('visibilitychange', tick, { once: true }); else tick(); }, 5000);
       };
-      const refresh = () => { verdict(); if (!drawer.hidden && drawer.dataset.w) { renderIdent(drawer.dataset.w); renderWalletInfo(drawer.dataset.w); if (window.EarlyTZ) EarlyTZ.apply(); } };
+      const refresh = () => { verdict(); findings(); if (!drawer.hidden && drawer.dataset.w) { renderIdent(drawer.dataset.w); renderWalletInfo(drawer.dataset.w); if (window.EarlyTZ) EarlyTZ.apply(); } };
       // one dropped answer (a deploy, a flaky network) is asked again; the fourth in a row ends the checks for this view
       const lost = () => { if (++fails <= 3) { again(); return; } if (en) en.hidden = true; ageDone = true; refresh(); };
       const tick = async () => {

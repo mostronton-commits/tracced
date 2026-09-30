@@ -98,6 +98,18 @@ every wallet funded from that exchange, all its addresses together. An exchange 
 When {{ s.verdict_organised_pct }}% or more of the top {{ s.age_lookups_max }} by PnL are fresh or in bundles, the result
 says "Organised launch" above its numbers: one hand ran the launch, and little in the list is organic buying.
 
+Above the table, tracced lists up to three things it found that a terminal does not show, each only when it matters,
+and each a click into exactly those wallets:
+
+| Finding | Shown when |
+|---|---|
+| Operators: wallets that share a funder | they bought 10% or more of the range |
+| The token's creator bought in the range | always |
+| Fresh wallets | 10 or more, and a tenth of the wallets checked |
+| Wallets funded straight from exchanges | 10 or more, and 5% of the funded ones |
+| Wallets early in your other pumps | 3 or more (with a wallet connected) |
+| The top 10 took most of the profit | 40% or more of it |
+
 Until the check reaches a wallet, `fresh`, `bundle` and the filters that hide them do not know about it yet. Below
 the first {{ s.age_lookups_max }} they stay unknown unless a card is opened: a bundle there counts only the wallets
 that were checked.
