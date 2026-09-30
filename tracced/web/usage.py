@@ -318,7 +318,7 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
 
     # ── пульс і графік за 30 днів ──
     days = [_day(now_ms, tz) - datetime.timedelta(days=i) for i in range(29, -1, -1)]
-    daily = {d: {"active": set(), "runs": 0, "failed": 0, "st": 0, "rpc": 0, "ai_usd": 0.0} for d in days}
+    daily = {d: {"active": set(), "new": 0, "runs": 0, "failed": 0, "st": 0, "rpc": 0, "ai_usd": 0.0} for d in days}
     for e in events:
         if e["ts_ms"] < d30:
             continue
@@ -333,7 +333,12 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
         slot["st"] += int(e.get("st") or 0) if e.get("event") in ("run", "spend") else 0
         slot["rpc"] += int(e.get("rpc") or 0) if e.get("event") == "spend" else 0
         slot["ai_usd"] += _ai_usd(e) if e.get("event") == "agent" else 0
-    series = [{"day": d.isoformat(), "label": f"{d:%b} {d.day}", "active": len(v["active"]), "runs": v["runs"], "failed": v["failed"],
+    for a in accounts:                                   # нові гаманці за днями — міні-графік плитки «Connected»
+        if person(a.get("pubkey")) and (a.get("created_ms") or 0) >= d30:
+            slot = daily.get(_day(a["created_ms"], tz))
+            if slot is not None:
+                slot["new"] += 1
+    series = [{"day": d.isoformat(), "label": f"{d:%b} {d.day}", "active": len(v["active"]), "new": v["new"], "runs": v["runs"], "failed": v["failed"],
                "st": v["st"], "rpc": v["rpc"], "ai_usd": round(v["ai_usd"], 4)} for d, v in daily.items()]
     mau = len({e["pubkey"] for e in acts if e["ts_ms"] >= d30})
     wau = len({e["pubkey"] for e in acts if e["ts_ms"] >= period_start(now_ms, "7d", tz)})
@@ -415,6 +420,20 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
                      "st_total": st_total, "rpc_total": c.get("rpc_enrich", 0) + c.get("rpc_cards", 0)})
     run_stats = {"st": _stats([r["st_total"] for r in runs]), "rpc": _stats([r["rpc_total"] for r in runs if not r["backfill"]]),
                  "secs": _stats([r["secs"] for r in runs]), "rows": _stats([r["rows"] for r in runs if r["ok"]])}
+
+    # ── ключові числа власника: підключились → перший аналіз → повернулись; збереження, експорт, ціна аналізу ──
+    ran = {e["pubkey"] for e in events if e.get("event") in ("analyze", "run") and person(e.get("pubkey"))}
+    run_days = {}
+    for e in runs_p:
+        run_days.setdefault(e["pubkey"], set()).add(_day(e["ts_ms"], tz))
+    exports = [e for e in in_p if e["event"] == "export" or (e["event"] == "ui" and e.get("name") == "export")]
+    key_nums = {"connected": len(new), "first_run": sum(1 for a in new if a["pubkey"] in ran),   # з тих, хто підключився в періоді
+           "analyses": len(runs_p), "failed": pulse["runs_failed"],
+           # повернення — аналізи у два різні дні, а не другий клік тієї ж хвилини
+           "analysts": len(run_days), "returned": sum(1 for d in run_days.values() if len(d) >= 2),
+           "active": len(active), "savers": len({e["pubkey"] for e in in_p if e["event"] == "save_wallets"}), "saved": pulse["saved"],
+           "exports": len(exports), "exporters": len({e["pubkey"] for e in exports}),
+           "st": run_stats["st"], "rpc": run_stats["rpc"]}
     fails = {}
     for r in runs:
         if not r["ok"]:
@@ -569,7 +588,7 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
                    "winrate_median": _median([p.get("win_rate") for p in p30 if (p.get("closed") or 0) >= 3])}
     return {"period": period if period in PERIODS else "7d", "since_ms": p0, "now_ms": now_ms, "include_team": include_team,
             "tracked_since": min((e["ts_ms"] for e in events if not e.get("backfill")), default=None),
-            "pulse": pulse, "daily": series, "funnel": funnel, "funnel_base": len(active), "returning": returning,
+            "pulse": pulse, "key": key_nums, "daily": series, "funnel": funnel, "funnel_base": len(active), "returning": returning,
             "sessions": sessions, "came_back": came_back, "activation": {"n": len(activated), "of": len(new)},
             "ttfa_median_h": _median(ttfa), "runs": runs[:100], "runs_n": len(runs), "run_stats": run_stats, "costs": costs,
             "ai": ai, "users": users, "features": features, "tokens": tokens, "limits": limits, "onchain": onchain_sum,

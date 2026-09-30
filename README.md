@@ -130,7 +130,9 @@ chart and terminal and result, without a single request to the data provider.
   address or typed text), analyses, cards and agent calls, each with its Solana Tracker requests, Helius credits or
   the agent's dollars. At the top, what is left at each provider and whether it lasts at the current pace: the
   Solana Tracker balance against the plan (its renewal day is `credits_renew_day`), this server's Helius share and
-  the agent's OpenRouter limit. Once a day the log adds public facts about active users' wallets: age, SOL balance (one free
+  the agent's OpenRouter limit. The overview leads with the key numbers: wallets that connected, how many of them
+  ran a first analysis, analyses, wallets that came back to analyse on another day, wallets that saved wallets to
+  a list, exports, and what an analysis costs (in euros at `st_eur_per_million`). Once a day the log adds public facts about active users' wallets: age, SOL balance (one free
   public-node call per hundred wallets), their last 30 days by the same ledger, and Solana Tracker's identity.
   Guests are only counted by Umami. What is recorded is spelled out in [Your account](docs/account.md#what-we-record).
 - Nothing else: no third-party PnL, scores or "smart money" labels.

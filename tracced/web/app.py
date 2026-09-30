@@ -1718,6 +1718,7 @@ async def admin_page(request):
                   include_team=include_team, tab=tab, tabs=ADMIN_TABS,
                   feedback=feedback, feedback_new=sum(1 for f in feedback if not f.get("read")),
                   usage_tz=app["s"].get("usage_tz") or "UTC", periods=list(usage_mod.PERIODS),
+                  st_eur_million=float(app["s"].get("st_eur_per_million") or 0),
                   agent_cfg=store.config(), agent_history=store.history(10), agent_log=store.recent(50),
                   agent_on=app.get("agent") is not None, agent_model=getattr(app.get("assistant"), "model", ""),
                   excludable=agent_mod.EXCLUDABLE, default_method=agent_mod.DEFAULT_METHOD)

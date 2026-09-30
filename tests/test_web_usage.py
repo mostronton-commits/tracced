@@ -208,7 +208,7 @@ if AioHTTPTestCase:
                 self.assertEqual(r.status, 200, p)
             pages = {tab: await (await self.client.get(f"/admin?tab={tab}")).text()
                      for tab in ("overview", "analyses", "agent", "wallets", "behavior", "costs", "log", "method", "junk")}
-            for tab, part in (("overview", "Agent questions"), ("behavior", "Sorted the table"), ("wallets", f'href="/admin/w/{user}"'),
+            for tab, part in (("overview", "Agent questions"), ("overview", "Came back"), ("overview", "Per analysis"), ("behavior", "Sorted the table"), ("wallets", f'href="/admin/w/{user}"'),
                               ("wallets", "Phantom"), ("method", 'id="method"'), ("junk", "Agent questions")):
                 self.assertIn(part, pages[tab], tab)                          # невідома вкладка — огляд
             self.assertNotIn('id="method"', pages["overview"])                # кожна вкладка — лише своє
