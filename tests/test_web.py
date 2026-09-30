@@ -391,7 +391,7 @@ if AioHTTPTestCase:
             r = await self.client.get(f"/token?mint={other}", headers=GUEST)
             html = await r.text()
             self.assertEqual(r.status, 200)                             # гість бачить голий графік і ставить межі
-            self.assertIn("Find the pump", html)
+            self.assertIn("setGhosts", html)                             # found pumps wait on the chart, no button
             self.assertIn('id="add"', html)
             self.assertIn('data-acct="0"', html)
             self.assertIn("Analyze asks for a wallet", html)
@@ -1075,7 +1075,7 @@ if AioHTTPTestCase:
             self.assertIn('id="rows"', html)
             self.assertIn('data-rows=', html)
             self.assertIn('data-hints=', html)
-            self.assertIn("Find the pump", html)                         # a rule, not a model
+            self.assertIn("function candidates()", html)                 # a rule, not a model
             self.assertNotIn("Let AI choose", html)
             self.assertNotIn("Coming next", html)
             self.assertIn("&#34;label&#34;: &#34;Range 1&#34;, &#34;from&#34;: &#34;&#34;", html)   # a bare chart: hints wait for the button
@@ -2429,7 +2429,7 @@ if AioHTTPTestCase:
                 self.assertNotIn('class="wdemo"', html, path)                     # already on the demo
             html = await (await self.client.get(f"/job/{DEMO_JID}", headers=GUEST)).text()
             self.assertIn('"5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9": ["Binance", "Binance 1"]', html)   # біржі — на сторінці
-            self.assertIn('Organised launch', html)                     # the verdict: the first mark above the chart
+            self.assertIn("'Bundled'", html)                              # the verdict's word follows the top
             self.assertIn("Beta, free for now. Connect a wallet to ask.", html)   # the agent's line for a guest
             self.assertIn("Connect wallet for more data", html)                   # the card's step is a real button
 

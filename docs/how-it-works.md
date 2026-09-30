@@ -95,8 +95,15 @@ When the first SOL came straight from a known exchange, "Funded by" names the ex
 {{ EXCH_N }} hot wallets from Dune's open list (OKX, Binance, Coinbase, Bybit, Kraken, MEXC, KuCoin and others). A click shows
 every wallet funded from that exchange, all its addresses together. An exchange never makes a bundle.
 
-When {{ s.verdict_organised_pct }}% or more of the top {{ s.age_lookups_max }} by PnL are fresh or in bundles, the result
-says "Organised launch" above its numbers: one hand ran the launch, and little in the list is organic buying.
+When {{ s.verdict_organised_pct }}% or more of the top {{ s.age_lookups_max }} by PnL are fresh or in bundles, one hand ran
+the launch and little in the list is organic buying. A red mark above the chart says which kind:
+
+| Word | The top is made of |
+|---|---|
+| Rigged | …and the token's creator bought in the range too |
+| Bundled | mostly wallets of one funder (60% or more), few of them fresh |
+| Staged | mostly fresh wallets (60% or more), made for the launch, without one funder |
+| Cabal | both at once: fresh wallets from shared funders |
 
 Above the table, tracced lists up to three things it found that a terminal does not show, each only when it matters,
 and each a click into exactly those wallets:

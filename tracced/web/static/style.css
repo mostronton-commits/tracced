@@ -1171,9 +1171,9 @@ header.top { position: relative; z-index: 45; }
 
 /* 30.09: the range is set on the chart or by a quick range; the time fields wait behind ✎, since the first traders typed
    dates instead of clicking the chart */
-.presets { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip.preset { cursor: pointer; background: var(--surface); border: 1px solid var(--line); color: var(--ink); font-weight: 500; }
-.chip.preset:hover { border-color: #6ee7b7; background: #F6FEF9; }
+.chartbox .overlay .win.ghost { background: rgba(167, 243, 208, .07); border-left: 1px dashed rgba(52, 211, 153, .7); border-right: 1px dashed rgba(52, 211, 153, .7); }
+.chartbox .overlay .win.ghost .gl { font: 600 11px/1 var(--sans); color: var(--navy); background: var(--mint); border: 0; border-radius: 999px; padding: 5px 9px; cursor: pointer; box-shadow: 0 4px 14px -6px rgba(0, 0, 0, .6); }
+.chartbox .overlay .win.ghost .gl:hover { background: #6EE7B7; }
 .wrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
 .wrow .label { flex: 0 1 auto; min-width: 90px; }
 .wrow .sum { flex: 1 1 200px; font: 12.5px var(--mono); color: var(--ink); }

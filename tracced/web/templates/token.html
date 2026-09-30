@@ -24,11 +24,7 @@
   <div class="stepbar">
     <span class="stepn">02</span>
     <div class="stepx"><b>Choose the range</b><span id="pickhelp">Click the chart twice: where buying starts, where the pump takes off. <small>Drag to pan · scroll to zoom</small></span></div>
-    <div class="presets right" role="group" aria-label="Quick ranges">
-      <button type="button" class="chip preset" data-preset="first" title="From the token's creation to an hour later: who got in at launch">First hour</button>
-      <button type="button" class="chip preset" id="findpump" title="The quiet stretch before the first big move, found on the chart (Find the pump). Click again for the next pump">Before the pump</button>
-      <button type="button" class="chip preset" data-preset="last" title="The last hour up to now: who is buying at the moment">Last hour</button>
-    </div>
+
   </div>
   <div class="chartbox" id="chart"><div class="charthint" id="charthint" hidden></div></div>
 
@@ -135,7 +131,7 @@
       if (step === 0) { r.from = fmt(ms); r.to = ''; step = 1; ch.setMarker(ms); EarlyUI.use('range-set', { end: 'from' }); }
       else { r.to = fmt(ms); if (parse(r.to) <= parse(r.from)) { const t = r.from; r.from = r.to; r.to = t; } step = 0; ch.setMarker(null);
              try { localStorage.setItem('early:hinted', '1'); } catch (x) {} EarlyUI.use('range-set', { end: 'to' }); }
-      hint();
+      hint(); ghosts();
       save(); f.querySelector('[name=from]').value = show(r.from); f.querySelector('[name=to]').value = show(r.to);
       const sm = f.querySelector('.sum'), st = sumText(r); sm.textContent = st || (step === 1 ? 'Start set · now the end' : ''); sm.classList.toggle('muted', !st);
       refreshLink(f, r); ch.setWindows(winList(), state.sel);
@@ -235,7 +231,7 @@
       f.querySelector('.n').textContent = i + 1;
       f.querySelector('.label').textContent = r.label || 'Range';
       const s = f.querySelector('.sum'), txt = sumText(r);
-      s.textContent = txt || (i === state.sel && !DEMO ? VERB + ' the chart twice, or pick a quick range above' : 'Not set yet');
+      s.textContent = txt || (i === state.sel && !DEMO ? VERB + ' the chart twice, or take a pump found on it' : 'Not set yet');
       s.classList.toggle('muted', !txt);
       if (i === editing && !DEMO && !locked(r)) f.classList.add('edit');
       f.querySelector('.editt').hidden = DEMO || locked(r);
@@ -254,7 +250,7 @@
     });
     if (addBtn) { addBtn.disabled = state.rows.length >= MAX_ROWS; addBtn.title = addBtn.disabled ? limitMsg() : ''; }
     ch.setWindows(winList(), state.sel);
-    hint();
+    hint(); ghosts();
   }
   function dropRow(i) { state.rows.splice(i, 1); if (!state.rows.length) state.rows.push({ n: 1, label: 'Range 1', from: '', to: '' }); state.sel = Math.min(state.sel, state.rows.length - 1); save(); render(); focusSel(); }
   function focusSel() { const r = state.rows[state.sel]; if (r && r.from && r.to) ch.focus(parse(r.from), parse(r.to), null); }
@@ -300,9 +296,9 @@
   if (addBtn) addBtn.addEventListener('click', () => { if (state.rows.length >= MAX_ROWS) { EarlyUI.toast(limitMsg()); return; } EarlyUI.use('range-add'); state.rows.push({ n: null, label: 'Range ' + (state.rows.length + 1), from: '', to: '' }); state.sel = state.rows.length - 1; save(); render(); });
   if (resetBtn) resetBtn.addEventListener('click', () => { EarlyUI.use('range-reset'); try { localStorage.removeItem(KEY); } catch (e) {} state = { rows: INITIAL.map(r => ({...r})), sel: 0 }; render(); focusSel(); });
 
-  // «Find the pump»: the recorded ranges on the demo, the detector's hints on a live token, else a look at the loaded candles
   const HINTS = JSON.parse(root.dataset.hints || '[]'), MIN_PEAK = +root.dataset.minPeak || 1e6;
-  const fp = document.getElementById('findpump'); let fpClicks = 0;
+  // pumps the finder sees (the server's detector, else the loaded candles) wait on the chart as pale bands while the
+  // range is empty: one click on a band's label takes it (Find the pump, without a button nobody noticed)
   function scanCandles() {                              // base = lowest close of the trailing 24 candles; breakout ≥ 1.3× base; peak ≥ 2× base within 6 h
     const cs = ch.candles(), out = []; let i = 24;
     while (i < cs.length) {
@@ -311,7 +307,7 @@
       if (base > 0 && cs[i].close >= base * 1.3) {
         let peak = 0; for (let j = i; j < cs.length && cs[j].time <= cs[i].time + 6 * 3600; j++) peak = Math.max(peak, cs[j].high || cs[j].close);
         if (peak >= base * 2 && peak >= MIN_PEAK) {
-          out.push({ from: fmt(cs[bi].time * 1000), to: fmt(cs[i].time * 1000), label: 'Pump ' + (out.length + 1) + ' · ' + ch.fmtMcap(base) + ' → ' + ch.fmtMcap(peak) + ' ×' + (peak / base).toFixed(1) });
+          out.push({ from: fmt(cs[bi].time * 1000), to: fmt(cs[i].time * 1000), label: 'Pump ×' + (peak / base).toFixed(1) });
           if (out.length >= FINDER_MAX) break;
           i += 24; continue;
         }
@@ -321,56 +317,26 @@
     return out;
   }
   function candidates() {
-    if (DEMO) return INITIAL.filter(r => r.job).map(r => ({ from: r.from, to: r.to, label: r.label }));
-    if (HINTS.length) return HINTS.map((h, i) => ({ from: fmt(h.from), to: fmt(h.to), label: 'Pump ' + (i + 1) + ' · ' + ch.fmtMcap(h.base) + ' → ' + ch.fmtMcap(h.peak) + ' ×' + h.mag }));
+    if (HINTS.length) return HINTS.map(h => ({ from: fmt(h.from), to: fmt(h.to), label: 'Pump ×' + h.mag }));
     return scanCandles();
   }
-  function findPump() {
-    const cs = candidates();
-    if (!cs.length) { fp.disabled = true; fp.title = 'No pump found on this chart'; EarlyUI.toast('No pump found on this chart yet. Set the range by hand.'); return; }
-    const k = fpClicks++ % cs.length, c = cs[k];
-    if (!DEMO && fpClicks > cs.length) EarlyUI.toast('That is all the finder offers here (up to ' + FINDER_MAX + ' pumps). Mark others by hand.');
-    let i = state.rows.findIndex(r => r.from === c.from && r.to === c.to);
-    if (i < 0) {
-      const empty = state.rows.findIndex(r => !r.from && !r.to);        // an empty row is filled, not duplicated
-      if (empty >= 0) { Object.assign(state.rows[empty], { label: c.label, from: c.from, to: c.to }); i = empty; }
-      else if (state.rows.length < MAX_ROWS) { state.rows.push({ n: null, label: c.label, from: c.from, to: c.to }); i = state.rows.length - 1; }
-      else { EarlyUI.toast(limitMsg()); return; }
-    }
-    state.sel = i; save(); render(); focusSel();
-    const f = rowsEl.querySelector('.wrow.sel'); if (f) { f.classList.remove('pulse'); void f.offsetWidth; f.classList.add('pulse'); }
-    fp.title = cs.length > 1 ? 'Pump ' + (k + 1) + ' of ' + cs.length + ' · click again for the next one' : 'The one pump on this chart';
+  let ghostList = [];
+  function ghosts() {
+    const r = state.rows[state.sel];
+    ghostList = !DEMO && r && !r.from && !r.to && step === 0 ? candidates().slice(0, FINDER_MAX) : [];
+    ch.setGhosts(ghostList.map(c => ({ from: parse(c.from), to: parse(c.to), label: c.label })), i => {
+      const c = ghostList[i], cur = state.rows[state.sel]; if (!c || !cur) return;
+      EarlyUI.track('find-pump');
+      Object.assign(cur, { label: c.label, from: c.from, to: c.to });
+      save(); render(); focusSel();
+      const f = rowsEl.querySelector('.wrow.sel'); if (f) { f.classList.remove('pulse'); void f.offsetWidth; f.classList.add('pulse'); }
+    });
   }
-  fp.addEventListener('click', () => { EarlyUI.track('find-pump'); findPump(); });
-  // the two quick ranges that need no finder: the launch hour and the hour up to now
-  function putRange(from, to, label) {
-    let i = state.rows.findIndex(r => r.from === from && r.to === to);
-    if (i < 0) {
-      const empty = state.rows.findIndex(r => !r.from && !r.to), cur = state.rows[state.sel];
-      if (empty >= 0) i = empty;
-      else if (cur && !locked(cur)) i = state.sel;                   // the selected range is the user's own draft: it takes the preset
-      else if (state.rows.length < MAX_ROWS) { state.rows.push({ n: null, label, from: '', to: '' }); i = state.rows.length - 1; }
-      else { EarlyUI.toast(limitMsg()); return; }
-      Object.assign(state.rows[i], { label, from, to });
-    }
-    state.sel = i; step = 0; ch.setMarker(null); editing = -1; save(); render(); focusSel();
-    const f = rowsEl.querySelector('.wrow.sel'); if (f) { f.classList.remove('pulse'); void f.offsetWidth; f.classList.add('pulse'); }
-  }
-  document.querySelectorAll('.preset[data-preset]').forEach(b => b.addEventListener('click', () => {
-    if (DEMO) { nudge(); return; }
-    const p = b.dataset.preset, created = +root.dataset.created, now = Date.now();
-    EarlyUI.use('range-preset', { p });
-    if (p === 'first') {
-      if (!created) { EarlyUI.toast('The token\'s creation time is unknown here. Mark the range on the chart.'); return; }
-      putRange(fmt(created), fmt(Math.min(created + 3600e3, now)), 'First hour');
-    } else putRange(fmt(now - 3600e3), fmt(now), 'Last hour');
-  }));
-
   render();
   // ranges on the page: open straight on them (all of them when there are several); a bare token: its latest hours
   const ws = winList().filter(w => w.from && w.to);
   if (ws.length) ch.focus(Math.min(...ws.map(w => w.from)), Math.max(...ws.map(w => w.to)), null);
-  else ch.init('1m');
+  else Promise.resolve(ch.init('1m')).then(ghosts);         // the candle scan needs the candles loaded
 })();
 </script>
 {% endblock %}

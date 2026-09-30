@@ -363,13 +363,19 @@
       // "nothing to dig here": when nearly all of the top wallets by PnL (the ones checked for age and funder) are fresh or
       // in bundles, the launch was organised and the list holds few organic buyers. Said once the check is done
       const VERDICT_PCT = {{ s.verdict_organised_pct or 90 }}, VERDICT_TOP = {{ s.age_lookups_max or 0 }};   // not AGE_N: apply() runs before it is declared
-      let verdictNote = '';
+      // the word follows what the top is made of: the creator in it — Rigged; one operator's wallets — Bundled;
+      // wallets made for the launch — Staged; both at once — Cabal. The numbers are in the tooltip
+      let verdictNote = '', verdictWord = '';
       function verdict() {
-        const top = all.slice(0, VERDICT_TOP);
-        const n = top.filter(o => o.tags.includes('fresh') || o.tags.includes('bundle')).length;
+        const top = all.slice(0, VERDICT_TOP), has = t => top.filter(o => o.tags.includes(t)).length;
+        const n = top.filter(o => o.tags.includes('fresh') || o.tags.includes('bundle')).length, nb = has('bundle'), nf = has('fresh');
         const pct = top.length >= 20 ? Math.floor(100 * n / top.length) : 0;   // 199 of 200 is 99%, not 100%
-        verdictNote = ageDone && VERDICT_PCT && pct >= VERDICT_PCT
-          ? n + ' of the top ' + top.length + ' by PnL (' + pct + '%) are fresh or bundled wallets: one hand ran this launch, little here is organic buying' : '';
+        const dev = all.some(o => o.tags.includes('dev'));
+        const on = ageDone && VERDICT_PCT && pct >= VERDICT_PCT;
+        verdictWord = !on ? '' : dev ? 'Rigged' : nb >= 0.6 * top.length && nf < 0.6 * top.length ? 'Bundled'
+          : nf >= 0.6 * top.length && nb < 0.6 * top.length ? 'Staged' : 'Cabal';
+        verdictNote = on ? n + ' of the top ' + top.length + ' by PnL (' + pct + '%) are fresh or bundled: ' + nb + ' in bundles, ' + nf + ' fresh'
+          + (dev ? ', and the creator bought in the range' : '') + '. One hand ran this launch; little here is organic buying' : '';
       }
       // What tracced found that a terminal does not show: short marks above the chart, at most three, each only when it
       // matters, each a click into exactly those wallets; the sentence is in the tooltip. Bundles, fresh wallets and
@@ -406,7 +412,7 @@
             h: 'Top 10 · <b>' + s10 + '%</b> of profit', tip: 'The 10 most profitable wallets took ' + s10 + '% of all the profit' });
         }
         findActs = out.slice(0, FIND_MAX);
-        el.innerHTML = (verdictNote ? '<span class="fpill bad" title="' + esc(verdictNote) + '">Organised launch</span>' : '')
+        el.innerHTML = (verdictNote ? '<span class="fpill bad" title="' + esc(verdictNote) + '">' + verdictWord + '</span>' : '')
           + findActs.map((x, i) => '<button type="button" class="fpill ' + x.sev + '" data-i="' + i + '" title="' + esc(x.tip) + ' · click to show them">' + x.ic + '<span>' + x.h + '</span></button>').join('');
         el.hidden = !verdictNote && !findActs.length;
       }

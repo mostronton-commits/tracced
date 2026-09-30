@@ -100,6 +100,7 @@
     let tf = null, data = new Map(), times = [], loaded = { a: null, b: null }, busy = false, gen = 0;
     let edge = { left: false, right: false };   // the feed has nothing further that way: stop asking for it
     let windows = normWins(opts.windows), selected = opts.selected || 0, exitSec = sec(opts.exit), marker = null, events = [];
+    let ghosts = [], onGhost = null;              // pumps the finder saw: a pale band and a label to take it, while nothing is marked
 
     async function fetchChunk(a, b) {
       const q = new URLSearchParams({ mint: opts.mint, tf, a: Math.floor(a), b: Math.ceil(b) });
@@ -266,6 +267,16 @@
         lbl.addEventListener('click', e => { e.stopPropagation(); if (opts.onSelect) opts.onSelect(i); else focus(w.from, w.to, null); });
         d.appendChild(lbl); layer.appendChild(d);
       });
+      ghosts.forEach((g, i) => {
+        if (!g.from || !g.to || g.to < v.a || g.from > v.b) return;
+        const x1 = xOf(g.from), x2 = xOf(g.to); if (x1 == null || x2 == null) return;
+        const d = document.createElement('div'); d.className = 'win ghost';
+        d.style.left = Math.min(x1, W) + 'px'; d.style.width = Math.max(2, Math.min(x2, W) - Math.min(x1, W)) + 'px';
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'lbl gl';
+        b.textContent = g.label + ' · use'; b.title = 'Found on the chart: the stretch where buying started, up to the take-off. Click to take it as the range';
+        b.addEventListener('click', e => { e.stopPropagation(); if (onGhost) onGhost(i); });
+        d.appendChild(b); layer.appendChild(d);
+      });
       // events of the token's own life: the move off the launchpad, the payments for visibility. Thin full-height
       // lines, because trade markers already live next to the candles and must not compete with these.
       // A badge at the point where it happened, not a line through the whole chart: these events sit within a
@@ -355,6 +366,7 @@
       setEvents(list) { events = (list || []).map(e => ({ ...e, sec: sec(e.ms) })).filter(e => e.sec); place(); },
       setExit(v) { exitSec = sec(v); place(); },
       setMarker(v) { marker = sec(v); place(); },
+      setGhosts(list, pick) { ghosts = normWins(list); onGhost = pick || null; place(); },
       setWalletMarkers(list) { wallets = list || []; renderMarkers(); },
       focus: (from, to, exit) => focus(sec(from), sec(to), sec(exit)),
       setTf, init: async first => { if (first) await setTf(first, false, 'recent'); else await setTf(pickTf(now - created), false); },
