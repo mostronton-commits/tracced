@@ -37,6 +37,7 @@ from ..early.store import TradeStore
 from ..providers import dexscreener
 from . import accounts as acct_mod
 from . import alerts as alerts_mod
+from . import fresh as fresh_mod
 from . import docs as docs_mod
 from . import chart
 from . import demo as demo_mod
@@ -392,6 +393,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.on_response_prepare.append(_security_headers)
     app.on_cleanup.append(_flush_on_exit)
     app["bg"] = {}                                                 # фонові задачі сервера (лише з background=True, не в тестах)
+    app["fresh"], app["fresh_peaks"] = {"at": 0, "rows": [], "busy": False, "live": background}, {}   # свіжі пампи на головній
     if background:
         app.on_startup.append(_start_background)
         app.on_cleanup.append(_stop_background)
@@ -567,10 +569,40 @@ ONCHAIN_FIRST_S, ONCHAIN_EVERY_S = 600, 6 * 3600
 async def _start_background(app):
     loop = asyncio.get_running_loop()
     app["bg"]["usage"] = loop.create_task(_usage_loop(app))
+    if app["s"].get("fresh_on"):
+        app["bg"]["fresh"] = loop.create_task(_fresh_refresh(app))       # головна не чекає першого відвідувача
     if app["tg"]["token"] and os.getenv("ALERTS") == "1":
         app["alerts_state"]["on"] = True
         app["bg"]["tg_bot"] = loop.create_task(_tg_bot_loop(app))
         app["bg"]["alerts"] = loop.create_task(_alerts_loop(app))
+
+
+async def _fresh_refresh(app):
+    """Свіжі пампи для головної: не частіше ніж раз на fresh_refresh_min і лише коли головну відкривають (уночі — ні).
+    Кредити — «system/fresh»; поки ST нижче місячного резерву, список лишається старим."""
+    f, s, st = app["fresh"], app["s"], app["st"]
+    if f["busy"] or not hasattr(st, "_get"):
+        return
+    reserve = _credits_reserve(s)
+    left = app["credits"]["left"] if reserve else None
+    if left is not None and left < reserve:
+        return
+    f["busy"] = True
+
+    def work():
+        with st.meter():
+            n0 = st.requests_here()
+            try:
+                return fresh_mod.refresh(st, s, app["fresh_peaks"])
+            finally:
+                _spend(app, "system", "fresh", st=st.requests_here() - n0)
+    try:
+        f["rows"], f["at"] = await asyncio.to_thread(work), int(time.time() * 1000)
+    except Exception as e:  # noqa: BLE001 — головна показує попередній список
+        log.warning("fresh pumps: %s", e)
+        f["at"] = int(time.time() * 1000) - int(float(s.get("fresh_refresh_min", 10)) * 60_000) + 120_000   # спроба знову за 2 хв
+    finally:
+        f["busy"] = False
 
 
 async def _stop_background(app):
@@ -2506,8 +2538,12 @@ async def index(request):
         example = min(done, key=lambda j: j.created_ms or 0) if done else None      # найстарший готовий = показовий
     my_n = len(app["accounts"].load(request["acct"])["analyses"]) if request.get("acct") else 0
     _view(request, "home")
+    f, s = app["fresh"], app["s"]
+    if s.get("fresh_on") and f["live"] and not f["busy"] and time.time() * 1000 - f["at"] > float(s.get("fresh_refresh_min", 10)) * 60_000:
+        asyncio.get_running_loop().create_task(_fresh_refresh(app))    # сторінка не чекає: покаже нове наступному
     return render("index.html", request, tokens=_by_token(jobs, example.id if example else None),
-                  totals=totals, sample=sample, bg_lines=lines, my_n=my_n)
+                  totals=totals, sample=sample, bg_lines=lines, my_n=my_n,
+                  fresh=f["rows"] if s.get("fresh_on") else [], fresh_min=int((time.time() * 1000 - f["at"]) / 60_000) if f["at"] else None)
 
 
 async def docs_page(request):
@@ -3337,6 +3373,8 @@ async def job_state_json(request):
     extra = {"open": f"/job/{job.canon}"} if job.canon and status == "done" else {}   # демо: результат живе під збереженим id
     if status == "done" and not job.result:
         status, error = "error", "The analysis finished without a result. Details are in the container log."
+    if status == "done":
+        extra["found"] = len(job.result.get("rows") or [])  # «765 wallets found» під великим DONE у терміналі
     n = len(job.log)
     return web.json_response(
         {**extra, "id": job.id, "mint": job.mint, "symbol": job.symbol, "status": status, "error": error,

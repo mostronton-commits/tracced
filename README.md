@@ -11,7 +11,8 @@ Live, no sign-up: **[tracced.xyz](https://tracced.xyz)** · Docs: **[tracced.xyz
 ## Three steps
 
 1. **Paste a token.** Its whole life loads as a market-cap chart.
-2. **Mark the range.** Two clicks: where buying starts, where the pump takes off. Detected pumps are offered as hints.
+2. **Mark the range.** Two clicks: where buying starts, where the pump takes off. A first visit shows the two clicks on
+   the chart itself. The home page lists the day's fresh pumps to start from.
 3. **Read the wallets.** Everyone who bought inside it, with what they paid, sold and still hold. Export CSV, TXT or JSON.
 
 Looking is free: the demo, every finished result, the chart of any token. A new analysis needs a connected Phantom

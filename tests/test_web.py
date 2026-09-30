@@ -1042,6 +1042,19 @@ if AioHTTPTestCase:
             self.assertIn(f">{self.app['s']['max_window_hours']} hours<", lim)   # числа ті самі, що в налаштуваннях
             self.assertIn(">{:,}<".format(self.app['s']['max_wallet_lookups']), lim)
 
+        async def test_home_shows_fresh_pumps_when_there_are_some(self):
+            self.assertNotIn('id="fresh"', await (await self.client.get("/")).text())   # nothing found yet: no empty block
+            self.assertEqual(self.st.requests, self.st.requests)
+            self.app["fresh"].update(rows=[{"mint": "M" * 44, "symbol": "PUMP", "name": "Pump", "cap": 3.1e6, "liq": 2e5, "vol": 9e6,
+                                           "created_ms": 0, "image": "", "peak": 12.4e6, "age_h": 5.2, "drop": 75}], at=1)
+            html = await (await self.client.get("/")).text()
+            self.assertIn('id="fresh"', html)
+            self.assertIn('href="/token?mint=' + "M" * 44 + '"', html)            # a way into its chart
+            self.assertIn("peak <b>$12M</b>", html)
+            self.assertIn("−75%", html)
+            self.assertIsNone(CYRILLIC.search(html))
+            self.app["fresh"].update(rows=[], at=0)
+
         async def test_index_english(self):
             r = await self.client.get("/")
             html = await r.text()

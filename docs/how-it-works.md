@@ -12,6 +12,15 @@ So a wallet can show a bigger total than what it spent in your range: it was buy
 The scope switch above the table recounts the same stored trades up to 24 or 48 hours after the range. It costs
 nothing: the trades are already here.
 
+## Fresh pumps on the home page
+
+A token gets there when, in the last {{ s.fresh_hours|int }} hours, it was created, reached a
+${{ '{:,}'.format(s.fresh_min_ath|int) }} market cap, still holds ${{ '{:,}'.format(s.fresh_min_mcap|int) }} with
+${{ '{:,}'.format(s.fresh_min_liquidity|int) }} of liquidity, and is really traded: a day's volume of at least
+{{ (100 * s.fresh_min_turnover)|round|int }}% of its cap. That last rule drops clones with caps in the hundreds of
+millions and almost no trading, a common trick with new tokens. Biggest peak first, refreshed every
+{{ s.fresh_refresh_min|int }} minutes. A click opens the chart, where you mark the range.
+
 ## Where the numbers come from
 
 Raw swaps from the [Solana Tracker Data API](https://www.solanatracker.io/data-api). Market cap is the swap price

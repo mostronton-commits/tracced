@@ -31,6 +31,23 @@
   <em aria-hidden="true">→</em>
   <div><i>03</i><b>Get wallets</b></div>
 </section>
+{% if fresh %}
+{# tokens of the last day that pumped: a click opens the chart, where the range is marked (owner, 30.09) #}
+<section class="card" id="fresh">
+  <div class="row mehead"><h2 title="Created in the last {{ s.fresh_hours|int }} h, reached a ${{ s.fresh_min_ath|mcap }} market cap, still at ${{ s.fresh_min_mcap|mcap }} or more with ${{ s.fresh_min_liquidity|mcap }} liquidity, and really traded: a day's volume of at least {{ (100 * s.fresh_min_turnover)|round|int }}% of the cap">Fresh pumps</h2><span class="muted small">last {{ s.fresh_hours|int }} h{% if fresh_min is not none %} · updated {{ 'just now' if fresh_min < 1 else fresh_min ~ ' min ago' }}{% endif %}</span></div>
+  <div class="fgrid">
+    {% for t in fresh %}
+    <a class="ftok" href="/token?mint={{ t.mint }}" title="{{ t.name or t.symbol }} · {{ t.mint }}">
+      <span class="fimg" data-l="{{ (t.symbol or '?')[:1] }}">{% if t.image %}<img src="{{ t.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span>
+      <span class="ftx">
+        <span class="fl1"><b>{{ t.symbol or '?' }}</b><small class="mono">{{ t.mint[:4] }}…{{ t.mint[-4:] }}</small>{% if t.age_h is not none %}<span class="fage" title="Since the token was created">{{ '<1' if t.age_h < 1 else t.age_h|int }}h</span>{% endif %}</span>
+        <span class="fl2 mono"><span title="The highest market cap it reached">peak <b>${{ t.peak|mcap }}</b></span> · now ${{ t.cap|mcap }}{% if t.drop >= 1 %} <i class="neg">−{{ t.drop }}%</i>{% endif %}</span>
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 {% if tokens %}
 <section class="card" id="recent">
   <div class="row mehead"><h2>Recently analyzed on tracced</h2>{% if acct %}<a class="right small" href="/me#analyses">My analyses ({{ my_n }}) →</a>{% endif %}</div>
