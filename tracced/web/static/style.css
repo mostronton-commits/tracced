@@ -1084,7 +1084,13 @@ td.c-roi b { font-size: 13px; }
 
 /* the wallet card and the agent sit beside the page on a wide screen, not over it: the chart and the table narrow instead */
 @media (min-width: 1200px) {
-  body.drawer-open main.wide { margin-right: 480px; max-width: min(var(--page), calc(100vw - 480px)); }
+  /* 30.09, 4K: a fixed right margin left the page glued to the card with the whole spare width on the left. Now the page
+     stays centred while the card fits in the right margin, and moves left only as far as the card needs */
+  body.drawer-open main.wide {
+    --dl: max(0px, min(calc((100vw - var(--page)) / 2), calc(100vw - 480px - var(--page))));
+    margin-left: var(--dl); margin-right: max(480px, calc(100vw - var(--page) - var(--dl)));
+    max-width: min(var(--page), calc(100vw - 480px));
+  }
   .drawer, .drawer.wcard { width: 480px; }
 }
 #facts tbody tr.carded td { background: var(--sage); }

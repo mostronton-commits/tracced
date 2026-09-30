@@ -1442,7 +1442,7 @@ if AioHTTPTestCase:
             class Flaky:
                 model = "fake"
 
-                def ask(self, result, cfg, q, lang):
+                def ask(self, result, cfg, q, lang, history=None, focus=None):
                     if q == "down":
                         raise AssistantError("The agent's model is busy right now. Try again in a minute.")
                     return {"on_topic": False, "answer": ["I only answer questions about this analysis."], "wallets": [], "model": "fake"}, [], {}
@@ -2333,7 +2333,7 @@ if AioHTTPTestCase:
         async def test_the_agent_needs_a_wallet_and_keeps_its_limits(self):
             seed_demo(self.tmp.name, self.app)
             self.app["admins"] = set()
-            calls = []
+            calls, seen = [], []
 
             class FakeAgent:
                 model = "fake"
@@ -2342,8 +2342,9 @@ if AioHTTPTestCase:
                     calls.append(("cards", lang, cfg["v"]))
                     return {"story": ["1 wallet bought."], "risks": [], "watch": [], "method": "m", "model": "fake"}, [], {"cost": 0.001}
 
-                def ask(self, result, cfg, q, lang):
+                def ask(self, result, cfg, q, lang, history=None, focus=None):
                     calls.append(("ask", q, lang))
+                    seen.append((history, focus))
                     return {"on_topic": True, "answer": ["1 wallet bought."], "wallets": [], "model": "fake"}, [], {"cost": 0.001}
             self.app["agent"] = FakeAgent()
             try:
@@ -2361,8 +2362,10 @@ if AioHTTPTestCase:
                 self.assertEqual(calls, [("cards", "Ukrainian", 0)])
                 r = await self.client.post(f"/job/{DEMO_JID}/agent/ask", json={"q": "Who took 3x?", "chip": True, "lang": "en"}, headers=h)
                 self.assertEqual(((await r.json())["left"], calls[-1]), (9, ("ask", "Who took 3x?", "English")))
-                r = await self.client.post(f"/job/{DEMO_JID}/agent/ask", json={"q": "Хто тримає?"}, headers=h)
+                r = await self.client.post(f"/job/{DEMO_JID}/agent/ask", json={"q": "Хто тримає?", "focus": [pk, "not-a-key"],
+                                           "history": [{"q": "Who took 3x?", "a": "1 wallet bought."}, "junk", {"q": " "}]}, headers=h)
                 self.assertEqual(calls[-1][2], "the language of the user's question")   # своє питання — його мовою
+                self.assertEqual(seen[-1], ([{"q": "Who took 3x?", "a": "1 wallet bought."}], [pk]))   # розмова і вибрані гаманці — до агента
                 self.app["s"]["agent_questions_per_day"] = 2
                 r = await self.client.post(f"/job/{DEMO_JID}/agent/ask", json={"q": "more"}, headers=h)
                 self.assertEqual(r.status, 429)

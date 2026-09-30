@@ -2921,11 +2921,20 @@ async def job_agent_ask(request):
     lang = agent_mod.lang_name(body.get("lang")) if chip else "the language of the user's question"
     # кнопка-підказка — текстом (його написав власник, це не слова людини); інакше лише «своє питання»
     said = (q[:80] if q in cfg["chips"] else 1) if chip else None
+    # розмова (три останні питання з відповідями, як їх показує сторінка) і гаманці, вибрані на сторінці: без них
+    # «а цей гаманець?» чи «дай відповідь на попереднє питання» агент чує вперше
+    history = []
+    for h in (body.get("history") if isinstance(body.get("history"), list) else [])[-agent_mod.MAX_TURNS:]:
+        if isinstance(h, dict) and str(h.get("q") or "").strip():
+            history.append({"q": " ".join(str(h["q"]).split())[:agent_mod.MAX_QUESTION],
+                            "a": " ".join(str(h.get("a") or "").split())[:agent_mod.MAX_ANSWER]})
+    focus = [w for w in (body.get("focus") if isinstance(body.get("focus"), list) else [])[:5]
+             if isinstance(w, str) and acct_mod.valid_pubkey(w)]
     refuse, give_back = _agent_take(app, pk, "ask", _ip_key(_client_ip(request)))
     if refuse:
         return refuse
     try:
-        out, dropped, usage = await asyncio.to_thread(app["agent"].ask, job.result, cfg, q, lang)
+        out, dropped, usage = await asyncio.to_thread(app["agent"].ask, job.result, cfg, q, lang, history, focus)
     except assistant_mod.AssistantError as e:
         give_back(e.usage)
         app["agent_store"].log({"pk": pk, "job": jid, "kind": "ask", "q": q, "chip": chip, "error": str(e), "usage": e.usage})

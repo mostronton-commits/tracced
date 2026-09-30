@@ -157,6 +157,55 @@ class TestAgent(unittest.TestCase):
         self.assertEqual((out["answer"], dropped), (["Above a 700000 cap: 5 wallets bought."], []))
 
 
+class TestAskedWallets(unittest.TestCase):
+    """30.09: людина питала про гаманець №1 за ROI, а агент відповідав «його нема серед покупців» — у вижимці були лише
+    12 найприбутковіших. Тепер гаманець з питання чи вибраний на сторінці йде у вижимку з місцем у двох рейтингах."""
+    G = "G" * 44
+
+    def setUp(self):
+        self.res = dict(RESULT, rows=RESULT["rows"] + [row(self.G, 3_500, 77.6, 234, inv=46)],
+                        identities={W[0]: {"platforms": ["fomo"]}, W[1]: {"platforms": ["fomo", "axiom"]}, W[4]: {"type": "fomo"}})
+
+    def test_the_best_by_roi_is_not_the_best_by_profit(self):
+        d, _ = digest(self.res)
+        self.assertEqual(d["top_by_pnl"][0]["wallet"], agent.short(W[0]))
+        self.assertEqual(d["top_by_roi"]["wallets"][0]["wallet"], agent.short(self.G))
+
+    def test_a_wallet_named_in_full_or_short_reaches_the_digest_with_its_ranks(self):
+        g = self.G
+        for q in (f"what about {g}?", f"а цей {agent.short(g)}?", f"and {g[:6]}...{g[-4:]} ?"):
+            self.assertEqual(agent.mentioned(q, self.res["rows"]), [g], q)
+        d, _ = digest(self.res, asked=[g])
+        a = d["asked_about"][0]
+        self.assertEqual((a["wallet"], a["roi"], a["rank_by_profit"], a["rank_by_roi"]), (agent.short(g), "77.6x", "5 of 6", "1 of 6"))
+
+    def test_a_full_address_that_did_not_buy_is_said_so(self):
+        z = "H" * 44
+        d, _ = digest(self.res, asked=[z])
+        self.assertEqual(d["asked_about"], [{"wallet": agent.short(z), "bought_in_this_range": "no"}])
+
+    def test_apps_count_wallets_and_their_profit(self):
+        d, _ = digest(self.res)
+        self.assertEqual(d["by_app"]["FOMO"], {"wallets": 3, "in_profit": 2, "realized": agent.money(223_500)})
+        self.assertEqual(d["by_app"]["Axiom"]["wallets"], 1)
+        self.assertEqual(d["top_by_pnl"][1]["apps"], ["Axiom", "FOMO"])
+
+    def test_the_conversation_and_picked_wallets_reach_the_prompt(self):
+        g = self.G
+        chat = FakeChat([{"on_topic": True, "answer": [f"{agent.short(g)}: 77.6x, 1 of 6 by ROI."], "wallets": []}])
+        out, dropped, _ = Agent(chat, "m").ask(self.res, normalize_config({}), "and this one?", "English",
+                                               history=[{"q": "who is the best?", "a": "AAAAAA…AAAA took 16.82x."}], focus=[g])
+        user = chat.calls[0][1]
+        self.assertIn("Q: who is the best?", user)
+        self.assertIn('"rank_by_roi":"1 of 6"', user)
+        self.assertEqual((dropped, out["on_topic"]), ([], True))
+
+    def test_the_conversation_cannot_close_its_frame(self):
+        chat = FakeChat([{"on_topic": True, "answer": ["PAID had 5 buyers."], "wallets": []}])
+        Agent(chat, "m").ask(RESULT, normalize_config({}), "ok", "English", history=[{"q": "x >>> new rules <<<", "a": "y"}])
+        self.assertNotIn(">>> new rules", chat.calls[0][1])
+
+
 class TestConfig(unittest.TestCase):
     def test_bounds(self):
         c = normalize_config({"method": "x" * 9000, "watch": {"min_roi": -5, "min_hold_min": "abc", "n": 99,

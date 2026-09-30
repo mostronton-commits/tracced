@@ -1047,8 +1047,15 @@
         if (!q || aBusy) return;
         aBusy = true;
         EarlyUI.track('agent-ask', { chip: !!chip });
+        // what the agent needs to follow the talk: the last three questions with the answers as shown, and the wallets
+        // picked on this page (on the chart or ticked), so "and this one?" means the one in front of the person
+        const history = [...athread.querySelectorAll('.aqa')].slice(-3).map(it => ({
+          q: ((it.querySelector('.aqq') || {}).textContent || '').trim(),
+          a: [...it.querySelectorAll('.aa li, .aa .awallet, .aa .awhy')].map(x => x.textContent.trim()).join(' · ').slice(0, 600) }))
+          .filter(h => h.q && h.a && h.q !== SUMQ);
+        const focus = [...new Set([...onChart.map(o => o.wallet), ...selected])].slice(0, 5);
         const slot = aBubble(q);
-        const { status, ok, d } = await aPost('/job/' + jobId + '/agent/ask', { q, lang: ALANG, chip: !!chip });
+        const { status, ok, d } = await aPost('/job/' + jobId + '/agent/ask', { q, lang: ALANG, chip: !!chip, history, focus });
         aBusy = false;
         if (!ok) { aFail(slot, status, d); return; }
         slot.innerHTML = '<ul class="aans' + (d.on_topic === false ? ' off' : '') + '">' + (d.answer || []).map(t => '<li>' + aText(t) + '</li>').join('') + '</ul>'

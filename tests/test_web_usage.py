@@ -138,7 +138,7 @@ if AioHTTPTestCase:
                     return ({"story": ["1 wallet bought."], "risks": [], "watch": [], "method": "m", "model": "fake"}, [],
                             {"prompt_tokens": 100, "completion_tokens": 20, "cost": 0.001})
 
-                def ask(self, result, cfg, q, lang):
+                def ask(self, result, cfg, q, lang, history=None, focus=None):
                     if q == "boom":
                         raise AssistantError("The agent's model is busy right now.", {"prompt_tokens": 90, "completion_tokens": 0, "cost": 0.0005})
                     return ({"on_topic": q != "a poem", "answer": ["1 wallet bought."], "wallets": [], "model": "fake"},
