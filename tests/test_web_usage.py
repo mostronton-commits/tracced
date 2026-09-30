@@ -23,6 +23,7 @@ if AioHTTPTestCase:
         from test_web import FakeWebST, MINT, GUEST, TEST_PK, wallet_cookie, seed_demo, DEMO_JID, W1
     from tracced.early.assistant import AssistantError
     from tracced.web import accounts as acct_mod
+    from tracced.web import usage as usage_mod
     from tracced.web.app import create_app
 
     class TestUsageLog(AioHTTPTestCase):
@@ -507,6 +508,38 @@ if AioHTTPTestCase:
             r = await self.client.post("/admin/beta", json={"wallet": user, "on": False}, headers=self.origin)
             self.assertEqual((await r.json())["wallets"], [])
             self.assertIn("Make a beta tester", await (await self.client.get(f"/admin/w/{user}")).text())
+
+        async def test_the_owner_labels_wallets_in_the_admin(self):
+            user = acct_mod.b58encode(b"\x42" * 32)
+            self.app["accounts"].touch(user, "Phantom")
+            r = await self.client.post("/admin/labels", json={"wallet": user, "labels": [" Friend ", "friend", "tester", "x" * 40]}, headers=self.origin)
+            self.assertEqual((await r.json())["labels"], ["friend", "tester", "x" * 24])     # trimmed, lowercased, no doubles, cut
+            html = await (await self.client.get("/admin?tab=wallets&team=1")).text()
+            self.assertIn('class="alfilter"', html)
+            self.assertIn('data-l="friend"', html)
+            self.assertIn('/static/labels.js', html)
+            self.assertIn('data-labels=\'["friend", "tester", "' + "x" * 24 + '"]\'', html)
+            self.assertIn('data-w="' + user + '"', await (await self.client.get(f"/admin/w/{user}")).text())
+            r = await self.client.post("/admin/labels", json={"wallet": user, "labels": ["friend"]}, headers=dict(GUEST, **self.origin))
+            self.assertEqual(r.status, 403)                                                   # only the owner
+            self.assertEqual((await self.client.post("/admin/labels", json={"wallet": "nope", "labels": ["a"]}, headers=self.origin)).status, 400)
+            r = await self.client.post("/admin/labels", json={"wallet": user, "labels": []}, headers=self.origin)
+            self.assertEqual((await r.json())["labels"], [])
+            self.assertNotIn(user, usage_mod.load_json(self.app["usage_dir"] / "labels.json", {}))
+
+        async def test_a_listed_wallet_gets_the_full_card(self):
+            seed_demo(self.tmp.name, self.app)
+            r = await self.client.post("/me/wallets", json={"job": DEMO_JID, "wallets": [W1]}, headers=self.origin)
+            self.assertEqual(r.status, 200, await r.text())
+            d = await (await self.client.get(f"/me/wallet.json?wallet={W1}")).json()
+            self.assertEqual((d["wallet"], d["job"]), (W1, DEMO_JID))
+            for k in ("idn", "age", "funder", "exchange", "tags", "etime", "seen"):
+                self.assertIn(k, d)
+            self.assertEqual((await self.client.get("/me/wallet.json?wallet=" + acct_mod.b58encode(b"\x43" * 32))).status, 404)   # not in your lists
+            self.assertEqual((await self.client.get(f"/me/wallet.json?wallet={W1}", headers=GUEST)).status, 401)
+            html = await (await self.client.get("/me")).text()
+            self.assertIn('id="dtsec"', html)                                                # trades on its token, as on a result
+            self.assertNotIn("tgsample", html)                                               # no sample message in Lists
 
         async def test_sign_out_tags_and_list_exports_are_actions(self):
             seed_demo(self.tmp.name, self.app)

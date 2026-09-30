@@ -13,7 +13,7 @@
 {% else %}
 {% if alerts_ok %}
 {# the alerts are a thing of their own (owner, 30.09: a strip inside the lists looked weak): what they are, the switch,
-   the settings, and one example of what comes to the chat #}
+   the settings #}
 <section class="card tgcard{{ ' on' if tg.linked }}" id="tgbar">
   <div class="tgrow">
     <span class="tglogo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.7 4.4 3.4 11.1c-1.2.5-1.2 1.2-.2 1.5l4.4 1.4 1.7 5.2c.2.6.4.8.8.8.4 0 .6-.2.9-.5l2.1-2 4.4 3.3c.8.4 1.4.2 1.6-.8l2.9-13.6c.3-1.2-.5-1.7-1.3-1.4Z" fill="currentColor"/></svg></span>
@@ -30,7 +30,6 @@
     <button type="button" class="link" id="tgunlink"{% if not tg.linked %} hidden{% endif %}>Disconnect</button>
   </div>
   <p class="tghint" id="tghint"{% if not tg.linked %} hidden{% endif %}>Turn on the bell <i class="lbell"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2V7.4a4 4 0 0 1 8 0v3.8l1.2 1.4H2.8z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/></svg></i> on a list below: the trades of its wallets come to the chat.</p>
-  <div class="tgsample" aria-hidden="true"><div class="tgbub">🟡 <span class="tgl"><b>$BRICK</b></span> 🆕 · MC $464K · <span class="tgl">tx</span><br><br><span class="tgl">whale</span> · <b>$2K</b></div></div>
 </section>
 {% endif %}
 <section class="card me" id="list">
@@ -43,8 +42,11 @@
     <button type="button" class="ltab on" data-list="" role="tab">All <b>{{ wallets|length }}</b></button>
     {% for l in lists %}<button type="button" class="ltab" data-list="{{ l.id }}" data-alerts="{{ 1 if l.alerts else 0 }}" role="tab">{{ l.name }} <b>{{ l.n }}</b>{% if alerts_ok %}<i class="lbell" title="Alerts on"{% if not l.alerts %} hidden{% endif %}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2V7.4a4 4 0 0 1 8 0v3.8l1.2 1.4H2.8z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/></svg></i>{% endif %}</button>{% endfor %}
     {% if lists|length < max_lists %}<form class="lnewtab" id="lnew"><input type="text" maxlength="32" placeholder="New list" aria-label="Name of a new list"><button type="submit" class="ghost">+ Create</button></form>{% endif %}
-    <span class="lacts" id="lacts" hidden>{% if alerts_ok %}<button type="button" class="link lalert" id="lalert"></button> · {% endif %}<button type="button" class="link" id="lrename">Rename</button> · <button type="button" class="link" id="ldelete">Delete this list</button></span>
   </div>
+  {# the open list's own bar: its alerts switch where the eye lands, not a link at the end of the tabs (owner, 30.09) #}
+  <div class="lbar" id="lacts" hidden>{% if alerts_ok %}<button type="button" class="lalert" id="lalert" role="switch" aria-checked="false"></button>{% endif %}
+    <span class="lmore"><button type="button" class="link" id="lrename">Rename</button> · <button type="button" class="link" id="ldelete">Delete this list</button></span></div>
+  {% if alerts_ok and lists %}<p class="lballhint" id="lallhint">Alerts are per list: open one above and switch them on.</p>{% endif %}
   {% if wallets %}
   {# a list is for watching: the wallet and your tags for it, added right in the row; its numbers open in the card (owner, 30.09) #}
   <div class="tablewrap"><table class="facts melist mewl"><thead><tr>
@@ -71,8 +73,8 @@
       <div class="dh-id">
         <span class="wav" id="dav" aria-hidden="true"></span>
         <div class="dh-names">
-          <div class="dh-top"><b id="dname">Wallet</b></div>
-          <div class="dh-addr"><span class="mono" id="dw"></span><button type="button" class="ghost wcopy" id="dcopy" data-copy="" title="Copy the address" aria-label="Copy the address"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.8"/><path d="M10.5 5.5V4.3A1.8 1.8 0 0 0 8.7 2.5H4.3a1.8 1.8 0 0 0-1.8 1.8v4.4a1.8 1.8 0 0 0 1.8 1.8h1.2"/></svg></button><a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan" aria-label="This wallet on Solscan">↗</a></div>
+          <div class="dh-top"><b id="dname">Wallet</b><span class="ids" id="dids"></span></div>
+          <div class="dh-addr"><span class="mono" id="dw"></span><button type="button" class="ghost wcopy" id="dcopy" data-copy="" title="Copy the address" aria-label="Copy the address"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.8"/><path d="M10.5 5.5V4.3A1.8 1.8 0 0 0 8.7 2.5H4.3a1.8 1.8 0 0 0-1.8 1.8v4.4a1.8 1.8 0 0 0 1.8 1.8h1.2"/></svg></button><a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan" aria-label="This wallet on Solscan">↗</a><span class="dchips" id="dchips"></span></div>
         </div>
       </div>
       <div class="dh-act"><button type="button" class="ghost x" id="dclose" title="Close" aria-label="Close">×</button></div>
@@ -83,6 +85,12 @@
       <div class="dsec-h"><h4>All tokens <span class="dinfo" id="dprofi" hidden>i</span></h4>
         <div class="seg" id="dper" role="tablist" aria-label="Period"><button type="button" data-p="7">7D</button><button type="button" data-p="30" class="on">30D</button></div></div>
       <div id="dprof"></div>
+    </section>
+    <section class="dsec" id="dwsec" hidden><div class="dcross" id="dcross"></div></section>
+    <section class="dsec" id="dtsec" hidden>
+      <h4>Trades on <span id="dtsym"></span> <span class="muted" id="dtcount"></span></h4>
+      <table class="story"><thead><tr><th>Time</th><th></th><th class="num">Amount</th><th class="num">Tokens</th><th class="num">Cap</th></tr></thead><tbody id="dtrades"></tbody></table>
+      <p class="muted small dline" id="dnote"></p>
     </section>
   </div>
 </aside>
@@ -147,10 +155,69 @@
     tags.forEach(t => { const b = document.createElement('button'); b.type = 'button'; b.className = 'tag mine'; b.title = 'Click to remove'; b.textContent = t; box.insertBefore(b, inp); });
     inp.hidden = true; inp.value = ''; add.hidden = tags.length >= MAX_TAGS;
   }
+  // the card is the result's card (owner, 30.09): who it is, its age and funder, our tags, where else you met it, its
+  // trades on the token you found it on; all from the saved analyses, the 30 days from the profile
+  const TAGDEF = {{ TAGS|tojson }}, QUIET = new Set(['seen-before', 'pre-range', 're-bought']), cards = new Map();
+  const CHAIN = '<svg class="lnk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" aria-hidden="true"><g transform="rotate(-45 12 12)"><rect x="1.2" y="7.4" width="12.4" height="9.2" rx="4.6"/><rect x="10.4" y="7.4" width="12.4" height="9.2" rx="4.6"/></g></svg>';
+  const fm = v => EarlyUI.fmtShort(v), money = v => (v == null || isNaN(v) ? '—' : (v < 0 ? '-$' : '$') + fm(Math.abs(v)));
+  const nf = v => (+v || 0).toLocaleString('en-US'), plural = (n, x) => n + ' ' + x + (n === 1 ? '' : 's');
+  const ageText = ms => { const d = (Date.now() - ms) / 86400000;
+    return d >= 365 ? (d / 365).toFixed(d >= 3650 ? 0 : 1) + 'y' : d >= 1 ? Math.floor(d) + 'd' : Math.max(1, Math.floor(d * 24)) + 'h'; };
+  function nameOf(w) {
+    const d = cards.get(w) || {}, mine = (META[w] || {}).my_tags || [];
+    return EarlyTags.displayName(d.idn) || (mine.length ? mine.join(', ') : 'Wallet');
+  }
+  function renderIdent(w) {
+    const d = cards.get(w) || {}, idn = d.idn;
+    document.getElementById('dav').innerHTML = idn && idn.avatar ? '<img src="' + esc(idn.avatar) + '" alt="" referrerpolicy="no-referrer">' : EarlyCard.identicon(w);
+    document.getElementById('dname').textContent = nameOf(w);
+    document.getElementById('dids').innerHTML = idn ? EarlyTags.idMarks(idn) : '';
+    const out = [], age = d.age, fresh = (d.tags || []).includes('fresh');
+    if (age && age.ms && age.exact) {
+      if (fresh && d.etime > age.ms)                                 // fresh is about the buy: "17h at buy", not its age today
+        out.push('<span class="dchip age young" title="Fresh: this wallet was ' + ageText(Date.now() - (d.etime - age.ms)) + ' old when it first bought there. Created '
+          + EarlyTZ.fmt(age.ms, true) + '">' + ageText(Date.now() - (d.etime - age.ms)) + ' at buy</span>');
+      else out.push('<span class="dchip age' + (Date.now() - age.ms < 86400000 ? ' young' : '') + '" title="Wallet age today. First transaction ' + EarlyTZ.fmt(age.ms, true) + '">' + ageText(age.ms) + '</span>');
+    } else if (age && age.ms) out.push('<span class="dchip age" title="More than ' + nf(age.n || 6000) + ' transactions: its first one is older than the ones read">' + Math.floor((+age.n || 6000) / 1000) + 'k+ tx</span>');
+    const f = d.funder;
+    if (f && d.exchange) out.push('<a class="dchip fund cex" href="https://solscan.io/account/' + esc(f) + '" target="_blank" rel="noopener" title="First SOL came straight from ' + esc(d.exchange[1]) + ', an exchange">↘ ' + esc(d.exchange[0]) + '</a>');
+    else if (f) out.push('<a class="dchip fund mono" href="https://solscan.io/account/' + esc(f) + '" target="_blank" rel="noopener" title="First SOL came from ' + esc(f)
+      + (d.service ? ', an exchange or an app' : d.funded > 1 ? ', which funded ' + d.funded + ' wallets in that analysis (bundle)' : '') + '">↘ ' + short(f)
+      + (!d.service && d.funded > 1 ? '<small>×' + d.funded + '</small>' : '') + '</a>');
+    document.getElementById('dchips').innerHTML = out.join('');
+    const cx = d.seen || [];
+    document.getElementById('dcross').innerHTML = cx.length ? '<b>' + CHAIN + ' Seen in ' + cx.length + ' of your other analyses</b><ul>' + cx.map(c =>
+      '<li><a href="/job/' + encodeURIComponent(c.job) + '">' + esc(c.symbol || '?') + ' · ' + EarlyTZ.fmt(c.from, false)
+      + (c.mult ? ' · ' + (+c.mult).toFixed(1) + '×' : '') + (c.real ? ' · ' + money(c.real) : '') + '</a></li>').join('') + '</ul>' : '';
+    document.getElementById('dwsec').hidden = !cx.length;
+  }
+  async function loadCard(w) {
+    if (!cards.has(w)) {
+      try { const r = await fetch('/me/wallet.json?' + new URLSearchParams({ wallet: w }), { credentials: 'same-origin' }); if (r.ok) cards.set(w, await r.json()); } catch (e) {}
+    }
+    if (drawer.dataset.w !== w) return;
+    renderIdent(w); renderTags(w); loadTrades(w);
+  }
+  async function loadTrades(w) {
+    const d = cards.get(w) || {}, sec = document.getElementById('dtsec'), tb = document.getElementById('dtrades');
+    if (!d.job) { sec.hidden = true; return; }
+    document.getElementById('dtsym').textContent = d.symbol ? '$' + d.symbol : 'the token';
+    document.getElementById('dtcount').textContent = d.buys ? plural(d.buys, 'buy') + (d.sells != null ? ' · ' + plural(+d.sells, 'sell') : '') : '';
+    tb.innerHTML = '<tr><td colspan="5" class="muted small">Loading…</td></tr>'; sec.hidden = false;
+    let t = null;
+    try { const r = await fetch('/wallet_trades.json?' + new URLSearchParams({ job: d.job, wallet: w }), { credentials: 'same-origin' }); if (r.ok) t = await r.json(); } catch (e) {}
+    if (drawer.dataset.w !== w) return;
+    if (!t || !t.trades || !t.trades.length) { tb.innerHTML = '<tr><td colspan="5" class="muted small">No trades to show.</td></tr>'; return; }
+    tb.innerHTML = t.trades.map(x => '<tr class="' + esc(x.side) + '"><td class="mono dtc" data-ms="' + x.t + '">' + EarlyTZ.fmt(x.t, false) + '</td><td>'
+      + (x.side === 'buy' ? '<b class="buy">▲ buy</b>' : '<b class="sell">▼ sell</b>') + '</td><td class="num mono">' + money(x.usd) + '</td><td class="num mono">'
+      + (x.qty ? fm(x.qty) : '—') + '</td><td class="num mono">' + (x.mcap ? fm(x.mcap) : '—') + '</td></tr>').join('');
+    document.getElementById('dnote').textContent = (t.complete === false ? 'Exits not fetched: only trades inside the range are known. ' : '') + (t.truncated ? 'First ' + t.trades.length + ' of ' + t.n + '.' : '');
+  }
   function renderTags(w) {
-    const mine = (META[w] || {}).my_tags || [];
-    document.getElementById('dname').textContent = mine.length ? mine.join(', ') : 'Wallet';
-    document.getElementById('dtags').innerHTML = mine.map(t => '<button type="button" class="tag mine" title="Your tag · click to remove">' + esc(t) + '</button>').join('')
+    const mine = (META[w] || {}).my_tags || [], d = cards.get(w) || {};
+    document.getElementById('dname').textContent = nameOf(w);
+    const ours = (d.tags || []).filter(t => t && !QUIET.has(t)).map(t => EarlyTags.chip(t === 'bundle' && d.funded > 1 && !d.service ? 'bundle ×' + d.funded : t, TAGDEF[t], { text: true })).join('');
+    document.getElementById('dtags').innerHTML = ours + mine.map(t => '<button type="button" class="tag mine" title="Your tag · click to remove">' + esc(t) + '</button>').join('')
       + (mine.length < MAX_TAGS ? '<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd wide" title="Your own tag for this wallet: it names the wallet here and in the Telegram alerts" aria-label="Add your own tag">' + PLUS + '<span>tag</span></button>' : '');
   }
   function renderSrc(w) {
@@ -190,7 +257,9 @@
     const dw = document.getElementById('dw'); dw.textContent = short(w); dw.title = w;
     document.getElementById('dcopy').dataset.copy = w;
     document.getElementById('dsol').href = 'https://solscan.io/account/' + w;
-    renderTags(w); renderSrc(w); loadProfile(w);
+    document.getElementById('dids').innerHTML = ''; document.getElementById('dchips').innerHTML = '';
+    document.getElementById('dwsec').hidden = true; document.getElementById('dtsec').hidden = true;
+    renderTags(w); renderSrc(w); loadProfile(w); loadCard(w);
   }
   if (drawer) {
     const tbody = document.querySelector('.mewl tbody');
@@ -252,6 +321,7 @@
     document.querySelectorAll('tr[data-w]').forEach(tr => { const on = !current || tr.dataset.lists.split(' ').includes(current); tr.hidden = !on; n += on; });
     document.querySelectorAll('#ltabs .ltab').forEach(b => b.classList.toggle('on', b.dataset.list === current));
     const acts = document.getElementById('lacts'); if (acts) { acts.hidden = !current; document.getElementById('ldelete').hidden = current === 'main'; }
+    const allh = document.getElementById('lallhint'); if (allh) allh.hidden = !!current;
     const csv = document.getElementById('xcsv'); if (csv) csv.href = '/me/wallets.csv' + (current ? '?list=' + encodeURIComponent(current) : '');
     bellText();
     const em = document.getElementById('lempty'); if (em) em.hidden = n > 0;
@@ -280,8 +350,9 @@
   function bellText() {
     if (!lalert || !current) return;
     const on = (tabOf(current) || { dataset: {} }).dataset.alerts === '1';
-    lalert.textContent = on ? 'Alerts on · turn off' : 'Turn on alerts';
-    lalert.classList.toggle('on', on);
+    lalert.innerHTML = '<i class="sw" aria-hidden="true"></i><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2V7.4a4 4 0 0 1 8 0v3.8l1.2 1.4H2.8z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/></svg><span>' + (on ? 'Alerts on' : 'Turn on alerts') + '</span><small>'
+      + (on ? 'buys and sells of this list come to Telegram' : tgLinked ? 'get this list\'s buys and sells in Telegram' : 'connects Telegram first') + '</small>';
+    lalert.setAttribute('aria-checked', String(on)); lalert.classList.toggle('on', on);
   }
   function tgShow(d) {
     tgLinked = !!d.linked; tgbar.classList.toggle('on', tgLinked);

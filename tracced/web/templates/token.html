@@ -148,9 +148,11 @@
   function hint() {
     const r = state.rows[state.sel] || {};
     const empty = !DEMO && !locked(r) && (step === 1 || !(r.from && r.to));
-    ch.setDemo(!empty ? null : step === 1 && r.from ? { after: parse(r.from) } : 'two');
+    // the second and third range need no lesson (owner, 30.09): once any range is on the page, only the mid-way label
+    const first = !state.rows.some((x, i) => i !== state.sel && x.from && x.to);
+    ch.setDemo(!empty || !first ? null : step === 1 && r.from ? { after: parse(r.from) } : 'two');
     hintEl.textContent = step === 1 ? 'Now ' + VERB.toLowerCase() + ' where the pump takes off' : VERB + ' where buying starts';
-    hintEl.hidden = !empty;
+    hintEl.hidden = !empty || (!first && step !== 1);
   }
   /* The token's own life on the chart: when trading left the launchpad, when someone paid DexScreener for
      visibility. Costs no Solana Tracker requests, and a failure just leaves the chart without them. */

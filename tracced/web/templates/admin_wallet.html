@@ -15,6 +15,9 @@
     <button type="button" class="ghost" id="uexclude" data-wallet="{{ d.pubkey }}" data-on="{{ '0' if excluded else '1' }}"
       title="A test or team wallet: its steps stop counting as a user's (its costs still count)">{{ 'Counted as a test wallet · undo' if excluded else 'Mark as a test wallet' }}</button>{% endif %}
   </div>
+  <p class="alrow small"><span class="muted">Your labels</span> <span class="alabels" data-w="{{ d.pubkey }}" data-labels='{{ labels|tojson }}'></span></p>
+  <datalist id="alabel-list">{% for l in (labels + ['me', 'friend', 'tester', 'team'])|unique|sort %}<option value="{{ l }}">{% endfor %}</datalist>
+  <script src="/static/labels.js?v={{ v }}" defer></script>
   <p class="muted small">
     {% if i %}{% if i.type == 'kol' or 'kol' in (i.tags or []) %}★ KOL · {% endif %}{{ i.name or '' }}{% if i.twitter %} <a href="https://x.com/{{ i.twitter|replace('@', '') }}" target="_blank" rel="noopener">@{{ i.twitter|replace('@', '') }}</a>{% endif %} (per Solana Tracker) · {% endif %}
     {{ a.wallet_app or 'wallet app unknown' }} · first sign-in <span class="dtc" data-ms="{{ d.first_ms or 0 }}">{{ (d.first_ms or 0)|dt }}</span>

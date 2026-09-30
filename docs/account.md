@@ -16,8 +16,9 @@ follow. A wallet can sit in several. At `/me` every list has its own tab with it
 it (the first one stays). **Export** there gives the list on screen, or all of them, as CSV or TXT, and the CSV
 says which lists hold each wallet.
 
-A row in a list is the wallet and your tags for it: **+** adds one right there. Click the row for the wallet's card:
-its last 7 or 30 days on every token, the pump you found it in, the lists that hold it.
+A row in a list is the wallet and your tags for it: **+** adds one right there. Click the row for the wallet's card,
+the same as on a result: who it is if anyone knows, its age and first funder, its trades on the token you found it on,
+the other analyses you saved it in, and its last 7 or 30 days on every token.
 
 ## Your own tags
 
@@ -42,7 +43,8 @@ The chip above the table filters the list down to those wallets.
 
 ## Telegram alerts
 
-Turn on the bell for a list, and the buys and sells of its wallets come to Telegram, a few seconds after they happen.
+Open a list and switch its alerts on: the buys and sells of its wallets come to Telegram, a few seconds after they
+happen.
 Only trades count: a wallet has to sign the transaction itself and pay SOL or a stablecoin for a token, or get them for
 one. Transfers, incoming SOL, airdrops and token-for-token swaps stay silent, and so does anything under your minimum.
 

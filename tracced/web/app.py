@@ -531,11 +531,13 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_post("/me/telegram/link", me_tg_link)
     app.router.add_post("/me/telegram/unlink", me_tg_unlink)
     app.router.add_get("/me/telegram.json", me_tg_status)
+    app.router.add_get("/me/wallet.json", me_wallet_json)
     app.router.add_post("/me/alerts", me_alerts)
     app.router.add_get("/admin", admin_page)
     app.router.add_get("/admin/w/{pk}", admin_wallet_page)
     app.router.add_post("/admin/usage/exclude", admin_usage_exclude)
     app.router.add_post("/admin/beta", admin_beta)
+    app.router.add_post("/admin/labels", admin_labels)
     app.router.add_post("/admin/feedback", admin_feedback)
     app.router.add_post("/admin/api", admin_api)
     app.router.add_get("/api/v1/check", api_check)
@@ -1269,6 +1271,51 @@ async def me_tg_unlink(request, pk):
     request.app["accounts"].clear_telegram(pk)
     request.app["events"].add(pk, "telegram", on=0)
     return web.json_response({"ok": True})
+
+
+@_acct_route
+async def me_wallet_json(request, pk):
+    """Картка гаманця зі списку — та сама, що на результаті (власник, 30.09: «чому вона не повна»): хто це (ім'я, X,
+    застосунок), вік, спонсор і біржа, наші мітки, коли вперше купив у діапазоні, і в яких ще збережених аналізах людини він
+    траплявся. Усе з уже збережених результатів — жодного запиту до Solana Tracker; 30 днів — окремо, /wallet_profile.json."""
+    app = request.app
+    w = request.query.get("wallet", "")
+    acct = app["accounts"].load(pk)
+    meta = (acct.get("wallets") or {}).get(w)
+    if not meta:
+        raise web.HTTPNotFound(text="That wallet is not in your lists.")
+
+    def build():
+        jobs = app["jobs"]
+        src = jobs.get(meta.get("from_job") or "")
+        src = src if src and src.status == "done" and src.result else None
+        out = {"wallet": w, "job": (src.canon or src.id) if src else meta.get("from_job"), "symbol": meta.get("symbol"),
+               "mint": meta.get("mint"), "idn": None, "age": None, "funder": None, "exchange": None, "service": False,
+               "funded": 0, "tags": [], "etime": 0, "buys": 0, "sells": None, "seen": []}
+        if src:
+            r = src.result
+            row = next((x for x in r.get("rows") or [] if x.get("wallet") == w), None) or {}
+            funders = r.get("funders") or {}
+            fnd = funders.get(w)
+            out.update(idn=(r.get("identities") or {}).get(w), age=(r.get("ages") or {}).get(w), funder=fnd,
+                       exchange=exch_mod.KNOWN.get(fnd) if fnd else None, service=bool(fnd) and fnd in set(r.get("services") or []),
+                       funded=sum(1 for f in funders.values() if f == fnd) if fnd else 0, tags=list(row.get("tag_list") or []),
+                       etime=int(row.get("first_range_buy_ms") or row.get("first_buy_ms") or 0),
+                       buys=int(row.get("buys") or 0), sells=row.get("sells"))
+        for jid in list((acct.get("analyses") or {}).keys())[:40]:   # «Seen in», як на результаті: лише збережене самою людиною
+            other = jobs.get(jid)
+            if not other or other.status != "done" or not other.result:
+                continue
+            if src and (other.id == src.id or (other.mint == src.mint and other.t_from == src.t_from and other.t_to == src.t_to)):
+                continue
+            row = next((x for x in other.result.get("rows") or [] if x.get("wallet") == w), None)
+            if row:
+                out["seen"].append({"job": other.canon or other.id, "symbol": other.symbol, "from": other.t_from, "to": other.t_to,
+                                    "mult": row.get("multiple") or 0, "real": row.get("realized_usd") or 0})
+            if not out["idn"]:
+                out["idn"] = (other.result.get("identities") or {}).get(w)
+        return out
+    return web.json_response(await asyncio.to_thread(build), headers={"Cache-Control": "no-store"})
 
 
 @_acct_route
@@ -2172,6 +2219,7 @@ async def admin_page(request):
         month = await asyncio.to_thread(app["events"].read, usage_mod.month_start_ms(now_ms))
         api_keys, api_stats = app["api_keys"].all(), usage_mod.api_usage(month, now_ms)
     return render("admin.html", request, u=u, budget=budget, meters=meters, beta=sorted(_beta(app)), events=events, period=period,
+                  labels=_admin_labels(app) if tab == "wallets" else {},
                   api_keys=api_keys, api_stats=api_stats, api_rules=api_mod.THRESHOLD_RULES,
                   include_team=include_team, tab=tab, tabs=ADMIN_TABS,
                   feedback=feedback, feedback_new=sum(1 for f in feedback if not f.get("read")),
@@ -2201,6 +2249,7 @@ async def admin_wallet_page(request):
                                        agent_log=app["agent_store"].recent(2000), now_ms=now, tz=tz, team=team)
     d = await asyncio.to_thread(work)
     return render("admin_wallet.html", request, d=d, excluded=pk in team and pk not in app["admins"], is_admin=pk in app["admins"], now=now,
+                  labels=_admin_labels(app).get(pk, []),
                   beta_on=pk in _beta(app))
 
 
@@ -2374,6 +2423,41 @@ async def admin_beta(request):
     beta = beta | {wallet} if body.get("on") else beta - {wallet}
     usage_mod.save_wallet_set(path, beta)
     return web.json_response({"ok": True, "beta": wallet in beta, "wallets": sorted(beta)})
+
+
+ADMIN_LABELS_MAX, ADMIN_LABEL_LEN = 6, 24
+
+
+def _admin_labels(app):
+    """Мітки власника на гаманцях користувачів («я», «знайомий», «тестер»…): {гаманець: [мітки]}. Бачить лише адмінка."""
+    d = usage_mod.load_json(app["usage_dir"] / "labels.json", {})
+    return {w: [str(x) for x in v] for w, v in (d or {}).items() if isinstance(v, list) and acct_mod.valid_pubkey(w)}
+
+
+async def admin_labels(request):
+    """Мітки гаманця в адмінці (власник, 30.09: «хто мій знайомий, де мої акаунти, де тестувальники»). Цілий список за раз:
+    до шести слів по 24 знаки, без дублів; порожній — прибрати. Файл, діє одразу."""
+    app = request.app
+    pk, body, err = await _admin_json(request)
+    if err:
+        return err
+    wallet = str(body.get("wallet") or "").strip()
+    if not acct_mod.valid_pubkey(wallet):
+        return _jerr("That is not a wallet address.")
+    raw = body.get("labels") if isinstance(body.get("labels"), list) else []
+    clean = []
+    for x in raw:
+        v = " ".join(str(x).split())[:ADMIN_LABEL_LEN].lower()
+        if v and v not in clean:
+            clean.append(v)
+    clean = clean[:ADMIN_LABELS_MAX]
+    labels = _admin_labels(app)
+    if clean:
+        labels[wallet] = clean
+    else:
+        labels.pop(wallet, None)
+    usage_mod.save_json(app["usage_dir"] / "labels.json", labels)
+    return web.json_response({"ok": True, "wallet": wallet, "labels": clean})
 
 
 ME_COLUMNS = ["wallet", "symbol", "mint", "from_job", "entry_mcap", "invested_usd", "multiple", "tags", "my_tags", "lists", "added_utc"]

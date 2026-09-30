@@ -203,14 +203,19 @@
 </section>
 <section class="card me usage">
   {% if u.users %}
+  {% set all_labels = [] %}{% for w in u.users %}{% for l in labels.get(w.pubkey) or [] %}{% if l not in all_labels %}{% set _ = all_labels.append(l) %}{% endif %}{% endfor %}{% endfor %}
+  {# the owner's own labels on wallets (30.09): friend, me, tester; a filter by them above the table #}
+  <datalist id="alabel-list">{% for l in (all_labels + ['me', 'friend', 'tester', 'team'])|unique|sort %}<option value="{{ l }}">{% endfor %}</datalist>
+  {% if all_labels %}<div class="alfilter" role="group" aria-label="Show wallets with a label"><button type="button" class="on" data-l="">All</button>{% for l in all_labels|sort %}<button type="button" data-l="{{ l }}">{{ l }}</button>{% endfor %}</div>{% endif %}
   <div class="tablewrap"><table class="facts melist"><thead><tr>
-    <th>Wallet</th><th>Who</th><th>Last seen</th><th class="num" title="Days with any step in this period">Days</th>
+    <th>Wallet</th><th title="Your own labels: only you see them, here">Labels</th><th>Who</th><th>Last seen</th><th class="num" title="Days with any step in this period">Days</th>
     <th class="num">Analyses</th><th class="num">Cards</th><th class="num">Questions</th><th class="num">Saves</th>
     <th class="num">Solana Tracker</th><th class="num">Helius</th><th class="num">AI</th><th class="num">SOL</th><th class="num" title="Its last 30 days on every token, counted by our ledger">30 d PnL</th>
   </tr></thead><tbody>
   {% for w in u.users %}{% set o = w.onchain or {} %}{% set i = o.idn or {} %}{% set pr = o.p30 or {} %}
-    <tr>
+    <tr data-labels='{{ (labels.get(w.pubkey) or [])|tojson }}'>
       <td><span class="wid"><a class="mono" href="/admin/w/{{ w.pubkey }}" title="{{ w.pubkey }}">{{ short(w.pubkey) }}</a>{% if w.who == 'team' %} <span class="uflag">team</span>{% endif %}{% if w.pubkey in beta %} <span class="uflag">beta</span>{% endif %}</span></td>
+      <td class="alabels" data-w="{{ w.pubkey }}" data-labels='{{ (labels.get(w.pubkey) or [])|tojson }}'></td>
       <td class="small">{% if i.type == 'kol' or 'kol' in (i.tags or []) %}★ {% endif %}{{ i.name or '' }}{% if i.twitter %} @{{ i.twitter|replace('@', '') }}{% endif %}{% if i and not i.name and not i.twitter %}<span class="muted">{{ i.type or (i.tags or [''])[0] }}</span>{% endif %}{% if not i %}<span class="muted">{{ w.app or '—' }}</span>{% endif %}</td>
       <td class="muted small"><span class="dtc" data-ms="{{ w.last_ms or 0 }}">{{ (w.last_ms or 0)|dt }}</span></td>
       <td class="num mono">{{ w.days }}</td><td class="num mono">{{ w.runs }}</td><td class="num mono">{{ w.cards }}</td><td class="num mono">{{ w.asks }}</td><td class="num mono">{{ w.saves }}</td>
@@ -222,6 +227,7 @@
   </tbody></table></div>
   {% set oc = u.onchain %}
   {% if oc.n %}<p class="muted small">{{ oc.known }} of {{ oc.n }} known to Solana Tracker ({{ oc.kol }} KOL){% if oc.age_median_d is not none %} · wallet age, median {{ oc.age_median_d|round|int }} d{% endif %}{% if oc.with_p30 %} · {{ oc.in_profit }} of {{ oc.with_p30 }} in profit over 30 d{% endif %}. Open a wallet for its age, swaps, win rate and timeline.</p>{% endif %}
+  <script src="/static/labels.js?v={{ v }}" defer></script>
   {% else %}<p class="muted">Nobody has connected a wallet yet.</p>{% endif %}
 </section>
 {% endif %}
