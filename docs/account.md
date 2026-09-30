@@ -49,7 +49,8 @@ Only trades count: a wallet has to sign the transaction itself and pay SOL or a 
 one. Transfers, incoming SOL, airdrops and token-for-token swaps stay silent, and so does anything under your minimum.
 
 - **Connect**: on your lists page, press *Connect Telegram*, then *Start* in the bot. The link works once, for ten
-  minutes, and only from the wallet you are signed in with.
+  minutes, and only from the wallet you are signed in with. A chat already connected to another wallet stays with it:
+  send /stop there first.
 - **Choose**: buys, sells, and the smallest trade in dollars, the same for every list with the bell on. Up to
   {{ s.alerts_max_wallets }} wallets per account, and up to {{ s.alerts_per_hour }} alerts an hour.
 - **Stop**: *Disconnect* on the lists page, or /stop in the bot.
