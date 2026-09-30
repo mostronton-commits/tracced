@@ -440,7 +440,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["tg"] = {"token": os.getenv("TELEGRAM_BOT_TOKEN") or "", "name": os.getenv("TELEGRAM_BOT_NAME") or ""}
     app["tg_codes"] = alerts_mod.LinkCodes()
     app["alerts_state"] = {"on": False, "connected": False, "url": "", "wallets": 0, "events": 0, "sent": 0, "last_ms": None, "errors": 0}
-    app["alerts_wm"], app["alerts_seen"], app["alerts_tok"], app["alerts_hour"], app["sol_px"] = {}, {}, {}, {}, [0.0, 0.0]   # спроб з невірним ключем з однієї мережі за хвилину
+    app["alerts_wm"], app["alerts_seen"], app["alerts_tok"], app["alerts_hour"], app["sol_px"] = {}, {}, {}, {}, [0.0, 0.0]
+    app["alerts_ca"] = {}             # чат → токени, адресу яких він уже отримав   # спроб з невірним ключем з однієї мережі за хвилину
     app["ages"] = ages
     _share_st(st, app["st_slots"])
 
@@ -1360,7 +1361,8 @@ async def _alert_tx(app, http, wallet, sig):
     if len(seen) > 5000:
         for k in sorted(seen, key=seen.get)[:1000]:
             del seen[k]
-    url, params = app["s"].get("alerts_rpc_url"), [sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0, "commitment": "confirmed"}]
+    url, params = app["s"].get("alerts_rpc_url"), [sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": wallet_age_mod.TX_VERSION,
+                                                        "commitment": "confirmed"}]
     try:
         tx = await _rpc(http, url, "getTransaction", params)
         if not tx:                                   # щойно підтверджена: нода ще не встигла віддати
@@ -1382,9 +1384,14 @@ async def _alert_tx(app, http, wallet, sig):
             b = _hour_budget(app, sub["chat"])
             if b is False:
                 continue
+            seen_ca = app["alerts_ca"].setdefault(sub["chat"], set())     # адреса токена — лише в першому повідомленні про нього
             text = ("⏸ More than " + str(app["s"].get("alerts_per_hour", 30)) + " alerts this hour: the rest are skipped until the next hour."
-                    if b == "first" else alerts_mod.message(ev, wallet, sub, token, _site_url(app)))
+                    if b == "first" else alerts_mod.message(ev, wallet, sub, token, _site_url(app), ca=ev["mint"] not in seen_ca,
+                                                             sizes=app["s"].get("alerts_size_usd")))
             if await _tg_send(app, http, sub["chat"], text) and b is None:
+                if len(seen_ca) > 2000:
+                    seen_ca.clear()
+                seen_ca.add(ev["mint"])
                 st["sent"] += 1
                 st["last_ms"] = int(time.time() * 1000)
                 app["events"].add(sub["pk"], "alert", side=ev["side"], usd=round(ev["usd"]), mint=ev["mint"])

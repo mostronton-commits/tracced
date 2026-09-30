@@ -53,6 +53,18 @@ one. Transfers, incoming SOL, airdrops and token-for-token swaps stay silent, an
   {{ s.alerts_max_wallets }} wallets per account, and up to {{ s.alerts_per_hour }} alerts an hour.
 - **Stop**: *Disconnect* on the lists page, or /stop in the bot.
 
+An alert reads like a trades channel, three lines:
+
+- the dot is the trade's size: 🟢 under ${{ '{:,}'.format(s.alerts_size_usd[0]) }}, 🟡 up to ${{ '{:,}'.format(s.alerts_size_usd[1]) }}, 🔴 from
+  ${{ '{:,}'.format(s.alerts_size_usd[1]) }}. Then the token, a link to its chart here; 🆕 when the wallet held none of it,
+  *bought more* when it did, and for a sale *sold all* or the share it sold; the market cap and the transaction;
+- the token's address, only in the first alert about that token;
+- whose trade: your tags for the wallet (its short address when it has none), the pump you found it in, and the
+  amount.
+
+A trade made through an app that pays the network fee for its users (FOMO and the like) counts the same: the wallet
+still signs it.
+
 We keep the Telegram chat the alerts go to and your Telegram username; nothing else from Telegram. Alerts are in a
 closed test for now.
 

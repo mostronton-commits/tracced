@@ -18,6 +18,9 @@ STABLES = {"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",      # USDC
 QUOTE_MIN_USD = 1.0          # менше долара платні — це комісії й рента рахунку, а не угода (airdrop, переказ)
 CODE_TTL_S = 600             # код прив'язки живе 10 хвилин
 PREF_DEFAULTS = {"buys": True, "sells": True, "min_usd": 100.0}
+DUST = 1e-3                  # менше тисячної одиниці другого токена поруч з основним — крихта, не друга нога угоди
+SIZES = (1000, 10000)        # межі кольору крапки, $: менше першої, до другої, від другої
+DOTS = ("🟢", "🟡", "🔴")
 
 
 def _balances(arr, wallet):
@@ -63,6 +66,8 @@ def classify(tx, wallet, sol_usd):
             quote += d
         elif abs(d) > 1e-12:
             moved[mint] = d
+    if len(moved) > 1:                         # FOMO докладає до купівлі крихту іншого токена (0.0001): крихта — не угода
+        moved = {m: d for m, d in moved.items() if abs(d) >= DUST}
     if len(moved) != 1:                        # нічого не рухалось, або токен на токен: не купівля й не продаж
         return []
     (mint, amount), = moved.items()
@@ -162,10 +167,17 @@ def short(w):
     return f"{w[:6]}…{w[-4:]}" if isinstance(w, str) and len(w) > 12 else str(w)
 
 
-def message(ev, wallet, sub, token, site="https://tracced.xyz"):
-    """Текст повідомлення (HTML-розмітка Telegram) у вигляді, звичному з каналів угод (власник, 30.09):
-    1) кружок купівлі чи продажу, тікер — посилання на графік у tracced, 🆕 для нової позиції або скільки продано, капа, tx;
-    2) адреса токена: натиснув — скопіював;
+def size_dot(usd, sizes=None):
+    """Колір крапки — розмір угоди, як у каналах угод: три діапазони, межі — alerts_size_usd."""
+    lo, hi = (list(sizes or SIZES) + list(SIZES))[:2]
+    return DOTS[0] if usd < lo else DOTS[1] if usd < hi else DOTS[2]
+
+
+def message(ev, wallet, sub, token, site="https://tracced.xyz", ca=True, sizes=None):
+    """Текст повідомлення (HTML-розмітка Telegram) у вигляді каналів угод (власник, 30.09):
+    1) крапка — розмір угоди (🟢 🟡 🔴), тікер — посилання на графік у tracced; купівля — 🆕 для нової позиції або
+       «bought more», продаж — «sold all» чи скільки продано; капа; tx;
+    2) адреса токена — лише в першому повідомленні про цей токен у чаті (`ca`);
     3) чий гаманець: мітки людини, а без них коротка адреса (посилання на гаманець у Solscan); у дужках памп, з якого його
        зберегли; сума.
     Чуже (назва токена, мітки, памп) обрізане до екранування: розрізана посередині &amp; зламала б розмітку, і Telegram не
@@ -175,7 +187,9 @@ def message(ev, wallet, sub, token, site="https://tracced.xyz"):
     buy = ev["side"] == "buy"
     sym = (token or {}).get("symbol")
     name = f"<a href=\"{site}/token?mint={ev['mint']}\"><b>{'$' + e(sym, 24) if sym else short(ev['mint'])}</b></a>"
-    head = [f"{'🟢' if buy else '🔴'} {name}" + (" 🆕" if buy and ev.get("new") else "")]
+    head = [f"{size_dot(ev['usd'], sizes)} {name}" + (" 🆕" if buy and ev.get("new") else "")]
+    if buy and ev.get("new") is False:
+        head.append("bought more")
     if not buy and (ev.get("all") or ev.get("pct")):
         head.append("sold all" if ev.get("all") else f"sold {ev['pct']}%")
     if (token or {}).get("mcap"):
@@ -184,7 +198,7 @@ def message(ev, wallet, sub, token, site="https://tracced.xyz"):
     tags = [e(t, 24) for t in (sub.get("tags") or [])[:3]]
     who = f"<a href=\"https://solscan.io/account/{wallet}\">{', '.join(tags) if tags else short(wallet)}</a>"
     src = f" [from ${e(sub['src'], 24)}]" if sub.get("src") else ""
-    return " · ".join(head) + f"\n<code>{ev['mint']}</code>\n{who}{src} · <b>{money(ev['usd'])}</b>"
+    return " · ".join(head) + (f"\n<code>{ev['mint']}</code>" if ca else "") + f"\n{who}{src} · <b>{money(ev['usd'])}</b>"
 
 
 def token_facts(report):

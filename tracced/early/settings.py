@@ -23,6 +23,7 @@ DEFAULTS = {
     "alerts_max_wallets": 50,     # гаманців зі сповіщеннями на акаунт
     "alerts_min_usd": 100,        # мінімальна сума за замовчуванням
     "alerts_per_hour": 30,        # повідомлень на чат за годину; решта — одним рядком, що пропущено
+    "alerts_size_usd": [1000, 10000],   # колір крапки — сума угоди: 🟢 до $1K, 🟡 до $10K, 🔴 від $10K (власник, 30.09)
     "alerts_ws_urls": ["wss://solana-rpc.publicnode.com", "wss://api.mainnet-beta.solana.com"],
     "alerts_rpc_url": "https://solana-rpc.publicnode.com",
     "verdict_organised_pct": 90,  # стільки % топу за PnL (перевіреного на вік і спонсора) свіжі чи в бандлах — угорі результату «Organised launch»

@@ -27,6 +27,9 @@ import urllib.request
 from ..cache import JsonCache
 
 DEFAULT_URL = "https://api.mainnet-beta.solana.com"
+# найновіший формат транзакцій, який ми читаємо. З 0 нода не віддає транзакції версії 1 (Axiom Flash, FOMO та інші з
+# 2026 року): перша транзакція гаманця такої версії лишала його без спонсора. jsonParsed у версії 1 той самий (30.09)
+TX_VERSION = 1
 HEAVY = {"getSignaturesForAddress", "getTransaction"}   # платна нода Solana Tracker бере за них по 10 кредитів
 # Helius: повна історія, по 1 кредиту за виклик, і свій метод «від найстарішої» (getTransactionsForAddress, 10 кредитів),
 # що знаходить першу транзакцію зайнятого гаманця одним викликом замість гортання (перевірено 24.09.2026: у гаманця
@@ -369,7 +372,7 @@ class WalletAge:
         if cached is not None:                            # перша транзакція вже прочитана і спонсора не дала
             found, via = self._first_sol_in(wallet), "scan"
         else:
-            tx = self._call("getTransaction", [oldest_sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}],
+            tx = self._call("getTransaction", [oldest_sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": TX_VERSION}],
                             url=self.tx_url, pace_s=self.tx_pace_s)
             found, via = funder_from_tx(tx, wallet), "first"
             if found is None and can_scan and scan:
@@ -424,7 +427,7 @@ class WalletAge:
         try:
             res = self._call("getTransactionsForAddress",
                              [wallet, {"sortOrder": "asc", "limit": 100, "transactionDetails": "full",
-                                       "encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}],
+                                       "encoding": "jsonParsed", "maxSupportedTransactionVersion": TX_VERSION}],
                              url=self.tx_url, pace_s=self.tx_pace_s) or {}
         except RuntimeError:
             return None

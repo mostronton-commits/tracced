@@ -47,6 +47,13 @@ class TestClassify(unittest.TestCase):
         ev, = A.classify(tx(sol=(8.0, 9.0 - fee), pre=[tb(TOKEN, 1000)], post=[tb(TOKEN, 400)]), W, PX)
         self.assertEqual((ev["all"], ev["pct"]), (False, 60))
 
+    def test_a_crumb_of_another_token_does_not_hide_the_buy(self):
+        # FOMO, 30.09: 100 USDC for 20M of a token, plus 0.0001 of another one — it was «token for token» and got lost
+        ev, = A.classify(tx(pre=[tb(USDC, 100)], post=[tb(USDC, 0), tb(TOKEN, 20_005_184), tb("U" * 44, 0.0001)]), W, PX)
+        self.assertEqual((ev["side"], ev["mint"], round(ev["usd"])), ("buy", TOKEN, 100))
+        two = tx(pre=[tb(USDC, 100)], post=[tb(USDC, 0), tb(TOKEN, 50), tb("U" * 44, 3)])
+        self.assertEqual(A.classify(two, W, PX), [])                                  # two real tokens: still not one trade
+
     def test_stablecoins_and_wrapped_sol_pay_too(self):
         ev, = A.classify(tx(pre=[tb(USDC, 200)], post=[tb(USDC, 0), tb(TOKEN, 50)]), W, PX)
         self.assertEqual((ev["side"], round(ev["usd"])), ("buy", 200))
@@ -106,24 +113,34 @@ class TestCodesAndText(unittest.TestCase):
         sub = {"lists": ["Main"], "src": "W&F", "tags": ["<u>whale</u>", "kol"]}
         text = A.message(ev, W, sub, {"symbol": "<i>X</i>", "mcap": 250_000}, "https://dev.tracced.xyz")
         self.assertEqual(text.split("\n"), [
-            '🟢 <a href="https://dev.tracced.xyz/token?mint=' + TOKEN + '"><b>$&lt;i&gt;X&lt;/i&gt;</b></a> 🆕 · MC $250K · <a href="https://solscan.io/tx/SIG9">tx</a>',
+            '🟡 <a href="https://dev.tracced.xyz/token?mint=' + TOKEN + '"><b>$&lt;i&gt;X&lt;/i&gt;</b></a> 🆕 · MC $250K · <a href="https://solscan.io/tx/SIG9">tx</a>',
             "<code>" + TOKEN + "</code>",
             '<a href="https://solscan.io/account/' + W + '">&lt;u&gt;whale&lt;/u&gt;, kol</a> [from $W&amp;F] · <b>$1.2K</b>'])
         self.assertNotIn(">" + A.short(W) + "<", text)                               # a tag stands for the wallet: no address
         self.assertNotIn("Main", text)
+        again = A.message(ev, W, sub, {"symbol": "X"}, ca=False)
+        self.assertNotIn(TOKEN + "</code>", again)                                   # the token's address only the first time
+        self.assertEqual(len(again.split("\n")), 2)
         bare = A.message(dict(ev, new=False), W, {}, {})
         self.assertIn(">" + A.short(W) + "</a> · <b>$1.2K</b>", bare)              # no tag: the short address
-        self.assertTrue(bare.startswith("🟢 <a href=\"https://tracced.xyz/token?mint=" + TOKEN + "\"><b>" + A.short(TOKEN) + "</b></a> · <a"), bare)
+        self.assertTrue(bare.startswith("🟡 <a href=\"https://tracced.xyz/token?mint=" + TOKEN + "\"><b>" + A.short(TOKEN) + "</b></a> · bought more · <a"), bare)
         self.assertIn("&amp;", A.message(ev, W, {}, {"symbol": "&" * 40}))              # cut before escaping: no half of an &amp;
         self.assertNotIn("&am<", A.message(ev, W, {}, {"symbol": "&" * 40}))
 
+    def test_the_dot_is_the_size(self):
+        self.assertEqual([A.size_dot(v) for v in (100, 999, 1000, 9999, 10000, 1e6)], ["🟢", "🟢", "🟡", "🟡", "🔴", "🔴"])
+        self.assertEqual([A.size_dot(v, [500, 2000]) for v in (499, 500, 2000)], ["🟢", "🟡", "🔴"])     # from the settings
+        self.assertEqual(A.size_dot(50, None), "🟢")
+        ev = {"side": "sell", "mint": TOKEN, "usd": 25_000, "sig": "S", "all": True}
+        self.assertTrue(A.message(ev, W, {}, {}).startswith("🔴 "))                  # a big sell is red, a big buy too
+
     def test_a_sell_says_how_much_went(self):
         ev = {"side": "sell", "mint": TOKEN, "usd": 221, "sig": "S"}
-        self.assertIn("🔴 <a", A.message(dict(ev, all=True, pct=100), W, {}, {"symbol": "X"}))
         self.assertIn("</a> · sold all · <a", A.message(dict(ev, all=True, pct=100), W, {}, {"symbol": "X"}))
         self.assertIn("</a> · sold 40% · MC $3K · <a", A.message(dict(ev, all=False, pct=40), W, {}, {"symbol": "X", "mcap": 3000}))
         self.assertNotIn("sold", A.message(ev, W, {}, {}))                             # unknown share: no word
         self.assertNotIn("🆕", A.message(dict(ev, new=True), W, {}, {}))
+        self.assertNotIn("bought", A.message(dict(ev, new=False), W, {}, {}))
 
     def test_token_facts_take_the_largest_pool(self):
         rep = {"token": {"symbol": "PAID"}, "pools": [{"liquidity": {"usd": 5}, "marketCap": {"usd": 1}},
