@@ -1171,3 +1171,18 @@ header.top { position: relative; z-index: 45; }
 .verdict { margin: 4px 0 10px; padding: 9px 12px; border: 1px solid #FECACA; border-left: 3px solid var(--red); border-radius: var(--r); background: #FEF2F2; font-size: 13.5px; color: #7F1D1D; }
 .verdict b { color: #991B1B; }
 
+/* 30.09: the range is set on the chart or by a quick range; the time fields wait behind ✎, since the first traders typed
+   dates instead of clicking the chart */
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip.preset { cursor: pointer; background: var(--surface); border: 1px solid var(--line); color: var(--ink); font-weight: 500; }
+.chip.preset:hover { border-color: #6ee7b7; background: #F6FEF9; }
+.wrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.wrow .label { flex: 0 1 auto; min-width: 90px; }
+.wrow .sum { flex: 1 1 200px; font: 12.5px var(--mono); color: var(--ink); }
+.wrow .sum.muted { font-family: var(--sans); color: var(--muted); }
+.wrow .fld { display: none !important; }
+.wrow.edit .fld { display: inline-flex !important; }
+.wrow.edit .sum { display: none; }
+.wrow .editt { padding: 4px 8px; line-height: 1; }
+.wrow .del { margin-left: auto; }
+
