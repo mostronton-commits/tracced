@@ -365,7 +365,7 @@
       function verdict() {
         const el = document.getElementById('verdict'), top = all.slice(0, VERDICT_TOP); if (!el) return;
         const n = top.filter(o => o.tags.includes('fresh') || o.tags.includes('bundle')).length;
-        const pct = top.length >= 20 ? Math.round(100 * n / top.length) : 0;
+        const pct = top.length >= 20 ? Math.floor(100 * n / top.length) : 0;   // 199 of 200 is 99%, not 100%
         el.hidden = !(ageDone && VERDICT_PCT && pct >= VERDICT_PCT);
         if (!el.hidden) el.innerHTML = '<b>Organised launch.</b> ' + n + ' of the top ' + top.length + ' by PnL (' + pct + '%) are fresh or bundled wallets: little here is organic buying.';
       }
