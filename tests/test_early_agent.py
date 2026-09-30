@@ -186,6 +186,9 @@ class TestAskedWallets(unittest.TestCase):
         self.assertNotIn(agent.short(z), wmap)                          # no link to a card that does not exist
         d, _ = digest(dict(self.res, info=dict(self.res.get("info") or {}, mint=z)), asked=[z])
         self.assertNotIn("asked_about", d)                              # the token's own address is not a wallet
+        chat = FakeChat([{"on_topic": True, "answer": [f"{agent.short(z)} did not buy in this range."], "wallets": []}])
+        out, dropped, _ = agent.Agent(chat, "m").ask(self.res, agent.normalize_config({}), f"what about {z}?", "English")
+        self.assertEqual(out["answer"], [f"{agent.short(z)} did not buy in this range."])   # a non-buyer is an answer, not off topic
 
     def test_apps_count_wallets_and_their_profit(self):
         d, _ = digest(self.res)

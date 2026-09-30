@@ -32,7 +32,6 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
 from ..cache import JsonCache
-from ..config import DEFAULTS as CFG_DEFAULTS
 from ..early import agent as agent_mod, assistant as assistant_mod, exchanges as exch_mod, ledger, pipeline, profile, report, scope, tags, wallet_age as wallet_age_mod, window
 from ..early.store import TradeStore
 from ..providers import dexscreener
@@ -278,7 +277,7 @@ def _enrich_body(ages, s):
             w = row["wallet"]
             if w in funders or w in checked:
                 continue
-            if is_paused() and getattr(ages, "cache", None) is not None and ages.cache.get(f"funder:{w}") is None:
+            if is_paused() and getattr(ages, "cache", None) is not None and ages.funder_unread(w):   # запис без версії — теж платний
                 e["paused"] = "rpc-budget"
                 r["funder_checked"] = sorted(checked)
                 services()
@@ -448,8 +447,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["alerts_state"] = {"on": False, "connected": False, "url": "", "wallets": 0, "events": 0, "sent": 0, "last_ms": None, "errors": 0}
     app["alerts_wm"], app["alerts_seen"], app["alerts_tok"], app["alerts_hour"], app["sol_px"] = {}, {}, {}, {}, [0.0, 0.0]
     app["alerts_ca"] = {}             # чат → токени, адресу яких він уже отримав (у пам'яті: після перезапуску адреса прийде ще раз)
-    app["alerts_fails"], app["alerts_tok_wait"] = {}, {}
-    app["alerts_sem"] = asyncio.Semaphore(int(s.get("alerts_parallel", 4)))   # спроб з невірним ключем з однієї мережі за хвилину
+    app["alerts_fails"], app["alerts_tok_wait"], app["alerts_pending"] = {}, {}, 0   # збої за годину; токени, які саме питаємо; черга
+    app["alerts_sem"] = asyncio.Semaphore(int(s.get("alerts_parallel", 4)))         # запитів до ноди водночас   # спроб з невірним ключем з однієї мережі за хвилину
     app["ages"] = ages
     _share_st(st, app["st_slots"])
 
@@ -578,8 +577,9 @@ ONCHAIN_FIRST_S, ONCHAIN_EVERY_S = 600, 6 * 3600
 async def _start_background(app):
     loop = asyncio.get_running_loop()
     app["bg"]["usage"] = loop.create_task(_usage_loop(app))
-    if app["s"].get("fresh_on"):
-        app["bg"]["fresh"] = loop.create_task(_fresh_refresh(app))       # головна не чекає першого відвідувача
+    fresh_age = time.time() * 1000 - app["fresh"]["at"]
+    if app["s"].get("fresh_on") and fresh_age > float(app["s"].get("fresh_refresh_min", 10)) * 60_000:
+        app["bg"]["fresh"] = loop.create_task(_fresh_refresh(app))       # головна не чекає; свіжий список з файла — не питаємо знову
     if app["tg"]["token"] and os.getenv("ALERTS") == "1":
         app["alerts_state"]["on"] = True
         app["bg"]["tg_bot"] = loop.create_task(_tg_bot_loop(app))
@@ -590,9 +590,14 @@ def _fresh_load(app):
     saved = usage_mod.load_json(app["fresh_file"], {})
     if not isinstance(saved, dict):
         return
+    # файл свій, але зіпсований руками чи диском не має валити головну (рев'ю 01.10): лише числа і рядки-словники
+    num = lambda x: isinstance(x, (int, float)) and not isinstance(x, bool)
     peaks = saved.get("peaks") if isinstance(saved.get("peaks"), dict) else {}
-    app["fresh_peaks"].update({m: tuple(v) for m, v in peaks.items() if isinstance(v, list) and len(v) == 3})
-    for k, kind in (("day", str), ("n", int), ("rows", list), ("at", int), ("ok_at", int)):
+    app["fresh_peaks"].update({m: tuple(v) for m, v in peaks.items() if isinstance(v, list) and len(v) == 3 and all(num(x) for x in v)})
+    rows = saved.get("rows")
+    if isinstance(rows, list) and all(isinstance(r, dict) and isinstance(r.get("mint"), str) and num(r.get("peak")) and num(r.get("cap")) for r in rows):
+        app["fresh"]["rows"] = rows
+    for k, kind in (("day", str), ("n", int), ("at", int), ("ok_at", int)):
         if isinstance(saved.get(k), kind):
             app["fresh"][k] = saved[k]
 
@@ -1303,7 +1308,7 @@ async def me_tg_link(request, pk):
         return _jerr("Alerts are in a closed test for now.", 403)
     if not _alerts_live(app):
         return _jerr("Alerts are not set up on this server yet.", 503)
-    if not app["tg"]["name"]:                               # ім'я бота ще невідоме: код не піде чужому боту (рев'ю 01.10)
+    if not app["tg"]["name"] or not app["tg"].get("checked"):   # ім'я ще не підтвердив сам Telegram: код не піде чужому боту (рев'ю 01.10)
         return _jerr("Telegram is still starting on this server. Try again in a minute.", 503)
     code = app["tg_codes"].issue(pk)
     app["events"].add(pk, "tg_link")                        # натиснув Connect: чи дійшов до Start, скаже подія telegram
@@ -1469,8 +1474,10 @@ async def _tg_bot_loop(app):
     async with aiohttp.ClientSession(headers=UA_HEADERS) as http:
         while True:
             try:
-                if not app["tg"]["name"]:
+                if not app["tg"].get("checked"):    # ім'я — завжди від самого Telegram: у .env могла бути описка чи «@»
                     app["tg"]["name"] = (await _tg_call(http, token, "getMe") or {}).get("username") or ""
+                    app["tg"]["checked"] = bool(app["tg"]["name"])
+                    app["alerts_state"]["bot"] = app["tg"]["name"]
                 ups = await _tg_call(http, token, "getUpdates", offset=offset, timeout=30, allowed_updates=["message"])
                 for u in ups or []:
                     offset = max(offset, int(u.get("update_id") or 0) + 1)
@@ -1481,6 +1488,7 @@ async def _tg_bot_loop(app):
                 raise
             except Exception as e:  # noqa: BLE001
                 log.warning("telegram bot: %s", e)
+                app["alerts_state"]["bot_error"] = str(e)[:160]   # власник бачить у /me/telegram.json, чому Connect не працює
                 await asyncio.sleep(10)
 
 
@@ -1613,18 +1621,23 @@ async def _st_open(app):
 
 
 async def _alert_tx_safe(app, http, wallet, sig):
-    """Задача на одну транзакцію: не більше alerts_parallel водночас (зайнятий гаманець чи пил, що згадує гаманець, інакше
-    запускали б сотні запитів до ноди разом), а несподіваний збій — у журнал і лічильник, а не «Task exception was never
-    retrieved» (рев'ю 01.10)."""
-    async with app["alerts_sem"]:
-        try:
-            await _alert_tx(app, http, wallet, sig)
-        except asyncio.CancelledError:
-            raise
-        except Exception as e:  # noqa: BLE001
-            app["alerts_state"]["errors"] += 1
-            _alert_fail(app, "system", "crash")
-            log.warning("alert %s: %s", sig[:10], e)
+    """Задача на одну транзакцію. Черга не безмежна: зайнятий гаманець чи пил, що згадує гаманець, інакше ставили б тисячі
+    задач, і алерти всіх запізнювались би без кінця — понад alerts_queue транзакція пропускається з рядком у журналі.
+    Несподіваний збій — у журнал і лічильник, а не «Task exception was never retrieved» (рев'ю 01.10)."""
+    if app["alerts_pending"] >= int(app["s"].get("alerts_queue", 200)):
+        _alert_fail(app, "system", "busy")
+        return
+    app["alerts_pending"] += 1
+    try:
+        await _alert_tx(app, http, wallet, sig)
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:  # noqa: BLE001
+        app["alerts_state"]["errors"] += 1
+        _alert_fail(app, "system", "crash")
+        log.warning("alert %s: %s", sig[:10], e)
+    finally:
+        app["alerts_pending"] -= 1
 
 
 async def _alert_tx(app, http, wallet, sig):
@@ -1646,7 +1659,8 @@ async def _alert_tx(app, http, wallet, sig):
         if pause:
             await asyncio.sleep(pause)
         try:
-            tx, err = await _rpc(http, url, "getTransaction", params), None
+            async with app["alerts_sem"]:            # до ноди водночас не більше alerts_parallel; паузи й Telegram — поза ним
+                tx, err = await _rpc(http, url, "getTransaction", params), None
         except Exception as e:  # noqa: BLE001
             err = e
         if tx:

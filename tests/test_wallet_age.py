@@ -257,6 +257,8 @@ class TestWalletAge(unittest.TestCase):
         wa = WalletAge(url=HX, post=FakePost([]), sleep=lambda s: None, pace_s=0, cache=old)
         self.assertEqual((wa.funder("OLD", "s"), wa.funder_pending("OLD")), (None, False))
         old["funder:APP"] = {"funder": None}                                     # без позначки: могла бути версія 1, яку не читали
+        self.assertTrue((wa.funder_pending("APP"), wa.funder_unread("APP")) == (True, True))   # картка й збагачення — платним шляхом
+        self.assertFalse(wa.funder_unread("OLD"))
         post = FakePost([tx(0), {"data": [tx(0), tx(3_000_000, "V1FUNDER")]}])
         wa = WalletAge(url=HX, post=post, sleep=lambda s: None, pace_s=0, cache=old)
         self.assertEqual(wa.funder("APP", "s"), "V1FUNDER")                       # перечитано, і тепер з позначкою

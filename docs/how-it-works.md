@@ -150,8 +150,8 @@ It never tells you to buy or sell, never predicts a price and never calls a wall
 
 It answers only about the analysis it is on. Anything else, including a request to change how it works, gets one
 fixed reply. The agent needs a connected wallet; cards someone has already opened are kept, so opening them again is
-free for everyone. Questions go to an AI model host that keeps no prompts and does not train on them; do not type
-anything personal into it.{% if not assistant_on %}
+free for everyone. Questions go only to AI model hosts whose policy is not to collect them or train on them; do not
+type anything personal into it.{% if not assistant_on %}
 
 !!! warning "🤖 The agent is off on this server"
     It needs a model key that this deployment does not have yet.

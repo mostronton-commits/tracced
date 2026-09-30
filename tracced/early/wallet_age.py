@@ -422,7 +422,15 @@ class WalletAge:
         """Дешева перевірка прочитала лише першу транзакцію, і спонсора там не було: пошук серед перших 100 ще не
         робився. Картка, яку відкрили, його доробляє."""
         c = self._get(f"funder:{wallet}")
-        return bool(c) and not c.get("funder") and c.get("scanned") is False and HELIUS_HOST in self.tx_url
+        if not c or c.get("funder"):
+            return False
+        # «спонсора нема» без позначки версії теж ще не дочитано: картка перечитує через платний шлях (рев'ю 01.10)
+        return (c.get("scanned") is False and HELIUS_HOST in self.tx_url) or (c.get("txv") or 0) < TX_VERSION
+
+    def funder_unread(self, wallet):
+        """funder() піде до ноди: запису нема, або «спонсора нема» записане до читання версії 1 (тоді перечитуємо)."""
+        c = self._get(f"funder:{wallet}")
+        return c is None or (not c.get("funder") and (c.get("txv") or 0) < TX_VERSION)
 
     def _first_sol_in(self, wallet):
         """Гаманець застосунку (комісії за нього платить застосунок) починає не з SOL, а з токенів. Перший вхідний SOL

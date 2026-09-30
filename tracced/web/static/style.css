@@ -1189,7 +1189,7 @@ td.c-roi b { font-size: 13px; }
    it is on screen (ui.js keeps --dtop), and reaches the top once the bar has scrolled away */
 .drawer { top: var(--dtop, 0px); bottom: var(--dbot, 0px); }
 .wcard .wav { width: 36px; height: 36px; border-radius: 10px; }
-@media (max-width: 640px), (max-height: 500px) { .drawer { top: 0; bottom: 0; z-index: 50; } }   /* a phone, upright or on its side: the card is the whole screen, over the top bar too (it hid the card's head); above the footer it was 200 px tall */
+@media (max-width: 640px), (max-height: 500px) and (pointer: coarse) { .drawer { top: 0; bottom: 0; z-index: 50; } }   /* a phone, upright or on its side: the card is the whole screen, over the top bar too (it hid the card's head); above the footer it was 200 px tall */
 
 /* the home list: a row under the pointer keeps its light line (links elsewhere darken theirs) */
 .rrow:hover { border-color: var(--line); }
@@ -1384,3 +1384,4 @@ header.top { position: relative; z-index: 45; }
   table.facts.melist:not(.mewl) tbody tr { display: table-row; padding: 0; margin: 0; border: 0; border-radius: 0; background: none; }
   table.facts.melist:not(.mewl) td, table.facts.melist:not(.mewl) th { padding: 6px 8px; white-space: nowrap; border-bottom: 1px solid var(--line); }
 }
+@media (hover: none) { .tipt { cursor: pointer; } }   /* iOS delivers a tap on a plain span to the page only when it looks clickable */

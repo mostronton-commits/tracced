@@ -30,6 +30,7 @@ if AioHTTPTestCase:
             app = create_app(FakeWebST(TRADES), settings.load(), {}, out_dir=self.tmp.name + "/web", store_dir=self.tmp.name + "/cache")
             app["admins"] = {TEST_PK}
             app["tg"]["token"], app["tg"]["name"], app["tg"]["on"] = "test-token", "tracced_bot", True
+            app["tg"]["checked"] = True                                                    # getMe has answered
             return app
 
         async def setUpAsync(self):
@@ -110,7 +111,7 @@ if AioHTTPTestCase:
             self.assertNotIn("telegram", self.app["accounts"].load(W1))                         # they learn nothing
 
         async def test_no_link_before_the_bot_is_known(self):
-            self.app["tg"]["name"] = ""
+            self.app["tg"]["checked"] = False                                              # a name from .env alone is not trusted
             self.assertEqual((await self.client.post("/me/telegram/link", json={}, headers=self.origin)).status, 503)
 
         async def test_a_blocked_bot_drops_only_that_subscriber(self):

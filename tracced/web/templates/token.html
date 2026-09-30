@@ -296,7 +296,7 @@
   });
   // a field or the name taking focus selects its row; a button does not (review 01.10: the redraw ate the first click on
   // Analyze, ✎ or × in another row), its own click does what it says
-  rowsEl.addEventListener('focusin', e => { const f = e.target.closest('.wrow'); if (f && +f.dataset.i !== state.sel && e.target.matches('input, .label')) { const name = e.target.name; state.sel = +f.dataset.i; save(); render(); focusSel(); const nf = rowsEl.querySelector('.wrow.sel [name=' + name + ']'); if (nf) nf.focus(); } });
+  rowsEl.addEventListener('focusin', e => { const f = e.target.closest('.wrow'); if (f && +f.dataset.i !== state.sel && e.target.matches('input, .label')) { const sel = e.target.name ? '[name=' + e.target.name + ']' : '.label'; state.sel = +f.dataset.i; save(); render(); focusSel(); const nf = rowsEl.querySelector('.wrow.sel ' + sel); if (nf) nf.focus(); } });
   const addBtn = document.getElementById('add'), resetBtn = document.getElementById('reset');
   if (addBtn) addBtn.addEventListener('click', () => { if (state.rows.length >= MAX_ROWS) { EarlyUI.toast(limitMsg()); return; } EarlyUI.use('range-add'); state.rows.push({ n: null, label: 'Range ' + (state.rows.length + 1), from: '', to: '' }); state.sel = state.rows.length - 1; save(); render(); });
   if (resetBtn) resetBtn.addEventListener('click', () => { EarlyUI.use('range-reset'); try { localStorage.removeItem(KEY); } catch (e) {} state = { rows: INITIAL.map(r => ({...r})), sel: 0 }; step = 0; ch.setMarker(null); render(); focusSel(); });

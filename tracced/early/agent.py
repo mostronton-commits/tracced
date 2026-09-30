@@ -424,7 +424,9 @@ def check_bullets(items, d, wmap, extra_text="", need_fact=True):
         bare = _DT.sub("", text)
         bad = [tok.strip() for tok in _NUM.findall(bare) if not _ok_number(tok, known)]
         sym = (d.get("token") or {}).get("symbol") or "\0"
-        has_fact = bool(_NUM.search(bare)) or any(s in text for s in wmap) or sym in text
+        # гаманець, про який питали і якого в аналізі нема, — теж факт: «…не купував у діапазоні» (ревю 01.10)
+        asked = [a["wallet"] for a in d.get("asked_about") or [] if isinstance(a, dict) and a.get("wallet")]
+        has_fact = bool(_NUM.search(bare)) or any(s in text for s in wmap) or any(s in text for s in asked) or sym in text
         if bad:
             dropped.append({"text": text, "why": "numbers not in the analysis: " + ", ".join(bad)})
         elif need_fact and not has_fact:

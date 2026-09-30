@@ -203,15 +203,17 @@
   }
   async function dropTag(w, tag) {                          // one tap removes a tag; a mis-tap on a phone is one Undo away (review 01.10)
     const before = ((META[w] || {}).my_tags || []).slice();
-    await saveTags(w, before.filter(t => t !== tag));
+    if (!await saveTags(w, before.filter(t => t !== tag))) return;      // not saved: the error stays on screen, no Undo
     EarlyUI.toast('Tag «' + esc(tag) + '» removed · <button type="button" class="link" id="tagundo">Undo</button>', 6000);
     const u = document.getElementById('tagundo');
     if (u) u.addEventListener('click', () => { saveTags(w, before); const box = u.closest('.toast'); if (box) box.hidden = true; });
   }
   async function saveTags(w, tags) {
+    let ok = true;
     try { const d = await post('/me/wallets/tags', { wallet: w, tags }); (META[w] = META[w] || {}).my_tags = d.tags || []; }
-    catch (x) { oops(x); }
+    catch (x) { oops(x); ok = false; }
     nameRow(w); if (drawer.dataset.w === w) renderTags(w);
+    return ok;
   }
   function renderProfile(d) {
     EarlyCard.render(d, period, document.getElementById('dprof'), document.getElementById('dprofi'));
