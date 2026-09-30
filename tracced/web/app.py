@@ -23,6 +23,7 @@ import re
 import threading
 import time
 import urllib.error
+import urllib.parse
 from pathlib import Path
 
 import aiohttp
@@ -1089,7 +1090,17 @@ async def auth_mw(request, handler):
 PRIVATE_OPEN = ("/static/", "/auth/", "/health", "/robots.txt", "/favicon.ico")
 
 
+def _private_site(app):
+    """Цей сервер — закрита копія цілком: його власна адреса (SITE_URL) серед private_hosts. Тоді закрито під будь-яким
+    ім'ям, з яким до нього прийшли, — другий замок, якщо колись у проксі з'явиться ще одне ім'я для нього (власник, 30.09:
+    «ніколи більше такого не допускай, щоб до dev був доступ у пабліка»)."""
+    host = (urllib.parse.urlparse(_site_url(app)).hostname or "").lower()
+    return bool(host) and host in {str(h).lower() for h in (app["s"].get("private_hosts") or [])}
+
+
 def _private_host(request):
+    if _private_site(request.app):
+        return True
     host = (request.host or "").split(":")[0].lower()
     return host in {str(h).lower() for h in (request.app["s"].get("private_hosts") or [])}
 
@@ -1850,7 +1861,8 @@ async def me_page(request):
                            "pump": (w.get("pump") or {}).get("range")} for w in wallets}   # what the card shows, by wallet
     return render("me.html", request, wallets=wallets, analyses=analyses, max_my_tags=acct_mod.MAX_MY_TAGS, wmeta=wmeta,
                   demo_mint=(demo or {}).get("mint"), lists=lists, max_lists=acct_mod.MAX_LISTS, TAGS=tags.DEFS,
-                  alerts_ok=_alerts_allowed(request.app, pk), tg={"linked": bool(tg.get("chat")), "user": tg.get("user") or ""},
+                  alerts_ok=_alerts_allowed(request.app, pk) and bool(request.app["tg"]["token"]),   # без бота картка не обіцяє того, чого нема
+                  tg={"linked": bool(tg.get("chat")), "user": tg.get("user") or ""},
                   prefs=alerts_mod.prefs_of(a.get("alerts"), request.app["s"].get("alerts_min_usd")))
 
 
@@ -3627,7 +3639,9 @@ async def health(request):
     ok = hc["ok"]
     st = [j.status for j in list(jobs.jobs.values()) if not j.replay]   # програвання демо не тримають деплой
     # no credits here: a public balance would tell anyone when the month runs low and when the cached count refreshes
-    return web.json_response({"ok": ok, "jobs": len(st), "running": st.count("running"), "queued": st.count("queued"),
-                              "demo": _demo(request.app) is not None,
-                              "job_errors": len(jobs.load_errors)},              # скільки файлів аналізів не прочиталось (самі назви — в лозі)
-                             status=200 if ok else 503)
+    body = {"ok": ok, "jobs": len(st), "running": st.count("running"), "queued": st.count("queued"),
+            "demo": _demo(request.app) is not None,
+            "job_errors": len(jobs.load_errors)}              # скільки файлів аналізів не прочиталось (самі назви — в лозі)
+    if _private_host(request) and request.remote not in ("127.0.0.1", "::1"):
+        body = {"ok": ok}                               # закрита копія: цифри — лише скрипту деплою зсередини контейнера
+    return web.json_response(body, status=200 if ok else 503)

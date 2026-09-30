@@ -1,4 +1,5 @@
 """Закрита копія сайту (dev): лише гаманці власника; решта — закриті двері, без даних; пошуковикам — noindex."""
+import os
 import tempfile
 import unittest
 
@@ -61,6 +62,23 @@ if AioHTTPTestCase:
             r = await self.client.post("/auth/nonce", headers=dict(DEV, Origin="http://dev.example"))
             self.assertNotEqual(r.status, 403)
             self.assertEqual(await (await self.client.get("/robots.txt", headers=DEV)).text(), "User-agent: *\nDisallow: /\n")
+
+        async def test_the_copy_is_closed_under_any_name_and_health_says_only_ok(self):
+            os.environ["SITE_URL"] = "https://dev.example"                              # the copy's own address is private
+            try:
+                r = await self.client.get("/")                                            # reached under another name (127.0.0.1)
+                self.assertEqual(r.status, 403)
+                self.assertIn("This copy of tracced is private", await r.text())
+                d = await (await self.client.get("/health")).json()
+                self.assertIn("running", d)                                               # the deploy script asks from inside
+            finally:
+                os.environ.pop("SITE_URL", None)
+
+        async def test_health_outside_says_only_ok(self):
+            from unittest import mock
+            with mock.patch("aiohttp.web_request.BaseRequest.remote", new_callable=mock.PropertyMock, return_value="203.0.113.9"):
+                d = await (await self.client.get("/health", headers=DEV)).json()
+            self.assertEqual(d, {"ok": True})
 
         async def test_the_public_site_is_untouched(self):
             r = await self.client.get("/")
