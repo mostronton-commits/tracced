@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Private · tracced{% endblock %}
+{% block main_class %}center{% endblock %}
+{% block body %}
+<section class="card narrow">
+  <h2>This copy of tracced is private</h2>
+  <p class="muted">The public site is <a href="https://tracced.xyz">tracced.xyz</a>.</p>
+  {% if acct %}<p class="muted small">The wallet you are signed in with has no access here.</p>
+  <p><button type="button" data-wallet-signout>Sign out</button></p>
+  {% else %}<p><button type="button" class="primary" data-wallet-signin>Connect</button></p>{% endif %}
+</section>
+{% endblock %}

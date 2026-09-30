@@ -389,7 +389,7 @@ def _check_services(r, ages):
 
 
 def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/early", ages=None, assistant=None, background=False):
-    app = web.Application(middlewares=[errors_mw, auth_mw])
+    app = web.Application(middlewares=[errors_mw, auth_mw, private_mw])
     app.on_response_prepare.append(_security_headers)
     app.on_cleanup.append(_flush_on_exit)
     app["bg"] = {}                                                 # фонові задачі сервера (лише з background=True, не в тестах)
@@ -510,6 +510,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_post("/job/{id}/agent/ask", job_agent_ask)
     app.router.add_get("/job/{id}", job_page)
     app.router.add_get("/health", health)
+    app.router.add_get("/robots.txt", robots_txt)
     app.router.add_post("/auth/nonce", auth_nonce)
     app.router.add_post("/auth/verify", auth_verify)
     app.router.add_post("/auth/logout", auth_logout)
@@ -1080,6 +1081,43 @@ def _limit(app, pk, what, kind):
 async def auth_mw(request, handler):
     request["acct"] = _acct(request)                    # хто увійшов гаманцем (або None); паролів на сайті нема
     return await handler(request)
+
+
+# Закрита копія сайту (dev.tracced.xyz, власник 30.09: «щоб тільки я мав доступ до робочих сторінок»): сторінки, дані й
+# API — лише гаманцям власника (ADMIN_WALLETS). Решта бачить закриті двері з кнопкою входу і нічого більше; пошуковикам —
+# noindex. Відкрите лише те, без чого не працює сам вхід: статика, /auth/*, /health (перевірка автодеплою), robots.txt.
+PRIVATE_OPEN = ("/static/", "/auth/", "/health", "/robots.txt", "/favicon.ico")
+
+
+def _private_host(request):
+    host = (request.host or "").split(":")[0].lower()
+    return host in {str(h).lower() for h in (request.app["s"].get("private_hosts") or [])}
+
+
+@web.middleware
+async def private_mw(request, handler):
+    if not _private_host(request):
+        return await handler(request)
+    shut = not request.path.startswith(PRIVATE_OPEN) and request.get("acct") not in request.app["admins"]
+    if shut and (request.method != "GET" or request.path.endswith((".json", ".csv")) or request.path.startswith("/api/")):
+        resp = web.json_response({"error": "This copy of tracced is private."}, status=403)
+    elif shut:
+        resp = render("private.html", request, status=403)
+    else:
+        try:
+            resp = await handler(request)
+        except web.HTTPException as e:
+            e.headers["X-Robots-Tag"] = "noindex, nofollow"
+            raise
+    resp.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return resp
+
+
+async def robots_txt(request):
+    """Закрита копія — нікому нічого; публічний сайт — усе, крім кабінетів і входу."""
+    if _private_host(request):
+        return web.Response(text="User-agent: *\nDisallow: /\n")
+    return web.Response(text="User-agent: *\nDisallow: /admin\nDisallow: /me\nDisallow: /auth/\nDisallow: /api/\n")
 
 
 # ───────────────────────── wallet sign-in and the account ─────────────────────────
