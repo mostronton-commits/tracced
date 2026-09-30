@@ -36,6 +36,21 @@ The chip above the table filters the list down to those wallets.
     It is the intersection of analyses saved to **your** account. Other people's saved analyses are never part of
     it, nothing leaves the server, and it costs no requests.
 
+## Telegram alerts
+
+Turn on the bell for a list, and the buys and sells of its wallets come to Telegram, a few seconds after they happen.
+Only trades count: a wallet has to sign the transaction itself and pay SOL or a stablecoin for a token, or get them for
+one. Transfers, incoming SOL, airdrops and token-for-token swaps stay silent, and so does anything under your minimum.
+
+- **Connect**: on your lists page, press *Connect Telegram*, then *Start* in the bot. The link works once, for ten
+  minutes, and only from the wallet you are signed in with.
+- **Choose**: buys, sells, and the smallest trade in dollars, the same for every list with the bell on. Up to
+  {{ s.alerts_max_wallets }} wallets per account, and up to {{ s.alerts_per_hour }} alerts an hour.
+- **Stop**: *Disconnect* on the lists page, or /stop in the bot.
+
+We keep the Telegram chat the alerts go to and your Telegram username; nothing else from Telegram. Alerts are in a
+closed test for now.
+
 ## What other people see
 
 Finished analyses are public. The home page lists what everyone analyzed, and any result opens for anyone.

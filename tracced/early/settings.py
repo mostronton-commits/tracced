@@ -18,6 +18,13 @@ DEFAULTS = {
     "credits_month": 0,
     "credits_reserve_pct": 0,
     "credits_renew_day": 0,      # день місяця, коли тариф оновлює кредити: дашборд власника каже, чи вистачить до нього (0 — невідомо)
+    # сповіщення в Telegram: поки закритий тест — лише гаманці власника; потік транзакцій — публічні ноди Solana
+    "alerts_open": False,
+    "alerts_max_wallets": 50,     # гаманців зі сповіщеннями на акаунт
+    "alerts_min_usd": 100,        # мінімальна сума за замовчуванням
+    "alerts_per_hour": 30,        # повідомлень на чат за годину; решта — одним рядком, що пропущено
+    "alerts_ws_urls": ["wss://solana-rpc.publicnode.com", "wss://api.mainnet-beta.solana.com"],
+    "alerts_rpc_url": "https://solana-rpc.publicnode.com",
     "verdict_organised_pct": 90,  # стільки % топу за PnL (перевіреного на вік і спонсора) свіжі чи в бандлах — угорі результату «Organised launch»
     "st_eur_per_million": 0,     # ціна мільйона запитів тарифу в євро: дашборд власника переводить «запитів на аналіз» у гроші (0 — не показувати)
     "full_fetch_margin": 1.15,   # запас до оцінки сторінок повного діапазону

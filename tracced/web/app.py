@@ -24,6 +24,7 @@ import time
 import urllib.error
 from pathlib import Path
 
+import aiohttp
 from aiohttp import web
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
@@ -34,6 +35,7 @@ from ..early import agent as agent_mod, assistant as assistant_mod, exchanges as
 from ..early.store import TradeStore
 from ..providers import dexscreener
 from . import accounts as acct_mod
+from . import alerts as alerts_mod
 from . import docs as docs_mod
 from . import chart
 from . import demo as demo_mod
@@ -432,7 +434,12 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["api_keys"] = api_mod.KeyStore(Path(out_dir).parent / "api" / "keys.json")   # ключі партнерів: лише відбитки
     app["api_cache"] = {}                                         # відповідь Solana Tracker на монету: хвилину з пам'яті
     app["api_throttle"] = Throttle(max_fails=int(s.get("api_per_10s", 50)), window_s=10, block_s=10)   # запитів ключа за 10 с
-    app["api_bad"] = Throttle(max_fails=20, window_s=60, block_s=60)   # спроб з невірним ключем з однієї мережі за хвилину
+    app["api_bad"] = Throttle(max_fails=20, window_s=60, block_s=60)
+    # сповіщення в Telegram: ключ бота — лише з оточення; слухає потік і бот лише там, де ALERTS=1 (одне місце на ключ)
+    app["tg"] = {"token": os.getenv("TELEGRAM_BOT_TOKEN") or "", "name": os.getenv("TELEGRAM_BOT_NAME") or ""}
+    app["tg_codes"] = alerts_mod.LinkCodes()
+    app["alerts_state"] = {"on": False, "connected": False, "url": "", "wallets": 0, "events": 0, "sent": 0, "last_ms": None, "errors": 0}
+    app["alerts_wm"], app["alerts_seen"], app["alerts_tok"], app["alerts_hour"], app["sol_px"] = {}, {}, {}, {}, [0.0, 0.0]   # спроб з невірним ключем з однієї мережі за хвилину
     app["ages"] = ages
     _share_st(st, app["st_slots"])
 
@@ -515,6 +522,10 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_post("/me/analyses", me_add_analysis)
     app.router.add_post("/me/analyses/remove", me_remove_analysis)
     app.router.add_post("/me/usage", me_usage)
+    app.router.add_post("/me/telegram/link", me_tg_link)
+    app.router.add_post("/me/telegram/unlink", me_tg_unlink)
+    app.router.add_get("/me/telegram.json", me_tg_status)
+    app.router.add_post("/me/alerts", me_alerts)
     app.router.add_get("/admin", admin_page)
     app.router.add_get("/admin/w/{pk}", admin_wallet_page)
     app.router.add_post("/admin/usage/exclude", admin_usage_exclude)
@@ -552,7 +563,12 @@ ONCHAIN_FIRST_S, ONCHAIN_EVERY_S = 600, 6 * 3600
 
 
 async def _start_background(app):
-    app["bg"]["usage"] = asyncio.get_running_loop().create_task(_usage_loop(app))
+    loop = asyncio.get_running_loop()
+    app["bg"]["usage"] = loop.create_task(_usage_loop(app))
+    if app["tg"]["token"] and os.getenv("ALERTS") == "1":
+        app["alerts_state"]["on"] = True
+        app["bg"]["tg_bot"] = loop.create_task(_tg_bot_loop(app))
+        app["bg"]["alerts"] = loop.create_task(_alerts_loop(app))
 
 
 async def _stop_background(app):
@@ -1139,6 +1155,307 @@ def _acct_route(fn):
     return wrapped
 
 
+# ───────────────────────── сповіщення в Telegram ─────────────────────────
+
+UA_HEADERS = {"User-Agent": "tracced/0.5 (+https://tracced.xyz)"}   # Jupiter відповідає 403 на типовий підпис бібліотеки
+
+
+def _alerts_allowed(app, pk):
+    """Поки закритий тест — лише гаманці власника; потім alerts_open у налаштуваннях відкриває всім."""
+    return bool(pk) and (pk in app["admins"] or bool(app["s"].get("alerts_open")))
+
+
+def _site_url(app):
+    return (os.getenv("SITE_URL") or ("https://" + os.getenv("WEB_DOMAIN") if os.getenv("WEB_DOMAIN") else "https://tracced.xyz")).rstrip("/")
+
+
+@_acct_route
+async def me_tg_link(request, pk):
+    """Посилання в бота з одноразовим кодом: відкриваєш, тиснеш Start — і цей Telegram прив'язано до цього гаманця."""
+    app = request.app
+    if not _alerts_allowed(app, pk):
+        return _jerr("Alerts are in a closed test for now.", 403)
+    if not app["tg"]["token"]:
+        return _jerr("Alerts are not set up on this server yet.", 503)
+    code = app["tg_codes"].issue(pk)
+    return web.json_response({"url": f"https://t.me/{app['tg']['name'] or 'tracced_bot'}?start={code}"}, headers={"Cache-Control": "no-store"})
+
+
+@_acct_route
+async def me_tg_unlink(request, pk):
+    request.app["accounts"].clear_telegram(pk)
+    request.app["events"].add(pk, "telegram", on=0)
+    return web.json_response({"ok": True})
+
+
+@_acct_route
+async def me_tg_status(request, pk):
+    """Чи прив'язано Telegram (сторінка питає, поки людина тисне Start у боті) і налаштування; власнику — ще й стан потоку."""
+    app = request.app
+    a = app["accounts"].load(pk)
+    tg = a.get("telegram") or {}
+    out = {"linked": bool(tg.get("chat")), "user": tg.get("user") or "", "prefs": alerts_mod.prefs_of(a.get("alerts"), app["s"].get("alerts_min_usd"))}
+    if pk in app["admins"]:
+        out["state"] = app["alerts_state"]
+    return web.json_response(out, headers={"Cache-Control": "no-store"})
+
+
+@_acct_route
+async def me_alerts(request, pk):
+    body = await _json_body(request)
+    if body is None:
+        return _jerr("Bad request body.")
+    if not _alerts_allowed(request.app, pk):
+        return _jerr("Alerts are in a closed test for now.", 403)
+    prefs = alerts_mod.prefs_of(body, request.app["s"].get("alerts_min_usd"))
+    request.app["accounts"].set_alerts(pk, prefs)
+    return web.json_response({"ok": True, "prefs": prefs})
+
+
+def tg_reply(app, update):
+    """Відповідь бота на одне оновлення: (чат, текст) або None. /start <код> прив'язує чат до гаманця, /stop відв'язує.
+    Лише особисті чати: у групі сповіщення бачили б усі."""
+    m = (update or {}).get("message") or {}
+    chat_o = m.get("chat") or {}
+    chat, text = chat_o.get("id"), str(m.get("text") or "").strip()
+    if not isinstance(chat, int) or chat_o.get("type") != "private":
+        return None
+    site, acc = _site_url(app), app["accounts"]
+    if text.startswith("/start"):
+        parts = text.split(maxsplit=1)
+        pk = app["tg_codes"].consume(parts[1].strip() if len(parts) > 1 else "")
+        if not pk:
+            return chat, f"This link has expired or was used already. Open {site}/me and press <b>Connect Telegram</b> again."
+        for a in acc.all():                         # один чат — один гаманець: прив'язаний раніше до іншого переходить сюди
+            if (a.get("telegram") or {}).get("chat") == chat and a["pubkey"] != pk:
+                acc.clear_telegram(a["pubkey"])
+        user = str((m.get("from") or {}).get("username") or "")
+        acc.set_telegram(pk, chat, "@" + user if user else "")
+        app["events"].add(pk, "telegram", on=1)
+        return chat, (f"Connected to wallet <code>{alerts_mod.short(pk)}</code>.\n"
+                      f"Turn on the bell for a list at {site}/me, and its wallets' buys and sells come here. /stop ends it.")
+    if text == "/stop":
+        n = 0
+        for a in acc.all():
+            if (a.get("telegram") or {}).get("chat") == chat:
+                acc.clear_telegram(a["pubkey"])
+                app["events"].add(a["pubkey"], "telegram", on=0)
+                n += 1
+        return chat, (f"Alerts stopped. Connect again at {site}/me." if n else "This chat is not connected to any wallet.")
+    return chat, f"I send buys and sells of the wallets in your tracced lists. Connect at {site}/me."
+
+
+async def _tg_call(http, token, method, **params):
+    async with http.post(f"https://api.telegram.org/bot{token}/{method}", json=params,
+                         timeout=aiohttp.ClientTimeout(total=45)) as r:
+        d = await r.json(content_type=None)
+    if not d.get("ok"):
+        raise RuntimeError(f"telegram {method}: {str(d.get('description'))[:120]}")
+    return d.get("result")
+
+
+async def _tg_send(app, http, chat, text):
+    try:
+        await _tg_call(http, app["tg"]["token"], "sendMessage", chat_id=chat, text=text, parse_mode="HTML",
+                       disable_web_page_preview=True)
+        return True
+    except Exception as e:  # noqa: BLE001 — заблокований бот чи збій Telegram: лише в журнал
+        app["alerts_state"]["errors"] += 1
+        log.warning("telegram send to %s: %s", str(chat)[-4:], e)
+        return False
+
+
+async def _tg_bot_loop(app):
+    """Бот: довге опитування getUpdates, відповіді на /start і /stop. Ключ не потрапляє в журнал."""
+    token, offset = app["tg"]["token"], 0
+    async with aiohttp.ClientSession(headers=UA_HEADERS) as http:
+        while True:
+            try:
+                if not app["tg"]["name"]:
+                    app["tg"]["name"] = (await _tg_call(http, token, "getMe") or {}).get("username") or ""
+                ups = await _tg_call(http, token, "getUpdates", offset=offset, timeout=30, allowed_updates=["message"])
+                for u in ups or []:
+                    offset = max(offset, int(u.get("update_id") or 0) + 1)
+                    reply = await asyncio.to_thread(tg_reply, app, u)
+                    if reply:
+                        await _tg_send(app, http, *reply)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:  # noqa: BLE001
+                log.warning("telegram bot: %s", e)
+                await asyncio.sleep(10)
+
+
+def _watch_now(app):
+    s = app["s"]
+    return alerts_mod.watch_map(app["accounts"].all(), app["admins"], bool(s.get("alerts_open")),
+                                int(s.get("alerts_max_wallets", 50)), s.get("alerts_min_usd"))
+
+
+async def _rpc(http, url, method, params):
+    async with http.post(url, json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
+                         timeout=aiohttp.ClientTimeout(total=20)) as r:
+        d = await r.json(content_type=None)
+    return d.get("result")
+
+
+async def _sol_price(app, http):
+    """Ціна SOL у доларах: Jupiter без ключа, п'ять хвилин з пам'яті; збій — остання відома."""
+    px, at = app["sol_px"]
+    if px and time.time() - at < 300:
+        return px
+    try:
+        async with http.get("https://lite-api.jup.ag/price/v3?ids=" + alerts_mod.WSOL, timeout=aiohttp.ClientTimeout(total=10)) as r:
+            v = float(((await r.json(content_type=None)).get(alerts_mod.WSOL) or {}).get("usdPrice") or 0)
+        if v > 0:
+            app["sol_px"] = [v, time.time()]
+            return v
+    except Exception as e:  # noqa: BLE001
+        log.warning("sol price: %s", e)
+    return px
+
+
+async def _token_facts(app, mint):
+    """Назва і капа токена для повідомлення: один запит Solana Tracker на новий токен, далі 10 хвилин з пам'яті."""
+    hit = app["alerts_tok"].get(mint)
+    if hit and time.time() - hit[0] < 600:
+        return hit[1]
+    st = app["st"]
+
+    def work():
+        with st.meter():
+            n0 = st.requests_here()
+            try:
+                return alerts_mod.token_facts(st.token_report(mint))
+            except Exception:  # noqa: BLE001 — без назви повідомлення все одно йде: з адресою
+                return {}
+            finally:
+                _spend(app, "system", "alerts", st=st.requests_here() - n0, mint=mint)
+    facts = await asyncio.to_thread(work)
+    if len(app["alerts_tok"]) > 2000:
+        app["alerts_tok"].clear()
+    app["alerts_tok"][mint] = (time.time(), facts)
+    return facts
+
+
+def _hour_budget(app, chat):
+    """Не більше alerts_per_hour повідомлень на чат за годину. None — можна; 'first' — щойно вичерпано (одне
+    попередження); False — мовчимо до наступної години."""
+    hour, cap = int(time.time() // 3600), int(app["s"].get("alerts_per_hour", 30))
+    rec = app["alerts_hour"].get(chat)
+    if not rec or rec[0] != hour:
+        rec = app["alerts_hour"][chat] = [hour, 0]
+    rec[1] += 1
+    return None if rec[1] <= cap else ("first" if rec[1] == cap + 1 else False)
+
+
+async def _alert_tx(app, http, wallet, sig):
+    """Одна транзакція гаманця зі списків: розібрати, відсіяти, надіслати кожному, хто за ним стежить."""
+    key = sig + ":" + wallet
+    seen = app["alerts_seen"]
+    if key in seen:
+        return
+    seen[key] = time.time()
+    if len(seen) > 5000:
+        for k in sorted(seen, key=seen.get)[:1000]:
+            del seen[k]
+    url, params = app["s"].get("alerts_rpc_url"), [sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0, "commitment": "confirmed"}]
+    try:
+        tx = await _rpc(http, url, "getTransaction", params)
+        if not tx:                                   # щойно підтверджена: нода ще не встигла віддати
+            await asyncio.sleep(2)
+            tx = await _rpc(http, url, "getTransaction", params)
+    except Exception as e:  # noqa: BLE001
+        app["alerts_state"]["errors"] += 1
+        log.warning("alerts getTransaction %s: %s", sig[:10], e)
+        return
+    evs = alerts_mod.classify(tx, wallet, await _sol_price(app, http))
+    st = app["alerts_state"]
+    st["events"] += 1
+    for ev in evs:
+        subs = [x for x in (app["alerts_wm"].get(wallet) or []) if alerts_mod.wants(ev, x["prefs"])]
+        if not subs:
+            continue
+        token = await _token_facts(app, ev["mint"])
+        for sub in subs:
+            b = _hour_budget(app, sub["chat"])
+            if b is False:
+                continue
+            text = ("⏸ More than " + str(app["s"].get("alerts_per_hour", 30)) + " alerts this hour: the rest are skipped until the next hour."
+                    if b == "first" else alerts_mod.message(ev, wallet, sub, token, _site_url(app)))
+            if await _tg_send(app, http, sub["chat"], text) and b is None:
+                st["sent"] += 1
+                st["last_ms"] = int(time.time() * 1000)
+                app["events"].add(sub["pk"], "alert", side=ev["side"], usd=round(ev["usd"]), mint=ev["mint"])
+
+
+async def _alerts_watch_once(app, http, url, wm):
+    """Одне з'єднання з потоком: підписка на кожен гаманець (logsSubscribe mentions), нова транзакція — окремою
+    задачею. Повертається, коли набір гаманців змінився (тоді перепідписуємось) — або кидає, коли з'єднання впало."""
+    wallets = sorted(wm)
+    sub = {}
+    app["alerts_wm"] = wm
+    async with http.ws_connect(url, heartbeat=20, max_msg_size=0, timeout=aiohttp.ClientWSTimeout(ws_close=10)) as ws:
+        for i, w in enumerate(wallets):
+            await ws.send_json({"jsonrpc": "2.0", "id": i + 1, "method": "logsSubscribe",
+                                "params": [{"mentions": [w]}, {"commitment": "confirmed"}]})
+        app["alerts_state"].update(connected=True, url=url.split("//")[-1], wallets=len(wallets))
+        next_check = time.monotonic() + 30
+        while True:
+            try:
+                msg = await ws.receive(timeout=5)
+            except asyncio.TimeoutError:
+                msg = None
+            if msg is not None:
+                if msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.CLOSING, aiohttp.WSMsgType.ERROR):
+                    raise RuntimeError("the stream closed")
+                if msg.type == aiohttp.WSMsgType.TEXT:
+                    d = json.loads(msg.data)
+                    if isinstance(d.get("id"), int):         # відповідь на підписку: номер підписки або відмова
+                        if isinstance(d.get("result"), int) and 0 < d["id"] <= len(wallets):
+                            sub[d["result"]] = wallets[d["id"] - 1]
+                        elif d.get("error"):
+                            log.warning("alerts: subscription refused: %s", str(d.get("error"))[:100])
+                    elif d.get("method") == "logsNotification":
+                        p = d.get("params") or {}
+                        w, v = sub.get(p.get("subscription")), (p.get("result") or {}).get("value") or {}
+                        if w and not v.get("err") and v.get("signature"):
+                            asyncio.get_running_loop().create_task(_alert_tx(app, http, w, v["signature"]))
+            if time.monotonic() >= next_check:
+                next_check = time.monotonic() + 30
+                now_map = await asyncio.to_thread(_watch_now, app)
+                if set(now_map) != set(wm):
+                    return
+                wm = now_map                                  # ті самі гаманці; списки й налаштування могли змінитись
+                app["alerts_wm"] = wm
+
+
+async def _alerts_loop(app):
+    """Потік транзакцій гаманців зі списків з дзвіночком. Обрив — наступна нода зі списку і пауза, що зростає."""
+    urls = list(app["s"].get("alerts_ws_urls") or ["wss://solana-rpc.publicnode.com"])
+    i, delay = 0, 5
+    async with aiohttp.ClientSession(headers=UA_HEADERS) as http:
+        while True:
+            try:
+                wm = await asyncio.to_thread(_watch_now, app)
+                if not wm:
+                    app["alerts_state"].update(connected=False, wallets=0)
+                    app["alerts_wm"] = {}
+                    await asyncio.sleep(30)
+                    continue
+                await _alerts_watch_once(app, http, urls[i % len(urls)], wm)
+                delay = 5
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:  # noqa: BLE001
+                app["alerts_state"].update(connected=False)
+                app["alerts_state"]["errors"] += 1
+                log.warning("alerts stream %s: %s", urls[i % len(urls)].split("//")[-1], e)
+                i += 1
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 120)
+
+
 async def auth_nonce(request):
     """Одноразовий код і поля, з яких браузер збирає текст для підпису. Видача теж під стелею з однієї мережі: сховище
     кодів скінченне, і потік запитів інакше витісняв би коди людей, які саме підтверджують вхід у гаманці."""
@@ -1315,6 +1632,10 @@ async def me_lists(request, pk):
             out = {}
         elif action == "remove":
             out = {"removed_wallets": acc.delete_list(pk, str(body.get("id") or ""))}
+        elif action == "alerts":
+            if not _alerts_allowed(request.app, pk):
+                return _jerr("Alerts are in a closed test for now.", 403)
+            out = {"alerts": acc.set_list_alerts(pk, str(body.get("id") or ""), bool(body.get("on")))}
         else:
             return _jerr("Unknown action.", 404)
     except acct_mod.AccountError as e:
@@ -1406,8 +1727,11 @@ async def me_page(request):
     a, wallets, analyses = _account_view(request.app, pk)
     lists = [dict(v, id=k, n=sum(1 for w in wallets if k in (w.get("lists") or []))) for k, v in a["lists"].items()]
     _view(request, "me")
+    tg = a.get("telegram") or {}
     return render("me.html", request, wallets=wallets, analyses=analyses, max_my_tags=acct_mod.MAX_MY_TAGS,
-                  demo_mint=(demo or {}).get("mint"), lists=lists, max_lists=acct_mod.MAX_LISTS, TAGS=tags.DEFS)
+                  demo_mint=(demo or {}).get("mint"), lists=lists, max_lists=acct_mod.MAX_LISTS, TAGS=tags.DEFS,
+                  alerts_ok=_alerts_allowed(request.app, pk), tg={"linked": bool(tg.get("chat")), "user": tg.get("user") or ""},
+                  prefs=alerts_mod.prefs_of(a.get("alerts"), request.app["s"].get("alerts_min_usd")))
 
 
 async def admin_demo(request):

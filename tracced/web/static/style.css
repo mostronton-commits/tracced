@@ -1201,3 +1201,15 @@ header.top { position: relative; z-index: 45; }
 .factive button { padding: 0 6px; line-height: 1; }
 .kline.counts { margin: 2px 2px 8px; }
 
+/* сповіщення в Telegram на сторінці списків: одна смужка (підключення і налаштування), дзвіночок на вкладці списку */
+.tgbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 4px 0 12px; padding: 10px 14px;
+  border: 1px solid var(--line); border-radius: var(--r); background: var(--bg); font-size: 13.5px; }
+.tgbar.on { background: #F0FDF4; border-color: #BBF7D0; }
+.tgico svg, .lbell svg { width: 15px; height: 15px; display: block; }
+.tgbar .tgtext { flex: 1 1 260px; color: var(--ink); }
+.tgprefs { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.tgprefs label { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 13px; }
+.tgprefs input[type=number] { width: 80px; padding: 4px 6px; }
+.ltab .lbell { display: inline-block; margin-left: 5px; vertical-align: -2px; color: #15803D; }
+.lalert.on { color: #15803D; font-weight: 600; }
+

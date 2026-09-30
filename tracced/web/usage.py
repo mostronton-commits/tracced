@@ -144,7 +144,7 @@ FEATURES = {"run": "Analyses", "names": "Wallet names", "enrich": "Wallet age an
             "overview": "Token overviews", "chart": "Chart candles", "card-profile": "Card: last 30 days",
             "card-trades": "Card: trades on the token", "card-age": "Card: age and funder", "demo": "Demo capture",
             "credits": "Balance checks", "onchain": "This dashboard: on-chain facts", "agent": "AI agent",
-            "api-check": "Partner API: token checks"}
+            "api-check": "Partner API: token checks", "alerts": "Telegram alerts: token names"}
 WHO = {"wallets": "Wallet users", "team": "You and test wallets", "guests": "Guests", "partners": "API partners", "system": "The server"}
 # кліки людською мовою: таблиця «що клікають» і хронологія гаманця
 CLICKS = {"card-open": "Opened a wallet card", "card-close": "Closed a wallet card", "card-period": "Switched 7D/30D in a card",

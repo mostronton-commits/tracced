@@ -16,11 +16,24 @@
     {% if wallets %}<div class="menu right"><button type="button" class="ghost" data-menu>↓ Export</button>
       <div class="menu-panel r" hidden><a href="/me/wallets.csv" id="xcsv">CSV <small>all columns</small></a><button type="button" id="xtxt">TXT <small>addresses only</small></button></div></div>{% endif %}
   </div>
+  {% if alerts_ok %}
+  <div class="tgbar{{ ' on' if tg.linked }}" id="tgbar">
+    <span class="tgico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2V7.4a4 4 0 0 1 8 0v3.8l1.2 1.4H2.8z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/></svg></span>
+    <span class="tgtext" id="tgtext">{% if tg.linked %}Telegram <b>{{ tg.user or 'connected' }}</b>{% else %}Alerts in Telegram: buys and sells of the wallets in a list with the bell on{% endif %}</span>
+    <span class="tgprefs" id="tgprefs"{% if not tg.linked %} hidden{% endif %}>
+      <label><input type="checkbox" id="tgbuys"{% if prefs.buys %} checked{% endif %}> Buys</label>
+      <label><input type="checkbox" id="tgsells"{% if prefs.sells %} checked{% endif %}> Sells</label>
+      <label>from $<input type="number" id="tgmin" min="0" step="10" value="{{ prefs.min_usd|round|int }}" aria-label="Smallest trade to alert on, in dollars"></label>
+    </span>
+    <button type="button" class="primary" id="tgconnect"{% if tg.linked %} hidden{% endif %}>Connect Telegram</button>
+    <button type="button" class="link" id="tgunlink"{% if not tg.linked %} hidden{% endif %}>Disconnect</button>
+  </div>
+  {% endif %}
   <div class="ltabs" role="tablist" id="ltabs">
     <button type="button" class="ltab on" data-list="" role="tab">All <b>{{ wallets|length }}</b></button>
-    {% for l in lists %}<button type="button" class="ltab" data-list="{{ l.id }}" role="tab">{{ l.name }} <b>{{ l.n }}</b></button>{% endfor %}
+    {% for l in lists %}<button type="button" class="ltab" data-list="{{ l.id }}" data-alerts="{{ 1 if l.alerts else 0 }}" role="tab">{{ l.name }} <b>{{ l.n }}</b>{% if alerts_ok %}<i class="lbell" title="Alerts on"{% if not l.alerts %} hidden{% endif %}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2V7.4a4 4 0 0 1 8 0v3.8l1.2 1.4H2.8z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/></svg></i>{% endif %}</button>{% endfor %}
     {% if lists|length < max_lists %}<form class="lnewtab" id="lnew"><input type="text" maxlength="32" placeholder="New list" aria-label="Name of a new list"><button type="submit" class="ghost">+ Create</button></form>{% endif %}
-    <span class="lacts" id="lacts" hidden><button type="button" class="link" id="lrename">Rename</button> · <button type="button" class="link" id="ldelete">Delete this list</button></span>
+    <span class="lacts" id="lacts" hidden>{% if alerts_ok %}<button type="button" class="link lalert" id="lalert"></button> · {% endif %}<button type="button" class="link" id="lrename">Rename</button> · <button type="button" class="link" id="ldelete">Delete this list</button></span>
   </div>
   {% if wallets %}
   <div class="tablewrap"><table class="facts melist"><thead><tr>
@@ -126,6 +139,7 @@
     document.querySelectorAll('#ltabs .ltab').forEach(b => b.classList.toggle('on', b.dataset.list === current));
     const acts = document.getElementById('lacts'); if (acts) { acts.hidden = !current; document.getElementById('ldelete').hidden = current === 'main'; }
     const csv = document.getElementById('xcsv'); if (csv) csv.href = '/me/wallets.csv' + (current ? '?list=' + encodeURIComponent(current) : '');
+    bellText();
     const em = document.getElementById('lempty'); if (em) em.hidden = n > 0;
     try { localStorage.setItem('early:list', current); } catch (e) {}
   }
@@ -144,6 +158,52 @@
   if (ld) ld.addEventListener('click', async () => {
     if (!confirm('Delete the list «' + names[current] + '»? Wallets that are only in it leave your lists.')) return;
     try { await post('/me/lists/remove', { id: current }); try { localStorage.removeItem('early:list'); } catch (e) {} location.reload(); } catch (x) { oops(x); }
+  });
+  // ── Telegram alerts: connect with a one-time link, the bell on a list, buys / sells / from $ for all of them ──
+  const tgbar = document.getElementById('tgbar'), lalert = document.getElementById('lalert');
+  let tgLinked = !!(tgbar && tgbar.classList.contains('on'));
+  const tabOf = id => document.querySelector('#ltabs .ltab[data-list="' + id + '"]');
+  function bellText() {
+    if (!lalert || !current) return;
+    const on = (tabOf(current) || { dataset: {} }).dataset.alerts === '1';
+    lalert.textContent = on ? 'Alerts on · turn off' : 'Turn on alerts';
+    lalert.classList.toggle('on', on);
+  }
+  function tgShow(d) {
+    tgLinked = !!d.linked; tgbar.classList.toggle('on', tgLinked);
+    document.getElementById('tgtext').innerHTML = tgLinked ? 'Telegram <b>' + EarlyTags.esc(d.user || 'connected') + '</b>' : 'Alerts in Telegram: buys and sells of the wallets in a list with the bell on';
+    document.getElementById('tgprefs').hidden = !tgLinked;
+    document.getElementById('tgconnect').hidden = tgLinked; document.getElementById('tgunlink').hidden = !tgLinked;
+  }
+  async function tgConnect() {
+    let d; try { d = await post('/me/telegram/link', {}); } catch (x) { oops(x); return; }
+    window.open(d.url, '_blank', 'noopener');
+    EarlyUI.toast('Press Start in Telegram. This page updates by itself.', 8000);
+    for (let i = 0; i < 60; i++) {                                 // three minutes to press Start
+      await new Promise(r => setTimeout(r, 3000));
+      try { const r = await fetch('/me/telegram.json', { credentials: 'same-origin' }); const s = await r.json();
+        if (s.linked) { tgShow(s); EarlyUI.toast('Telegram connected. Turn on the bell for a list.'); return; } } catch (e) {}
+    }
+  }
+  if (tgbar) {
+    document.getElementById('tgconnect').addEventListener('click', tgConnect);
+    document.getElementById('tgunlink').addEventListener('click', async () => {
+      if (!confirm('Stop alerts in Telegram for this wallet?')) return;
+      try { await post('/me/telegram/unlink', {}); tgShow({ linked: false }); } catch (x) { oops(x); }
+    });
+    let saveT = 0;
+    const savePrefs = () => { clearTimeout(saveT); saveT = setTimeout(async () => {
+      try { await post('/me/alerts', { buys: document.getElementById('tgbuys').checked, sells: document.getElementById('tgsells').checked,
+        min_usd: +document.getElementById('tgmin').value || 0 }); EarlyUI.toast('Saved'); } catch (x) { oops(x); } }, 600); };
+    ['tgbuys', 'tgsells', 'tgmin'].forEach(id => document.getElementById(id).addEventListener('change', savePrefs));
+  }
+  if (lalert) lalert.addEventListener('click', async () => {
+    if (!current) return;
+    if (!tgLinked) { EarlyUI.toast('Connect Telegram first: the alerts go there.'); tgConnect(); return; }
+    const tab = tabOf(current), on = tab.dataset.alerts !== '1';
+    try { await post('/me/lists/alerts', { id: current, on }); } catch (x) { oops(x); return; }
+    tab.dataset.alerts = on ? '1' : '0'; const b = tab.querySelector('.lbell'); if (b) b.hidden = !on;
+    bellText(); EarlyUI.toast(on ? 'Alerts on for «' + names[current] + '»' : 'Alerts off for «' + names[current] + '»');
   });
   try { const was = localStorage.getItem('early:list'); if (was && document.querySelector('#ltabs .ltab[data-list="' + was + '"]')) showList(was); } catch (e) {}
   document.querySelectorAll('.tags .tag[data-tag]').forEach(EarlyTags.iconify);

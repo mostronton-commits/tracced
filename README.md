@@ -125,6 +125,10 @@ chart and terminal and result, without a single request to the data provider.
   code checks every number it writes against that digest and drops what it cannot find. For connected wallets only,
   with per-wallet and site-wide daily limits. The owner writes its method at `/admin`; the rules that keep it on
   topic live in the code.
+- Telegram alerts: the bell on a list sends its wallets' buys and sells to Telegram (`TELEGRAM_BOT_TOKEN`, and `ALERTS=1` on the one
+  server that runs the bot). A trade is a transaction the wallet signed itself, paying SOL or a stablecoin for a token or the
+  other way round; transfers and airdrops stay silent. The stream is Solana's public WebSocket (`alerts_ws_urls`). In a
+  closed test for the owner's wallets until `alerts_open`.
 - Usage, for the owner at `/admin`: what connected wallets do here and what each step cost, from the server's own
   log (`output/early/usage`, a file a month, kept 13 months). Pages, named clicks with a short setting (never an
   address or typed text), analyses, cards and agent calls, each with its Solana Tracker requests, Helius credits or
