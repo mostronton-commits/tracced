@@ -2429,7 +2429,7 @@ if AioHTTPTestCase:
                 self.assertNotIn('class="wdemo"', html, path)                     # already on the demo
             html = await (await self.client.get(f"/job/{DEMO_JID}", headers=GUEST)).text()
             self.assertIn('"5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9": ["Binance", "Binance 1"]', html)   # біржі — на сторінці
-            self.assertIn('id="verdict"', html)
+            self.assertIn('Organised launch', html)                     # the verdict: the first mark above the chart
             self.assertIn("Beta, free for now. Connect a wallet to ask.", html)   # the agent's line for a guest
             self.assertIn("Connect wallet for more data", html)                   # the card's step is a real button
 

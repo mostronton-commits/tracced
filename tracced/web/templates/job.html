@@ -37,6 +37,7 @@
     </div>
   {% else %}
     {% set r = result %}{% set c = r.counts %}
+    <div class="fpills" id="finds" hidden></div>
     <div class="chartbox" id="chart" data-mint="{{ job.mint }}" data-created="{{ created }}" data-now="{{ now }}"
          data-from="{{ job.t_from }}" data-to="{{ job.t_to }}" data-exit="{{ scope_end or 0 }}" data-symbol="{{ job.symbol }}"></div>
     <div class="onchart-bar" id="onchart" hidden></div>
@@ -44,8 +45,6 @@
 
     {% if cov_text %}<p class="muted small cov">{{ cov_text }}</p>{% endif %}
 
-    <p class="verdict" id="verdict" hidden></p>
-    <div class="finds" id="finds" hidden></div>
     <p class="kline counts">
       <span title="Wallets that bought inside the range — the list below"><b data-count="{{ sm.n }}" data-fmt="int">0</b> bought</span>
       <span title="Sold 99% or more of what they bought"><b data-count="{{ sm.exited }}" data-fmt="int">0</b> sold out</span>
@@ -58,7 +57,7 @@
 
     <div class="row toolbar">
       <button type="button" id="ftoggle" aria-expanded="true">Filters</button>
-      <span class="muted small" id="shown"></span>
+      <span class="muted small" id="shown"></span><span class="factive" id="factive" hidden></span>
       <label class="sortby muted small">Sort <select id="msort" aria-label="Sort the wallets">
         <option value="real" selected>PnL, highest first</option><option value="inv">Bought the most</option>
         <option value="etime" data-dir="1">Bought first</option><option value="got">Sold for the most</option>
@@ -364,63 +363,78 @@
       // "nothing to dig here": when nearly all of the top wallets by PnL (the ones checked for age and funder) are fresh or
       // in bundles, the launch was organised and the list holds few organic buyers. Said once the check is done
       const VERDICT_PCT = {{ s.verdict_organised_pct or 90 }}, VERDICT_TOP = {{ s.age_lookups_max or 0 }};   // not AGE_N: apply() runs before it is declared
+      let verdictNote = '';
       function verdict() {
-        const el = document.getElementById('verdict'), top = all.slice(0, VERDICT_TOP); if (!el) return;
+        const top = all.slice(0, VERDICT_TOP);
         const n = top.filter(o => o.tags.includes('fresh') || o.tags.includes('bundle')).length;
         const pct = top.length >= 20 ? Math.floor(100 * n / top.length) : 0;   // 199 of 200 is 99%, not 100%
-        el.hidden = !(ageDone && VERDICT_PCT && pct >= VERDICT_PCT);
-        if (!el.hidden) el.innerHTML = '<b>Organised launch.</b> ' + n + ' of the top ' + top.length + ' by PnL (' + pct + '%) are fresh or bundled wallets: little here is organic buying.';
+        verdictNote = ageDone && VERDICT_PCT && pct >= VERDICT_PCT
+          ? n + ' of the top ' + top.length + ' by PnL (' + pct + '%) are fresh or bundled wallets: one hand ran this launch, little here is organic buying' : '';
       }
-      // What tracced found that a terminal does not show: at most three facts, each only when it matters, and each one
-      // a way into the table. Bundles, fresh wallets and funders come after the page, so this runs again as they do
-      const FIND_MAX = 3; let findActs = [];
+      // What tracced found that a terminal does not show: short marks above the chart, at most three, each only when it
+      // matters, each a click into exactly those wallets; the sentence is in the tooltip. Bundles, fresh wallets and
+      // funders come after the page, so this runs again as they do
+      const FIND_MAX = 3, IC = EarlyTags.ICON; let findActs = [];
       function findings() {
         const el = document.getElementById('finds'); if (!el) return;
         const inv = o => +o.inv || 0, tot = all.reduce((s, o) => s + inv(o), 0) || 1, out = [];
         const bw = all.filter(o => bundle[o.w]);                                  // wallets that share a funder here
         if (bw.length) {
-          const ops = new Set(bw.map(o => funders[o.w] || bundle[o.w].funder)).size, sh = 100 * bw.reduce((s, o) => s + inv(o), 0) / tot;
-          if (sh >= 10) out.push({ k: 'bundle', sev: 'warn', act: ['only', 'bundle'], why: 'wallets in bundles',
-            t: '<b>' + ops + ' operator' + (ops === 1 ? '' : 's') + '</b> bought ' + Math.round(sh) + '% of the range through ' + bw.length + ' wallets' });
+          const ops = new Set(bw.map(o => funders[o.w] || bundle[o.w].funder)).size, sh = Math.round(100 * bw.reduce((s, o) => s + inv(o), 0) / tot);
+          if (sh >= 10) out.push({ k: 'bundle', sev: 'warn', act: ['only', 'bundle'], ic: IC.bundle, why: 'wallets in bundles',
+            h: '<b>' + ops + '</b> operator' + (ops === 1 ? '' : 's') + ' · ' + sh + '%',
+            tip: ops + ' operator' + (ops === 1 ? '' : 's') + ' bought ' + sh + '% of the range through ' + bw.length + ' wallets that share a funder' });
         }
         const dev = all.find(o => o.tags.includes('dev'));
-        if (dev) out.push({ k: 'dev', sev: 'warn', act: ['only', 'dev'], why: "the token's creator",
-          t: '<b>The creator</b> bought here: ' + money(dev.inv) + ' in' + (dev.got ? ', ' + money(dev.got) + ' out' : ', nothing sold yet') });
+        if (dev) out.push({ k: 'dev', sev: 'warn', act: ['only', 'dev'], ic: IC.dev, why: "the token's creator", h: 'Creator bought',
+          tip: "The token's creator bought here: " + money(dev.inv) + ' in' + (dev.got ? ', ' + money(dev.got) + ' out' : ', nothing sold yet') });
         const fr = all.filter(o => o.tags.includes('fresh')).length, checked = Math.min(all.length, VERDICT_TOP || all.length) || 1;
-        if (fr >= 10 && fr / checked >= 0.1) out.push({ k: 'fresh', sev: 'warn', act: ['only', 'fresh'], why: 'fresh wallets',
-          t: '<b>' + fr + ' fresh wallets</b>: under a day old when they bought' });
+        if (fr >= 10 && fr / checked >= 0.1) out.push({ k: 'fresh', sev: 'warn', act: ['only', 'fresh'], ic: IC.fresh, why: 'fresh wallets',
+          h: '<b>' + fr + '</b> fresh', tip: fr + ' wallets were under a day old when they bought' });
         const ex = {}; all.forEach(o => { const x = funders[o.w]; if (x && EXCH[x]) ex[EXCH[x][0]] = (ex[EXCH[x][0]] || 0) + 1; });
         const exN = Object.values(ex).reduce((a, b) => a + b, 0), funded = all.filter(o => funders[o.w]).length;
-        if (exN >= 10 && funded && exN / funded >= 0.05) out.push({ k: 'cex', sev: 'info', act: ['only', 'cex'], why: 'wallets funded from exchanges',
-          t: '<b>' + exN + ' wallets</b> came straight from exchanges: ' + Object.entries(ex).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n, c]) => esc(n) + ' ' + c).join(', ') });
+        if (exN >= 10 && funded && exN / funded >= 0.05) out.push({ k: 'cex', sev: 'info', act: ['only', 'cex'], ic: IC.exchange, why: 'wallets funded from exchanges',
+          h: '<b>' + exN + '</b> from exchanges',
+          tip: 'Funded straight from exchanges: ' + Object.entries(ex).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([n, c]) => n + ' ' + c).join(', ') });
         const rep = all.filter(o => crossings[o.w]).length;
-        if (rep >= 3) out.push({ k: 'repeat', sev: 'good', act: ['repeat'], why: 'wallets early in your other pumps',
-          t: '<b>' + rep + ' wallets</b> were early in your other pumps too' });
+        if (rep >= 3) out.push({ k: 'repeat', sev: 'good', act: ['repeat'], ic: IC['seen-before'], why: 'wallets early in your other pumps',
+          h: '<b>' + rep + '</b> in your other pumps', tip: rep + ' wallets were early in your other saved pumps too' });
         const prof = all.map(o => +o.real || 0).filter(v => v > 0).sort((a, b) => b - a), ptot = prof.reduce((a, b) => a + b, 0);
         if (prof.length >= 20 && ptot > 0) {
-          const s10 = 100 * prof.slice(0, 10).reduce((a, b) => a + b, 0) / ptot;
-          if (s10 >= 40) out.push({ k: 'top', sev: 'info', act: ['sort', 'real'], why: 'the wallets by PnL',
-            t: '<b>Top 10</b> took ' + Math.round(s10) + '% of all the profit' });
+          const s10 = Math.round(100 * prof.slice(0, 10).reduce((a, b) => a + b, 0) / ptot);
+          if (s10 >= 40) out.push({ k: 'top', sev: 'info', act: ['sort', 'real'], ic: '', why: 'the wallets by PnL',
+            h: 'Top 10 · <b>' + s10 + '%</b> of profit', tip: 'The 10 most profitable wallets took ' + s10 + '% of all the profit' });
         }
         findActs = out.slice(0, FIND_MAX);
-        el.innerHTML = findActs.map((x, i) => '<button type="button" class="find ' + x.sev + '" data-i="' + i + '"><span>' + x.t + '</span><span class="go">Show →</span></button>').join('');
-        el.hidden = !findActs.length;
+        el.innerHTML = (verdictNote ? '<span class="fpill bad" title="' + esc(verdictNote) + '">Organised launch</span>' : '')
+          + findActs.map((x, i) => '<button type="button" class="fpill ' + x.sev + '" data-i="' + i + '" title="' + esc(x.tip) + ' · click to show them">' + x.ic + '<span>' + x.h + '</span></button>').join('');
+        el.hidden = !verdictNote && !findActs.length;
       }
       document.getElementById('finds').addEventListener('click', e => {
-        const b = e.target.closest('.find'), x = b && findActs[+b.dataset.i]; if (!x) return;
+        const b = e.target.closest('.fpill[data-i]'), x = b && findActs[+b.dataset.i]; if (!x) return;
         Object.assign(f, FDEF, { hide: [] });                               // exactly its wallets: other filters would hide some of them
         if (x.act[0] === 'only') f.only = x.act[1];
         if (x.act[0] === 'repeat') f.repeat = true;
         saveF(); syncInputs(); limit = LIMIT;
         if (x.act[0] === 'sort') sortBy('real', -1); else apply();
         EarlyUI.use('finding', { k: x.k });
-        EarlyUI.toast('Showing ' + x.why + ' · Reset in the filters clears it');
         document.getElementById('facts').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      // the one filter a click can set without the panel open is named beside the count, with its own ×
+      const ONLY = { bundle: 'Only bundles', dev: 'Only the creator', fresh: 'Only fresh wallets', cex: 'Only funded from exchanges' };
+      function activeNote() {
+        const el = document.getElementById('factive'); if (!el) return;
+        const n = f.only ? ONLY[f.only] : f.repeat ? 'Only early in your other pumps' : f.funder ? 'Funded by ' + fundLabel(f.funder) : '';
+        el.hidden = !n; el.innerHTML = n ? esc(n) + ' <button type="button" class="ghost" aria-label="Clear">×</button>' : '';
+      }
+      document.getElementById('factive').addEventListener('click', e => {
+        if (!e.target.closest('button')) return;
+        f.only = ''; f.repeat = false; f.funder = ''; saveF(); limit = LIMIT; apply();
       });
       function apply() {
         pass = order.filter(okRow);
         draw();
-        verdict(); findings();
+        verdict(); findings(); activeNote();
         const na = nActive(), n = pass.length, left = Math.max(0, n - limit);
         shown.textContent = (left ? Math.min(n, limit) + ' of ' + n + ' shown' : n + ' of ' + all.length) + (na ? ' · filtered' : '');
         more.hidden = !left; document.getElementById('more100').hidden = left <= 100; document.getElementById('moren').textContent = n;
@@ -793,8 +807,11 @@
         if ((!(a && a.ms) || !a.exact || !fnd) && !queued && !ageTried.get(w) && AGE_N) loadAge(w);   // the server reads deeper, once, or answers from what it has
         const st = ageTried.get(w);                               // 'busy' from here on while that request runs
         if (a && a.ms && a.exact) {
-          const young = Date.now() - a.ms < 86400000;
-          out.push('<span class="dchip age' + (young ? ' young' : '') + '" title="Wallet age. First transaction ' + EarlyTZ.fmt(a.ms, true) + '">' + ageText(a.ms) + '</span>');
+          const young = Date.now() - a.ms < 86400000, row = byW.get(w), at = row && +row.etime;
+          if (row && row.tags.includes('fresh') && at > a.ms)                 // fresh is about the buy: "17h at buy", not "15d" today
+            out.push('<span class="dchip age young" title="Fresh: this wallet was ' + ageText(Date.now() - (at - a.ms)) + ' old when it first bought here. Created '
+              + EarlyTZ.fmt(a.ms, true) + ', ' + ageText(a.ms) + ' ago">' + ageText(Date.now() - (at - a.ms)) + ' at buy</span>');
+          else out.push('<span class="dchip age' + (young ? ' young' : '') + '" title="Wallet age today. First transaction ' + EarlyTZ.fmt(a.ms, true) + '">' + ageText(a.ms) + '</span>');
         } else if (a && a.ms) {
           // a busy wallet: its latest transactions end before its first one, so the age is unknown, not "at least 12 days".
           // Opening the card reads deeper; until that answers, or when it cannot, the count says why
