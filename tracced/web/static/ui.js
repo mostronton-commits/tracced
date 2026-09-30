@@ -94,7 +94,7 @@
   /* A product step for Umami, the privacy-friendly analytics on the live site: what people do, never who they are
      (no wallet addresses, at most one small property). Nothing happens where Umami is not loaded or is blocked.
      A few steps also go to the owner's own log above (only for a connected wallet). */
-  const FWD = { 'show-more': 1, 'limit-window': 1, 'find-pump': 1, 'agent-open': 1 };
+  const FWD = { 'show-more': 1, 'limit-window': 1, 'agent-open': 1 };
   function track(name, data) {
     if (FWD[name]) use(name, data);
     toUmami(name, data);
@@ -105,6 +105,12 @@
     try { if (window.umami && typeof umami.track === 'function') umami.track(name, data); } catch (e) {}
   }
   window.EarlyUI = { countUp, fmtShort, FMT, toast, menus, marks, track, use, flush };
+  // a phone has no hover: a tap on an explanation that lives in a title (.tipt) shows it as a toast (review 01.10)
+  document.addEventListener('click', e => {
+    const el = e.target.closest('.tipt[title]');
+    if (!el || !matchMedia('(hover: none)').matches) return;
+    toast(String(el.title).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])), 7000);
+  });
 })();
 
 /* home: the address field "types" a made-up base58 address until the user touches it */
@@ -145,7 +151,8 @@ document.addEventListener('click', e => {
     document.documentElement.style.setProperty('--dtop', h + 'px'); document.documentElement.style.setProperty('--dbot', b + 'px'); };
   const soon = () => { if (!raf) raf = requestAnimationFrame(set); };
   addEventListener('scroll', soon, { passive: true }); addEventListener('resize', soon);
-  document.addEventListener('DOMContentLoaded', set);
+  // the page grows or shrinks without a scroll too (another list, a card from the last row): the footer moves (review 01.10)
+  document.addEventListener('DOMContentLoaded', () => { set(); if (window.ResizeObserver) new ResizeObserver(soon).observe(document.body); });
 })();
 
 /* seven quick clicks on the wordmark (the home title or the footer) rain candles; egg.js loads only then */

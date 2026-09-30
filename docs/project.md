@@ -17,8 +17,8 @@ Nothing is scored. Every row opens as a transaction on Solscan.
 ## Three steps
 
 1. **Paste a token.** Any Solana mint. The chart is drawn in market cap, not price.
-2. **Mark the pump.** Two clicks set the range, from where buying starts to where it takes off. Detected pumps are
-   offered as hints; the call is yours.
+2. **Mark the pump.** Two clicks set the range, from where buying starts to where it takes off. The call is yours:
+   nothing is marked for you.
 3. **Read the wallets.** Everyone who bought inside it, with what they paid, sold, still hold, and who funded them.
    Export as CSV, TXT or JSON.
 

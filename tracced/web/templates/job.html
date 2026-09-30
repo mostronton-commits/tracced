@@ -285,9 +285,10 @@
         // who sent the wallet its first SOL; the full address in the tooltip, since two short ones can look alike
         const fnd = funders[o.w]; if (!fnd) return '';
         if (EXCH[fnd]) {
-          const [ex, lab] = EXCH[fnd];
+          const [ex, lab] = EXCH[fnd], eb = bundle[o.w], ecol = bundleColor(o.w);   // born together off an exchange: still a bundle
           return '<button type="button" class="link fundb cex" data-fund="x:' + esc(ex) + '" title="First SOL came straight from ' + esc(lab) + ' (' + fnd
-            + ') · an exchange, not one operator · click to show every wallet funded from ' + esc(ex) + '">' + esc(ex) + '</button>';
+            + ') · an exchange, not one operator · click to show every wallet funded from ' + esc(ex) + '">' + (ecol ? '<i class="dot" style="--c:' + ecol + '"></i>' : '')
+            + esc(ex) + '</button>' + (eb ? '<small class="muted"> ×' + eb.n + '</small>' : '');
         }
         const b = bundle[o.w], col = bundleColor(o.w), svc = services.has(fnd) ? ' · an exchange or an app (1,000+ transactions a day), not one operator' : '';
         return '<button type="button" class="link mono fundb' + (svc ? ' svc' : '') + '" data-fund="' + fnd + '" title="' + fnd + svc + ' · click to show every wallet it funded">'
@@ -414,7 +415,7 @@
             h: 'Top 10 · <b>' + s10 + '%</b> of profit', tip: 'The 10 most profitable wallets took ' + s10 + '% of all the profit' });
         }
         findActs = out.slice(0, FIND_MAX);
-        const html = (verdictNote ? '<span class="fpill bad" title="' + esc(verdictNote) + '">' + verdictWord + '</span>' : '')
+        const html = (verdictNote ? '<span class="fpill bad tipt" title="' + esc(verdictNote) + '">' + verdictWord + '</span>' : '')
           + findActs.map((x, i) => '<button type="button" class="fpill ' + x.sev + '" data-i="' + i + '" title="' + esc(x.tip) + ' · click to show them">' + x.ic + '<span>' + x.h + '</span></button>').join('');
         if (el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; }
         el.hidden = !verdictNote && !findActs.length;
@@ -427,7 +428,8 @@
         saveF(); syncInputs(); limit = LIMIT;
         if (x.act[0] === 'sort') sortBy('real', -1); else apply();
         EarlyUI.use('finding', { k: x.k });
-        document.getElementById('facts').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // to the toolbar, not the table: the note of what is shown and its × sit there (review 01.10)
+        (document.querySelector('.row.toolbar') || document.getElementById('facts')).scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
       // the one filter a click can set without the panel open is named beside the count, with its own ×
       const ONLY = { bundle: 'Only bundles', dev: 'Only the creator', fresh: 'Only fresh wallets', cex: 'Only funded from exchanges' };
@@ -832,7 +834,8 @@
             : '<span class="dchip age q" title="' + why + '">' + (busy ? '…' : '?') + '</span>');
         }
         if (fnd && EXCH[fnd]) out.push('<button type="button" class="dchip fund cex" id="dfund" data-fund="x:' + esc(EXCH[fnd][0]) + '" title="First SOL came straight from '
-          + esc(EXCH[fnd][1]) + ' (' + fnd + '), an exchange · click to show every wallet funded from ' + esc(EXCH[fnd][0]) + ' here">↘ ' + esc(EXCH[fnd][0]) + '</button>');
+          + esc(EXCH[fnd][1]) + ' (' + fnd + '), an exchange' + (bn && bn.n > 1 ? ', together with ' + (bn.n - 1) + ' wallets born in the same minutes (bundle)' : '')
+          + ' · click to show every wallet funded from ' + esc(EXCH[fnd][0]) + ' here">↘ ' + esc(EXCH[fnd][0]) + (bn && bn.n > 1 ? '<small>×' + bn.n + '</small>' : '') + '</button>');
         else if (fnd) out.push('<button type="button" class="dchip fund mono" id="dfund" data-fund="' + fnd + '" title="First SOL came from '
           + fnd + (bn && bn.n > 1 ? ', which funded ' + bn.n + ' wallets here (bundle)' : services.has(fnd) ? ', an exchange or an app: over 1,000 transactions a day, so the wallets it funded are not a bundle' : '')
           + ' · click to show every wallet it funded here">↘ ' + short(fnd) + (bn && bn.n > 1 ? '<small>×' + bn.n + '</small>' : '') + '</button>');

@@ -44,7 +44,7 @@
     {% if lists|length < max_lists %}<form class="lnewtab" id="lnew"><input type="text" maxlength="32" placeholder="New list" aria-label="Name of a new list"><button type="submit" class="ghost">+ Create</button></form>{% endif %}
   </div>
   {# the open list's own bar: its alerts switch where the eye lands, not a link at the end of the tabs (owner, 30.09) #}
-  <div class="lbar" id="lacts" hidden>{% if alerts_ok %}<button type="button" class="lalert" id="lalert" role="switch" aria-checked="false"></button>{% endif %}
+  <div class="lbar" id="lacts" hidden>{% if alerts_ok %}<button type="button" class="lalert" id="lalert" role="switch" aria-checked="false" aria-label="Alerts for this list"></button>{% endif %}
     <span class="lmore"><button type="button" class="link" id="lrename">Rename</button> · <button type="button" class="link" id="ldelete">Delete this list</button></span></div>
   {% if alerts_ok and lists %}<p class="lballhint" id="lallhint">Alerts are per list: open one above and switch them on.</p>{% endif %}
   {% if wallets %}
@@ -53,7 +53,7 @@
     <th>Wallet <span class="muted">· your tags</span></th><th></th>
   </tr></thead><tbody>
   {% for w in wallets %}
-    <tr data-w="{{ w.wallet }}" data-lists="{{ (w.lists or ['main'])|join(' ') }}" tabindex="0" title="Open the wallet card">
+    <tr data-w="{{ w.wallet }}" data-lists="{{ (w.lists or ['main'])|join(' ') }}" tabindex="0">
       <td><span class="wlrow"><span class="mono wadr">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</span><span class="mytags">{% for t in w.my_tags or [] %}<button type="button" class="tag mine" title="Click to remove">{{ t }}</button>{% endfor %}<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd" title="Add your own tag: it names the wallet here and in the alerts" aria-label="Add your own tag"{% if (w.my_tags or [])|length >= max_my_tags %} hidden{% endif %}><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg></button></span></span></td>
       <td class="rm"><button type="button" class="ghost x" data-rm-wallet title="Remove from this list" aria-label="Remove from this list">×</button></td>
     </tr>
@@ -139,8 +139,10 @@
   const profiles = new Map();
   function closeCard() {
     if (!drawer) return;
+    const back = drawer.hidden ? null : rowOf(drawer.dataset.w || '');
     drawer.hidden = true; document.body.classList.remove('drawer-open');
     document.querySelectorAll('tr.carded').forEach(r => r.classList.remove('carded'));
+    if (back && !back.hidden) back.focus({ preventScroll: true });    // the keyboard goes back to the row it came from
   }
   function nameRow(w) {                                    // the row's tags follow the card's
     const tr = rowOf(w); if (!tr) return;
@@ -199,6 +201,13 @@
     const m = META[w] || {}, names = (m.lists || []).map(id => LISTNAMES[id] || id);
     document.getElementById('dsrc').innerHTML = '<p class="dline muted small">In ' + esc(names.join(', ') || 'no list') + (m.added_ms ? ' · saved ' + EarlyTZ.fmt(m.added_ms, false) : '') + '</p>';
   }
+  async function dropTag(w, tag) {                          // one tap removes a tag; a mis-tap on a phone is one Undo away (review 01.10)
+    const before = ((META[w] || {}).my_tags || []).slice();
+    await saveTags(w, before.filter(t => t !== tag));
+    EarlyUI.toast('Tag «' + esc(tag) + '» removed · <button type="button" class="link" id="tagundo">Undo</button>', 6000);
+    const u = document.getElementById('tagundo');
+    if (u) u.addEventListener('click', () => { saveTags(w, before); const box = u.closest('.toast'); if (box) box.hidden = true; });
+  }
   async function saveTags(w, tags) {
     try { const d = await post('/me/wallets/tags', { wallet: w, tags }); (META[w] = META[w] || {}).my_tags = d.tags || []; }
     catch (x) { oops(x); }
@@ -224,6 +233,7 @@
     if (!drawer) return;
     if (drawer.hidden || drawer.dataset.w !== w) EarlyUI.use('card-open', { src: 'list' });
     drawer.dataset.w = w; drawer.hidden = false; document.body.classList.add('drawer-open');
+    document.getElementById('dclose').focus({ preventScroll: true });   // the keyboard lands in the card; Escape or × brings it back
     document.querySelectorAll('tr.carded').forEach(r => r.classList.remove('carded'));
     const tr = rowOf(w); if (tr) tr.classList.add('carded');
     document.getElementById('dav').innerHTML = EarlyCard.identicon(w);
@@ -240,7 +250,7 @@
     tbody.addEventListener('click', e => {
       const tr = e.target.closest('tr[data-w]'); if (!tr) return;
       const w = tr.dataset.w, mine = e.target.closest('.mytags .tag.mine');
-      if (mine) { saveTags(w, ((META[w] || {}).my_tags || []).filter(t => t !== mine.textContent)); return; }
+      if (mine) { dropTag(w, mine.textContent); return; }
       if (e.target.closest('.mytags .tagadd')) { const inp = tr.querySelector('.tagin'); inp.hidden = false; e.target.closest('.tagadd').hidden = true; inp.focus(); }
     });
     tbody.addEventListener('keydown', e => {
@@ -268,7 +278,7 @@
     const dtags = document.getElementById('dtags');
     dtags.addEventListener('click', e => {
       const w = drawer.dataset.w, mine = e.target.closest('.tag.mine');
-      if (mine) { saveTags(w, ((META[w] || {}).my_tags || []).filter(t => t !== mine.textContent)); return; }
+      if (mine) { dropTag(w, mine.textContent); return; }
       if (!e.target.closest('.tagadd')) return;
       const inp = dtags.querySelector('.tagin'), add = dtags.querySelector('.tagadd');
       inp.hidden = false; add.hidden = true; inp.focus();
@@ -322,9 +332,10 @@
   const tabOf = id => document.querySelector('#ltabs .ltab[data-list="' + id + '"]');
   function bellText() {
     if (!lalert || !current) return;
-    const on = (tabOf(current) || { dataset: {} }).dataset.alerts === '1';
-    lalert.innerHTML = '<i class="sw" aria-hidden="true"></i><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2V7.4a4 4 0 0 1 8 0v3.8l1.2 1.4H2.8z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/></svg><span>' + (on ? 'Alerts on' : 'Turn on alerts') + '</span><small>'
-      + (on ? 'buys and sells of this list come to Telegram' : tgLinked ? 'get this list\'s buys and sells in Telegram' : 'connects Telegram first') + '</small>';
+    // on without Telegram: paused, and a click switches it off rather than connecting again (review 01.10)
+    const on = (tabOf(current) || { dataset: {} }).dataset.alerts === '1', paused = on && !tgLinked;
+    lalert.innerHTML = '<i class="sw" aria-hidden="true"></i><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2V7.4a4 4 0 0 1 8 0v3.8l1.2 1.4H2.8z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/></svg><span>' + (paused ? 'Alerts paused' : on ? 'Alerts on' : 'Turn on alerts') + '</span><small>'
+      + (paused ? 'Telegram is not connected' : on ? 'buys and sells of this list come to Telegram' : tgLinked ? 'get this list\'s buys and sells in Telegram' : 'connects Telegram first') + '</small>';
     lalert.setAttribute('aria-checked', String(on)); lalert.classList.toggle('on', on);
   }
   function tgShow(d) {
@@ -332,6 +343,7 @@
     document.getElementById('tgtext').innerHTML = tgLinked ? '<i class="tgdot"></i>Connected as <b>' + EarlyTags.esc(d.user || 'your Telegram') + '</b>' : 'The buys and sells of your wallets, seconds after they happen';
     document.getElementById('tgprefs').hidden = !tgLinked; document.getElementById('tghint').hidden = !tgLinked;
     document.getElementById('tgconnect').hidden = tgLinked; document.getElementById('tgunlink').hidden = !tgLinked;
+    bellText();                                                   // the open list's switch follows at once (review 01.10)
   }
   let tgPolling = false;
   async function tgConnect() {
@@ -373,8 +385,8 @@
   }
   if (lalert) lalert.addEventListener('click', async () => {
     if (!current) return;
-    if (!tgLinked) { EarlyUI.toast('Connect Telegram first: the alerts go there.'); tgConnect(); return; }
     const tab = tabOf(current), on = tab.dataset.alerts !== '1';
+    if (!tgLinked && on) { EarlyUI.toast('Connect Telegram first: the alerts go there.'); tgConnect(); return; }
     try { await post('/me/lists/alerts', { id: current, on }); } catch (x) { oops(x); return; }
     tab.dataset.alerts = on ? '1' : '0'; const b = tab.querySelector('.lbell'); if (b) b.hidden = !on;
     bellText(); EarlyUI.toast((on ? 'Alerts on for «' : 'Alerts off for «') + esc(names[current]) + '»');

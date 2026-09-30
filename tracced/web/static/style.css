@@ -947,8 +947,6 @@ td.c-inv small, td.c-sold small { white-space: nowrap; }
 .lnewtab { display: inline-flex; gap: 4px; align-items: center; }
 .lnewtab input { width: 130px; min-width: 0; height: 30px; font-size: 12.5px; padding: 0 8px; }
 
-.lchip { display: inline-block; margin: 1px 3px 1px 0; padding: 1px 7px; border-radius: 999px; background: #F1F5F9; border: 1px solid var(--line); font-size: 11px; white-space: nowrap; }
-td.lchips { white-space: normal; min-width: 90px; }
 
 /* ── the wallet card says it in chips: age and funder under the name, the rule behind an i ── */
 .dchips { display: inline-flex; flex-wrap: wrap; gap: 5px; margin-left: 8px; vertical-align: middle; }
@@ -1191,7 +1189,7 @@ td.c-roi b { font-size: 13px; }
    it is on screen (ui.js keeps --dtop), and reaches the top once the bar has scrolled away */
 .drawer { top: var(--dtop, 0px); bottom: var(--dbot, 0px); }
 .wcard .wav { width: 36px; height: 36px; border-radius: 10px; }
-@media (max-width: 640px) { .drawer { top: 0; bottom: 0; z-index: 50; } }   /* a phone: the card is the whole screen, over the top bar too (it hid the card's head) */
+@media (max-width: 640px), (max-height: 500px) { .drawer { top: 0; bottom: 0; z-index: 50; } }   /* a phone, upright or on its side: the card is the whole screen, over the top bar too (it hid the card's head); above the footer it was 200 px tall */
 
 /* the home list: a row under the pointer keeps its light line (links elsewhere darken theirs) */
 .rrow:hover { border-color: var(--line); }
@@ -1269,7 +1267,7 @@ header.top { position: relative; z-index: 45; }
 .fpill.bad { background: #FEF2F2; border-color: #FECACA; color: #991B1B; font-weight: 600; cursor: help; }
 .factive { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 2px 4px 2px 10px; border-radius: 999px;
   background: #F1F5F9; border: 1px solid var(--line); font-size: 12px; color: var(--ink); }
-.factive button { padding: 0 6px; line-height: 1; }
+.factive button { padding: 0 6px; line-height: 1; min-width: 32px; }
 .kline.counts { margin: 2px 2px 8px; }
 /* one zone above the chart: the counts, then the findings on the same line while they fit */
 .sumzone { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; margin: 2px 0 12px; }
@@ -1312,7 +1310,7 @@ header.top { position: relative; z-index: 45; }
   box-shadow: 0 1px 2px rgba(15, 23, 42, .25); transition: left .15s ease; }
 .lalert.on { border-color: #BBF7D0; background: #F0FDF4; color: #15803D; } .lalert.on .sw { background: #22C55E; } .lalert.on .sw::after { left: 16px; }
 .lalert svg { width: 15px; height: 15px; flex: none; }
-.lalert span { font-weight: 600; } .lalert small { color: var(--muted); font-size: 12px; font-weight: 400; }
+.lalert span { font-weight: 600; white-space: nowrap; } .lalert small { color: var(--muted); font-size: 12px; font-weight: 400; }
 .lmore { margin-left: auto; font-size: 12.5px; color: var(--muted); }
 .lballhint { margin: -4px 0 12px; font-size: 12.5px; color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .lalert .sw, .lalert .sw::after { transition: none; } }
@@ -1324,21 +1322,15 @@ header.top { position: relative; z-index: 45; }
 .mewl tbody tr.carded td { background: var(--sage); }
 .mewl tbody tr:focus-visible { outline: 2px solid #6EE7B7; outline-offset: -2px; }
 .mewl .wlrow { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.mewl .wnm { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.mewl .wnm b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
-.mewl td.src a { white-space: nowrap; }
 .mewl td.rm { width: 1%; text-align: right; }
 .mewl td.rm .x { width: 30px; height: 30px; padding: 0; font-size: 16px; }
 .wcard .dsrc { padding-top: 10px; padding-bottom: 10px; } .wcard .dsrc .dline { margin: 0; padding: 2px 0; border: 0; }
 @media (max-width: 720px) {
-  /* Lists on a phone: one line a wallet — who, the pump, × — not the result table's card grid */
+  /* Lists on a phone: one line a wallet — the address with its tags, × — not the result table's card grid */
   .mewl tbody tr { display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 12px; }
   .mewl td { flex: none; }
   .mewl td:first-child { flex: 1 1 auto; min-width: 0; }
-  .mewl td.src { font-size: 12.5px; white-space: nowrap; } .mewl td.src .small { display: none; }   /* the day is in the card */
   .mewl tbody tr { gap: 8px; } .mewl td.rm { width: auto; }   /* 1% of a flex row is 3px: the × fell outside */
-  .mewl .wnm { flex-direction: column; align-items: flex-start; gap: 1px; }
-  .mewl .wnm b { max-width: 100%; white-space: nowrap; }
 }
 
 /* ── home: the day's fresh pumps as a tape along the bottom of the hero, right to left, stopping under the pointer ── */
@@ -1367,7 +1359,8 @@ header.top { position: relative; z-index: 45; }
 .fpk { font: 600 12.5px var(--mono); color: #6EE7B7; }
 .fdr { font: 12px var(--mono); color: #FCA5A5; } .fup { font: 12px var(--mono); color: #6EE7B7; } .fag { font: 12px var(--mono); color: #64748B; }
 @media (max-width: 640px) { .ftape { flex-direction: column; align-items: stretch; gap: 12px; padding: 0 0 22px; } .ftape-h { padding: 0 16px; } }
-@media (prefers-reduced-motion: reduce) { .ftape-track { animation: none; } .ftape-win { overflow-x: auto; } .flive { animation: none; } .ftk { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .ftape-track { animation: none; } .ftape-win { overflow-x: auto; } .flive { animation: none; } .ftk { transition: none; }
+  .ftk[aria-hidden="true"] { display: none; } }   /* standing still, the loop's copies would just repeat the list */
 /* the label on the chart while the range is empty: it pops in, then breathes, and goes with the second click */
 .chartbox .charthint:not([hidden]) { animation: hint-in .35s cubic-bezier(.2, 1.4, .4, 1) both, hint-breathe 2.4s ease-in-out .4s infinite; }
 @keyframes hint-in { from { opacity: 0; transform: translate(-50%, -6px) scale(.9); } }

@@ -40,6 +40,7 @@
   function next() {
     const it = queue.shift();
     busy = !!it; t.classList.toggle('typing', busy);
+    body.setAttribute('aria-busy', String(busy));            // a screen reader waits for whole lines, not every typed letter
     if (!it) return;
     if (it.end) { it.end(); return; }
     const tx = line(it.text, it.cls);

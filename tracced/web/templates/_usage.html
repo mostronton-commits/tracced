@@ -253,7 +253,7 @@
   <div class="uqa">
     <h3>Where they stop</h3>
     {% if base %}{% set core = u.funnel|rejectattr('key', 'equalto', 'agent')|list %}{% set fs = core|sort(attribute='n') %}{% set lo, hi = fs[0], fs[-1] %}
-    <p class="uans">Of <b>{{ w(base) }}</b> active in this period, <b>{{ hi.n }}</b> {{ lc(hi.label) }}{% if lo.n < hi.n %}, but only <b>{{ lo.n }}</b> {{ lc(lo.label) }}{% endif %}.</p>
+    <p class="uans">Of <b>{{ w(base) }}</b> active in this period, {% if hi.n %}<b>{{ hi.n }}</b> {{ lc(hi.label) }}{% if lo.n < hi.n %}, but only <b>{{ lo.n }}</b> {{ lc(lo.label) }}{% endif %}{% else %}none got past looking around{% endif %}.</p>
     {% for f in u.funnel %}
     <div class="ufun{{ ' low' if f.key == lo.key and lo.n < hi.n }}"><span class="l">{{ f.label }}</span><span class="bar"><i style="width: {{ (100 * f.n / base)|round(1) }}%"></i></span><span class="n mono">{{ f.n }} <small>{{ pct(f.n, base) }}</small></span></div>
     {% endfor %}

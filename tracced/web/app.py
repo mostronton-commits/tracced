@@ -2948,18 +2948,15 @@ async def token_page(request):
     s = app["s"]
     demo = _demo(app)
     pk = request.get("acct")                                            # гість бачить графік і ставить межі; гаманець потрібен для Analyze
-    hints = []                                                          # для «Find the pump»: підказки детектора (демо — записані діапазони)
     if demo and demo["mint"] == mint:                                   # демо-токен: усе зі знімка, 0 запитів
         info = demo["info"]
         rows = [{"n": i + 1, "label": r.get("label") or f"Demo range {i + 1}", "job": r.get("job"),
                  "from": chart.to_input(r["from"]), "to": chart.to_input(r["to"])}
                 for i, r in enumerate(demo["ranges"])]
     else:
-        info, ov = await _overview(app, mint, _browse_budget(request, 2) if not _overview_cached(app, mint) else None, pk)   # огляд ≈2 запити, кеш — 0
-        rows = []                                                       # голий графік: діапазони ставить людина або кнопка
-        hints = [{"from": h["acc_start"], "to": h["pump_start"], "base": h["base_mcap"], "peak": h["peak_mcap"], "mag": h["magnitude"]}
-                 for h in ov["hints"][: int(s.get("finder_pumps", 2))]]
-    detect_cfg = dict(CFG_DEFAULTS.get("detect") or {}, **((app["cfg"] or {}).get("detect") or {}))
+        # огляд ≈2 запити, кеш — 0; підказок детектора сторінка більше не показує (30.09), свічки він кладе в кеш графіка
+        info, _ = await _overview(app, mint, _browse_budget(request, 2) if not _overview_cached(app, mint) else None, pk)
+        rows = []                                                       # голий графік: діапазони ставить людина
     q = request.query
     preset = None
     admin = bool(pk) and pk in app["admins"]
@@ -3003,8 +3000,7 @@ async def token_page(request):
     return render("token.html", request, info=info, mint=mint, s=s, is_demo=bool(demo and demo["mint"] == mint), beta=beta,
                   runs_left=runs_left, notice=notice, limit_kind=limit_kind, reset_ms=_next_midnight_ms(), demo_mint=(demo or {}).get("mint"),
                   n_demo=len(demo["ranges"]) if demo and demo["mint"] == mint else 0, bounced=q.get("notice") == "demo", created=info.get("created_time") or 0, now=int(time.time() * 1000),
-                  rows_json=json.dumps(rows), jobs_json=json.dumps(jobs_done), preset_json=json.dumps(preset),
-                  hints_json=json.dumps(hints), min_peak=int(detect_cfg.get("min_peak_mcap") or 1_000_000))
+                  rows_json=json.dumps(rows), jobs_json=json.dumps(jobs_done), preset_json=json.dumps(preset))
 
 
 async def marks_json(request):
