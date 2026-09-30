@@ -1046,14 +1046,14 @@ if AioHTTPTestCase:
             self.assertNotIn('id="fresh"', await (await self.client.get("/")).text())   # nothing found yet: no empty block
             self.assertEqual(self.st.requests, self.st.requests)
             self.app["fresh"].update(rows=[{"mint": "M" * 44, "symbol": "PUMP", "name": "Pump", "cap": 3.1e6, "liq": 2e5, "vol": 9e6,
-                                           "created_ms": 0, "image": "", "peak": 12.4e6, "age_h": 5.2, "drop": 75}], at=1)
+                                           "created_ms": 0, "image": "", "peak": 12.4e6, "age_h": 5.2, "drop": 75}], at=1, ok_at=int(__import__('time').time() * 1000))
             html = await (await self.client.get("/")).text()
             self.assertIn('id="fresh"', html)
-            self.assertIn('href="/token?mint=' + "M" * 44 + '"', html)            # a way into its chart
+            self.assertIn('href="/token?mint=' + "M" * 44 + '&amp;src=fresh" rel="nofollow"', html)   # a way into its chart, counted, not crawled
             self.assertIn('<span class="fpk" title="The highest market cap it reached">$12M</span>', html)
             self.assertIn("−75%", html)
             self.assertIsNone(CYRILLIC.search(html))
-            self.app["fresh"].update(rows=[], at=0)
+            self.app["fresh"].update(rows=[], at=0, ok_at=0)
 
         async def test_index_english(self):
             r = await self.client.get("/")
@@ -2443,7 +2443,7 @@ if AioHTTPTestCase:
                 self.assertIn("<b>Beta, free for now.</b>", html, path)
                 self.assertNotIn('class="wdemo"', html, path)                     # already on the demo
             html = await (await self.client.get(f"/job/{DEMO_JID}", headers=GUEST)).text()
-            self.assertIn('"5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9": ["Binance", "Binance 1"]', html)   # біржі — на сторінці
+            self.assertIn("const EXCH = {", html)                                   # the exchange names come from a file outside the repo
             self.assertIn("'Bundled'", html)                              # the verdict's word follows the top
             self.assertIn("Beta, free for now. Connect a wallet to ask.", html)   # the agent's line for a guest
             self.assertIn("Connect wallet for more data", html)                   # the card's step is a real button

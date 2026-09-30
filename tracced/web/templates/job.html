@@ -213,7 +213,7 @@
       // what arrives after the page: the background checks (funders, ages, names) and the account (repeats, lists)
       let funders = {}, bundle = {}, crossings = {}, idents = {}, ages = {}, ageDone = false, palette = new Map();
       let services = new Set();                                  // funders that are exchanges or apps: they make no bundle
-      // known exchange hot wallets (Dune's open list): the funder column names the exchange, and one click shows every
+      // known exchange hot wallets: the funder column names the exchange, and one click shows every
       // wallet funded from it, all its addresses together
       const EXCH = {{ exchanges|tojson }};
       const fundKey = w => { const x = funders[w]; return x && EXCH[x] ? 'x:' + EXCH[x][0] : (x || ''); };
@@ -414,8 +414,9 @@
             h: 'Top 10 · <b>' + s10 + '%</b> of profit', tip: 'The 10 most profitable wallets took ' + s10 + '% of all the profit' });
         }
         findActs = out.slice(0, FIND_MAX);
-        el.innerHTML = (verdictNote ? '<span class="fpill bad" title="' + esc(verdictNote) + '">' + verdictWord + '</span>' : '')
+        const html = (verdictNote ? '<span class="fpill bad" title="' + esc(verdictNote) + '">' + verdictWord + '</span>' : '')
           + findActs.map((x, i) => '<button type="button" class="fpill ' + x.sev + '" data-i="' + i + '" title="' + esc(x.tip) + ' · click to show them">' + x.ic + '<span>' + x.h + '</span></button>').join('');
+        if (el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; }
         el.hidden = !verdictNote && !findActs.length;
       }
       document.getElementById('finds').addEventListener('click', e => {
@@ -668,7 +669,7 @@
       syncInputs(); apply();
       const el = document.getElementById('chart');
       /* The token's own life on the chart: when trading left the launchpad, when someone paid DexScreener for
-         visibility. Free of Solana Tracker requests, and a failure just leaves the chart without them. */
+         visibility. Free, and a failure just leaves the chart without them. */
       function loadMarks(chart, mint, job) {
         fetch('/marks.json?mint=' + encodeURIComponent(mint) + (job ? '&job=' + encodeURIComponent(job) : ''))
           .then(r => r.ok ? r.json() : null).then(d => {
@@ -1061,7 +1062,8 @@
           q: ((it.querySelector('.aqq') || {}).textContent || '').trim(),
           a: [...it.querySelectorAll('.aa li, .aa .awallet, .aa .awhy')].map(x => x.textContent.trim()).join(' · ').slice(0, 600) }))
           .filter(h => h.q && h.a && h.q !== SUMQ);
-        const focus = [...new Set([...onChart.map(o => o.wallet), ...selected])].slice(0, 5);
+        // "asked about": the wallets on the chart and a hand-picked few; a Select all is not a question about 700 wallets (review)
+        const focus = [...new Set([...onChart.map(o => o.wallet), ...(selected.size <= 5 ? selected : [])])].slice(0, 5);
         const slot = aBubble(q);
         const { status, ok, d } = await aPost('/job/' + jobId + '/agent/ask', { q, lang: ALANG, chip: !!chip, history, focus });
         aBusy = false;
@@ -1089,8 +1091,6 @@
         const b = e.target.closest('.aqbtn, .achip'); if (!b) return;
         if (b.dataset.sum) needWallet(aSummary); else needWallet(() => aAsk(b.dataset.q, true));
       });
-      // a phone has no hover: a tap on a part of the closed-positions bar says what the mouse would have shown
-      document.addEventListener('click', e => { const seg = e.target.closest('.ddist .dbar i'); if (seg) EarlyUI.toast(seg.title); });
 
       // The background checks, asked every five seconds while they run: `fresh` and `bundle` tags, funders, first
       // transactions and who a wallet is. Each answer carries only what is new since the one before, and a tab in the

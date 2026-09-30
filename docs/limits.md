@@ -17,17 +17,14 @@ The daily count of new analyses is per person, not per wallet: connecting anothe
 nothing. To know the browser again, the first analysis leaves a cookie holding a random number and nothing else; it
 is not used for analytics. One network has its own, higher count, because an office or a phone carrier puts many
 people behind one address. Every count resets at midnight UTC, and the page shows how many are left. A run that
-fails before it has fetched much, or is cut short by a server restart, gives its analysis back; one that fails after
-it already spent {{ s.refund_below_requests }} requests or more counts toward the day.
+fails early, or is cut short by a server restart, gives its analysis back; one that fails once it has done real
+work counts toward the day.
 
-Beta testers the owner invites have no daily count. The cap on what one run may spend and the month's data budget
-apply to them as to everyone.
+Beta testers the owner invites have no daily count. The limits on a single run apply to them as to everyone.
 
-Loading what a result does not hold yet in a wallet card: the wallet's last 30 days on every token, and the rest
-of its age and first funder when it is not among the first {{ s.age_full_top }} by PnL that the analysis reads to
-the start (a busy wallet's first transaction, an app wallet's first SOL). What
-someone has already loaded is free for everyone: the 30 days are kept
-for a day, and the age and funder stay in the result.
+Loading what a result does not hold yet in a wallet card: the wallet's last 30 days on every token, and its age and
+first funder when the analysis has not checked them. What someone has already loaded is free for everyone: the 30
+days are kept for a day, and the age and funder stay in the result.
 
 | Limit | Value |
 |---|---|
@@ -35,15 +32,10 @@ for a day, and the age and funder stay in the result.
 | New analyses a day from one network | {{ s.runs_per_ip_per_day }} |
 | Ranges per token | {{ s.ranges_per_token }} |
 | Longest range | {{ s.max_window_hours }} hours |
-| Requests one run may spend | {{ '{:,}'.format(s.run_cap_requests) }} |
 | Wallets that get exact exits | {{ '{:,}'.format(s.max_wallet_lookups) }} |
 | Smallest position in the table | ${{ s.min_invested_usd }} bought inside the range |
 | Wallets whose age is checked with the analysis, first by PnL | {{ s.age_lookups_max }} |
 | Other wallets checked from their cards, per person a day, and per network | {{ s.age_card_per_day }} |
-| Requests a day: charts (guest) / charts and wallet cards (wallet) / wallets of one network / the whole site | {{ '{:,}'.format(s.browse_per_day_guest) }} / {{ '{:,}'.format(s.browse_per_day) }} / {{ '{:,}'.format(s.browse_per_day_net) }} / {{ '{:,}'.format(s.browse_global_per_day) }} |
-| New analyses on the whole site, per day | {{ s.runs_global_per_day }} |
-{% if s.run_requests_per_day %}| Requests new analyses on the whole site may spend in a day | {{ '{:,}'.format(s.run_requests_per_day) }} |
-{% endif %}| Wallets signing in for the first time, from one network a day | {{ s.new_accounts_per_ip_per_day }} |
 | Changes to your lists, tags and notes, and exports, per wallet a day | {{ '{:,}'.format(s.acct_writes_per_day) }} |
 | Questions to the AI agent, per person a day | {{ s.agent_questions_per_day }} |
 | Results the agent writes its cards for, per person a day (cards someone already opened are free) | {{ s.agent_cards_per_day }} |
@@ -54,20 +46,14 @@ for a day, and the age and funder stay in the result.
 
 ## Why they exist
 
-A new token costs real money. Reconstructing its history can take hundreds of requests to a paid API.
+Reading a new token's history costs real money. The first analysis of a busy token is the expensive one. Every
+further range on the same token is nearly free, because its trades are already stored.{% if s.credits_reserve_pct %}
 
-The first analysis of a busy token is the expensive one. Every further range on the same token is nearly free,
-because its trades are already stored.
+Near the end of a heavy month new analyses may wait; the demo, every finished result and every chart stay open.{% endif %}
 
-{% if s.credits_reserve_pct %}## The month
-
-The data plan is a monthly budget. A new analysis starts only while the worst it could cost still leaves
-{{ s.credits_reserve_pct }}% of the plan untouched. Near the end of a heavy month new analyses wait for the plan to
-renew; the demo, every finished result and every chart stay open.
-
-{% endif %}## Which wallets get exact exits
+## Which wallets get exact exits
 
 The largest buyers of the range. The rest keep their entry and carry `no-exits`.
 
-When the whole-history path turns out cheaper, everyone gets exact exits and this cap does not apply at all. The
-line above the table always says which happened.
+On some tokens everyone gets exact exits and this cap does not apply at all. The line above the table always says
+which happened.

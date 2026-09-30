@@ -90,8 +90,8 @@ is used and what it costs to run:
 - what you send through **Contact**, with the page you came from;
 - what each step cost in data credits;
 - once a day while the wallet is active: public facts about it from the chain — its age, its SOL balance, its last
-  30 days of trading as counted by tracced's own ledger, and what Solana Tracker knows about it (a KOL name or an X
-  account, if it has one).
+  30 days of trading as counted by tracced's own ledger, and public identity labels (a KOL name or an X account, if
+  it has one).
 
 Only the owner sees it. It is never sold or shared, and it is kept for about a year. Signing out stops it.
 

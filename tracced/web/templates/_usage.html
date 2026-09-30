@@ -84,6 +84,19 @@
     <div class="kcard" title="Solana Tracker requests per analysis in this period{% if st_eur_million %}, in euros at €{{ st_eur_million|round|int }} for a million requests{% endif %}. On average {{ (k.st.avg or 0)|round|int }} requests{% if k.rpc.avg %} and {{ k.rpc.avg|round|int }} Helius credits{% endif %}">
       <span class="klabel">Per analysis</span><b class="knum">{{ eur(k.st.avg) }}</b><span class="kfoot">average · median {{ eur(k.st.median) }}</span></div>
   </div>
+  {% set al = u.alerts %}
+  <div class="khead"><h3>Alerts and fresh pumps</h3><span class="muted small">Telegram, and the way back to the site</span></div>
+  <div class="kgrid">
+    <div class="kcard" title="Wallets with Telegram connected now · lists with alerts switched on · Connect presses in this period and how many reached Start">
+      <span class="klabel">Telegram connected</span><b class="knum">{{ al.linked }}</b><span class="kfoot">{{ al.bells }} list{{ '' if al.bells == 1 else 's' }} with alerts on · {{ al.linked_new }} of {{ al.started }} pressed Start</span></div>
+    <div class="kcard" title="Alerts sent in this period, to how many wallets, and the typical delay from the trade on chain to the message">
+      <span class="klabel">Alerts sent</span><b class="knum">{{ al.sent }}</b><span class="kfoot">to {{ al.to }} · {{ al.buys }} buys{% if al.lag_s is not none %} · {{ al.lag_s|round(1) }} s after the trade{% endif %}</span></div>
+    <div class="kcard" title="Visits that came from a link in an alert, guests included, per alert sent">
+      <span class="klabel">Back from alerts</span><b class="knum">{{ al.back }}{% if al.ctr is not none %}<i class="kpct">{{ (100 * al.ctr)|round|int }}%</i>{% endif %}</b><span class="kfoot">visits from a link in an alert</span></div>
+    <div class="kcard" title="Alerts lost: the node, a missing transaction, no SOL price, Telegram refusing · hours a chat hit the hourly cap · chats that stopped alerts">
+      <span class="klabel">Problems</span><b class="knum">{{ al.fails.values()|sum }}{% if al.caps %}<i class="kbad">{{ al.caps }} capped</i>{% endif %}</b><span class="kfoot">{% for k, n in al.fails.items() %}{{ k }} {{ n }} · {% endfor %}stopped {{ al.unlinks.values()|sum }}{% if al.unlinks.blocked %} ({{ al.unlinks.blocked }} blocked the bot){% endif %}</span></div>
+  </div>
+  <p class="kline"><span title="Clicks on the fresh-pumps tape on the home page, guests included">Fresh pumps tape <b>{{ al.tape }}</b> clicks</span></p>
   <p class="kline">
     <span title="All accounts since the start, the team included">Accounts <b data-count="{{ p.accounts_all }}" data-fmt="int">{{ p.accounts_all }}</b></span>
     <span title="Questions asked to the AI agent">Agent questions <b>{{ u.questions }}</b></span>

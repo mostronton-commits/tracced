@@ -20,7 +20,7 @@
                '██████╔╝╚██████╔╝██║ ╚████║███████╗',
                '╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚══════╝'];
   const queue = [], caret = document.createElement('span'); caret.className = 'caret';
-  let busy = false;
+  let busy = false, cur = null;                            // cur: the line being typed, so a hidden tab can finish it at once
 
   function stamp() {
     const d = new Date(); let u = true; try { u = localStorage.getItem('early:tz') !== 'local'; } catch (e) {}   // same clock as every date on the site
@@ -43,17 +43,23 @@
     if (!it) return;
     if (it.end) { it.end(); return; }
     const tx = line(it.text, it.cls);
-    if (reduced || document.hidden) { tx.innerHTML = hi(it.text); next(); return; }   // a hidden tab gets the lines at once
+    // a hidden tab, or a pile of lines (a result that finished while the page loaded): the lines at once
+    if (reduced || document.hidden || queue.length > 40) { tx.innerHTML = hi(it.text); next(); return; }
     // a line alone types in about a third of a second; with a crowd behind it, in a blink
     const ms = queue.length > 10 ? 60 : queue.length > 4 ? 150 : 320, n = it.text.length, t0 = performance.now();
+    const me = cur = { tx, text: it.text, done: false };
+    const settle = () => { if (me.done) return; me.done = true; cur = null; tx.innerHTML = hi(it.text); setTimeout(next, queue.length > 4 ? 25 : 110); };
+    me.finish = settle;
     (function type(now) {
+      if (me.done) return;
       const k = Math.min(n, Math.ceil(n * (now - t0) / ms));
       tx.textContent = it.text.slice(0, k); tx.appendChild(caret);
       if (k < n && !document.hidden) { requestAnimationFrame(type); return; }
-      tx.innerHTML = hi(it.text);                           // numbers light up once the line is out
-      setTimeout(next, queue.length > 4 ? 25 : 110);
+      settle();                                             // numbers light up once the line is out
     })(t0);
   }
+  // a tab hidden mid-line: frames stop there, so the line ends at once and the rest follow (review)
+  document.addEventListener('visibilitychange', () => { if (document.hidden && cur && cur.finish) cur.finish(); });
   function finish(d) {
     // after the last line: DONE in big letters, how many wallets, then the result
     queue.push({ end: () => {

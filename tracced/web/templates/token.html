@@ -34,7 +34,7 @@
   {% elif runs_left is not none %}<span title="{{ limits_tip }}">{% if runs_left > 0 %}<span class="runsleft">{{ runs_left }} of {{ s.runs_per_day }}</span> left today{% else %}<span class="runsleft none">None left today</span> · resets at 00:00 UTC{% endif %}</span>
   {% else %}<span title="{{ limits_tip }}">{{ (s.runs_per_day|per_day)|capitalize }}</span>{% endif %}</div></div>
   <template id="row-tpl">
-    <form class="wrow" method="post" action="/analyze">
+    <form class="wrow" method="post" action="/analyze" novalidate>
       <input type="hidden" name="mint" value="{{ mint }}">
       <span class="n"></span>
       <span class="label" contenteditable="true" spellcheck="false" title="Rename"></span>
@@ -155,7 +155,7 @@
     hintEl.hidden = !empty || (!first && step !== 1);
   }
   /* The token's own life on the chart: when trading left the launchpad, when someone paid DexScreener for
-     visibility. Costs no Solana Tracker requests, and a failure just leaves the chart without them. */
+     visibility. Free, and a failure just leaves the chart without them. */
   fetch('/marks.json?mint=' + encodeURIComponent(mint)).then(r => r.ok ? r.json() : null).then(d => {
     if (!d) return;
     ch.setEvents(EarlyUI.marks(d));
@@ -204,7 +204,9 @@
     if (DEMO) { if (hit) { try { localStorage.setItem(RAN + hit, '1'); } catch (x) {} } return; }
     if (hit) return;                                             // a finished result opens for anyone
     const f0 = parse(r.from), t0 = parse(r.to);                  // say what is wrong with the range before asking for anything
-    if (!(f0 && t0 && f0 < t0)) { e.preventDefault(); EarlyUI.toast('From must be earlier than To.'); return; }
+    // the time fields are hidden behind ✎, so the browser's own "required" check failed without a word (review)
+    if (!f0 || !t0) { e.preventDefault(); EarlyUI.toast(f0 ? 'Now ' + VERB.toLowerCase() + ' the chart where the pump takes off.' : 'Mark the range first: ' + VERB.toLowerCase() + ' the chart where buying starts, then where the pump takes off.', 6000); return; }
+    if (f0 >= t0) { e.preventDefault(); EarlyUI.toast('From must be earlier than To.'); return; }
     if (t0 - f0 > MAX_HOURS * 3600e3) { e.preventDefault(); EarlyUI.toast('Range up to ' + MAX_HOURS + ' h. Shorten it.'); return; }
     if (ACCT && RUNS_LEFT === 0 && openLimit(LIMIT_KIND)) { e.preventDefault(); return; }   // nothing left today: say so before the round trip
     EarlyUI.track('analyze', { who: ACCT ? 'wallet' : 'guest' });
@@ -221,8 +223,10 @@
     const to = tfmt(b), same = tfmt(a).split(', ')[0] === to.split(', ')[0];
     return tfmt(a) + ' → ' + (same ? to.replace(/^.*, /, '') : to) + ' · ' + dur(Math.round((b - a) / 60000));
   }
-  let editing = -1;
+  let editing = -1, drawnSel = null;
   function render() {
+    if (drawnSel !== null && drawnSel !== state.sel && step === 1) { step = 0; ch.setMarker(null); }
+    drawnSel = state.sel;
     rowsEl.innerHTML = '';
     state.rows.forEach((r, i) => {
       const f = tpl.content.firstElementChild.cloneNode(true);

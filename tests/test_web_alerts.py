@@ -27,7 +27,7 @@ if AioHTTPTestCase:
             self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
             app = create_app(FakeWebST(TRADES), settings.load(), {}, out_dir=self.tmp.name + "/web", store_dir=self.tmp.name + "/cache")
             app["admins"] = {TEST_PK}
-            app["tg"]["token"], app["tg"]["name"] = "test-token", "tracced_bot"
+            app["tg"]["token"], app["tg"]["name"], app["tg"]["on"] = "test-token", "tracced_bot", True
             return app
 
         async def setUpAsync(self):
@@ -78,6 +78,10 @@ if AioHTTPTestCase:
             self.assertNotIn('id="tgbar"', await (await self.client.get("/me")).text())
             self.app["s"]["alerts_open"] = True
             self.assertEqual((await self.client.post("/me/telegram/link", json={}, headers=self.origin)).status, 200)
+            self.app["tg"]["on"] = False                                                     # a token without ALERTS=1: no bot runs here
+            self.assertEqual((await self.client.post("/me/telegram/link", json={}, headers=self.origin)).status, 503)
+            self.assertNotIn('id="tgbar"', await (await self.client.get("/me")).text())
+            self.app["tg"]["on"] = True
             self.app["tg"]["token"] = ""
             self.assertEqual((await self.client.post("/me/telegram/link", json={}, headers=self.origin)).status, 503)
 

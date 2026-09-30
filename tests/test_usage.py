@@ -171,6 +171,22 @@ class TestSummary(unittest.TestCase):
         self.assertEqual(self.summ(period="today", tz=warsaw)["pulse"]["dau"], 2)        # A і нічний C
         self.assertEqual(self.summ(period="today")["pulse"]["dau"], 1)
 
+    def test_alerts_count_but_never_as_the_subscribers_activity(self):
+        acc = [{"pubkey": A, "created_ms": NOW - 3 * D, "telegram": {"chat": 1}, "lists": {"main": {"name": "Main", "alerts": True}}}]
+        evs = [ev(NOW - 3 * H, A, "tg_link"), ev(NOW - 3 * H, A, "telegram", on=1),
+               ev(NOW - 2 * H, A, "alert", side="buy", usd=500, mint="M", lag_ms=4000, bg=True),
+               ev(NOW - 2 * H, A, "alert", side="sell", usd=300, mint="M", lag_ms=6000),        # an old row without bg
+               ev(NOW - H, "guest", "view", page="token", ref="M", src="alert"),
+               ev(NOW - H, "guest", "view", page="token", ref="N", src="fresh"),
+               ev(NOW - H, "system", "alert_fail", why="rpc", bg=True), ev(NOW - H, A, "alert_cap", bg=True)]
+        u = usage.summarize(evs, accounts=acc, now_ms=NOW, period="today")
+        al = u["alerts"]
+        self.assertEqual((al["linked"], al["bells"], al["started"], al["linked_new"]), (1, 1, 1, 1))
+        self.assertEqual((al["sent"], al["buys"], al["to"], al["lag_s"], al["back"]), (2, 1, 1, 5.0, 1))
+        self.assertEqual((al["fails"], al["caps"], al["tape"]), ({"rpc": 1}, 1, 1))
+        last = [e for e in evs if e["pubkey"] == A and e["event"] in ("tg_link", "telegram")][-1]["ts_ms"]
+        self.assertEqual(u["users"][0]["last_ms"], last)                                    # the alerts did not make A "active" later
+
     def test_what_they_use_and_what_nobody_pressed(self):
         acc = [{"pubkey": A, "created_ms": NOW - 3 * D}, {"pubkey": B, "created_ms": NOW - 3 * D}]
         evs = [ev(NOW - H, A, "ui", name="sort", page="job"), ev(NOW - H, B, "ui", name="sort", page="job"),

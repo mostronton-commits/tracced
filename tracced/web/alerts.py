@@ -14,7 +14,8 @@ import time
 
 WSOL = "So11111111111111111111111111111111111111112"
 STABLES = {"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",      # USDC
-           "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"}      # USDT
+           "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",      # USDT
+           "USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB"}      # USD1 (пари LetsBonk/Raydium у USD1; рев'ю 30.09)
 QUOTE_MIN_USD = 1.0          # менше долара платні — це комісії й рента рахунку, а не угода (airdrop, переказ)
 CODE_TTL_S = 600             # код прив'язки живе 10 хвилин
 PREF_DEFAULTS = {"buys": True, "sells": True, "min_usd": 100.0}
@@ -79,7 +80,7 @@ def classify(tx, wallet, sol_usd):
         return [{"side": "buy", "mint": mint, "amount": amount, "usd": -quote, "sig": sig, "ts": ts, "new": before <= 0.01 * after}]
     if amount < 0 and quote >= QUOTE_MIN_USD:
         return [{"side": "sell", "mint": mint, "amount": -amount, "usd": quote, "sig": sig, "ts": ts, "all": after <= 0.01 * before,
-                 "pct": min(100, round(-100 * amount / before)) if before > 0 else None}]
+                 "pct": min(100, round(-100 * amount / before)) if before > 0 else None, "before": before}]
     return []                                  # токен пішов без грошей (переказ) чи прийшов без плати (airdrop)
 
 
@@ -187,6 +188,9 @@ def sold_share(trades, ev):
             sold += q
     if bought <= 0:
         return None
+    before = ev.get("before")
+    if before is not None and before > (bought - sold) * 1.05 + 1e-9:
+        return None                                  # на гаманці більше, ніж він купив: токени прийшли переказом — частка брехала б
     step = float(ev.get("amount") or 0)
     return min(100, round(100 * (sold + step) / bought)), min(100, round(100 * step / bought))
 
@@ -197,9 +201,9 @@ def sold_text(ev):
     if ev.get("all"):
         return "sold all"
     total, step = ev.get("total"), ev.get("step")
+    if total is not None and total >= 99:            # «усе» каже лише ланцюг (ev["all"]): тут частина ще на гаманці
+        total = None
     if total is not None:
-        if total >= 99:
-            return "sold all"
         return f"sold {total}%" + (f" (+{step}%)" if step is not None and step < total else "")
     return f"sold {ev['pct']}%" if ev.get("pct") else ""
 
@@ -222,7 +226,7 @@ def message(ev, wallet, sub, token, site="https://tracced.xyz", ca=True, sizes=N
         return html.escape(str(v)[:n])
     buy = ev["side"] == "buy"
     sym = (token or {}).get("symbol")
-    name = f"<a href=\"{site}/token?mint={ev['mint']}\"><b>{'$' + e(sym, 24) if sym else short(ev['mint'])}</b></a>"
+    name = f"<a href=\"{site}/token?mint={ev['mint']}&amp;src=alert\"><b>{'$' + e(sym, 24) if sym else short(ev['mint'])}</b></a>"
     head = [f"{size_dot(ev['usd'], sizes)} {name}" + (" 🆕" if buy and ev.get("new") else "")]
     if buy and ev.get("new") is False:
         head.append("bought more")

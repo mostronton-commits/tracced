@@ -360,15 +360,26 @@
     document.getElementById('tgprefs').hidden = !tgLinked; document.getElementById('tghint').hidden = !tgLinked;
     document.getElementById('tgconnect').hidden = tgLinked; document.getElementById('tgunlink').hidden = !tgLinked;
   }
+  let tgPolling = false;
   async function tgConnect() {
-    let d; try { d = await post('/me/telegram/link', {}); } catch (x) { oops(x); return; }
-    window.open(d.url, '_blank', 'noopener');
-    EarlyUI.toast('Press Start in Telegram. This page updates by itself.', 8000);
-    for (let i = 0; i < 60; i++) {                                 // three minutes to press Start
-      await new Promise(r => setTimeout(r, 3000));
-      try { const r = await fetch('/me/telegram.json', { credentials: 'same-origin' }); const s = await r.json();
-        if (s.linked) { tgShow(s); EarlyUI.toast('Telegram connected. Turn on the bell for a list.'); return; } } catch (e) {}
+    // the tab opens inside the click, before the round trip: after an await, Safari and in-app browsers block it (review)
+    const win = window.open('', '_blank');
+    let d; try { d = await post('/me/telegram/link', {}); } catch (x) { if (win) win.close(); oops(x); return; }
+    if (win) { try { win.opener = null; win.location = d.url; } catch (e) {} }
+    else {                                                        // blocked anyway: a link to press instead
+      const a = document.createElement('a'); a.href = d.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Open Telegram and press Start';
+      const box = document.createElement('div'); box.appendChild(a); EarlyUI.toast(box.innerHTML, 20000);
     }
+    if (win) EarlyUI.toast('Press Start in Telegram. This page updates by itself.', 8000);
+    if (tgPolling) return;                                        // one wait at a time, whatever the clicks
+    tgPolling = true;
+    try {
+      for (let i = 0; i < 60; i++) {                              // three minutes to press Start
+        await new Promise(r => setTimeout(r, 3000));
+        try { const r = await fetch('/me/telegram.json', { credentials: 'same-origin' }); const s = await r.json();
+          if (s.linked) { tgShow(s); EarlyUI.toast('Telegram connected. Open a list and switch its alerts on.'); return; } } catch (e) {}
+      }
+    } finally { tgPolling = false; }
   }
   if (tgbar) {
     document.getElementById('tgconnect').addEventListener('click', tgConnect);
@@ -393,7 +404,7 @@
     const tab = tabOf(current), on = tab.dataset.alerts !== '1';
     try { await post('/me/lists/alerts', { id: current, on }); } catch (x) { oops(x); return; }
     tab.dataset.alerts = on ? '1' : '0'; const b = tab.querySelector('.lbell'); if (b) b.hidden = !on;
-    bellText(); EarlyUI.toast(on ? 'Alerts on for «' + names[current] + '»' : 'Alerts off for «' + names[current] + '»');
+    bellText(); EarlyUI.toast((on ? 'Alerts on for «' : 'Alerts off for «') + esc(names[current]) + '»');
   });
   try { const was = localStorage.getItem('early:list'); if (was && document.querySelector('#ltabs .ltab[data-list="' + was + '"]')) showList(was); } catch (e) {}
   const tx = document.getElementById('xtxt');

@@ -30,6 +30,9 @@ DEFAULT_URL = "https://api.mainnet-beta.solana.com"
 # найновіший формат транзакцій, який ми читаємо. З 0 нода не віддає транзакції версії 1 (Axiom Flash, FOMO та інші з
 # 2026 року): перша транзакція гаманця такої версії лишала його без спонсора. jsonParsed у версії 1 той самий (30.09)
 TX_VERSION = 1
+# «спонсора нема», записане до цього моменту (деплой читання версії 1 на dev, 30.09 18:19 UTC), могло бути помилкою ноди
+# на транзакції версії 1, а не фактом: такий запис перевіряється знову (рев'ю 30.09)
+TX_V1_FROM = 1790792367
 HEAVY = {"getSignaturesForAddress", "getTransaction"}   # платна нода Solana Tracker бере за них по 10 кредитів
 # Helius: повна історія, по 1 кредиту за виклик, і свій метод «від найстарішої» (getTransactionsForAddress, 10 кредитів),
 # що знаходить першу транзакцію зайнятого гаманця одним викликом замість гортання (перевірено 24.09.2026: у гаманця
@@ -366,6 +369,8 @@ class WalletAge:
         key = f"funder:{wallet}"
         can_scan = HELIUS_HOST in self.tx_url
         cached = self._get(key)
+        if cached is not None and not cached.get("funder") and isinstance(self.cache, JsonCache) and self.cache.get(key, since=TX_V1_FROM) is None:
+            cached = None
         if cached is not None and (cached.get("funder") or not scan or cached.get("scanned", True) or not can_scan):
             self.cache_hits += 1
             return cached.get("funder")

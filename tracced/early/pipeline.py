@@ -67,7 +67,7 @@ class Timing:
 def token(st, mint):
     info = st.token_info(mint)
     if not info.get("supply"):
-        raise EarlyError("Solana Tracker returned no supply for this token, so market cap can't be computed.")
+        raise EarlyError("This token has no supply on record, so its market cap can't be computed.")
     return info
 
 

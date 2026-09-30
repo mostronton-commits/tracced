@@ -136,7 +136,7 @@ PERIODS = {"today": 1, "7d": 7, "30d": 30, "all": None}
 SESSION_GAP = 30 * 60_000                # пауза, після якої починається новий візит
 DAY_MS = 86_400_000
 PK_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
-NOT_ACTIVITY = {"run"}                   # прогін закінчується без людини: активність — це її `analyze`
+NOT_ACTIVITY = {"run", "alert", "alert_fail", "alert_cap"}   # сповіщення шле сервер: це не дія людини (рев'ю 30.09)                   # прогін закінчується без людини: активність — це її `analyze`
 CARD_SPEND = {"card-profile", "card-trades", "card-age"}
 
 # на що пішли кредити: підписи для таблиці витрат
@@ -603,7 +603,29 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
                    "trades_median": _median([p.get("swaps") for p in p30 if p]),
                    "in_profit": sum(1 for p in p30 if (p.get("pnl_usd") or 0) > 0), "with_p30": sum(1 for p in p30 if p),
                    "winrate_median": _median([p.get("win_rate") for p in p30 if (p.get("closed") or 0) >= 3])}
+    # ── сповіщення і стрічка пампів: хто підключив Telegram, скільки дзвіночків, що надіслано, чи повертаються з
+    #    повідомлень на сайт, що ламається (рядки сервера з bg — не активність людей, тож читаються з усього журналу) ──
+    evp = [e for e in events if e["ts_ms"] >= p0]
+    sent = [e for e in evp if e.get("event") == "alert" and person(e.get("pubkey"))]
+    back = [e for e in evp if e.get("event") == "view" and e.get("src") == "alert"]
+    afails, unlinks = {}, {}
+    for e in evp:
+        if e.get("event") == "alert_fail":
+            afails[e.get("why") or "other"] = afails.get(e.get("why") or "other", 0) + 1
+        if e.get("event") == "telegram" and not e.get("on") and person(e.get("pubkey")):
+            unlinks[e.get("via") or "site"] = unlinks.get(e.get("via") or "site", 0) + 1
+    alerts = {"linked": sum(1 for a in accts if (a.get("telegram") or {}).get("chat")),
+              "bells": sum(1 for a in accts for l in (a.get("lists") or {}).values() if isinstance(l, dict) and l.get("alerts")),
+              "started": sum(1 for e in evp if e.get("event") == "tg_link" and person(e.get("pubkey"))),
+              "linked_new": sum(1 for e in evp if e.get("event") == "telegram" and e.get("on") and person(e.get("pubkey"))),
+              "sent": len(sent), "buys": sum(1 for e in sent if e.get("side") == "buy"),
+              "to": len({e["pubkey"] for e in sent}),
+              "lag_s": (_median([e.get("lag_ms") for e in sent if e.get("lag_ms") is not None]) or 0) / 1000 if sent else None,
+              "back": len(back), "ctr": (len(back) / len(sent)) if sent else None,
+              "fails": afails, "caps": sum(1 for e in evp if e.get("event") == "alert_cap"), "unlinks": unlinks,
+              "tape": sum(1 for e in evp if e.get("event") == "view" and e.get("src") == "fresh")}
     return {"period": period if period in PERIODS else "7d", "since_ms": p0, "now_ms": now_ms, "include_team": include_team,
+            "alerts": alerts,
             "tracked_since": min((e["ts_ms"] for e in events if not e.get("backfill")), default=None),
             "pulse": pulse, "key": key_nums, "daily": series, "funnel": funnel, "funnel_base": len(active), "returning": returning,
             "sessions": sessions, "came_back": came_back, "activation": {"n": len(activated), "of": len(new)},

@@ -54,6 +54,11 @@ class TestClassify(unittest.TestCase):
         two = tx(pre=[tb(USDC, 100)], post=[tb(USDC, 0), tb(TOKEN, 50), tb("U" * 44, 3)])
         self.assertEqual(A.classify(two, W, PX), [])                                  # two real tokens: still not one trade
 
+    def test_usd1_pays_too(self):
+        usd1 = "USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB"
+        ev, = A.classify(tx(pre=[tb(usd1, 200)], post=[tb(usd1, 0), tb(TOKEN, 1e6)]), W, PX)   # review: it was token-for-token
+        self.assertEqual((ev["side"], round(ev["usd"])), ("buy", 200))
+
     def test_stablecoins_and_wrapped_sol_pay_too(self):
         ev, = A.classify(tx(pre=[tb(USDC, 200)], post=[tb(USDC, 0), tb(TOKEN, 50)]), W, PX)
         self.assertEqual((ev["side"], round(ev["usd"])), ("buy", 200))
@@ -113,7 +118,7 @@ class TestCodesAndText(unittest.TestCase):
         sub = {"lists": ["Main"], "src": "W&F", "tags": ["<u>whale</u>", "kol"]}      # the pump it came from stays out
         text = A.message(ev, W, sub, {"symbol": "<i>X</i>", "mcap": 250_000}, "https://dev.tracced.xyz")
         self.assertEqual(text.split("\n\n"), [
-            '🟡 <a href="https://dev.tracced.xyz/token?mint=' + TOKEN + '"><b>$&lt;i&gt;X&lt;/i&gt;</b></a> 🆕 · MC $250K · <a href="https://solscan.io/tx/SIG9">tx</a>',
+            '🟡 <a href="https://dev.tracced.xyz/token?mint=' + TOKEN + '&amp;src=alert"><b>$&lt;i&gt;X&lt;/i&gt;</b></a> 🆕 · MC $250K · <a href="https://solscan.io/tx/SIG9">tx</a>',
             "<code>" + TOKEN + "</code>",
             '<a href="https://solscan.io/account/' + W + '">&lt;u&gt;whale&lt;/u&gt;, kol</a> · <b>$1.2K</b>'])
         self.assertNotIn(">" + A.short(W) + "<", text)                               # a tag stands for the wallet: no address
@@ -124,7 +129,7 @@ class TestCodesAndText(unittest.TestCase):
         self.assertNotIn("\n\n\n", text)
         bare = A.message(dict(ev, new=False), W, {}, {})
         self.assertIn(">" + A.short(W) + "</a> · <b>$1.2K</b>", bare)              # no tag: the short address
-        self.assertTrue(bare.startswith("🟡 <a href=\"https://tracced.xyz/token?mint=" + TOKEN + "\"><b>" + A.short(TOKEN) + "</b></a> · bought more · <a"), bare)
+        self.assertTrue(bare.startswith("🟡 <a href=\"https://tracced.xyz/token?mint=" + TOKEN + "&amp;src=alert\"><b>" + A.short(TOKEN) + "</b></a> · bought more · <a"), bare)
         self.assertIn("&amp;", A.message(ev, W, {}, {"symbol": "&" * 40}))              # cut before escaping: no half of an &amp;
         self.assertNotIn("&am<", A.message(ev, W, {}, {"symbol": "&" * 40}))
 
@@ -146,7 +151,8 @@ class TestCodesAndText(unittest.TestCase):
         self.assertIsNone(A.sold_share([tr("sell", 10, "s")], ev))                                          # no buys seen: unknown
         self.assertEqual(A.sold_text(dict(ev, total=60, step=20)), "sold 60% (+20%)")
         self.assertEqual(A.sold_text(dict(ev, total=40, step=40)), "sold 40%")
-        self.assertEqual(A.sold_text(dict(ev, total=99, step=5)), "sold all")
+        self.assertEqual(A.sold_text(dict(ev, total=99, step=5, pct=5)), "sold 5%")                         # the chain says part is left
+        self.assertIsNone(A.sold_share([tr("buy", 100, "a")], dict(ev, amount=150, before=200)))           # 200 held, 100 bought: a transfer
         self.assertEqual(A.sold_text(dict(ev, all=True, total=70, step=10)), "sold all")
         self.assertEqual(A.sold_text(dict(ev, pct=35)), "sold 35%")                                        # no history: this sale's share
         self.assertIn("</a> · sold 60% (+20%) · <a", A.message(dict(ev, total=60, step=20), W, {}, {"symbol": "X"}))

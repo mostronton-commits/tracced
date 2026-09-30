@@ -103,5 +103,7 @@
     return '<svg viewBox="0 0 5 5" shape-rendering="crispEdges"><rect width="5" height="5" fill="hsl(' + hue + ' 70% 95%)"/>'
       + cells.map(c => '<rect x="' + c[0] + '" y="' + c[1] + '" width="1" height="1" fill="hsl(' + hue + ' 55% 46%)"/>').join('') + '</svg>';
   }
+  // a phone has no hover: a tap on a part of the closed-positions bar says what the mouse would have shown
+  document.addEventListener('click', e => { const seg = e.target.closest('.ddist .dbar i'); if (seg && window.EarlyUI) EarlyUI.toast(esc(seg.title)); });
   window.EarlyCard = { render, identicon };
 })();

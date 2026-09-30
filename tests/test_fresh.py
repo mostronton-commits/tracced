@@ -9,7 +9,8 @@ NOW = 1_790_800_000_000
 H = 3_600_000
 
 
-def row(mint, cap, liq=100_000, vol=None, sym="X", age_h=5, image="", fees=50.0, buys=1000, sells=800):
+def row(mint, cap, liq=100_000, vol=None, sym=None, age_h=5, image="", fees=500.0, buys=1000, sells=800):
+    sym = sym or mint                                    # one name per token unless a test makes clones
     return {"mint": mint, "symbol": sym, "name": sym, "marketCapUsd": cap, "liquidityUsd": liq,
             "volume_24h": cap if vol is None else vol, "createdAt": NOW - age_h * H, "image": image,
             "fees": {"total": fees}, "buys": buys, "sells": sells}
@@ -43,7 +44,8 @@ class TestPick(unittest.TestCase):
 
     def test_search_asks_for_the_owners_bars(self):
         q = F.search_path(NOW, S)
-        for part in ("minCreatedAt=%d" % (NOW - 24 * H), "minMarketCap=1000000", "minLiquidity=80000", "minHolders=500", "sortBy=marketCapUsd"):
+        for part in ("minCreatedAt=%d" % (NOW - 24 * H), "minMarketCap=1000000", "minLiquidity=80000", "minHolders=500", "sortBy=marketCapUsd",
+                     "minFeesTotal=5", "limit=500"):
             self.assertIn(part, q)
 
 
@@ -59,16 +61,24 @@ class FakeST:
 
 
 class TestRefresh(unittest.TestCase):
-    def test_peaks_are_remembered_for_an_hour(self):
+    def test_a_peak_is_asked_once(self):
         st, peaks = FakeST(), {}
         out = F.refresh(st, S, peaks, NOW)
         self.assertEqual([(x["mint"], x["peak"]) for x in out], [("B", 7e6), ("A", 2.2e6)])
         self.assertEqual(sorted(c for c in st.calls if "/ath" in c), ["/tokens/A/ath", "/tokens/B/ath"])   # the clone costs nothing
         st.calls.clear()
-        F.refresh(st, S, peaks, NOW + 30 * 60_000)
-        self.assertEqual([c for c in st.calls if "/ath" in c], [])                          # half an hour later: from memory
-        F.refresh(st, S, peaks, NOW + 61 * 60_000)
-        self.assertEqual(len([c for c in st.calls if "/ath" in c]), 2)
+        F.refresh(st, S, peaks, NOW + 5 * H)
+        self.assertEqual([c for c in st.calls if "/ath" in c], [])                          # a peak only grows: never asked again
+        F.refresh(st, S, peaks, NOW + 60 * H)
+        self.assertEqual(peaks, {})                                                         # older than the window plus a day: forgotten
+
+    def test_the_junk_the_server_cannot_see(self):
+        rows = [row("WASH", 2.7e6, vol=2.72e6, fees=2.8), row("FAKE", 3e8, liq=1e6, vol=1e8), row("DEAD", 2e6, vol=1e6),
+                row("OK", 2e6, vol=4e6, fees=300)]
+        rows[2]["volume_1h"] = 1000
+        self.assertEqual([x["mint"] for x in F.candidates(rows, dict(S, fresh_min_fees_sol=1))], ["OK"])   # wash, cap/liq 300, dead pool
+        c = F.candidates([row("S1", 3e6, sym="SI"), row("S2", 5e6, sym="si")], S)
+        self.assertEqual([x["mint"] for x in F.pick(c, {"S1": 9e6}, NOW, S)], ["S1"])            # one name, the bigger peak
 
 
 if __name__ == "__main__":

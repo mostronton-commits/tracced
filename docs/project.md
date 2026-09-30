@@ -24,16 +24,14 @@ Nothing is scored. Every row opens as a transaction on Solscan.
 
 ## Proof it is complete
 
-Cursor-paged trade feeds drop trades silently. The cursor is exclusive and trade times are whole seconds, so
-everything after the first trade of a boundary second disappears. On one token that was about 1% of all swaps,
-including buys of several hundred thousand dollars.
+Trade feeds can drop swaps silently. On one token a naive read missed about 1% of all swaps, including buys of
+several hundred thousand dollars.
 
-We found it by comparing our set against the pool's own signatures on chain, fixed the paging, and now re-read the
-boundary second every time.
+We found it by checking our set against the pool's own transactions on chain. The gap is closed, and every history
+is now checked for completeness.
 
-The same audit found a defect in the source data: roughly one trade in a thousand arrives with a token amount
-shifted by orders of magnitude. The dollar figure is right, the derived price is not. Those trades are repriced at
-the market rate of their minute, and the count is shown with the results.
+The same audit found trades that arrive with a broken token amount. The dollar figure is right, the derived price
+is not. Those trades are repaired, and the count is shown with the results.
 
 !!! info "📏 What that costs to prove"
     On the demo token the whole trade history had to be reconstructed, 489,000 swaps, before a single exit could be
@@ -60,7 +58,6 @@ the owner can see how the product is used. None of it goes to anyone else:
 | | |
 |---|---|
 | The demo | [open it, no sign-up]({{ '/token?mint=' ~ demo_token if demo_token else '/' }}) |
-| The code | [github.com/mostronton-commits/tracced](https://github.com/mostronton-commits/tracced) |
 | Updates | [@tracced_xyz](https://x.com/tracced_xyz) |
 | A bug, an idea, a question | [Contact](/feedback) |
 | Next to the terminals | [where this sits beside Axiom and GMGN](/docs/compare) |

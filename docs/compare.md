@@ -28,8 +28,7 @@ they are the reason nine wallets funded from one address are obvious here and in
 
 !!! info "📅 Checked 22 September 2026"
     From their own docs: `docs.axiom.trade`, `docs.gmgn.ai`. **Not documented** means we could not find it in
-    their manual, not that it is impossible. Wrong cell?
-    [Tell us](https://github.com/mostronton-commits/tracced/issues).
+    their manual, not that it is impossible. Wrong cell? [Tell us](/feedback).
 
 ## Fair to them
 

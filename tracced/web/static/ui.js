@@ -172,7 +172,7 @@ document.addEventListener('click', e => {
 
 /* Markers that say what kind of wallet a row is, the way terminals do: a small picture per category, the rule or
    the source in the tooltip, the words in the card and in the filter legend. Our tags are rules computed from the
-   chain; KOL, the X account and the trading platform are Solana Tracker's identification of the wallet. */
+   chain; KOL, the X account and the trading platform are the wallet's public identity labels. */
 window.EarlyTags = (function () {
   const S = d => '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
   const ICON = {
@@ -191,7 +191,7 @@ window.EarlyTags = (function () {
     exchange: S('<path d="M2 6.4 8 3l6 3.4M3.6 7.2v4.8M6.5 7.2v4.8M9.5 7.2v4.8M12.4 7.2v4.8M2 13.2h12"/>'),
     hacker: S('<path d="M8 2.4a4.6 4.6 0 0 0-4.6 4.6c0 1.7.9 2.9 2.1 3.5v2.3h5v-2.3c1.2-.6 2.1-1.8 2.1-3.5A4.6 4.6 0 0 0 8 2.4z"/><circle cx="6.2" cy="7.2" r=".9" fill="currentColor"/><circle cx="9.8" cy="7.2" r=".9" fill="currentColor"/><path d="M7 12.8v-1.3M9 12.8v-1.3"/>'),
   };
-  // trading platforms Solana Tracker names, and the file of each one's own icon in /static/brands
+  // trading platforms a wallet is labelled with, and the file of each one's own icon in /static/brands
   const BRANDS = { axiom: ['axiom', 'Axiom'], 'axiom-flash': ['axiom', 'Axiom'], gmgn: ['gmgn', 'GMGN'], fomo: ['fomo', 'Fomo'],
     'pumpfun-app': ['pumpfun', 'the pump.fun app'], pumpfun: ['pumpfun', 'the pump.fun app'], terminal: ['terminal', 'Terminal (Padre)'],
     padre: ['terminal', 'Terminal (Padre)'], photon: ['photon', 'Photon'], bloom: ['bloom', 'Bloom'], bullx: ['bullx', 'BullX'] };
