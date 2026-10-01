@@ -1,30 +1,49 @@
-"""Скільки купівель і продажів потік сповіщень побачив у кожного гаманця зі списків людини (власник, 01.10: «лічильники
+"""Скільки купівель і продажів потік сповіщень побачив у кожного гаманця, за яким стежить (власник, 01.10: «лічильники
 алертів для кожного гаманця, щоб бачити, хто наскільки активний»).
 
-Рахуємо кожну угоду, яку розбір визнав купівлею чи продажем, для кожного, хто за гаманцем стежить, — незалежно від його
-налаштувань (мінімальна сума, лише купівлі) і годинної стелі: це активність гаманця, а не кількість повідомлень. Бачимо
-лише гаманці зі списків з увімкненим дзвіночком і лише відтоді, як за ними стежать.
+Рахуємо кожну угоду, яку розбір визнав купівлею чи продажем, — незалежно від налаштувань людини (мінімальна сума, лише
+купівлі) і годинної стелі: це активність гаманця, а не кількість повідомлень. Угоди — факт ланцюга, тож лічильник один на
+гаманець, хоч би скільки людей за ним стежило. Рахунок іде відтоді, як потік почав стежити за гаманцем (`since`); коли
+стежити перестав (дзвіночок вимкнули, гаманець прибрали, Telegram відв'язали) — запис забуваємо, і наступного разу рахунок
+почнеться заново. Тому «0 угод» на сторінці завжди означає «стежили, а угод не було».
 
-Файл — один на сервер: {акаунт: {гаманець: {"d": {"YYYY-MM-DD": [купівлі, продажі]}, "last": ms, "side": "buy"|"sell"}}}.
-Дні — за UTC, тримаємо 30; запис гаманця без угод за 30 днів забуваємо. Пишемо не на кожну угоду, а коли потік
-перевіряє список гаманців (раз на 30 с) і при зупинці сервера."""
+Вікно ковзне: години за UTC, сума за останні 168 годин; тримаємо 8 діб. Усі зміни — з циклу подій сервера (один потік),
+на диск пишемо знімок у фоновому потоці раз на 30 с і при зупинці. Файл: {гаманець: {"h": {"YYYY-MM-DDTHH": [купівлі,
+продажі]}, "last": ms, "since": ms, "sig": закладка опитування}}."""
 import datetime
 import json
 import os
+import tempfile
 import threading
 import time
 
-KEEP_DAYS = 30
-DAY_MS = 86_400_000
+HOUR_MS = 3_600_000
+WINDOW_H = 168               # сім діб
+KEEP_H = 192                 # вісім діб: вікно і запас на перезапуск
 
 
-def _day(ms):
-    return datetime.datetime.fromtimestamp(ms / 1000, datetime.timezone.utc).strftime("%Y-%m-%d")
+def _hour(ms):
+    return datetime.datetime.fromtimestamp(ms / 1000, datetime.timezone.utc).strftime("%Y-%m-%dT%H")
+
+
+def _hour_ms(key):
+    try:
+        return int(datetime.datetime.strptime(key, "%Y-%m-%dT%H").replace(tzinfo=datetime.timezone.utc).timestamp() * 1000)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _now():
+    return int(time.time() * 1000)
+
+
+def _int(x):
+    return isinstance(x, int) and not isinstance(x, bool)
 
 
 class Activity:
-    def __init__(self, path, keep_days=KEEP_DAYS):
-        self.path, self.keep, self.lock, self.dirty = path, keep_days, threading.Lock(), False
+    def __init__(self, path):
+        self.path, self.write_lock, self.dirty = path, threading.Lock(), False
         try:
             with open(path, encoding="utf-8") as f:
                 raw = json.load(f)
@@ -36,75 +55,92 @@ class Activity:
     def _clean(raw):
         """Файл свій, але зіпсований не має валити сторінку списків: лише числа в очікуваних місцях."""
         out = {}
-        for pk, ws in (raw.items() if isinstance(raw, dict) else []):
-            for w, rec in (ws.items() if isinstance(ws, dict) else []):
-                if not isinstance(rec, dict) or not isinstance(rec.get("d"), dict):
-                    continue
-                days = {d: [int(v[0]), int(v[1])] for d, v in rec["d"].items()
-                        if isinstance(d, str) and isinstance(v, list) and len(v) == 2 and all(isinstance(x, int) for x in v)}
-                last = rec.get("last") if isinstance(rec.get("last"), int) else 0
-                if days:
-                    out.setdefault(str(pk), {})[str(w)] = {"d": days, "last": last,
-                                                           "side": rec.get("side") if rec.get("side") in ("buy", "sell") else None}
+        for w, rec in (raw.items() if isinstance(raw, dict) else []):
+            if not isinstance(rec, dict) or not _int(rec.get("since")) or not isinstance(rec.get("h", {}), dict):
+                continue
+            hours = {h: [v[0], v[1]] for h, v in rec.get("h", {}).items()
+                     if _hour_ms(h) and isinstance(v, list) and len(v) == 2 and all(_int(x) for x in v)}
+            out[str(w)] = {"h": hours, "last": rec["last"] if _int(rec.get("last")) else 0, "since": rec["since"],
+                           "sig": rec["sig"] if isinstance(rec.get("sig"), str) else ""}
         return out
 
-    def bump(self, pk, wallet, side, ms=None):
-        """Одна угода гаманця, яку бачить той, хто за ним стежить."""
-        if side not in ("buy", "sell") or not pk or not wallet:
-            return
-        ms = int(ms or time.time() * 1000)
-        with self.lock:
-            rec = self.data.setdefault(pk, {}).setdefault(wallet, {"d": {}, "last": 0, "side": side})
-            day = rec["d"].setdefault(_day(ms), [0, 0])
-            day[0 if side == "buy" else 1] += 1
-            if ms >= rec.get("last", 0):
-                rec["last"], rec["side"] = ms, side
+    def watch(self, wallets, now_ms=None):
+        """Потік стежить за цими гаманцями: новим ставимо початок рахунку, тих, кого більше нема, забуваємо."""
+        now_ms = now_ms or _now()
+        wallets = set(wallets)
+        for w in [w for w in self.data if w not in wallets]:
+            del self.data[w]
+            self.dirty = True
+        for w in wallets - set(self.data):
+            self.data[w] = {"h": {}, "last": 0, "since": now_ms, "sig": ""}
             self.dirty = True
 
-    def of(self, pk, now_ms=None, days=7):
-        """{гаманець: {"buys": n, "sells": n, "last": ms, "side": …}} за останні `days` днів, сьогодні включно."""
-        now_ms = int(now_ms or time.time() * 1000)
-        since = {_day(now_ms - i * DAY_MS) for i in range(days)}
+    def bump(self, wallet, side, ms=None):
+        """Одна угода гаманця, за яким стежить потік."""
+        rec = self.data.get(wallet)
+        if rec is None or side not in ("buy", "sell"):
+            return
+        ms = int(ms or _now())
+        h = rec["h"].setdefault(_hour(ms), [0, 0])
+        h[0 if side == "buy" else 1] += 1
+        rec["last"] = max(rec["last"], ms)
+        self.dirty = True
+
+    def seen(self, wallet, sig):
+        """Закладка опитування-страховки: найновіший підпис, який воно вже розібрало. Переживає перезапуск сервера, тож
+        угоди за час простою теж знайдуться."""
+        rec = self.data.get(wallet)
+        if rec is not None and sig and rec.get("sig") != sig:
+            rec["sig"] = sig
+            self.dirty = True
+
+    def last_sig(self, wallet):
+        return (self.data.get(wallet) or {}).get("sig") or ""
+
+    def of(self, wallets, now_ms=None):
+        """{гаманець: {"buys", "sells", "last", "since"}} за останні 168 годин — лише для тих, за ким потік стежить."""
+        now_ms = now_ms or _now()
+        start = now_ms - WINDOW_H * HOUR_MS
         out = {}
-        with self.lock:
-            for w, rec in (self.data.get(pk) or {}).items():
-                b = sum(v[0] for d, v in rec.get("d", {}).items() if d in since)
-                s = sum(v[1] for d, v in rec.get("d", {}).items() if d in since)
-                out[w] = {"buys": b, "sells": s, "last": int(rec.get("last") or 0), "side": rec.get("side")}
+        for w in wallets:
+            rec = self.data.get(w)
+            if rec is None:
+                continue
+            got = [v for h, v in rec["h"].items() if _hour_ms(h) + HOUR_MS > start]
+            out[w] = {"buys": sum(v[0] for v in got), "sells": sum(v[1] for v in got), "last": rec["last"], "since": rec["since"]}
         return out
 
-    def forget(self, pk, wallet=None):
-        """Видалення акаунта чи гаманця на прохання людини."""
-        with self.lock:
-            if wallet is None:
-                self.dirty = self.data.pop(pk, None) is not None or self.dirty
-            elif (self.data.get(pk) or {}).pop(wallet, None) is not None:
-                self.dirty = True
-
-    def save(self, now_ms=None):
-        """Записати, якщо щось змінилось; дні старші за keep — прибрати, а гаманці без жодного дня — забути."""
+    def snapshot(self, now_ms=None):
+        """Знімок для запису (з циклу подій): години старші за 8 діб — геть. None — записувати нічого."""
         if not self.dirty:
+            return None
+        edge = (now_ms or _now()) - KEEP_H * HOUR_MS
+        for rec in self.data.values():
+            rec["h"] = {h: v for h, v in rec["h"].items() if _hour_ms(h) + HOUR_MS > edge}
+        self.dirty = False
+        return json.dumps(self.data, ensure_ascii=False, separators=(",", ":"))
+
+    def write(self, snap):
+        """Записати знімок (у фоновому потоці): власний тимчасовий файл і заміна, по одному записувачу за раз."""
+        if snap is None:
             return False
-        now_ms = int(now_ms or time.time() * 1000)
-        keep = {_day(now_ms - i * DAY_MS) for i in range(self.keep)}
-        with self.lock:
-            for pk in list(self.data):
-                for w in list(self.data[pk]):
-                    rec = self.data[pk][w]
-                    rec["d"] = {d: v for d, v in rec.get("d", {}).items() if d in keep}
-                    if not rec["d"]:
-                        del self.data[pk][w]
-                if not self.data[pk]:
-                    del self.data[pk]
-            snap = json.dumps(self.data, ensure_ascii=False, separators=(",", ":"))
-            self.dirty = False
-        try:
-            os.makedirs(os.path.dirname(str(self.path)) or ".", exist_ok=True)
-            tmp = str(self.path) + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as f:
-                f.write(snap)
-            os.replace(tmp, self.path)
-        except OSError:
-            self.dirty = True                         # не записалось: спробуємо з наступною перевіркою
-            raise
+        with self.write_lock:
+            d = os.path.dirname(str(self.path)) or "."
+            os.makedirs(d, exist_ok=True)
+            fd, tmp = tempfile.mkstemp(dir=d, prefix=".activity-", suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(snap)
+                os.replace(tmp, self.path)
+            except OSError:
+                self.dirty = True                     # не записалось: наступна перевірка спробує знову
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+                raise
         return True
+
+    def save(self):
+        """Знімок і запис разом — для тестів і зупинки сервера."""
+        return self.write(self.snapshot())

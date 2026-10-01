@@ -36,7 +36,18 @@ DEFAULTS = {
     "fresh_show": 8, "fresh_max_candidates": 60, "fresh_page": 500,   # 60: з капою від $250K старий пік може бути далеко внизу списку
     "fresh_refresh_min": 10, "fresh_ath_retry_min": 30, "fresh_max_refresh_per_day": 150, "fresh_stale_hours": 3,
     "alerts_size_usd": [1000, 10000],   # колір крапки — сума угоди: 🟢 до $1K, 🟡 до $10K, 🔴 від $10K (власник, 30.09)
-    "alerts_ws_urls": ["wss://solana-rpc.publicnode.com", "wss://api.mainnet-beta.solana.com"],
+    # потік: основна — api.mainnet-beta (від блоку до повідомлення ≈2 с; у publicnode ≈10 с, замір 01.10), запасна — publicnode
+    "alerts_ws_urls": ["wss://api.mainnet-beta.solana.com", "wss://solana-rpc.publicnode.com"],
+    "alerts_check_s": 15,         # як часто потік перечитує, за ким стежити (нові й прибрані гаманці — без перепідключення)
+    "alerts_poll_s": 60,          # страховка: опитування кожного гаманця раз на хвилину (схема KOLS-радара) …
+    "alerts_poll_rps": 4,         # … але не частіше, ніж так, щоб опитування брало ≈4 запити на секунду із загального темпу
+    "alerts_poll_grace_s": 15,    # угоди молодші за це страховка лишає потоку
+    "alerts_backfill_min": 10,    # пропущене старше за це вже не сповіщаємо: запізно
+    "alerts_fallback_min": 10,    # на запасній ноді стільки, далі знову основна
+    "alerts_enrich_s": 2.5,       # назва, капа і частка проданого чекаються не довше: повідомлення не стоїть
+    "alerts_rps": 12,             # спільний темп запитів сповіщень до безкоштовної ноди (вона тримає ≈20 на весь проєкт)
+    "alerts_slow_s": 1.5,         # пауза для всіх після відмови ноди за лімітом
+    "alerts_wallet_per_min": 30,  # угод гаманця за хвилину, які розбираємо; понад це — бот, пропуск
     "alerts_rpc_url": "https://solana-rpc.publicnode.com",
     "verdict_organised_pct": 90,  # стільки % топу за PnL (перевіреного на вік і спонсора) свіжі чи в бандлах — угорі результату «Organised launch»
     "st_eur_per_million": 0,     # ціна мільйона запитів тарифу в євро: дашборд власника переводить «запитів на аналіз» у гроші (0 — не показувати)

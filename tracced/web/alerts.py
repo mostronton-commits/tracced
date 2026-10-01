@@ -238,6 +238,9 @@ def message(ev, wallet, sub, token, site="https://tracced.xyz", ca=True, sizes=N
         head.append(sold_text(ev))
     if (token or {}).get("mcap"):
         head.append(f"MC {money(token['mcap'])}")
+    late = ev.get("late_s") or 0
+    if late >= 60:                                   # дібрано після розриву потоку: чесно, що не щойно
+        head.append(f"{int(late // 60)}m ago")
     head.append(f"<a href=\"https://solscan.io/tx/{ev['sig']}\">tx</a>")
     tags = [e(t, 24) for t in (sub.get("tags") or [])[:3]]
     who = f"<a href=\"https://solscan.io/account/{wallet}\">{', '.join(tags) if tags else short(wallet)}</a>"

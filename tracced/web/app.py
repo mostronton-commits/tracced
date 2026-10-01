@@ -131,7 +131,7 @@ def _ago(ms, now_ms=None):
         m = ((now_ms or time.time() * 1000) - float(ms)) / 60_000
     except (TypeError, ValueError):
         return ""
-    return "now" if m < 1 else f"{m:.0f}m" if m < 60 else f"{m / 60:.0f}h" if m < 1440 else f"{m / 1440:.0f}d"
+    return "now" if m < 1 else f"{int(m)}m" if m < 60 else f"{int(m // 60)}h" if m < 1440 else f"{int(m // 1440)}d"   # униз: 59m, не 60m
 
 
 env.filters["ago"] = _ago
@@ -404,12 +404,12 @@ def _check_services(r, ages):
 def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/early", ages=None, assistant=None, background=False):
     app = web.Application(middlewares=[errors_mw, auth_mw, private_mw])
     app.on_response_prepare.append(_security_headers)
-    app.on_cleanup.append(_flush_on_exit)
     app["bg"] = {}                                                 # фонові задачі сервера (лише з background=True, не в тестах)
     app["fresh"], app["fresh_peaks"] = {"at": 0, "ok_at": 0, "rows": [], "busy": False, "live": background, "day": "", "n": 0}, {}   # свіжі пампи на головній
     if background:
         app.on_startup.append(_start_background)
         app.on_cleanup.append(_stop_background)
+    app.on_cleanup.append(_flush_on_exit)          # після зупинки фону: потік не дописує лічильники в уже записаний файл
     app["assistant"] = assistant                                   # транспорт до моделі; None — агента на цьому сервері нема
     app["agent"] = agent_mod.Agent(assistant.json_chat, assistant.model) if assistant is not None else None
     app["agent_store"] = AgentStore(Path(out_dir).parent / "agent")   # методика власника, її версії, журнал питань
@@ -462,7 +462,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["alerts_ca"] = {}             # чат → токени, адресу яких він уже отримав (у пам'яті: після перезапуску адреса прийде ще раз)
     app["activity"] = activity_mod.Activity(Path(out_dir).parent / "usage" / "activity.json")   # угоди гаманців зі списків, для Lists
     app["alerts_fails"], app["alerts_tok_wait"], app["alerts_pending"] = {}, {}, 0   # збої за годину; токени, які саме питаємо; черга
-    app["alerts_sem"] = asyncio.Semaphore(int(s.get("alerts_parallel", 4)))         # запитів до ноди водночас   # спроб з невірним ключем з однієї мережі за хвилину
+    app["alerts_sem"] = asyncio.Semaphore(int(s.get("alerts_parallel", 4)))         # запитів до ноди водночас
+    app["alerts_pace"], app["alerts_flood"] = _Pace(s.get("alerts_rps", 12)), {}    # темп запитів до ноди; угоди гаманця за хвилину   # спроб з невірним ключем з однієї мережі за хвилину
     app["ages"] = ages
     _share_st(st, app["st_slots"])
 
@@ -1506,6 +1507,43 @@ async def _tg_bot_loop(app):
                 await asyncio.sleep(10)
 
 
+class _Pace:
+    """Спільний темп запитів сповіщень до безкоштовної ноди. Схема KOLS-радара (08.08): publicnode тримає ≈20 запитів на
+    секунду на весь проєкт; відмова «Rate limit» — це «пригальмуй», а не «нода впала»: пауза для всіх, а не швидкі
+    повтори, які лише додають навантаження (живий прогін 01.10: 1 513 відмов за 2,5 хв на ботах)."""
+
+    def __init__(self, rps):
+        self.gap, self.next, self.lock = 1.0 / max(0.1, float(rps)), 0.0, asyncio.Lock()
+
+    async def wait(self):
+        async with self.lock:
+            now = time.monotonic()
+            at = max(now, self.next)
+            self.next = at + self.gap
+        if at > now:
+            await asyncio.sleep(at - now)
+
+    def slow(self, seconds):
+        self.next = max(self.next, time.monotonic() + seconds)
+
+
+def _limited(e):
+    s = str(e).lower()
+    return "-32005" in s or "429" in s or "rate limit" in s or "too many" in s
+
+
+async def _alert_rpc(app, http, method, params):
+    """Запит сповіщень до ноди: у спільному темпі; на відмову за лімітом — пауза для всіх і виняток."""
+    await app["alerts_pace"].wait()
+    try:
+        async with app["alerts_sem"]:
+            return await _rpc(http, app["s"].get("alerts_rpc_url"), method, params)
+    except Exception as e:  # noqa: BLE001
+        if _limited(e):
+            app["alerts_pace"].slow(float(app["s"].get("alerts_slow_s", 1.5)))
+        raise
+
+
 def _unwatch(app, pk):
     """Прибрати один гаманець-підписник з карти потоку одразу, не чекаючи перевірки раз на 30 с, і не чіпаючи решту."""
     wm = app.get("alerts_wm") or {}
@@ -1634,7 +1672,7 @@ async def _st_open(app):
     return left is None or left >= reserve
 
 
-async def _alert_tx_safe(app, http, wallet, sig):
+async def _alert_tx_safe(app, http, wallet, sig, via="stream"):
     """Задача на одну транзакцію. Черга не безмежна: зайнятий гаманець чи пил, що згадує гаманець, інакше ставили б тисячі
     задач, і алерти всіх запізнювались би без кінця — понад alerts_queue транзакція пропускається з рядком у журналі.
     Несподіваний збій — у журнал і лічильник, а не «Task exception was never retrieved» (рев'ю 01.10)."""
@@ -1643,7 +1681,7 @@ async def _alert_tx_safe(app, http, wallet, sig):
         return
     app["alerts_pending"] += 1
     try:
-        await _alert_tx(app, http, wallet, sig)
+        await _alert_tx(app, http, wallet, sig, via)
     except asyncio.CancelledError:
         raise
     except Exception as e:  # noqa: BLE001
@@ -1654,7 +1692,7 @@ async def _alert_tx_safe(app, http, wallet, sig):
         app["alerts_pending"] -= 1
 
 
-async def _alert_tx(app, http, wallet, sig):
+async def _alert_tx(app, http, wallet, sig, via="stream"):
     """Одна транзакція гаманця зі списків: розібрати, відсіяти, надіслати кожному, хто за ним стежить."""
     if not app["alerts_wm"].get(wallet):              # за гаманцем уже ніхто не стежить (відв'язав Telegram, вимкнув дзвіночок)
         return
@@ -1663,18 +1701,19 @@ async def _alert_tx(app, http, wallet, sig):
     if key in seen:
         return
     seen[key] = time.time()
+    if via == "poll":                                # потік цієї угоди не приніс за alerts_poll_grace_s: страховка спрацювала
+        app["alerts_state"]["poll_caught"] = app["alerts_state"].get("poll_caught", 0) + 1
     if len(seen) > 5000:
         for k in sorted(seen, key=seen.get)[:1000]:
             del seen[k]
-    url, params = app["s"].get("alerts_rpc_url"), [sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": wallet_age_mod.TX_VERSION,
+    params = [sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": wallet_age_mod.TX_VERSION,
                                                         "commitment": "confirmed"}]
     tx, err = None, None
-    for pause in (0, 2, 4):                          # щойно підтверджена: нода ще не встигла віддати; збій ноди — так само ще раз
+    for pause in (0, 0.4, 0.8, 1.5, 3):              # нода ще не встигла віддати чи збій — ще раз, швидко (замір 01.10: 25 з 25 з першої)
         if pause:
             await asyncio.sleep(pause)
         try:
-            async with app["alerts_sem"]:            # до ноди водночас не більше alerts_parallel; паузи й Telegram — поза ним
-                tx, err = await _rpc(http, url, "getTransaction", params), None
+            tx, err = await _alert_rpc(app, http, "getTransaction", params), None
         except Exception as e:  # noqa: BLE001
             err = e
         if tx:
@@ -1693,9 +1732,8 @@ async def _alert_tx(app, http, wallet, sig):
         return
     evs = alerts_mod.classify(tx, wallet, px)
     st["events"] += 1
-    for ev in evs:                                   # активність гаманця для Lists: кожному, хто стежить, хоч би що він обрав
-        for x in app["alerts_wm"].get(wallet) or []:
-            app["activity"].bump(x["pk"], wallet, ev["side"], int(ev.get("ts") or 0) * 1000 or None)
+    for ev in evs:                                   # активність гаманця для Lists: кожна угода, хоч би що обрали підписники
+        app["activity"].bump(wallet, ev["side"], int(ev.get("ts") or 0) * 1000 or None)
     for ev in evs:
         # місце в годинній стелі кожного чату — ДО платних запитів і одразу: двадцять транзакцій водночас інакше всі
         # пройшли б перевірку і всі заплатили б (рев'ю 30.09, 01.10). Не надіслане все одно займає місце — це стеля
@@ -1708,11 +1746,19 @@ async def _alert_tx(app, http, wallet, sig):
         if not subs:
             continue
         paid = any(b is None for _, b in subs) and await _st_open(app)
-        token = await _token_facts(app, ev["mint"]) if paid else {}
-        if paid and ev["side"] == "sell" and not ev.get("all"):   # скільки позиції продано з початку: «sold 60% (+20%)»
-            share = await _sold_share(app, wallet, ev)
-            if share:
-                ev["total"], ev["step"] = share
+        # назва й капа токена і частка проданого — паралельно і не довше alerts_enrich_s: повідомлення не чекає повільне
+        # джерело (власник, 01.10: «є транзакція — відправляється алерт»); те, що не встигло, допрацює в кеш на наступний раз
+        t_tok = asyncio.ensure_future(_token_facts(app, ev["mint"])) if paid else None
+        t_share = asyncio.ensure_future(_sold_share(app, wallet, ev)) if paid and ev["side"] == "sell" and not ev.get("all") else None
+        waits = [x for x in (t_tok, t_share) if x is not None]
+        if waits:
+            await asyncio.wait(waits, timeout=float(app["s"].get("alerts_enrich_s", 2.5)))
+        ok = lambda x: x is not None and x.done() and not x.cancelled() and x.exception() is None
+        token = (t_tok.result() or {}) if ok(t_tok) else {}
+        share = t_share.result() if ok(t_share) else None
+        if share:
+            ev["total"], ev["step"] = share
+        ev["late_s"] = max(0, int(time.time()) - int(ev.get("ts") or time.time()))
         for sub, b in subs:
             seen_ca = app["alerts_ca"].setdefault(sub["chat"], set())     # адреса токена — лише в першому повідомленні про нього
             if b == "first":
@@ -1736,54 +1782,152 @@ async def _alert_tx(app, http, wallet, sig):
                                   new=ev.get("new"), total=ev.get("total"))
 
 
-async def _alerts_watch_once(app, http, url, wm):
-    """Одне з'єднання з потоком: підписка на кожен гаманець (logsSubscribe mentions), нова транзакція — окремою
-    задачею. Повертається, коли набір гаманців змінився (тоді перепідписуємось) — або кидає, коли з'єднання впало."""
-    wallets = sorted(wm)
-    sub = {}
+async def _alerts_poll(app, http, wallets):
+    """Страховка потоку (схема KOLS-радара, 01.10): для кожного гаманця — підписи новіші за власну закладку опитування.
+    Потік швидкий, але губить угоди на розривах і буває «підключеним, але мовчазним»; опитування знаходить їх за хвилину.
+
+    Закладка своя (не та, що з потоку): інакше свіжий підпис з потоку перескочив би пропущений перед ним. Угоди молодші за
+    alerts_poll_grace_s лишаємо потоку і закладку за них не посуваємо — наступне опитування їх побачить. Старші за
+    alerts_backfill_min не сповіщаємо (запізно), лише посуваємо закладку. Новий гаманець спершу дістає закладку без
+    сповіщень. Розбирає те саме _alert_tx; угоду, яку потік уже приніс, відсіє alerts_seen."""
+    s, act = app["s"], app["activity"]
+    now = time.time()
+    grace, horizon = float(s.get("alerts_poll_grace_s", 15)), now - float(s.get("alerts_backfill_min", 10)) * 60
+    for w in wallets:
+        if w not in app["alerts_wm"]:
+            continue
+        base = act.last_sig(w)
+        try:
+            q = {"limit": 25, "commitment": "confirmed"}
+            if base:
+                q["until"] = base
+            else:
+                q["limit"] = 1                        # новий: лише закладка
+            sigs = await _alert_rpc(app, http, "getSignaturesForAddress", [w, q])
+        except Exception as e:  # noqa: BLE001
+            log.warning("alerts poll %s: %s", w[:6], e)
+            continue
+        if not base:
+            if sigs and sigs[0].get("signature"):
+                act.seen(w, sigs[0]["signature"])
+            continue
+        ready = [x for x in sigs or [] if x.get("signature") and (x.get("blockTime") or now) <= now - grace]
+        for x in reversed(ready):                     # від старших до новіших
+            if not x.get("err") and (x.get("blockTime") or 0) >= horizon:
+                asyncio.get_running_loop().create_task(_alert_tx_safe(app, http, w, x["signature"], via="poll"))
+        if ready:
+            act.seen(w, ready[0]["signature"])        # найновіша з готових
+
+
+async def _alerts_watch_once(app, http, url, wm, primary=True):
+    """Одне з'єднання з потоком: підписка на кожен гаманець (logsSubscribe mentions), нова транзакція — окремою задачею.
+
+    Списки змінились — підписки додаються й знімаються в тому самому з'єднанні, без перепідключення: воно губило угоди
+    тих секунд (рев'ю 01.10). Страховка (_alerts_poll) — одразу після підключення і далі щохвилини. Повертається, коли стежити більше
+    нема за ким, або через alerts_fallback_min на запасній ноді (спробувати основну знову); кидає, коли з'єднання впало."""
+    s = app["s"]
+    sub_of, wallet_of, pending, next_id = {}, {}, {}, 0   # гаманець → підписка; підписка → гаманець; запит → (гаманець, дія)
+    every, began = float(s.get("alerts_check_s", 15)), time.monotonic()
+    delivered, caught0 = 0, app["alerts_state"].get("poll_caught", 0)   # що приніс потік і що за ним добрала страховка
     app["alerts_wm"] = wm
+    app["activity"].watch(set(wm))
     async with http.ws_connect(url, heartbeat=20, max_msg_size=0, timeout=aiohttp.ClientWSTimeout(ws_close=10)) as ws:
-        for i, w in enumerate(wallets):
-            await ws.send_json({"jsonrpc": "2.0", "id": i + 1, "method": "logsSubscribe",
+        async def subscribe(w):
+            nonlocal next_id
+            next_id += 1
+            pending[next_id] = (w, "sub")
+            await ws.send_json({"jsonrpc": "2.0", "id": next_id, "method": "logsSubscribe",
                                 "params": [{"mentions": [w]}, {"commitment": "confirmed"}]})
-        app["alerts_state"].update(connected=True, url=url.split("//")[-1], wallets=len(wallets))
-        next_check = time.monotonic() + 30
-        while True:
-            try:
-                msg = await ws.receive(timeout=5)
-            except asyncio.TimeoutError:
-                msg = None
-            if msg is not None:
-                if msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.CLOSING, aiohttp.WSMsgType.ERROR):
-                    raise RuntimeError("the stream closed")
-                if msg.type == aiohttp.WSMsgType.TEXT:
-                    d = json.loads(msg.data)
-                    if isinstance(d.get("id"), int):         # відповідь на підписку: номер підписки або відмова
-                        if isinstance(d.get("result"), int) and 0 < d["id"] <= len(wallets):
-                            sub[d["result"]] = wallets[d["id"] - 1]
-                        elif d.get("error"):
-                            log.warning("alerts: subscription refused: %s", str(d.get("error"))[:100])
-                    elif d.get("method") == "logsNotification":
-                        p = d.get("params") or {}
-                        w, v = sub.get(p.get("subscription")), (p.get("result") or {}).get("value") or {}
-                        if w and not v.get("err") and v.get("signature"):
-                            asyncio.get_running_loop().create_task(_alert_tx_safe(app, http, w, v["signature"]))
-            if time.monotonic() >= next_check:
-                next_check = time.monotonic() + 30
+
+        async def unsubscribe(w):
+            nonlocal next_id
+            sid = sub_of.pop(w, None)
+            if sid is None:
+                return
+            wallet_of.pop(sid, None)
+            next_id += 1
+            pending[next_id] = (w, "unsub")
+            await ws.send_json({"jsonrpc": "2.0", "id": next_id, "method": "logsUnsubscribe", "params": [sid]})
+
+        for w in sorted(wm):
+            await subscribe(w)
+        app["alerts_state"].update(connected=True, url=url.split("//")[-1], wallets=len(wm))
+        poll = asyncio.get_running_loop().create_task(_alerts_poll(app, http, sorted(wm)))   # одразу: пропущене за час без потоку
+        next_check = time.monotonic() + every
+        # опитування не частіше за alerts_poll_s і не швидше за alerts_poll_rps запитів на секунду (publicnode тримає ≈20)
+        poll_every = lambda: max(float(s.get("alerts_poll_s", 60)), len(app["alerts_wm"]) / float(s.get("alerts_poll_rps", 8)))
+        next_poll = time.monotonic() + poll_every()
+        try:
+            while True:
                 try:
-                    await asyncio.to_thread(app["activity"].save)    # лічильники угод — на диск разом з перевіркою списку
-                except OSError as e:
-                    log.warning("activity save: %s", e)
-                now_map = await asyncio.to_thread(_watch_now, app)
-                if set(now_map) != set(wm):
-                    return
-                wm = now_map                                  # ті самі гаманці; списки й налаштування могли змінитись
-                app["alerts_wm"] = wm
+                    msg = await ws.receive(timeout=5)
+                except asyncio.TimeoutError:
+                    msg = None
+                if msg is not None:
+                    if msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.CLOSING, aiohttp.WSMsgType.ERROR):
+                        raise RuntimeError("the stream closed")
+                    if msg.type == aiohttp.WSMsgType.TEXT:
+                        d = json.loads(msg.data)
+                        if isinstance(d.get("id"), int) and d["id"] in pending:    # відповідь на підписку чи відписку
+                            w, kind = pending.pop(d["id"])
+                            if kind == "sub" and isinstance(d.get("result"), int):
+                                sub_of[w], wallet_of[d["result"]] = d["result"], w
+                                if w not in app["alerts_wm"]:                     # поки чекали відповіді, гаманець прибрали
+                                    await unsubscribe(w)
+                            elif d.get("error"):
+                                log.warning("alerts: %s refused: %s", "subscription" if kind == "sub" else "unsubscribe", str(d.get("error"))[:100])
+                        elif d.get("method") == "logsNotification":
+                            p = d.get("params") or {}
+                            w, v = wallet_of.get(p.get("subscription")), (p.get("result") or {}).get("value") or {}
+                            if w and v.get("signature") and not v.get("err"):
+                                delivered += 1
+                                # гаманець-бот (десятки угод на хвилину) не забирає ноду в усіх: понад alerts_wallet_per_min
+                                # за хвилину — пропуск з рядком у журналі (KOLS-радар так само тримає потоки лише тихих гаманців)
+                                minute, fl = int(time.time() // 60), app["alerts_flood"]
+                                rec = fl.get(w)
+                                rec = fl[w] = [minute, 1] if not rec or rec[0] != minute else [minute, rec[1] + 1]
+                                if len(fl) > 5000:
+                                    fl.clear()
+                                if rec[1] <= int(s.get("alerts_wallet_per_min", 30)):
+                                    asyncio.get_running_loop().create_task(_alert_tx_safe(app, http, w, v["signature"]))
+                                elif rec[1] == int(s.get("alerts_wallet_per_min", 30)) + 1:
+                                    _alert_fail(app, "system", "flood")
+                if time.monotonic() >= next_check:
+                    next_check = time.monotonic() + every
+                    snap = app["activity"].snapshot()          # лічильники угод — на диск разом з перевіркою списку
+                    if snap is not None:
+                        try:
+                            await asyncio.to_thread(app["activity"].write, snap)
+                        except OSError as e:
+                            log.warning("activity save: %s", e)
+                    now_map = await asyncio.to_thread(_watch_now, app)
+                    asked = {w for w, k in pending.values() if k == "sub"}
+                    for w in set(sub_of) - set(now_map):
+                        await unsubscribe(w)
+                    for w in sorted(set(now_map) - set(sub_of) - asked):
+                        await subscribe(w)
+                    app["alerts_wm"] = now_map
+                    app["activity"].watch(set(now_map))
+                    app["alerts_state"]["wallets"] = len(now_map)
+                    if not now_map:
+                        return
+                    if not primary and time.monotonic() - began > float(s.get("alerts_fallback_min", 10)) * 60:
+                        return                                # на запасній досить: пробуємо основну
+                    caught = app["alerts_state"].get("poll_caught", 0) - caught0
+                    if time.monotonic() - began > 180 and caught >= 3 and caught > delivered:
+                        raise RuntimeError(f"the stream misses trades: {caught} caught by the poll, {delivered} delivered")
+                if time.monotonic() >= next_poll and poll.done():
+                    next_poll = time.monotonic() + poll_every()
+                    poll = asyncio.get_running_loop().create_task(_alerts_poll(app, http, sorted(app["alerts_wm"])))
+        finally:
+            poll.cancel()
 
 
 async def _alerts_loop(app):
-    """Потік транзакцій гаманців зі списків з дзвіночком. Обрив — наступна нода зі списку і пауза, що зростає."""
-    urls = list(app["s"].get("alerts_ws_urls") or ["wss://solana-rpc.publicnode.com"])
+    """Потік транзакцій гаманців зі списків з дзвіночком. Основна нода — перша в alerts_ws_urls (api.mainnet-beta:
+    ≈2 с від блоку до повідомлення проти ≈10 с у publicnode, замір 01.10); обрив — наступна з паузою, що зростає, і з
+    запасної за alerts_fallback_min повертаємось на основну."""
+    urls = list(app["s"].get("alerts_ws_urls") or ["wss://api.mainnet-beta.solana.com"])
     i, delay, began = 0, 5, time.monotonic()
     async with aiohttp.ClientSession(headers=UA_HEADERS) as http:
         while True:
@@ -1793,11 +1937,12 @@ async def _alerts_loop(app):
                 if not wm:
                     app["alerts_state"].update(connected=False, wallets=0)
                     app["alerts_wm"] = {}
+                    app["activity"].watch(set())              # ні за ким не стежимо: рахунок почнеться заново
                     await asyncio.sleep(30)
                     continue
                 began = time.monotonic()
-                await _alerts_watch_once(app, http, urls[i % len(urls)], wm)
-                delay = 5
+                await _alerts_watch_once(app, http, urls[i % len(urls)], wm, primary=i % len(urls) == 0)
+                i, delay = 0, 5
             except asyncio.CancelledError:
                 raise
             except Exception as e:  # noqa: BLE001
@@ -2101,11 +2246,16 @@ async def me_page(request):
     lists = [dict(v, id=k, n=sum(1 for w in wallets if k in (w.get("lists") or []))) for k, v in a["lists"].items()]
     _view(request, "me")
     tg = a.get("telegram") or {}
-    act = request.app["activity"].of(pk)                      # угоди за 7 днів, які бачив потік сповіщень (власник, 01.10)
+    # угоди за 7 днів, які бачив потік сповіщень (власник, 01.10) — лише для гаманців, за якими він стежить зараз: інакше
+    # «0 угод» означало б «не стежили», а не «не торгував» (рев'ю 01.10)
+    s, alerts_ok = request.app["s"], _alerts_allowed(request.app, pk) and _alerts_live(request.app)
+    watched = alerts_mod.watch_map([a], request.app["admins"], bool(s.get("alerts_open")), int(s.get("alerts_max_wallets", 50)),
+                                   s.get("alerts_min_usd")) if alerts_ok else {}
+    act = request.app["activity"].of(watched)
     wmeta = {w["wallet"]: dict({k: w.get(k) for k in ("my_tags", "lists", "added_ms")}, act=act.get(w["wallet"])) for w in wallets}   # what the card shows, by wallet
     return render("me.html", request, wallets=wallets, analyses=analyses, max_my_tags=acct_mod.MAX_MY_TAGS, wmeta=wmeta, act=act,
                   demo_mint=(demo or {}).get("mint"), lists=lists, max_lists=acct_mod.MAX_LISTS,
-                  alerts_ok=_alerts_allowed(request.app, pk) and _alerts_live(request.app),   # без бота картка не обіцяє того, чого нема
+                  alerts_ok=alerts_ok,   # без бота картка не обіцяє того, чого нема
                   tg={"linked": bool(tg.get("chat")), "user": tg.get("user") or ""},
                   prefs=alerts_mod.prefs_of(a.get("alerts"), request.app["s"].get("alerts_min_usd")))
 
