@@ -20,7 +20,7 @@ class TestPick(unittest.TestCase):
     def test_turnover_drops_the_inflated_clones(self):
         # 30.09: UDR $3.45B with a day's volume of $465K (0.0001 of the cap) — a clone; SI $5M with $15.6M — a pump
         c = F.candidates([row("UDR", 3.45e9, 5.3e6, 4.65e5), row("SI", 5e6, 2.65e5, 1.56e7), row("SI", 5e6, 2.65e5, 1.56e7),
-                          row("LOW", 9e5), row("DRY", 2e6, liq=5e4), {"bad": 1}, None], S)
+                          row("LOW", 2e5), row("DRY", 2e6, liq=2e4), {"bad": 1}, None], S)
         self.assertEqual([x["mint"] for x in c], ["SI"])                      # no clone, no double, nothing under the bars
 
     def test_an_always_rising_chart_stays_out(self):
@@ -44,7 +44,7 @@ class TestPick(unittest.TestCase):
 
     def test_search_asks_for_the_owners_bars(self):
         q = F.search_path(NOW, S)
-        for part in ("minCreatedAt=%d" % (NOW - 24 * H), "minMarketCap=1000000", "minLiquidity=80000", "minHolders=500", "sortBy=marketCapUsd",
+        for part in ("minCreatedAt=%d" % (NOW - 48 * H), "minMarketCap=250000", "minLiquidity=25000", "minHolders=500", "sortBy=marketCapUsd",
                      "minFeesTotal=5", "limit=500"):
             self.assertIn(part, q)
 
@@ -69,8 +69,8 @@ class TestRefresh(unittest.TestCase):
         st.calls.clear()
         F.refresh(st, S, peaks, NOW + 5 * H)
         self.assertEqual([c for c in st.calls if "/ath" in c], [])                          # a peak only grows: never asked again
-        F.refresh(st, S, peaks, NOW + 60 * H)
-        self.assertEqual(peaks, {})                                                         # older than the window plus a day: forgotten
+        F.refresh(st, S, peaks, NOW + 80 * H)
+        self.assertEqual(peaks, {})                                                         # older than the 48 h window plus a day: forgotten
 
     def test_a_peak_the_tape_saw_itself_is_kept(self):
         # review 01.10: ATH asked at $1.2M said $1.5M, then the token ran to $4M and fell to $1.5M: it stays, with its $4M

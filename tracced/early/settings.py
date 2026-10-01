@@ -26,13 +26,14 @@ DEFAULTS = {
     "alerts_per_hour": 30,        # повідомлень на чат за годину; решта — одним рядком, що пропущено
     "alerts_parallel": 4,         # запитів транзакції до ноди водночас: решта чекає, а не б'є ноду разом
     "alerts_queue": 200,          # транзакцій у черзі на розбір; понад це — пропуск з рядком у журналі
-    # свіжі пампи на головній (власник, 30.09): створені за добу, капа ≥ $1M, ліквідність ≥ $80K, пік ≥ $2M; обіг за
-    # добу ≥ 0.2 капи відсікає накручені клони (у них 0.00–0.08); холдери й угоди — щоб верх не займало сміття
-    "fresh_on": True, "fresh_hours": 24, "fresh_min_mcap": 1_000_000, "fresh_min_liquidity": 80_000, "fresh_min_ath": 2_000_000,
+    # свіжі пампи на головній (власник, 01.10): створені за 48 год, капа зараз ≥ $250K, ліквідність ≥ $25K, пік ≥ $2M (було
+    # доба, $1M і $80K: 2 токени на день); обіг за добу ≥ 0.2 капи відсікає накручені клони (у них 0.00–0.08); холдери й
+    # угоди — щоб верх не займало сміття
+    "fresh_on": True, "fresh_hours": 48, "fresh_min_mcap": 250_000, "fresh_min_liquidity": 25_000, "fresh_min_ath": 2_000_000,
     "fresh_min_turnover": 0.2, "fresh_min_fees_sol": 5, "fresh_min_sell_ratio": 0.3, "fresh_min_holders": 500, "fresh_min_trades": 1000,
     # проти сміття (дослідження 30.09): «мийка» обсягу, фальшива капа чи пул з усім запасом, мертвий пул
     "fresh_fees_per_musd": 10, "fresh_cap_liq": [2, 150], "fresh_min_vol_1h": 10_000,
-    "fresh_show": 8, "fresh_max_candidates": 30, "fresh_page": 500,
+    "fresh_show": 8, "fresh_max_candidates": 60, "fresh_page": 500,   # 60: з капою від $250K старий пік може бути далеко внизу списку
     "fresh_refresh_min": 10, "fresh_ath_retry_min": 30, "fresh_max_refresh_per_day": 150, "fresh_stale_hours": 3,
     "alerts_size_usd": [1000, 10000],   # колір крапки — сума угоди: 🟢 до $1K, 🟡 до $10K, 🔴 від $10K (власник, 30.09)
     "alerts_ws_urls": ["wss://solana-rpc.publicnode.com", "wss://api.mainnet-beta.solana.com"],

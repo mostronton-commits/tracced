@@ -22,7 +22,7 @@
     </div>
   </div>
   {% if fresh %}
-  {# the day's fresh pumps run along the bottom of the hero, right to left, and stop under the pointer: always a full
+  {# the fresh pumps of the last 48 hours run along the bottom of the hero, right to left, and stop under the pointer: always a full
      line, however many there are (owner, 30.09: five in a grid of four left the second row three-quarters empty) #}
   {% set reps = [1, ((8 + fresh|length - 1) // fresh|length)]|max %}
   <div class="ftape" id="fresh" aria-label="Fresh pumps of the last {{ s.fresh_hours|int }} hours">
