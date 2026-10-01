@@ -407,6 +407,33 @@ class AccountStore:
             return True
         return self._update(pubkey, fn)
 
+    # ── сповіщення в Telegram ──
+    def set_telegram(self, pubkey, chat, user=""):
+        """Чат, куди йдуть сповіщення цього гаманця. Ставить лише бот, отримавши одноразовий код, виданий сайтом."""
+        def fn(a):
+            a["telegram"] = {"chat": int(chat), "user": str(user or "")[:40], "at": _now_ms()}
+            return a["telegram"]
+        return self._update(pubkey, fn)
+
+    def clear_telegram(self, pubkey):
+        return self._update(pubkey, lambda a: a.pop("telegram", None) is not None)
+
+    def set_alerts(self, pubkey, prefs):
+        """Купівлі, продажі, мінімальна сума — одні на всі списки (вже перевірені alerts.prefs_of)."""
+        def fn(a):
+            a["alerts"] = dict(prefs)
+            return a["alerts"]
+        return self._update(pubkey, fn)
+
+    def set_list_alerts(self, pubkey, list_id, on):
+        """Дзвіночок на списку: гаманці цього списку шлють купівлі й продажі в Telegram."""
+        def fn(a):
+            if list_id not in a["lists"]:
+                raise AccountError("No such list.")
+            a["lists"][list_id]["alerts"] = bool(on)
+            return bool(on)
+        return self._update(pubkey, fn)
+
     def delete_list(self, pubkey, list_id):
         """Список зникає; гаманці, які були лише в ньому, теж. Перший список лишається завжди."""
         if list_id == MAIN_LIST:

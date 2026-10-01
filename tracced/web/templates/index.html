@@ -21,6 +21,19 @@
       <div><b data-count="{{ totals.trades }}" data-fmt="int">0</b><span>trades processed</span></div>
     </div>
   </div>
+  {% if fresh %}
+  {# the fresh pumps of the last 48 hours run along the bottom of the hero, right to left, and stop under the pointer: always a full
+     line, however many there are (owner, 30.09: five in a grid of four left the second row three-quarters empty) #}
+  {% set reps = [1, ((8 + fresh|length - 1) // fresh|length)]|max %}
+  <div class="ftape" id="fresh" aria-label="Fresh pumps of the last {{ s.fresh_hours|int }} hours">
+    <span class="ftape-h tipt" title="Created in the last {{ s.fresh_hours|int }} h, reached a ${{ s.fresh_min_ath|mcap }} market cap, still at ${{ s.fresh_min_mcap|mcap }} or more with ${{ s.fresh_min_liquidity|mcap }} liquidity, and really traded.{% if fresh_min is not none %} Updated {{ 'just now' if fresh_min < 1 else fresh_min ~ ' min ago' }}.{% endif %}"><i class="flive" aria-hidden="true"></i>Fresh pumps<small>{{ s.fresh_hours|int }}h</small></span>
+    <div class="ftape-win">
+      <div class="ftape-track" style="--dur: {{ [fresh|length * reps * 5, 30]|max }}s">
+        {% for half in [0, 1] %}{% for r in range(reps) %}{% for t in fresh %}<a class="ftk" href="/token?mint={{ t.mint }}&amp;src=fresh" rel="nofollow" title="{{ t.name or t.symbol }} · {{ t.mint }}"{% if half or r %} aria-hidden="true" tabindex="-1"{% endif %}><span class="fimg" data-l="{{ (t.symbol or '?')[:1] }}">{% if t.image %}<img src="{{ t.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span><b>{{ t.symbol or '?' }}</b><span class="fpk" title="The highest market cap it reached">${{ t.peak|mcap }}</span>{% if t.drop >= 1 %}<span class="fdr" title="Now ${{ t.cap|mcap }}">−{{ t.drop }}%</span>{% else %}<span class="fup">at peak</span>{% endif %}{% if t.age_h is not none %}<span class="fag" title="Since the token was created">{{ '<1' if t.age_h < 1 else t.age_h|int }}h</span>{% endif %}</a>{% endfor %}{% endfor %}{% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
 </section>
 {% endblock %}
 {% block body %}

@@ -8,7 +8,7 @@ took out, how long it held. No scores, no "smart money" labels. Raw swaps only, 
 ## Three steps
 
 1. **Paste the address.** The chart loads with the token's whole life on it.
-2. **Mark the range.** Two clicks on the chart, or press **Find the pump**.
+2. **Mark the range.** Two clicks on the chart: where buying starts, where it takes off.
 3. **Press Analyze.** A terminal shows the run. The result is a table of everyone who bought in that range.
 
 !!! tip "🎬 Nothing to sign to look around"

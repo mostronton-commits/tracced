@@ -46,7 +46,7 @@ class FakeST:
     def flush(self):
         self.flushed = True
 
-    def wallet_token_trades(self, wallet, mint, max_pages=4, fresh=False):
+    def wallet_token_trades(self, wallet, mint, max_pages=4, fresh=False, store=True):
         """The wallet's own trades on the token, as ST's by-wallet feed would return them."""
         self.requests += 1
         return [t for t in self.trades if t["wallet"] == wallet]
@@ -216,7 +216,7 @@ class SlowST(FakeST):
         self.cost, self.delay = cost, delay
         self.first_wallet_at = None
 
-    def wallet_token_trades(self, wallet, mint, max_pages=4, fresh=False):
+    def wallet_token_trades(self, wallet, mint, max_pages=4, fresh=False, store=True):
         import time as _t
         with self.lock:
             if self.first_wallet_at is None:
@@ -286,7 +286,7 @@ class TestParallelWallets(unittest.TestCase):
 
     def test_a_failing_wallet_stays_entry_only_and_the_rest_go_on(self):
         class Flaky(SlowST):
-            def wallet_token_trades(self, wallet, mint, max_pages=4, fresh=False):
+            def wallet_token_trades(self, wallet, mint, max_pages=4, fresh=False, store=True):
                 if wallet == "W3":
                     raise RuntimeError("boom")
                 return super().wallet_token_trades(wallet, mint, max_pages, fresh)

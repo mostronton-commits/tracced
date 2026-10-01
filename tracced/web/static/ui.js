@@ -94,7 +94,7 @@
   /* A product step for Umami, the privacy-friendly analytics on the live site: what people do, never who they are
      (no wallet addresses, at most one small property). Nothing happens where Umami is not loaded or is blocked.
      A few steps also go to the owner's own log above (only for a connected wallet). */
-  const FWD = { 'show-more': 1, 'limit-window': 1, 'find-pump': 1, 'agent-open': 1 };
+  const FWD = { 'show-more': 1, 'limit-window': 1, 'agent-open': 1 };
   function track(name, data) {
     if (FWD[name]) use(name, data);
     toUmami(name, data);
@@ -105,6 +105,12 @@
     try { if (window.umami && typeof umami.track === 'function') umami.track(name, data); } catch (e) {}
   }
   window.EarlyUI = { countUp, fmtShort, FMT, toast, menus, marks, track, use, flush };
+  // a phone has no hover: a tap on an explanation that lives in a title (.tipt) shows it as a toast (review 01.10)
+  document.addEventListener('click', e => {
+    const el = e.target.closest('.tipt[title]');
+    if (!el || !matchMedia('(hover: none)').matches) return;
+    toast(String(el.title).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])), 7000);
+  });
 })();
 
 /* home: the address field "types" a made-up base58 address until the user touches it */
@@ -136,14 +142,17 @@ document.addEventListener('click', e => {
   });
 });
 
-/* a card or the agent opens under the site's top bar: --dtop is where the bar's bottom edge is on screen now */
+/* a card or the agent opens under the site's top bar and ends above the footer: --dtop is where the bar's bottom edge
+   is on screen now, --dbot how much of the footer is in view (owner, 30.09: the card covered the whole footer) */
 (function () {
   let raf = 0;
   const set = () => { raf = 0; const bar = document.querySelector('header.top'); const h = bar ? Math.max(0, Math.round(bar.getBoundingClientRect().bottom)) : 0;
-    document.documentElement.style.setProperty('--dtop', h + 'px'); };
+    const foot = document.querySelector('footer.foot'), b = foot ? Math.max(0, Math.round(innerHeight - foot.getBoundingClientRect().top)) : 0;
+    document.documentElement.style.setProperty('--dtop', h + 'px'); document.documentElement.style.setProperty('--dbot', b + 'px'); };
   const soon = () => { if (!raf) raf = requestAnimationFrame(set); };
   addEventListener('scroll', soon, { passive: true }); addEventListener('resize', soon);
-  document.addEventListener('DOMContentLoaded', set);
+  // the page grows or shrinks without a scroll too (another list, a card from the last row): the footer moves (review 01.10)
+  document.addEventListener('DOMContentLoaded', () => { set(); if (window.ResizeObserver) new ResizeObserver(soon).observe(document.body); });
 })();
 
 /* seven quick clicks on the wordmark (the home title or the footer) rain candles; egg.js loads only then */
@@ -172,7 +181,7 @@ document.addEventListener('click', e => {
 
 /* Markers that say what kind of wallet a row is, the way terminals do: a small picture per category, the rule or
    the source in the tooltip, the words in the card and in the filter legend. Our tags are rules computed from the
-   chain; KOL, the X account and the trading platform are Solana Tracker's identification of the wallet. */
+   chain; KOL, the X account and the trading platform are the wallet's public identity labels. */
 window.EarlyTags = (function () {
   const S = d => '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
   const ICON = {
@@ -191,7 +200,7 @@ window.EarlyTags = (function () {
     exchange: S('<path d="M2 6.4 8 3l6 3.4M3.6 7.2v4.8M6.5 7.2v4.8M9.5 7.2v4.8M12.4 7.2v4.8M2 13.2h12"/>'),
     hacker: S('<path d="M8 2.4a4.6 4.6 0 0 0-4.6 4.6c0 1.7.9 2.9 2.1 3.5v2.3h5v-2.3c1.2-.6 2.1-1.8 2.1-3.5A4.6 4.6 0 0 0 8 2.4z"/><circle cx="6.2" cy="7.2" r=".9" fill="currentColor"/><circle cx="9.8" cy="7.2" r=".9" fill="currentColor"/><path d="M7 12.8v-1.3M9 12.8v-1.3"/>'),
   };
-  // trading platforms Solana Tracker names, and the file of each one's own icon in /static/brands
+  // trading platforms a wallet is labelled with, and the file of each one's own icon in /static/brands
   const BRANDS = { axiom: ['axiom', 'Axiom'], 'axiom-flash': ['axiom', 'Axiom'], gmgn: ['gmgn', 'GMGN'], fomo: ['fomo', 'Fomo'],
     'pumpfun-app': ['pumpfun', 'the pump.fun app'], pumpfun: ['pumpfun', 'the pump.fun app'], terminal: ['terminal', 'Terminal (Padre)'],
     padre: ['terminal', 'Terminal (Padre)'], photon: ['photon', 'Photon'], bloom: ['bloom', 'Bloom'], bullx: ['bullx', 'BullX'] };

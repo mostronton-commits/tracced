@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Lists · tracced{% endblock %}
-{% block main_class %}{% if not acct %}center{% endif %}{% endblock %}
+{% block main_class %}{% if not acct %}center{% else %}withcard{% endif %}{% endblock %}
+{% block head %}<script src="/static/card.js?v={{ v }}"></script>{% endblock %}
 {% block body %}
 {% if not acct %}
 <section class="card narrow">
@@ -10,6 +11,27 @@
   <p class="muted small">Each person gets {{ s.runs_per_day|per_day }} with a connected wallet; the demo is always open.</p>
 </section>
 {% else %}
+{% if alerts_ok %}
+{# the alerts are a thing of their own (owner, 30.09: a strip inside the lists looked weak): what they are, the switch,
+   the settings #}
+<section class="card tgcard{{ ' on' if tg.linked }}" id="tgbar">
+  <div class="tgrow">
+    <span class="tglogo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.7 4.4 3.4 11.1c-1.2.5-1.2 1.2-.2 1.5l4.4 1.4 1.7 5.2c.2.6.4.8.8.8.4 0 .6-.2.9-.5l2.1-2 4.4 3.3c.8.4 1.4.2 1.6-.8l2.9-13.6c.3-1.2-.5-1.7-1.3-1.4Z" fill="currentColor"/></svg></span>
+    <div class="tgtx">
+      <b>Telegram alerts</b>
+      <span id="tgtext">{% if tg.linked %}<i class="tgdot"></i>Connected as <b>{{ tg.user or 'your Telegram' }}</b>{% else %}The buys and sells of your wallets, seconds after they happen{% endif %}</span>
+    </div>
+    <div class="tgprefs" id="tgprefs"{% if not tg.linked %} hidden{% endif %}>
+      <button type="button" class="tgt{{ ' on' if prefs.buys }}" id="tgbuys" aria-pressed="{{ 'true' if prefs.buys else 'false' }}">Buys</button>
+      <button type="button" class="tgt{{ ' on' if prefs.sells }}" id="tgsells" aria-pressed="{{ 'true' if prefs.sells else 'false' }}">Sells</button>
+      <label class="tgmin">from $<input type="number" id="tgmin" min="0" step="10" value="{{ prefs.min_usd|round|int }}" aria-label="Smallest trade to alert on, in dollars"></label>
+    </div>
+    <button type="button" class="primary tgbtn" id="tgconnect"{% if tg.linked %} hidden{% endif %}>Connect Telegram</button>
+    <button type="button" class="link" id="tgunlink"{% if not tg.linked %} hidden{% endif %}>Disconnect</button>
+  </div>
+  <p class="tghint" id="tghint"{% if not tg.linked %} hidden{% endif %}>Turn on the bell <i class="lbell"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2V7.4a4 4 0 0 1 8 0v3.8l1.2 1.4H2.8z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/></svg></i> on a list below: the trades of its wallets come to the chat.</p>
+</section>
+{% endif %}
 <section class="card me" id="list">
   <div class="row mehead">
     <h2>Lists</h2><span class="muted small" id="wcount">{{ wallets|length }} wallet{{ '' if wallets|length == 1 else 's' }}</span>
@@ -18,25 +40,22 @@
   </div>
   <div class="ltabs" role="tablist" id="ltabs">
     <button type="button" class="ltab on" data-list="" role="tab">All <b>{{ wallets|length }}</b></button>
-    {% for l in lists %}<button type="button" class="ltab" data-list="{{ l.id }}" role="tab">{{ l.name }} <b>{{ l.n }}</b></button>{% endfor %}
+    {% for l in lists %}<button type="button" class="ltab" data-list="{{ l.id }}" data-alerts="{{ 1 if l.alerts else 0 }}" role="tab">{{ l.name }} <b>{{ l.n }}</b>{% if alerts_ok %}<i class="lbell" title="Alerts on"{% if not l.alerts %} hidden{% endif %}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2V7.4a4 4 0 0 1 8 0v3.8l1.2 1.4H2.8z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/></svg></i>{% endif %}</button>{% endfor %}
     {% if lists|length < max_lists %}<form class="lnewtab" id="lnew"><input type="text" maxlength="32" placeholder="New list" aria-label="Name of a new list"><button type="submit" class="ghost">+ Create</button></form>{% endif %}
-    <span class="lacts" id="lacts" hidden><button type="button" class="link" id="lrename">Rename</button> · <button type="button" class="link" id="ldelete">Delete this list</button></span>
   </div>
+  {# the open list's own bar: its alerts switch where the eye lands, not a link at the end of the tabs (owner, 30.09) #}
+  <div class="lbar" id="lacts" hidden>{% if alerts_ok %}<button type="button" class="lalert" id="lalert" role="switch" aria-checked="false" aria-label="Alerts for this list"></button>{% endif %}
+    <span class="lmore"><button type="button" class="link" id="lrename">Rename</button> · <button type="button" class="link" id="ldelete">Delete this list</button></span></div>
+  {% if alerts_ok and lists %}<p class="lballhint" id="lallhint">Alerts are per list: open one above and switch them on.</p>{% endif %}
   {% if wallets %}
-  <div class="tablewrap"><table class="facts melist"><thead><tr>
-    <th>Wallet</th><th>Token</th><th class="num" title="Its entry inside the range">Entry in range</th><th class="num">Spent</th><th class="num" title="Average exit cap ÷ average entry cap, buys before the range included, at the time of saving. 2× = +100%">ROI</th><th title="Your own labels: type one and press Enter, click a label to remove it">My tags</th><th>Lists</th><th>Added</th><th></th>
+  {# a list is for watching: the wallet and your tags for it, added right in the row; its numbers open in the card (owner, 30.09) #}
+  <div class="tablewrap"><table class="facts melist mewl"><thead><tr>
+    <th>Wallet <span class="muted">· your tags</span></th><th></th>
   </tr></thead><tbody>
   {% for w in wallets %}
-    <tr data-w="{{ w.wallet }}" data-lists="{{ (w.lists or ['main'])|join(' ') }}">
-      <td class="wcell"><span class="wid"><span class="mono" title="{{ w.wallet }}">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</span><button type="button" class="ghost copy" data-copy="{{ w.wallet }}" title="Copy address">⧉</button><a class="ext" href="https://solscan.io/account/{{ w.wallet }}" target="_blank" rel="noopener" title="Solscan">↗</a></span><span class="tags">{% for t in w.tags or [] %}<span class="tag t-{{ t }}" data-tag="{{ t }}" title="{{ TAGS.get(t, t) }}">{{ t }}</span>{% endfor %}</span></td>
-      <td>{% if w.from_job %}<a href="/job/{{ w.from_job }}" title="The result it was saved from">{{ w.symbol or (w.mint or '')[:6] }}</a>{% else %}{{ w.symbol }}{% endif %}</td>
-      <td class="num mono">{{ w.entry_mcap|mcap }}</td>
-      <td class="num mono">{{ w.invested_usd|usd }}</td>
-      <td class="num mono {{ ('pos' if w.multiple >= 1 else 'neg') if w.multiple else '' }}"{% if w.multiple %} title="{{ '+' if w.multiple >= 1 else '' }}{{ '{:,}'.format(((w.multiple - 1) * 100)|round|int) }}%"{% endif %}>{% if w.multiple %}{{ '{:,.0f}'.format(w.multiple) if w.multiple >= 100 else '%.1f'|format(w.multiple) }}×{% else %}—{% endif %}</td>
-      <td class="mytags" data-tags="{{ (w.my_tags or [])|join(' ') }}">{% for t in w.my_tags or [] %}<button type="button" class="tag mine" title="Click to remove">{{ t }}</button>{% endfor %}<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd" title="Add your own tag" aria-label="Add your own tag"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg></button></td>
-      <td class="lchips">{% for lid in w.lists or ['main'] %}{% for l in lists if l.id == lid %}<span class="lchip">{{ l.name }}</span>{% endfor %}{% endfor %}</td>
-      <td class="muted small"><span class="dtc" data-ms="{{ w.added_ms }}">{{ w.added_ms|dt }}</span></td>
-      <td><button type="button" class="ghost x" data-rm-wallet title="Remove from this list">×</button></td>
+    <tr data-w="{{ w.wallet }}" data-lists="{{ (w.lists or ['main'])|join(' ') }}" tabindex="0">
+      <td><span class="wlrow"><span class="mono wadr">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</span><span class="mytags">{% for t in w.my_tags or [] %}<button type="button" class="tag mine" title="Click to remove">{{ t }}</button>{% endfor %}<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd" title="Add your own tag: it names the wallet here and in the alerts" aria-label="Add your own tag"{% if (w.my_tags or [])|length >= max_my_tags %} hidden{% endif %}><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg></button></span>{% set ac = (act or {}).get(w.wallet) %}{% if ac %}{% set busy = ac.buys or ac.sells %}{% set ago = ac.last|ago %}<span class="wact{{ '' if busy else ' quiet' }}" title="{% if busy %}Trades the alerts saw in the last 7 days: {{ ac.buys }} buy{{ '' if ac.buys == 1 else 's' }}, {{ ac.sells }} sell{{ '' if ac.sells == 1 else 's' }}. Last trade {{ ago }} ago.{% elif ac.last %}No trades in the last 7 days. Last trade {{ ago }} ago.{% else %}No trades since the alerts started watching it {{ ac.since|ago }} ago.{% endif %}">{% if busy %}<b class="up">↑{{ ac.buys }}</b><b class="dn">↓{{ ac.sells }}</b><span>· {{ ago }} ago</span>{% elif ac.last %}<span>last trade {{ ago }} ago</span>{% else %}<span>no trades yet</span>{% endif %}</span>{% endif %}</span></td>
+      <td class="rm"><button type="button" class="ghost x" data-rm-wallet title="Remove from this list" aria-label="Remove from this list">×</button></td>
     </tr>
   {% endfor %}
   </tbody></table></div>
@@ -45,6 +64,32 @@
   <p class="muted">Nothing here yet. Open a result, tick the wallets you want, then <b>+ Add to list</b>.{% if demo_mint %} <a href="/token?mint={{ demo_mint }}">Try it on the demo</a>.{% endif %}</p>
   {% endif %}
 </section>
+
+{% if wallets %}
+<script type="application/json" id="mewmeta">{{ wmeta|tojson }}</script>
+<aside class="drawer wcard" id="drawer" hidden aria-label="Wallet card">
+  <div class="drawer-scroll">
+    <div class="drawer-head">
+      <div class="dh-id">
+        <span class="wav" id="dav" aria-hidden="true"></span>
+        <div class="dh-names">
+          <div class="dh-top"><b id="dname">Wallet</b><span class="ids" id="dids"></span></div>
+          <div class="dh-addr"><span class="mono" id="dw"></span><button type="button" class="ghost wcopy" id="dcopy" data-copy="" title="Copy the address" aria-label="Copy the address"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.8"/><path d="M10.5 5.5V4.3A1.8 1.8 0 0 0 8.7 2.5H4.3a1.8 1.8 0 0 0-1.8 1.8v4.4a1.8 1.8 0 0 0 1.8 1.8h1.2"/></svg></button><a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan" aria-label="This wallet on Solscan">↗</a><span class="dchips" id="dchips"></span></div>
+        </div>
+      </div>
+      <div class="dh-act"><button type="button" class="ghost x" id="dclose" title="Close" aria-label="Close">×</button></div>
+    </div>
+    <div class="dtags" id="dtags"></div>
+    <section class="dsec dsrc" id="dsrc"></section>
+    <section class="dsec dperf">
+      <div class="dsec-h"><h4>All tokens <span class="dinfo" id="dprofi" hidden>i</span></h4>
+        <div class="seg" id="dper" role="tablist" aria-label="Period"><button type="button" data-p="7">7D</button><button type="button" data-p="30" class="on">30D</button></div></div>
+      <div id="dprof"></div>
+    </section>
+    <section class="dsec" id="dwsec" hidden><div class="dcross" id="dcross"></div></section>
+  </div>
+</aside>
+{% endif %}
 
 <section class="card me" id="analyses">
   <div class="row mehead"><h2>My analyses</h2><span class="muted small">{{ analyses|length }}</span></div>
@@ -76,8 +121,8 @@
       try {
         await post('/me/wallets/remove', current ? { wallets: [tr.dataset.w], list: current } : { wallets: [tr.dataset.w] });
         const left = current ? tr.dataset.lists.split(' ').filter(x => x !== current) : [];
-        if (left.length) { tr.dataset.lists = left.join(' '); tr.querySelectorAll('.lchip').forEach(c => { if (c.textContent === names[current]) c.remove(); }); }
-        else tr.remove();
+        if (left.length) { tr.dataset.lists = left.join(' '); if (META[tr.dataset.w]) META[tr.dataset.w].lists = left; }
+        else { tr.remove(); if (drawer && drawer.dataset.w === tr.dataset.w) closeCard(); }
         showList(current);
       } catch (x) { oops(x); }
       return;
@@ -85,47 +130,189 @@
     const rj = e.target.closest('[data-rm-job]');
     if (rj) { const row = rj.closest('.rrow'); try { await post('/me/analyses/remove', { job: row.dataset.j }); row.remove(); } catch (x) { oops(x); } }
   });
-  // your own labels on a wallet: a word you can filter by, which a paragraph of notes never was
-  async function saveTags(td) {          // returns a promise: the caller re-checks whether the + still fits
-    const tr = td.closest('tr'), tags = [...td.querySelectorAll('.tag.mine')].map(b => b.textContent);
-    try {
-      const d = await post('/me/wallets/tags', { wallet: tr.dataset.w, tags });
-      td.dataset.tags = (d.tags || []).join(' ');
-      td.querySelectorAll('.tag.mine').forEach(b => b.remove());
-      const inp = td.querySelector('.tagin');
-      (d.tags || []).forEach(t => { const b = document.createElement('button'); b.type = 'button'; b.className = 'tag mine'; b.title = 'Click to remove'; b.textContent = t; td.insertBefore(b, inp); });
-    } catch (x) { oops(x); }
+  // ── the wallet card: who it is to you, where you found it, your tags, its last days on every token ──
+  const drawer = document.getElementById('drawer'), META = drawer ? JSON.parse(document.getElementById('mewmeta').textContent) : {};
+  const MAX_TAGS = {{ max_my_tags }}, esc = EarlyTags.esc, short = w => w.slice(0, 6) + '…' + w.slice(-4);
+  const PLUS = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg>';
+  const rowOf = w => document.querySelector('tr[data-w="' + CSS.escape(w) + '"]');
+  let period = '30';
+  const profiles = new Map();
+  function closeCard() {
+    if (!drawer) return;
+    const back = drawer.hidden ? null : rowOf(drawer.dataset.w || '');
+    drawer.hidden = true; document.body.classList.remove('drawer-open');
+    document.querySelectorAll('tr.carded').forEach(r => r.classList.remove('carded'));
+    if (back && !back.hidden) back.focus({ preventScroll: true });    // the keyboard goes back to the row it came from
   }
-  const MAX_TAGS = {{ max_my_tags }};
-  document.querySelectorAll('td.mytags').forEach(td => {
-    const inp = td.querySelector('.tagin'), add = td.querySelector('.tagadd');
-    // the field appears only when it is wanted: a row of empty inputs is noise on every wallet at once
-    const close = () => { inp.hidden = true; inp.value = ''; room(); };
-    const room = () => { add.hidden = !inp.hidden || td.querySelectorAll('.tag.mine').length >= MAX_TAGS; };
-    td.addEventListener('click', e => { const b = e.target.closest('.tag.mine'); if (!b) return; b.remove(); saveTags(td).then(room); });
-    add.addEventListener('click', () => { inp.hidden = false; add.hidden = true; inp.focus(); });
-    inp.addEventListener('keydown', e => {
-      if (e.key === 'Escape') { close(); return; }
+  function nameRow(w) {                                    // the row's tags follow the card's
+    const tr = rowOf(w); if (!tr) return;
+    const box = tr.querySelector('.mytags'), inp = box.querySelector('.tagin'), add = box.querySelector('.tagadd'), tags = (META[w] || {}).my_tags || [];
+    box.querySelectorAll('.tag.mine').forEach(b => b.remove());
+    tags.forEach(t => { const b = document.createElement('button'); b.type = 'button'; b.className = 'tag mine'; b.title = 'Click to remove'; b.textContent = t; box.insertBefore(b, inp); });
+    inp.hidden = true; inp.value = ''; add.hidden = tags.length >= MAX_TAGS;
+  }
+  // the card is about the wallet itself (owner, 30.09 and 01.10): who it is, its age and funder, where else you met it,
+  // its 30 days on every token; nothing about the token it was saved from
+  const cards = new Map();
+  const CHAIN = '<svg class="lnk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" aria-hidden="true"><g transform="rotate(-45 12 12)"><rect x="1.2" y="7.4" width="12.4" height="9.2" rx="4.6"/><rect x="10.4" y="7.4" width="12.4" height="9.2" rx="4.6"/></g></svg>';
+  const fm = v => EarlyUI.fmtShort(v), money = v => (v == null || isNaN(v) ? '—' : (v < 0 ? '-$' : '$') + fm(Math.abs(v)));
+  const nf = v => (+v || 0).toLocaleString('en-US');
+  const ageText = ms => { const d = (Date.now() - ms) / 86400000;
+    return d >= 365 ? (d / 365).toFixed(d >= 3650 ? 0 : 1) + 'y' : d >= 1 ? Math.floor(d) + 'd' : Math.max(1, Math.floor(d * 24)) + 'h'; };
+  function nameOf(w) {
+    const d = cards.get(w) || {}, mine = (META[w] || {}).my_tags || [];
+    return EarlyTags.displayName(d.idn) || (mine.length ? mine.join(', ') : 'Wallet');
+  }
+  function renderIdent(w) {
+    const d = cards.get(w) || {}, idn = d.idn;
+    document.getElementById('dav').innerHTML = idn && idn.avatar ? '<img src="' + esc(idn.avatar) + '" alt="" referrerpolicy="no-referrer">' : EarlyCard.identicon(w);
+    document.getElementById('dname').textContent = nameOf(w);
+    document.getElementById('dids').innerHTML = idn ? EarlyTags.idMarks(idn) : '';
+    // the card in Lists is about the wallet, not the token it was saved from (owner, 30.09): its age today, its funder
+    const out = [], age = d.age;
+    if (age && age.ms && age.exact) {
+      out.push('<span class="dchip age' + (Date.now() - age.ms < 86400000 ? ' young' : '') + '" title="Wallet age today. First transaction ' + EarlyTZ.fmt(age.ms, true) + '">' + ageText(age.ms) + '</span>');
+    } else if (age && age.ms) out.push('<span class="dchip age" title="More than ' + nf(age.n || 6000) + ' transactions: its first one is older than the ones read">' + Math.floor((+age.n || 6000) / 1000) + 'k+ tx</span>');
+    const f = d.funder;
+    if (f && d.exchange) out.push('<a class="dchip fund cex" href="https://solscan.io/account/' + esc(f) + '" target="_blank" rel="noopener" title="First SOL came straight from ' + esc(d.exchange[1]) + ', an exchange">↘ ' + esc(d.exchange[0]) + '</a>');
+    else if (f) out.push('<a class="dchip fund mono" href="https://solscan.io/account/' + esc(f) + '" target="_blank" rel="noopener" title="First SOL came from ' + esc(f)
+      + (d.service ? ', an exchange or an app' : '') + '">↘ ' + short(f) + '</a>');
+    document.getElementById('dchips').innerHTML = out.join('');
+    const cx = d.seen || [];
+    document.getElementById('dcross').innerHTML = cx.length ? '<b>' + CHAIN + ' Also in ' + cx.length + ' of your saved analyses</b><ul>' + cx.map(c =>
+      '<li><a href="/job/' + encodeURIComponent(c.job) + '">' + esc(c.symbol || '?') + ' · ' + EarlyTZ.fmt(c.from, false)
+      + (c.mult ? ' · ' + (+c.mult).toFixed(1) + '×' : '') + (c.real ? ' · ' + money(c.real) : '') + '</a></li>').join('') + '</ul>' : '';
+    document.getElementById('dwsec').hidden = !cx.length;
+  }
+  async function loadCard(w) {
+    if (!cards.has(w)) {
+      try { const r = await fetch('/me/wallet.json?' + new URLSearchParams({ wallet: w }), { credentials: 'same-origin' }); if (r.ok) cards.set(w, await r.json()); } catch (e) {}
+    }
+    if (drawer.dataset.w !== w) return;
+    renderIdent(w); renderTags(w);
+  }
+  function renderTags(w) {
+    const mine = (META[w] || {}).my_tags || [], d = cards.get(w) || {};
+    document.getElementById('dname').textContent = nameOf(w);
+    document.getElementById('dtags').innerHTML = mine.map(t => '<button type="button" class="tag mine" title="Your tag · click to remove">' + esc(t) + '</button>').join('')
+      + (mine.length < MAX_TAGS ? '<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd wide" title="Your own tag for this wallet: it names the wallet here and in the Telegram alerts" aria-label="Add your own tag">' + PLUS + '<span>tag</span></button>' : '');
+  }
+  function renderSrc(w) {
+    const m = META[w] || {}, names = (m.lists || []).map(id => LISTNAMES[id] || id);
+    const a = m.act, n = (k, x) => k + ' ' + x + (k === 1 ? '' : 's');
+    // what the alerts saw this wallet do in 7 days (owner, 01.10: who is how active); only lists with the bell are watched
+    const act = !a ? '' : '<p class="dline small">' + (a.buys || a.sells ? '<b>' + n(a.buys, 'buy') + ', ' + n(a.sells, 'sell') + '</b> in 7 days · ' : 'No trades in 7 days · ')
+      + (a.last ? 'last trade ' + EarlyTZ.fmt(a.last, true) : 'watched since ' + EarlyTZ.fmt(a.since, true)) + '</p>';
+    document.getElementById('dsrc').innerHTML = act + '<p class="dline muted small">In ' + esc(names.join(', ') || 'no list') + (m.added_ms ? ' · saved ' + EarlyTZ.fmt(m.added_ms, false) : '') + '</p>';
+  }
+  async function dropTag(w, tag) {                          // one tap removes a tag; a mis-tap on a phone is one Undo away (review 01.10)
+    const before = ((META[w] || {}).my_tags || []).slice();
+    if (!await saveTags(w, before.filter(t => t !== tag))) return;      // not saved: the error stays on screen, no Undo
+    EarlyUI.toast('Tag «' + esc(tag) + '» removed · <button type="button" class="link" id="tagundo">Undo</button>', 6000);
+    const u = document.getElementById('tagundo');
+    if (u) u.addEventListener('click', () => { saveTags(w, before); const box = u.closest('.toast'); if (box) box.hidden = true; });
+  }
+  async function saveTags(w, tags) {
+    let ok = true;
+    try { const d = await post('/me/wallets/tags', { wallet: w, tags }); (META[w] = META[w] || {}).my_tags = d.tags || []; }
+    catch (x) { oops(x); ok = false; }
+    nameRow(w); if (drawer.dataset.w === w) renderTags(w);
+    return ok;
+  }
+  function renderProfile(d) {
+    EarlyCard.render(d, period, document.getElementById('dprof'), document.getElementById('dprofi'));
+    document.querySelectorAll('#dper [data-p]').forEach(b => b.classList.toggle('on', b.dataset.p === period));
+  }
+  async function loadProfile(w) {
+    const box = document.getElementById('dprof');
+    if (profiles.has(w)) { renderProfile(profiles.get(w)); return; }
+    box.innerHTML = '<div class="dskel"><i></i><i></i><i></i></div>'; document.getElementById('dprofi').hidden = true;
+    let r, d = {};
+    try { r = await fetch('/wallet_profile.json?' + new URLSearchParams({ wallet: w }), { credentials: 'same-origin' }); d = await r.json(); }
+    catch (e) { if (drawer.dataset.w === w) box.innerHTML = '<p class="dline muted small">Could not reach the server.</p>'; return; }
+    if (r.ok) profiles.set(w, d);
+    if (drawer.dataset.w !== w) return;
+    if (!r.ok) { box.innerHTML = '<p class="dline muted small">' + esc(d.error || 'Could not load this wallet.') + '</p>'; return; }
+    renderProfile(d);
+  }
+  function openCard(w) {
+    if (!drawer) return;
+    if (drawer.hidden || drawer.dataset.w !== w) EarlyUI.use('card-open', { src: 'list' });
+    drawer.dataset.w = w; drawer.hidden = false; document.body.classList.add('drawer-open');
+    document.getElementById('dclose').focus({ preventScroll: true });   // the keyboard lands in the card; Escape or × brings it back
+    document.querySelectorAll('tr.carded').forEach(r => r.classList.remove('carded'));
+    const tr = rowOf(w); if (tr) tr.classList.add('carded');
+    document.getElementById('dav').innerHTML = EarlyCard.identicon(w);
+    const dw = document.getElementById('dw'); dw.textContent = short(w); dw.title = w;
+    document.getElementById('dcopy').dataset.copy = w;
+    document.getElementById('dsol').href = 'https://solscan.io/account/' + w;
+    document.getElementById('dids').innerHTML = ''; document.getElementById('dchips').innerHTML = '';
+    document.getElementById('dwsec').hidden = true;
+    renderTags(w); renderSrc(w); loadProfile(w); loadCard(w);
+  }
+  if (drawer) {
+    const tbody = document.querySelector('.mewl tbody');
+    // tags right in the row, as fast as before the card: + opens a field, Enter keeps the word, a click on a tag drops it
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-w]'); if (!tr) return;
+      const w = tr.dataset.w, mine = e.target.closest('.mytags .tag.mine');
+      if (mine) { dropTag(w, mine.textContent); return; }
+      if (e.target.closest('.mytags .tagadd')) { const inp = tr.querySelector('.tagin'); inp.hidden = false; e.target.closest('.tagadd').hidden = true; inp.focus(); }
+    });
+    tbody.addEventListener('keydown', e => {
+      const inp = e.target.closest('.mytags .tagin'); if (!inp) return;
+      const w = inp.closest('tr').dataset.w;
+      if (e.key === 'Escape') { e.stopPropagation(); nameRow(w); return; }
       if (e.key !== 'Enter') return;
       e.preventDefault();
-      const v = inp.value.trim(); if (!v) { close(); return; }
-      const b = document.createElement('button'); b.type = 'button'; b.className = 'tag mine'; b.title = 'Click to remove'; b.textContent = v;
-      td.insertBefore(b, inp); inp.value = '';
-      saveTags(td).then(() => { if (td.querySelectorAll('.tag.mine').length >= MAX_TAGS) close(); });
+      const v = inp.value.trim(); if (!v) { nameRow(w); return; }
+      saveTags(w, ((META[w] || {}).my_tags || []).concat([v]));
     });
-    inp.addEventListener('blur', () => { if (!inp.value.trim()) close(); });
-    room();
-  });
+    tbody.addEventListener('focusout', e => { const inp = e.target.closest('.mytags .tagin'); if (inp && !inp.value.trim()) setTimeout(() => { if (!inp.contains(document.activeElement)) nameRow(inp.closest('tr').dataset.w); }, 0); });
+    tbody.addEventListener('click', e => {
+      if (e.target.closest('a, button, input')) return;          // the source link and × do their own thing
+      const tr = e.target.closest('tr[data-w]'); if (tr) openCard(tr.dataset.w);
+    });
+    tbody.addEventListener('keydown', e => { const tr = e.target.closest('tr[data-w]'); if (tr && e.target === tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openCard(tr.dataset.w); } });
+    document.getElementById('dclose').addEventListener('click', () => { closeCard(); EarlyUI.use('card-close'); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !drawer.hidden) closeCard(); });
+    document.getElementById('dper').addEventListener('click', e => {
+      const b = e.target.closest('[data-p]'); if (!b) return;
+      period = b.dataset.p; EarlyUI.use('card-period', { p: period });
+      const d = profiles.get(drawer.dataset.w); if (d) renderProfile(d);
+    });
+    const dtags = document.getElementById('dtags');
+    dtags.addEventListener('click', e => {
+      const w = drawer.dataset.w, mine = e.target.closest('.tag.mine');
+      if (mine) { dropTag(w, mine.textContent); return; }
+      if (!e.target.closest('.tagadd')) return;
+      const inp = dtags.querySelector('.tagin'), add = dtags.querySelector('.tagadd');
+      inp.hidden = false; add.hidden = true; inp.focus();
+    });
+    dtags.addEventListener('keydown', e => {
+      const inp = e.target.closest('.tagin'); if (!inp) return;
+      const w = drawer.dataset.w;
+      if (e.key === 'Escape') { e.stopPropagation(); renderTags(w); return; }
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const v = inp.value.trim(); if (!v) { renderTags(w); return; }
+      saveTags(w, ((META[w] || {}).my_tags || []).concat([v]));
+    });
+    dtags.addEventListener('focusout', e => { const inp = e.target.closest('.tagin'); if (inp && !inp.value.trim()) setTimeout(() => { if (!dtags.contains(document.activeElement)) renderTags(drawer.dataset.w); }, 0); });
+  }
   // several lists: a tab shows one, «All» shows every saved wallet once; export follows the tab
   let current = '';
   const names = {}; document.querySelectorAll('#ltabs .ltab[data-list]').forEach(b => { if (b.dataset.list) names[b.dataset.list] = b.firstChild.textContent.trim(); });
+  const LISTNAMES = names;
   function showList(id) {
     current = id || '';
     let n = 0;
     document.querySelectorAll('tr[data-w]').forEach(tr => { const on = !current || tr.dataset.lists.split(' ').includes(current); tr.hidden = !on; n += on; });
     document.querySelectorAll('#ltabs .ltab').forEach(b => b.classList.toggle('on', b.dataset.list === current));
     const acts = document.getElementById('lacts'); if (acts) { acts.hidden = !current; document.getElementById('ldelete').hidden = current === 'main'; }
+    const allh = document.getElementById('lallhint'); if (allh) allh.hidden = !!current;
     const csv = document.getElementById('xcsv'); if (csv) csv.href = '/me/wallets.csv' + (current ? '?list=' + encodeURIComponent(current) : '');
+    bellText();
     const em = document.getElementById('lempty'); if (em) em.hidden = n > 0;
     try { localStorage.setItem('early:list', current); } catch (e) {}
   }
@@ -145,8 +332,72 @@
     if (!confirm('Delete the list «' + names[current] + '»? Wallets that are only in it leave your lists.')) return;
     try { await post('/me/lists/remove', { id: current }); try { localStorage.removeItem('early:list'); } catch (e) {} location.reload(); } catch (x) { oops(x); }
   });
+  // ── Telegram alerts: connect with a one-time link, the bell on a list, buys / sells / from $ for all of them ──
+  const tgbar = document.getElementById('tgbar'), lalert = document.getElementById('lalert');
+  let tgLinked = !!(tgbar && tgbar.classList.contains('on'));
+  const tabOf = id => document.querySelector('#ltabs .ltab[data-list="' + id + '"]');
+  function bellText() {
+    if (!lalert || !current) return;
+    // on without Telegram: paused, and a click switches it off rather than connecting again (review 01.10)
+    const on = (tabOf(current) || { dataset: {} }).dataset.alerts === '1', paused = on && !tgLinked;
+    lalert.innerHTML = '<i class="sw" aria-hidden="true"></i><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2V7.4a4 4 0 0 1 8 0v3.8l1.2 1.4H2.8z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/></svg><span>' + (paused ? 'Alerts paused' : on ? 'Alerts on' : 'Turn on alerts') + '</span><small>'
+      + (paused ? 'Telegram is not connected' : on ? 'buys and sells of this list come to Telegram' : tgLinked ? 'get this list\'s buys and sells in Telegram' : 'connects Telegram first') + '</small>';
+    lalert.setAttribute('aria-checked', String(on)); lalert.classList.toggle('on', on);
+  }
+  function tgShow(d) {
+    tgLinked = !!d.linked; tgbar.classList.toggle('on', tgLinked);
+    document.getElementById('tgtext').innerHTML = tgLinked ? '<i class="tgdot"></i>Connected as <b>' + EarlyTags.esc(d.user || 'your Telegram') + '</b>' : 'The buys and sells of your wallets, seconds after they happen';
+    document.getElementById('tgprefs').hidden = !tgLinked; document.getElementById('tghint').hidden = !tgLinked;
+    document.getElementById('tgconnect').hidden = tgLinked; document.getElementById('tgunlink').hidden = !tgLinked;
+    bellText();                                                   // the open list's switch follows at once (review 01.10)
+  }
+  let tgPolling = false;
+  async function tgConnect() {
+    // the tab opens inside the click, before the round trip: after an await, Safari and in-app browsers block it (review)
+    const win = window.open('', '_blank');
+    let d; try { d = await post('/me/telegram/link', {}); } catch (x) { if (win) win.close(); oops(x); return; }
+    if (win) { try { win.opener = null; win.location = d.url; } catch (e) {} }
+    else {                                                        // blocked anyway: a link to press instead
+      const a = document.createElement('a'); a.href = d.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Open Telegram and press Start';
+      const box = document.createElement('div'); box.appendChild(a); EarlyUI.toast(box.innerHTML, 20000);
+    }
+    if (win) EarlyUI.toast('Press Start in Telegram. This page updates by itself.', 8000);
+    if (tgPolling) return;                                        // one wait at a time, whatever the clicks
+    tgPolling = true;
+    try {
+      for (let i = 0; i < 60; i++) {                              // three minutes to press Start
+        await new Promise(r => setTimeout(r, 3000));
+        try { const r = await fetch('/me/telegram.json', { credentials: 'same-origin' }); const s = await r.json();
+          if (s.linked) { tgShow(s); EarlyUI.toast('Telegram connected. Open a list and switch its alerts on.'); return; } } catch (e) {}
+      }
+    } finally { tgPolling = false; }
+  }
+  if (tgbar) {
+    document.getElementById('tgconnect').addEventListener('click', tgConnect);
+    document.getElementById('tgunlink').addEventListener('click', async () => {
+      if (!confirm('Stop alerts in Telegram for this wallet?')) return;
+      try { await post('/me/telegram/unlink', {}); tgShow({ linked: false }); } catch (x) { oops(x); }
+    });
+    let saveT = 0;
+    const savePrefs = () => { clearTimeout(saveT); saveT = setTimeout(async () => {
+      const on = id => document.getElementById(id).getAttribute('aria-pressed') === 'true';
+      try { await post('/me/alerts', { buys: on('tgbuys'), sells: on('tgsells'),
+        min_usd: +document.getElementById('tgmin').value || 0 }); EarlyUI.toast('Saved'); } catch (x) { oops(x); } }, 600); };
+    ['tgbuys', 'tgsells'].forEach(id => document.getElementById(id).addEventListener('click', e => {
+      const b = e.currentTarget, v = b.getAttribute('aria-pressed') !== 'true';
+      b.setAttribute('aria-pressed', String(v)); b.classList.toggle('on', v); savePrefs();
+    }));
+    document.getElementById('tgmin').addEventListener('change', savePrefs);
+  }
+  if (lalert) lalert.addEventListener('click', async () => {
+    if (!current) return;
+    const tab = tabOf(current), on = tab.dataset.alerts !== '1';
+    if (!tgLinked && on) { EarlyUI.toast('Connect Telegram first: the alerts go there.'); tgConnect(); return; }
+    try { await post('/me/lists/alerts', { id: current, on }); } catch (x) { oops(x); return; }
+    tab.dataset.alerts = on ? '1' : '0'; const b = tab.querySelector('.lbell'); if (b) b.hidden = !on;
+    bellText(); EarlyUI.toast((on ? 'Alerts on for «' : 'Alerts off for «') + esc(names[current]) + '»');
+  });
   try { const was = localStorage.getItem('early:list'); if (was && document.querySelector('#ltabs .ltab[data-list="' + was + '"]')) showList(was); } catch (e) {}
-  document.querySelectorAll('.tags .tag[data-tag]').forEach(EarlyTags.iconify);
   const tx = document.getElementById('xtxt');
   if (tx) tx.addEventListener('click', () => {
     EarlyUI.use('export', { format: 'txt', where: 'lists' });                // the CSV is a download the server counts itself

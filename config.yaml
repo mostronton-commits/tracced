@@ -12,6 +12,7 @@ detect:                             # pump detector: suggested ranges on the cha
 
 early:
   plan: advanced                # Pro: 1 000 000 requests a month, no rate limit. One call is one credit.
+  private_hosts: [dev.tracced.xyz]   # owner, 30.09: the working copy opens for the owner's wallets only
   example_job: 98kfF7_20260915-1930_1950   # a finished analysis pinned as the example on the home page (ignored if missing)
   demo_job: 98kfF7_20260915-1930_1950      # replays from output/early/demo/<mint>.json with zero requests (ignored if missing)
 
@@ -20,7 +21,7 @@ early:
   # (1-4 requests per wallet) — the per-wallet path is where the credits go, so its cap is the main lever.
   # Budget: 1M a month is about 33,000 a day. One busy new token costs roughly a thousand requests.
   max_wallet_lookups: 2000      # was 250, which left 842 of 1,092 wallets without exits on the first trader's run
-  max_window_hours: 24          # was 6; the first trader reached for hours straight away
+  max_window_hours: 6           # owner, 30.09: back from 24 — a 13.5 h range on a $56M token cost 1,114 requests and 2,418 Helius credits
   min_invested_usd: 20          # was 95, raised only to save credits — there is nothing to save now
   run_cap_requests: 6000        # was 1000; the whole history of a busy token must not stop half way
   st_concurrency: 8             # wallets fetched at once (Pro has no rate limit). Set 1 to go back to one by one

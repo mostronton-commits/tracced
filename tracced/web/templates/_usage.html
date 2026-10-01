@@ -19,7 +19,11 @@
     <div class="uax"><span>{{ series[0].label }}</span><span>{{ series[-1].label }}</span></div>
   </figure>
 {% endmacro %}
-{% macro buckets(title, items) %}<div class="ubk"><b>{{ title }}</b>{% for b in items %}<span>{{ b.label }} <i class="mono">{{ b.n }}</i></span>{% endfor %}</div>{% endmacro %}
+{% macro hist(title, items) %}{% set tot = items|sum(attribute='n') %}{% set mx = [items|map(attribute='n')|max, 1]|max %}{% set top = (items|sort(attribute='n', reverse=True))[0] %}
+  <figure class="uh">
+    <figcaption><b>{{ title }}</b><span>{% if tot %}most often <em>{{ top.label }}</em> · {{ top.n }} of {{ tot }}{% else %}nothing yet{% endif %}</span></figcaption>
+    {% for b in items %}<div class="uhr{{ ' hi' if tot and b.n == mx }}{{ ' zero' if not b.n }}"><span class="l">{{ b.label }}</span><span class="t"><i style="width: {{ '%.1f'|format(100 * b.n / mx) }}%"></i></span><span class="n mono">{{ b.n }}</span></div>{% endfor %}
+  </figure>{% endmacro %}
 {% set p = u.pulse %}{% set q = '?p=' ~ period ~ ('&team=1' if include_team else '') %}
 {% macro usd2(v) %}${{ '%.2f'|format(v) }}{% endmacro %}
 {% set credit_help = {
@@ -80,6 +84,19 @@
     <div class="kcard" title="Solana Tracker requests per analysis in this period{% if st_eur_million %}, in euros at €{{ st_eur_million|round|int }} for a million requests{% endif %}. On average {{ (k.st.avg or 0)|round|int }} requests{% if k.rpc.avg %} and {{ k.rpc.avg|round|int }} Helius credits{% endif %}">
       <span class="klabel">Per analysis</span><b class="knum">{{ eur(k.st.avg) }}</b><span class="kfoot">average · median {{ eur(k.st.median) }}</span></div>
   </div>
+  {% set al = u.alerts %}
+  <div class="khead"><h3>Alerts and fresh pumps</h3><span class="muted small">Telegram, and the way back to the site</span></div>
+  <div class="kgrid">
+    <div class="kcard" title="Wallets with Telegram connected now · lists with alerts switched on · Connect presses in this period and how many reached Start">
+      <span class="klabel">Telegram connected</span><b class="knum">{{ al.linked }}</b><span class="kfoot">{{ al.bells }} list{{ '' if al.bells == 1 else 's' }} with alerts on · {{ al.linked_new }} of {{ al.started }} pressed Start</span></div>
+    <div class="kcard" title="Alerts sent in this period, to how many wallets, and the typical delay from the trade on chain to the message">
+      <span class="klabel">Alerts sent</span><b class="knum">{{ al.sent }}</b><span class="kfoot">to {{ al.to }} · {{ al.buys }} buys{% if al.lag_s is not none %} · {{ al.lag_s|round(1) }} s after the trade{% endif %}</span></div>
+    <div class="kcard" title="Visits that came from a link in an alert, guests included, per alert sent">
+      <span class="klabel">Back from alerts</span><b class="knum">{{ al.back }}{% if al.ctr is not none %}<i class="kpct">{{ (100 * al.ctr)|round|int }}%</i>{% endif %}</b><span class="kfoot">visits from a link in an alert</span></div>
+    <div class="kcard" title="Alerts lost: the node, a missing transaction, no SOL price, Telegram refusing · hours a chat hit the hourly cap · chats that stopped alerts">
+      <span class="klabel">Problems</span><b class="knum">{{ al.fails.values()|sum }}{% if al.caps %}<i class="kbad">{{ al.caps }} capped</i>{% endif %}</b><span class="kfoot">{% for k, n in al.fails.items() %}{{ k }} {{ n }} · {% endfor %}stopped {{ al.unlinks.values()|sum }}{% if al.unlinks.blocked %} ({{ al.unlinks.blocked }} blocked the bot){% endif %}</span></div>
+  </div>
+  <p class="kline"><span title="Clicks on the fresh-pumps tape on the home page, guests included">Fresh pumps tape <b>{{ al.tape }}</b> clicks</span></p>
   <p class="kline">
     <span title="All accounts since the start, the team included">Accounts <b data-count="{{ p.accounts_all }}" data-fmt="int">{{ p.accounts_all }}</b></span>
     <span title="Questions asked to the AI agent">Agent questions <b>{{ u.questions }}</b></span>
@@ -106,21 +123,23 @@
 {% if tab == 'analyses' %}
 {% set rs = u.run_stats %}{% set t = u.tokens %}
 <section class="card me usage">
-  <div class="stats">
-    <div title="Live analyses that finished in this period"><b>{{ u.runs_n }}{% if p.runs_failed %} <small class="neg">{{ p.runs_failed }} failed</small>{% endif %}</b><span>Analyses</span></div>
-    <div title="How long one analysis ran, median"><b>{{ secs(rs.secs.median) }}</b><span>Time · median</span></div>
-    <div title="Wallets found by one analysis, median"><b>{{ rs.rows.median|num if rs.rows.median is not none else '—' }}</b><span>Wallets found · median</span></div>
-    <div title="Solana Tracker requests of one analysis with its names and wallet cards · average, median, max"><b>{{ rs.st.avg|num if rs.st.avg is not none else '—' }}</b><span>Solana Tracker · med {{ rs.st.median|num if rs.st.median is not none else '—' }} · max {{ rs.st.max|num if rs.st.max is not none else '—' }}</span></div>
-    <div title="Helius credits of one analysis: the age and funder check and cards · average, median, max"><b>{{ rs.rpc.avg|num if rs.rpc.avg is not none else '—' }}</b><span>Helius · med {{ rs.rpc.median|num if rs.rpc.median is not none else '—' }} · max {{ rs.rpc.max|num if rs.rpc.max is not none else '—' }}</span></div>
+  {# the typical run, not the average: one heavy run (1,114 requests) pulled the average to 132 while most cost 49 #}
+  <div class="kgrid k5">
+    <div class="kcard" title="Live analyses that finished in this period"><span class="klabel">Analyses</span><b class="knum">{{ u.runs_n }}{% if p.runs_failed %}<i class="kbad">{{ p.runs_failed }} failed</i>{% endif %}</b><span class="kfoot">{{ 'none failed' if not p.runs_failed else 'in this period' }}</span></div>
+    <div class="kcard" title="How long one analysis ran: half of them were faster, half slower"><span class="klabel">One takes</span><b class="knum">{{ secs(rs.secs.median) }}</b><span class="kfoot">typical · longest {{ secs(rs.secs.max) }}</span></div>
+    <div class="kcard" title="Wallets one analysis found: half of them found fewer, half more"><span class="klabel">Wallets found</span><b class="knum">{{ rs.rows.median|round|int|num if rs.rows.median is not none else '—' }}</b><span class="kfoot">typical · most {{ rs.rows.max|num if rs.rows.max is not none else '—' }}</span></div>
+    <div class="kcard" title="Solana Tracker requests of one analysis with its names and wallet cards: typical {{ n0(rs.st.median) }}, the most {{ n0(rs.st.max) }}{% if st_eur_million %}, at €{{ st_eur_million|round|int }} for a million{% endif %}"><span class="klabel">Solana Tracker</span><b class="knum">{{ eur(rs.st.median) }}</b><span class="kfoot">typical · priciest {{ eur(rs.st.max) }}</span></div>
+    <div class="kcard" title="Helius credits of one analysis: the age and funder check and cards. Typical and the most"><span class="klabel">Helius credits</span><b class="knum">{{ n0(rs.rpc.median|round|int if rs.rpc.median is not none else none) }}</b><span class="kfoot">typical · most {{ n0(rs.rpc.max) }}</span></div>
   </div>
   {% if u.runs %}
-  <div class="ubks">
-    {{ buckets('Range length', t.range) }}
-    {{ buckets('Token age at the range', t.age) }}
-    {{ buckets('From the range to the analysis', t.after) }}
-    {{ buckets('Market cap', t.mcap) }}
-    {% if t.pads %}<div class="ubk"><b>Launched on</b>{% for b in t.pads %}<span>{{ b.pad }} <i class="mono">{{ b.n }}</i></span>{% endfor %}</div>{% endif %}
+  <div class="uhists">
+    {{ hist('Range they mark', t.range) }}
+    {{ hist('Token age when the range starts', t.age) }}
+    {{ hist('From the pump to the analysis', t.after) }}
+    {{ hist('Market cap when analysed', t.mcap) }}
+    {% if t.pads %}{{ hist('Launched on', t.pads) }}{% endif %}
   </div>
+  <h3 class="small">Every analysis</h3>
   <div class="tablewrap"><table class="facts melist"><thead><tr>
     <th>When</th><th>Wallet</th><th>Token</th><th>Range</th><th class="num">Wallets</th><th class="num">Time</th><th class="num">Solana Tracker</th><th class="num">Helius</th>
   </tr></thead><tbody>
@@ -197,14 +216,19 @@
 </section>
 <section class="card me usage">
   {% if u.users %}
+  {% set all_labels = [] %}{% for w in u.users %}{% for l in labels.get(w.pubkey) or [] %}{% if l not in all_labels %}{% set _ = all_labels.append(l) %}{% endif %}{% endfor %}{% endfor %}
+  {# the owner's own labels on wallets (30.09): friend, me, tester; a filter by them above the table #}
+  <datalist id="alabel-list">{% for l in (all_labels + ['me', 'friend', 'tester', 'team'])|unique|sort %}<option value="{{ l }}">{% endfor %}</datalist>
+  {% if all_labels %}<div class="alfilter" role="group" aria-label="Show wallets with a label"><button type="button" class="on" data-l="">All</button>{% for l in all_labels|sort %}<button type="button" data-l="{{ l }}">{{ l }}</button>{% endfor %}</div>{% endif %}
   <div class="tablewrap"><table class="facts melist"><thead><tr>
-    <th>Wallet</th><th>Who</th><th>Last seen</th><th class="num" title="Days with any step in this period">Days</th>
+    <th>Wallet</th><th title="Your own labels: only you see them, here">Labels</th><th>Who</th><th>Last seen</th><th class="num" title="Days with any step in this period">Days</th>
     <th class="num">Analyses</th><th class="num">Cards</th><th class="num">Questions</th><th class="num">Saves</th>
     <th class="num">Solana Tracker</th><th class="num">Helius</th><th class="num">AI</th><th class="num">SOL</th><th class="num" title="Its last 30 days on every token, counted by our ledger">30 d PnL</th>
   </tr></thead><tbody>
   {% for w in u.users %}{% set o = w.onchain or {} %}{% set i = o.idn or {} %}{% set pr = o.p30 or {} %}
-    <tr>
+    <tr data-labels='{{ (labels.get(w.pubkey) or [])|tojson }}'>
       <td><span class="wid"><a class="mono" href="/admin/w/{{ w.pubkey }}" title="{{ w.pubkey }}">{{ short(w.pubkey) }}</a>{% if w.who == 'team' %} <span class="uflag">team</span>{% endif %}{% if w.pubkey in beta %} <span class="uflag">beta</span>{% endif %}</span></td>
+      <td class="alabels" data-w="{{ w.pubkey }}" data-labels='{{ (labels.get(w.pubkey) or [])|tojson }}'></td>
       <td class="small">{% if i.type == 'kol' or 'kol' in (i.tags or []) %}★ {% endif %}{{ i.name or '' }}{% if i.twitter %} @{{ i.twitter|replace('@', '') }}{% endif %}{% if i and not i.name and not i.twitter %}<span class="muted">{{ i.type or (i.tags or [''])[0] }}</span>{% endif %}{% if not i %}<span class="muted">{{ w.app or '—' }}</span>{% endif %}</td>
       <td class="muted small"><span class="dtc" data-ms="{{ w.last_ms or 0 }}">{{ (w.last_ms or 0)|dt }}</span></td>
       <td class="num mono">{{ w.days }}</td><td class="num mono">{{ w.runs }}</td><td class="num mono">{{ w.cards }}</td><td class="num mono">{{ w.asks }}</td><td class="num mono">{{ w.saves }}</td>
@@ -216,42 +240,68 @@
   </tbody></table></div>
   {% set oc = u.onchain %}
   {% if oc.n %}<p class="muted small">{{ oc.known }} of {{ oc.n }} known to Solana Tracker ({{ oc.kol }} KOL){% if oc.age_median_d is not none %} · wallet age, median {{ oc.age_median_d|round|int }} d{% endif %}{% if oc.with_p30 %} · {{ oc.in_profit }} of {{ oc.with_p30 }} in profit over 30 d{% endif %}. Open a wallet for its age, swaps, win rate and timeline.</p>{% endif %}
+  <script src="/static/labels.js?v={{ v }}" defer></script>
   {% else %}<p class="muted">Nobody has connected a wallet yet.</p>{% endif %}
 </section>
 {% endif %}
 
 {% if tab == 'behavior' %}
+{% set base = u.funnel_base %}{% set ss = u.sessions %}
+{% macro lc(x) %}{{ x[:1]|lower }}{{ x[1:] }}{% endmacro %}
+{% macro w(n) %}{{ n }} wallet{{ '' if n == 1 else 's' }}{% endmacro %}
 <section class="card me usage">
-  <h3 class="small">Funnel · {{ u.funnel_base }} active wallet{{ '' if u.funnel_base == 1 else 's' }}</h3>
-  {% for f in u.funnel %}
-  <div class="ufun"><span class="l">{{ f.label }}</span><span class="bar"><i style="width: {{ (100 * f.n / u.funnel_base)|round(1) if u.funnel_base else 0 }}%"></i></span><span class="n mono">{{ f.n }}</span></div>
-  {% endfor %}
-  {% set ss = u.sessions %}
-  <div class="stats">
-    {% for c in u.came_back %}<div title="Of the wallets that joined while the log was kept and are {{ c.days }}+ day{{ '' if c.days == 1 else 's' }} old: here again on day {{ c.days }} or later"><b>{{ c.n }} of {{ c.of }}</b><span>Back after {{ c.days }} d</span></div>{% endfor %}
-    <div title="New wallets that ran an analysis or opened a wallet card within 7 days of signing in"><b>{{ u.activation.n }} of {{ u.activation.of }}</b><span>Activated in 7 d</span></div>
-    <div title="Median time from the first sign-in to the first analysis"><b>{{ (u.ttfa_median_h * 60)|holdt if u.ttfa_median_h is not none else '—' }}</b><span>To first analysis</span></div>
-    <div title="A visit ends after 30 minutes without a step · median length"><b>{{ ss.n }}</b><span>Visits{% if ss.median_min is not none %} · {{ ss.median_min|holdt }}{% endif %}</span></div>
-    <div title="Wallets that opened pages from a phone · from a computer"><b>{{ u.devices.phone }} · {{ u.devices.computer }}</b><span>Phone · computer</span></div>
+  <div class="uqa">
+    <h3>Where they stop</h3>
+    {% if base %}{% set core = u.funnel|rejectattr('key', 'equalto', 'agent')|list %}{% set fs = core|sort(attribute='n') %}{% set lo, hi = fs[0], fs[-1] %}
+    <p class="uans">Of <b>{{ w(base) }}</b> active in this period, {% if hi.n %}<b>{{ hi.n }}</b> {{ lc(hi.label) }}{% if lo.n < hi.n %}, but only <b>{{ lo.n }}</b> {{ lc(lo.label) }}{% endif %}{% else %}none got past looking around{% endif %}.</p>
+    {% for f in u.funnel %}
+    <div class="ufun{{ ' low' if f.key == lo.key and lo.n < hi.n }}"><span class="l">{{ f.label }}</span><span class="bar"><i style="width: {{ (100 * f.n / base)|round(1) }}%"></i></span><span class="n mono">{{ f.n }} <small>{{ pct(f.n, base) }}</small></span></div>
+    {% endfor %}
+    {% else %}<p class="uans">Nobody was active in this period.</p>{% endif %}
   </div>
-  <h3 class="small">What they press</h3>
-  {% if u.features %}
-  <div class="tablewrap"><table class="facts melist"><thead><tr><th>What</th><th>Page</th><th class="num">Times</th><th class="num">Wallets</th></tr></thead><tbody>
-  {% for f in u.features %}<tr><td>{{ f.label }}</td><td class="muted small">{{ f.page or '—' }}</td><td class="num mono">{{ f.times|num }}</td><td class="num mono">{{ f.wallets }} <span class="muted">{{ pct(f.wallets, u.funnel_base) }}</span></td></tr>{% endfor %}
-  </tbody></table></div>
-  {% else %}<p class="muted small">No clicks yet.</p>{% endif %}
-  {% if u.limits %}
-  <h3 class="small">Daily limits hit</h3>
-  <div class="tablewrap"><table class="facts melist"><thead><tr><th>Limit</th><th>Whose</th><th class="num">Times</th><th class="num">Wallets</th></tr></thead><tbody>
-  {% for x in u.limits %}<tr><td>{{ x.label }}</td><td class="muted small">{{ x.whose }}</td><td class="num mono">{{ x.times }}</td><td class="num mono">{{ x.wallets }}</td></tr>{% endfor %}
-  </tbody></table></div>
-  {% endif %}
-  {% if u.errors %}
-  <h3 class="small">Errors they saw</h3>
-  <div class="tablewrap"><table class="facts melist"><thead><tr><th>Where</th><th>What</th><th class="num">Times</th><th class="num">Wallets</th></tr></thead><tbody>
-  {% for x in u.errors %}<tr><td class="small">{{ x.where }} · {{ x.status }}</td><td class="small">{{ x.msg }}</td><td class="num mono">{{ x.times }}</td><td class="num mono">{{ x.wallets }}</td></tr>{% endfor %}
-  </tbody></table></div>
-  {% endif %}
+  <div class="uqa">
+    <h3>Do they come back</h3>
+    <ul class="ufacts">
+      {% for c in u.came_back %}<li>{% if c.of %}<b>{{ c.n }} of {{ c.of }}</b> came back {{ {1: 'a day', 7: 'a week', 30: 'a month'}.get(c.days, c.days ~ ' days') }} or more after connecting{% else %}<span>Nobody has been here {{ {1: 'a day', 7: 'a week', 30: 'a month'}.get(c.days, c.days ~ ' days') }} yet</span>{% endif %}</li>{% endfor %}
+      <li><b>{{ u.activation.n }} of {{ u.activation.of }}</b> new wallets ran an analysis or opened a wallet card in their first week</li>
+      {% if u.ttfa_median_h is not none %}<li>The first analysis comes typically <b>{{ (u.ttfa_median_h * 60)|holdt }}</b> after connecting</li>{% endif %}
+      <li><b>{{ ss.n }}</b> visit{{ '' if ss.n == 1 else 's' }}{% if ss.median_min is not none %}, typically <b>{{ ss.median_min|holdt }}</b> long{% endif %} · <b>{{ u.devices.computer }}</b> on a computer, <b>{{ u.devices.phone }}</b> on a phone</li>
+    </ul>
+  </div>
+  <div class="uqa">
+    <h3>What they use</h3>
+    {% if u.features %}
+    <p class="uans">Most used: {% for f in u.features_top[:3] %}<b>{{ lc(f.label) }}</b> ({{ w(f.wallets) }}){{ ', ' if not loop.last }}{% endfor %}.{% if u.unused %} <b>{{ u.unused|length }}</b> of the site's buttons nobody pressed.{% endif %}</p>
+    <p class="small muted ukey">Bar: share of the active wallets · number: wallets, then times</p>
+    {% for f in u.features_top %}<div class="ufun"><span class="l">{{ f.label }}</span><span class="bar"><i style="width: {{ (100 * f.wallets / base)|round(1) if base else 0 }}%"></i></span><span class="n mono">{{ f.wallets }} <small>· {{ f.times|num }}×</small></span></div>
+    {% endfor %}
+    {% if u.features|length > u.features_top|length %}
+    <details class="uall"><summary>Show all {{ u.features|length }}, by page</summary>
+    {% for g in u.feature_groups %}
+    <h4 class="ugh">{{ g.label }}</h4>
+    {% for f in g.rows %}<div class="ufun"><span class="l">{{ f.label }}</span><span class="bar"><i style="width: {{ (100 * f.wallets / base)|round(1) if base else 0 }}%"></i></span><span class="n mono">{{ f.wallets }} <small>· {{ f.times|num }}×</small></span></div>
+    {% endfor %}{% endfor %}
+    </details>
+    {% endif %}
+    {% if u.unused %}<p class="small uunused"><b>Nobody pressed:</b> {{ u.unused|join(' · ') }}</p>{% endif %}
+    {% else %}<p class="uans">No clicks in this period.</p>{% endif %}
+  </div>
+  <div class="uqa">
+    <h3>What got in their way</h3>
+    {% set errs = u.errors|sum(attribute='times') %}{% set lims = u.limits|sum(attribute='times') %}
+    {% if not lims and not errs %}<p class="uans">Nothing: no daily limit hit, no errors on screen.</p>
+    {% else %}<p class="uans">{% if lims %}A daily limit stopped someone <b>{{ lims }}</b> time{{ '' if lims == 1 else 's' }}{% endif %}{% if lims and errs %}; an{% elif errs %}An{% endif %}{% if errs %} error was on screen <b>{{ errs }}</b> time{{ '' if errs == 1 else 's' }}{% endif %}.</p>{% endif %}
+    {% if u.limits %}
+    <div class="tablewrap"><table class="facts melist"><thead><tr><th>Limit</th><th>Whose</th><th class="num">Times</th><th class="num">Wallets</th></tr></thead><tbody>
+    {% for x in u.limits %}<tr><td>{{ x.label }}</td><td class="muted small">{{ x.whose }}</td><td class="num mono">{{ x.times }}</td><td class="num mono">{{ x.wallets }}</td></tr>{% endfor %}
+    </tbody></table></div>
+    {% endif %}
+    {% if u.errors %}
+    <div class="tablewrap"><table class="facts melist"><thead><tr><th>Where</th><th>What</th><th class="num">Times</th><th class="num">Wallets</th></tr></thead><tbody>
+    {% for x in u.errors %}<tr><td class="small">{{ x.where }} · {{ x.status }}</td><td class="small">{{ x.msg }}</td><td class="num mono">{{ x.times }}</td><td class="num mono">{{ x.wallets }}</td></tr>{% endfor %}
+    </tbody></table></div>
+    {% endif %}
+  </div>
 </section>
 {% endif %}
 

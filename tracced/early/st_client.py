@@ -159,14 +159,15 @@ class EarlyST(SolanaTracker):
             cache.put(key, out)
         return out
 
-    def wallet_token_trades(self, wallet, mint, max_pages=4, fresh=False):
+    def wallet_token_trades(self, wallet, mint, max_pages=4, fresh=False, store=True):
         """All trades of one wallet on one token (ST `/trades/{mint}/by-wallet/{owner}`, ASC, cursor
         pages of 500; 1 request per page, cached). Same raw swaps as the token feed, filtered by
         wallet on their side. Cursor is exclusive (time > cursor), so pages restart one ms before the last
         time and duplicates are dropped by tx — otherwise trades sharing the boundary second are lost.
 
         fresh=True skips the cached copy (the result is still stored): a live run claims history up to now,
-        and a copy fetched hours ago misses every exit made since."""
+        and a copy fetched hours ago misses every exit made since. store=False keeps a shorter read (an alert reads
+        two pages) out of the cache, so the wallet card never gets it as the whole history."""
         key = f"trades:{mint}:{wallet}"
         if self.stats_cache is not None and not fresh:
             cached = self.stats_cache.get(key)
@@ -189,7 +190,7 @@ class EarlyST(SolanaTracker):
                 nxt = max(times)
             cursor = nxt
         out.sort(key=lambda tr: tr["time"] or 0)
-        if self.stats_cache is not None:
+        if self.stats_cache is not None and store:
             self.stats_cache.put(key, out)
         return out
 

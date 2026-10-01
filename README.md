@@ -6,12 +6,15 @@ a swap you can open on Solscan. No scores, no "smart money" labels.
 
 Live, no sign-up: **[tracced.xyz](https://tracced.xyz)** · Docs: **[tracced.xyz/docs](https://tracced.xyz/docs)**
 
+Built for the Colosseum Crypto World's Fair, 2026. [Why it exists →](https://tracced.xyz/docs/project)
+
 ![Home](docs/img/home.png)
 
 ## Three steps
 
 1. **Paste a token.** Its whole life loads as a market-cap chart.
-2. **Mark the range.** Two clicks: where buying starts, where the pump takes off. Detected pumps are offered as hints.
+2. **Mark the range.** Two clicks: where buying starts, where the pump takes off. A first visit shows the two clicks on
+   the chart itself. The home page runs the last two days' fresh pumps to start from.
 3. **Read the wallets.** Everyone who bought inside it, with what they paid, sold and still hold. Export CSV, TXT or JSON.
 
 Looking is free: the demo, every finished result, the chart of any token. A new analysis needs a connected Phantom
@@ -36,8 +39,8 @@ Amounts read in dollars or in SOL. Both come from the same swap, so nothing is c
 uses the cost basis of what was actually sold in both units. [Where the numbers come from →](https://tracced.xyz/docs/how-it-works)
 
 Click a wallet and its card shows the last 7 or 30 days on every token it traded: PnL, win rate over closed
-positions, average hold, counted by tracced from the wallet's own swaps. When Solana Tracker knows who the wallet
-is, small marks say so: a star for a KOL, its X account, the app it trades through.
+positions, average hold, counted by tracced from the wallet's own swaps. When the wallet is publicly identified,
+small marks say so: a star for a KOL, its X account, the app it trades through.
 [The wallet card →](https://tracced.xyz/docs/how-it-works#the-wallet-card)
 
 ![Wallet card](docs/img/card.png)
@@ -50,12 +53,13 @@ number it writes is checked against the table before you see it, and it answers 
 
 ![AI agent](docs/img/agent.png)
 
-Keep what you find in several named lists, tag wallets in your own words, and export a list as CSV or TXT.
-[Your account →](https://tracced.xyz/docs/account)
+Keep what you find in several named lists, tag wallets in your own words, and export a list as CSV or TXT. In a closed
+test, a list sends its wallets' buys and sells to Telegram about two seconds after the block, and each row counts the
+wallet's trades of the last 7 days. [Your account →](https://tracced.xyz/docs/account)
 
-A token's history and its wallets are read in parallel, so a busy token takes seconds, not minutes. The result page
-stays light with thousands of wallets: the table arrives as numbers and the page draws the first hundred rows,
-more on request, on a phone too, where each wallet becomes a card.
+A busy token takes seconds, not minutes. The result page stays light with thousands of wallets: the table arrives
+as numbers and the page draws the first hundred rows, more on request, on a phone too, where each wallet becomes a
+card.
 
 ## Documentation
 
@@ -64,7 +68,7 @@ more on request, on a phone too, where each wallet becomes a card.
 | [Overview](https://tracced.xyz/docs) | What it answers and how to read it |
 | [How it works](https://tracced.xyz/docs/how-it-works) | Where every number comes from |
 | [Tags](https://tracced.xyz/docs/tags) | Eight rules, each checkable on chain |
-| [Limits](https://tracced.xyz/docs/limits) | What is free, what needs a wallet, what it costs |
+| [Limits](https://tracced.xyz/docs/limits) | What is free, what needs a wallet, the daily caps |
 | [Your account](https://tracced.xyz/docs/account) | Sign-in, lists, your own tags, repeats |
 | [Compare](https://tracced.xyz/docs/compare) | Next to Axiom and GMGN |
 | [API](https://tracced.xyz/docs/api) | A token check for partners, in beta: rules and levels, no scores |
@@ -72,13 +76,12 @@ more on request, on a phone too, where each wallet becomes a card.
 | [The project](https://tracced.xyz/docs/project) | Why it exists and what it refuses to do |
 
 Pages are markdown in [`docs/`](docs/), served by the app itself, so a page changes in the same commit as the
-thing it describes. Order, labels and icons are the `PAGES` list in `tracced/web/docs.py`; a file that is not
-there is simply not published. Limits in the text are rendered from the live settings, so they cannot drift.
+thing it describes.
 
 ## Run it
 
 ```bash
-cp .env.example .env            # SOLANATRACKER_API_KEY, plus WEB_SECRET (openssl rand -hex 32) so sign-ins survive restarts
+cp .env.example .env            # fill in the keys it lists
 docker compose up -d --build    # http://127.0.0.1:8095
 ```
 
@@ -88,54 +91,15 @@ Tests:
 docker compose run --rm --no-deps -v "$PWD/tests:/app/tests" web python -m unittest discover -s tests -t .
 ```
 
-On a server: [deploy/README.md](deploy/README.md), one container behind an existing Caddy. Quotas and costs live
-in `config.yaml` under `early:` (`early.plan: free | advanced` sets the request caps for the Solana Tracker plan);
-defaults are in `tracced/early/settings.py`. Version: `__version__` in `tracced/__init__.py`, shown in the footer
-as `v0.4`, bumped on every release to `main`.
+## Data and privacy
 
-## Demo token
+The table is built from swaps recorded on chain. No third-party PnL, scores or "smart money" labels. What is
+recorded about a connected wallet is spelled out in [Your account](https://tracced.xyz/docs/account#what-we-record).
 
-Run a finished analysis through `scripts/capture_demo.py` (the docstring has the docker command; several analyses
-of one token become several demo ranges). It writes `output/early/demo/<mint>.json` and prints the
-`early.demo_job` / `early.example_job` lines for `config.yaml`. Pasting that token then replays the whole flow,
-chart and terminal and result, without a single request to the data provider.
+## Contact
 
-## Data
-
-- Swaps and candles: [Solana Tracker Data API](https://www.solanatracker.io/data-api). Free plan: 2,500 requests a
-  month at 3 per second; Pro: 1,000,000 a month, no rate limit, and both the token's history (cut into time
-  pieces, since the cursor is a time) and the wallets' own trades are fetched eight at a time (`st_concurrency`).
-  A cached analysis costs none. The balance is checked at most every 10 minutes and new runs wait when the month
-  gets close to its end.
-- The wallet card: the wallet's swaps on every token (`/wallet/{owner}/trades`), run through the same ledger as the
-  table. Who a wallet is comes from Solana Tracker's wallet summaries (`/v2/pnl/wallets/batch`, 100 wallets a
-  request), asked in the background once the table is on screen; only the identity is used, for names and marks,
-  never their PnL or tags.
-- Wallet age and funder: a Solana RPC node with full history, [Helius](https://www.helius.dev) in production
-  (`SOLANA_RPC_URL`). A wallet's first transaction is its age; the SOL that arrived in it names the funder. A busy
-  wallet's first transaction comes from Helius's oldest-first method in one call instead of paging back through
-  tens of thousands; a wallet an app pays fees for is searched for its first SOL among its first hundred
-  transactions. The first 200 wallets by PnL, the ones that made money, are checked in the background
-  (`age_lookups_max`), reading back from each wallet's first buy in the range; any other wallet is checked when its
-  card is opened. The credits are counted per month (`rpc_credits_month`, tracced's share of the account) and the
-  check pauses near the limit. Without a node the public `api.mainnet-beta` is used.
-- Paid DexScreener profiles on the chart: DexScreener's public orders endpoint, free and without a key, kept a day.
-- The AI agent: DeepSeek V4.1 Flash through OpenRouter by default, or any OpenAI-compatible endpoint (`ASSISTANT_*` in
-  `.env`). It reads a digest of the result that the code computes and writes three cards and answers from it; the
-  code checks every number it writes against that digest and drops what it cannot find. For connected wallets only,
-  with per-wallet and site-wide daily limits. The owner writes its method at `/admin`; the rules that keep it on
-  topic live in the code.
-- Usage, for the owner at `/admin`: what connected wallets do here and what each step cost, from the server's own
-  log (`output/early/usage`, a file a month, kept 13 months). Pages, named clicks with a short setting (never an
-  address or typed text), analyses, cards and agent calls, each with its Solana Tracker requests, Helius credits or
-  the agent's dollars. At the top, what is left at each provider and whether it lasts at the current pace: the
-  Solana Tracker balance against the plan (its renewal day is `credits_renew_day`), this server's Helius share and
-  the agent's OpenRouter limit. The overview leads with the key numbers: wallets that connected, how many of them
-  ran a first analysis, analyses, wallets that came back to analyse on another day, wallets that saved wallets to
-  a list, exports, and what an analysis costs (in euros at `st_eur_per_million`). Once a day the log adds public facts about active users' wallets: age, SOL balance (one free
-  public-node call per hundred wallets), their last 30 days by the same ledger, and Solana Tracker's identity.
-  Guests are only counted by Umami. What is recorded is spelled out in [Your account](docs/account.md#what-we-record).
-- Nothing else: no third-party PnL, scores or "smart money" labels.
+Updates on X: [@tracced_xyz](https://x.com/tracced_xyz). A bug, an idea, a question:
+[tracced.xyz/feedback](https://tracced.xyz/feedback).
 
 ## License
 

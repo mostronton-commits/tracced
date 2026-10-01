@@ -242,7 +242,8 @@ if AioHTTPTestCase:
             for path in ("/", "/docs"):
                 html = await (await self.client.get(path)).text()
                 self.assertIn('<footer class="foot"><div class="foot-in">', html)
-                self.assertIn(">v0.5<", html)                                   # product version, not the asset hash
+                from tracced import __version__
+                self.assertIn(">v" + ".".join(__version__.split(".")[:2]) + "<", html)   # product version, not the asset hash
                 self.assertIn('href="https://github.com/mostronton-commits/tracced"', html)
                 self.assertIn('href="https://x.com/tracced_xyz"', html)
             html = await (await self.client.get("/docs")).text()
@@ -391,7 +392,7 @@ if AioHTTPTestCase:
             r = await self.client.get(f"/token?mint={other}", headers=GUEST)
             html = await r.text()
             self.assertEqual(r.status, 200)                             # гість бачить голий графік і ставить межі
-            self.assertIn("Find the pump", html)
+            self.assertIn("ch.setDemo(", html)                           # the clicks shown on the chart, no bands, no button
             self.assertIn('id="add"', html)
             self.assertIn('data-acct="0"', html)
             self.assertIn("Analyze asks for a wallet", html)
@@ -682,7 +683,7 @@ if AioHTTPTestCase:
             self.assertEqual(self.app["runs_daily"].left(_ip_key("127.0.0.1"), 3), 0)
             html = await (await self.client.get(f"/token?mint={MINT}", headers={"Cookie": wallet_cookie(a) + f"; early_dev={dev}"})).text()
             self.assertIn("You've used your 2 free analyses for today", html)   # вікно чекає на Analyze і без повідомлення
-            self.assertIn("No free analyses left today", html)
+            self.assertIn("None left today", html)
             await asyncio.to_thread(self.app["jobs"].q.join)
             s["runs_per_day"], s["runs_per_ip_per_day"] = 1, 10
             self.app["admins"] = {TEST_PK}
@@ -947,7 +948,7 @@ if AioHTTPTestCase:
                 self.assertNotIn("notice=", r.headers["Location"])
                 await asyncio.to_thread(self.app["jobs"].q.join)
                 self.assertEqual(self.app["jobs"].get(r.headers["Location"].split("/")[-1]).s_over["run_cap_requests"], 2000)   # стеля прогону лишається
-            self.assertIn("Beta tester: no daily limit on analyses", await (await self.client.get(f"/token?mint={MINT}", headers=me)).text())
+            self.assertIn("Beta tester · no daily limit", await (await self.client.get(f"/token?mint={MINT}", headers=me)).text())
             self.assertEqual(self.app["runs_daily"].left("global", 100), 100)    # спільну добову стелю сайту тестер не з'їдає
             usage_mod.save_wallet_set(self.app["usage_dir"] / "beta.json", set())
             r = await self.client.post("/analyze", data=rng(3), allow_redirects=False, headers=me)
@@ -1042,6 +1043,19 @@ if AioHTTPTestCase:
             self.assertIn(f">{self.app['s']['max_window_hours']} hours<", lim)   # числа ті самі, що в налаштуваннях
             self.assertIn(">{:,}<".format(self.app['s']['max_wallet_lookups']), lim)
 
+        async def test_home_shows_fresh_pumps_when_there_are_some(self):
+            self.assertNotIn('id="fresh"', await (await self.client.get("/")).text())   # nothing found yet: no empty block
+            self.assertEqual(self.st.requests, self.st.requests)
+            self.app["fresh"].update(rows=[{"mint": "M" * 44, "symbol": "PUMP", "name": "Pump", "cap": 3.1e6, "liq": 2e5, "vol": 9e6,
+                                           "created_ms": 0, "image": "", "peak": 12.4e6, "age_h": 5.2, "drop": 75}], at=1, ok_at=int(__import__('time').time() * 1000))
+            html = await (await self.client.get("/")).text()
+            self.assertIn('id="fresh"', html)
+            self.assertIn('href="/token?mint=' + "M" * 44 + '&amp;src=fresh" rel="nofollow"', html)   # a way into its chart, counted, not crawled
+            self.assertIn('<span class="fpk" title="The highest market cap it reached">$12M</span>', html)
+            self.assertIn("−75%", html)
+            self.assertIsNone(CYRILLIC.search(html))
+            self.app["fresh"].update(rows=[], at=0, ok_at=0)
+
         async def test_index_english(self):
             r = await self.client.get("/")
             html = await r.text()
@@ -1074,8 +1088,10 @@ if AioHTTPTestCase:
             self.assertIsNone(CYRILLIC.search(html))
             self.assertIn('id="rows"', html)
             self.assertIn('data-rows=', html)
-            self.assertIn('data-hints=', html)
-            self.assertIn("Find the pump", html)                         # a rule, not a model
+            self.assertNotIn('data-hints=', html)                          # no bands the page picks by itself (owner, 30.09)
+            self.assertNotIn("setGhosts", html)
+            self.assertIn("ch.setDemo(", html)                              # the clicks shown on the chart instead of a line of text
+            self.assertNotIn("Click the chart twice", html)
             self.assertNotIn("Let AI choose", html)
             self.assertNotIn("Coming next", html)
             self.assertIn("&#34;label&#34;: &#34;Range 1&#34;, &#34;from&#34;: &#34;&#34;", html)   # a bare chart: hints wait for the button
@@ -1083,7 +1099,7 @@ if AioHTTPTestCase:
             self.assertIn('id="chart"', html)
             self.assertIn("lightweight-charts", html)
             self.assertIn("static/chart.js", html)
-            self.assertIn("and analyze", html)
+            self.assertIn("<b>Analyze</b>", html)
             self.assertNotIn("<svg", html.split("<footer")[0])         # the page body draws with the chart library, not inline SVG
 
         async def test_token_page_preset_from_result(self):
@@ -1119,7 +1135,8 @@ if AioHTTPTestCase:
                     break
                 await asyncio.sleep(0.05)
             self.assertIn("↓ Export", html)
-            self.assertIn("Bought in range", html)
+            self.assertIn("spent in the range", html)                     # counts in one line; findings above them
+            self.assertIn('id="finds"', html)
             self.assertIn("Back to the chart", html)
             self.assertIn('id="chart"', html)
             self.assertIsNone(CYRILLIC.search(html))
@@ -1157,7 +1174,7 @@ if AioHTTPTestCase:
             self.assertIn("Save analysis", page48)
             self.assertNotIn("Add to watchlist", page48)
             self.assertNotIn("soon-badge", page48)
-            self.assertIn("Sold out", page48)                           # tiles renamed, with hints
+            self.assertIn("sold out", page48)                           # counts line, with hints
             self.assertIn("← Back to the chart", page48)                # an analyzed range stays as it is: the header goes back to the chart
             r = await self.client.get("/wallet_trades.json?job=" + loc.split("/")[-1] + "&wallet=A")
             self.assertEqual(r.status, 400)                              # not a base58 wallet in tests → readable error
@@ -1442,7 +1459,7 @@ if AioHTTPTestCase:
             class Flaky:
                 model = "fake"
 
-                def ask(self, result, cfg, q, lang):
+                def ask(self, result, cfg, q, lang, history=None, focus=None):
                     if q == "down":
                         raise AssistantError("The agent's model is busy right now. Try again in a minute.")
                     return {"on_topic": False, "answer": ["I only answer questions about this analysis."], "wallets": [], "model": "fake"}, [], {}
@@ -2333,7 +2350,7 @@ if AioHTTPTestCase:
         async def test_the_agent_needs_a_wallet_and_keeps_its_limits(self):
             seed_demo(self.tmp.name, self.app)
             self.app["admins"] = set()
-            calls = []
+            calls, seen = [], []
 
             class FakeAgent:
                 model = "fake"
@@ -2342,8 +2359,9 @@ if AioHTTPTestCase:
                     calls.append(("cards", lang, cfg["v"]))
                     return {"story": ["1 wallet bought."], "risks": [], "watch": [], "method": "m", "model": "fake"}, [], {"cost": 0.001}
 
-                def ask(self, result, cfg, q, lang):
+                def ask(self, result, cfg, q, lang, history=None, focus=None):
                     calls.append(("ask", q, lang))
+                    seen.append((history, focus))
                     return {"on_topic": True, "answer": ["1 wallet bought."], "wallets": [], "model": "fake"}, [], {"cost": 0.001}
             self.app["agent"] = FakeAgent()
             try:
@@ -2361,8 +2379,10 @@ if AioHTTPTestCase:
                 self.assertEqual(calls, [("cards", "Ukrainian", 0)])
                 r = await self.client.post(f"/job/{DEMO_JID}/agent/ask", json={"q": "Who took 3x?", "chip": True, "lang": "en"}, headers=h)
                 self.assertEqual(((await r.json())["left"], calls[-1]), (9, ("ask", "Who took 3x?", "English")))
-                r = await self.client.post(f"/job/{DEMO_JID}/agent/ask", json={"q": "Хто тримає?"}, headers=h)
+                r = await self.client.post(f"/job/{DEMO_JID}/agent/ask", json={"q": "Хто тримає?", "focus": [pk, "not-a-key"],
+                                           "history": [{"q": "Who took 3x?", "a": "1 wallet bought."}, "junk", {"q": " "}]}, headers=h)
                 self.assertEqual(calls[-1][2], "the language of the user's question")   # своє питання — його мовою
+                self.assertEqual(seen[-1], ([{"q": "Who took 3x?", "a": "1 wallet bought."}], [pk]))   # розмова і вибрані гаманці — до агента
                 self.app["s"]["agent_questions_per_day"] = 2
                 r = await self.client.post(f"/job/{DEMO_JID}/agent/ask", json={"q": "more"}, headers=h)
                 self.assertEqual(r.status, 429)
@@ -2424,6 +2444,8 @@ if AioHTTPTestCase:
                 self.assertIn("<b>Beta, free for now.</b>", html, path)
                 self.assertNotIn('class="wdemo"', html, path)                     # already on the demo
             html = await (await self.client.get(f"/job/{DEMO_JID}", headers=GUEST)).text()
+            self.assertIn("const EXCH = {", html)                                   # the exchange names come from a file outside the repo
+            self.assertIn("'Bundled'", html)                              # the verdict's word follows the top
             self.assertIn("Beta, free for now. Connect a wallet to ask.", html)   # the agent's line for a guest
             self.assertIn("Connect wallet for more data", html)                   # the card's step is a real button
 

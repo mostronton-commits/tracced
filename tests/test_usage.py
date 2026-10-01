@@ -171,6 +171,36 @@ class TestSummary(unittest.TestCase):
         self.assertEqual(self.summ(period="today", tz=warsaw)["pulse"]["dau"], 2)        # A і нічний C
         self.assertEqual(self.summ(period="today")["pulse"]["dau"], 1)
 
+    def test_alerts_count_but_never_as_the_subscribers_activity(self):
+        acc = [{"pubkey": A, "created_ms": NOW - 3 * D, "telegram": {"chat": 1}, "lists": {"main": {"name": "Main", "alerts": True}}}]
+        evs = [ev(NOW - 3 * H, A, "tg_link"), ev(NOW - 3 * H, A, "telegram", on=1),
+               ev(NOW - 2 * H, A, "alert", side="buy", usd=500, mint="M", lag_ms=4000, bg=True),
+               ev(NOW - 2 * H, A, "alert", side="sell", usd=300, mint="M", lag_ms=6000),        # an old row without bg
+               ev(NOW - H, "guest", "view", page="token", ref="M", src="alert"),
+               ev(NOW - H, "guest", "view", page="token", ref="N", src="fresh"),
+               ev(NOW - H, "system", "alert_fail", why="rpc", bg=True), ev(NOW - H, A, "alert_cap", bg=True)]
+        u = usage.summarize(evs, accounts=acc, now_ms=NOW, period="today")
+        al = u["alerts"]
+        self.assertEqual((al["linked"], al["bells"], al["started"], al["linked_new"]), (1, 1, 1, 1))
+        self.assertEqual((al["sent"], al["buys"], al["to"], al["lag_s"], al["back"]), (2, 1, 1, 5.0, 1))
+        self.assertEqual((al["fails"], al["caps"], al["tape"]), ({"rpc": 1}, 1, 1))
+        last = [e for e in evs if e["pubkey"] == A and e["event"] in ("tg_link", "telegram")][-1]["ts_ms"]
+        self.assertEqual(u["users"][0]["last_ms"], last)                                    # the alerts did not make A "active" later
+
+    def test_what_they_use_and_what_nobody_pressed(self):
+        acc = [{"pubkey": A, "created_ms": NOW - 3 * D}, {"pubkey": B, "created_ms": NOW - 3 * D}]
+        evs = [ev(NOW - H, A, "ui", name="sort", page="job"), ev(NOW - H, B, "ui", name="sort", page="job"),
+               ev(NOW - H, A, "ui", name="card-close", page="job"), ev(NOW - H, A, "ui", name="tf", page="token"),
+               ev(NOW - H, A, "error", where="favicon.ico", status=404, msg="404: Not Found")]
+        u = usage.summarize(evs, accounts=acc, now_ms=NOW, period="7d")
+        self.assertEqual([f["name"] for f in u["features_top"]], ["sort", "tf"])             # closing a panel is not a feature
+        self.assertEqual([(g["page"], [f["name"] for f in g["rows"]]) for g in u["feature_groups"]],
+                         [("job", ["sort", "card-close"]), ("token", ["tf"])])
+        self.assertIn("Exported", u["unused"])
+        self.assertNotIn("Sorted the table", u["unused"])
+        self.assertNotIn("Pressed Find the pump (Before the pump)", u["unused"])           # a button that is gone is not "unused"
+        self.assertEqual(u["errors"], [])                                                   # the browser's own icon request
+
     def test_funnel_visits_and_coming_back(self):
         u = self.summ(period="7d")
         self.assertEqual(u["funnel_base"], 3)
@@ -234,7 +264,7 @@ class TestSummary(unittest.TestCase):
         t = self.summ(period="30d", include_team=True)["tokens"]
         self.assertEqual([(x["mint"], x["runs"]) for x in t["top"][:2]], [("M1", 2), ("M2", 1)])
         self.assertEqual({b["label"]: b["n"] for b in t["age"]}["1–6 h"], 1)
-        self.assertEqual(t["pads"], [{"pad": "pump.fun", "n": 1}])
+        self.assertEqual(t["pads"], [{"pad": "pump.fun", "label": "pump.fun", "n": 1}])
 
     def test_ranges_failures_errors_and_devices(self):
         self.events += [ev(NOW - H, A, "error", where="job", status=502, msg="The chain node did not answer."),

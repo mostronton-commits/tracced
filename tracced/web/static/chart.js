@@ -10,7 +10,8 @@
 
   function fmtMcap(v) {
     if (v == null || isNaN(v)) return '—';
-    const sign = v < 0 ? '-' : ''; v = Math.abs(v);
+    if (v < 0) return '';                       // a cap is never below zero: the axis goes there only to make room for markers
+    const sign = ''; v = Math.abs(v);
     for (const [lim, suf] of [[1e9, 'B'], [1e6, 'M'], [1e3, 'K']]) {
       if (v >= lim * 0.9995) { const x = Math.max(v / lim, 1); let s = x < 10 ? x.toFixed(1) : x.toFixed(0); if (s.includes('.')) s = s.replace(/\.?0+$/, ''); return sign + s + suf; }
     }
@@ -100,6 +101,14 @@
     let tf = null, data = new Map(), times = [], loaded = { a: null, b: null }, busy = false, gen = 0;
     let edge = { left: false, right: false };   // the feed has nothing further that way: stop asking for it
     let windows = normWins(opts.windows), selected = opts.selected || 0, exitSec = sec(opts.exit), marker = null, events = [];
+    // The first visit's demo (owner, 30.09): no line of text about clicking, and no bands the page picked by itself. A
+    // cursor clicks where buying starts, then where the pump takes off, a band grows between the two clicks, and it goes
+    // round until the person clicks the chart. 'two' — both clicks; {after} — the second, from the first mark
+    let demo = null;
+    const demoEl = document.createElement('div'); demoEl.className = 'clickdemo'; demoEl.hidden = true; demoEl.setAttribute('aria-hidden', 'true');
+    demoEl.innerHTML = '<i class="cd-band"></i><i class="cd-ring r1"></i><i class="cd-ring r2"></i>'
+      + '<svg class="cd-cur" viewBox="0 0 16 22"><path d="M1.5 1.5v16.2l4.3-4.1 2.8 6.4 2.8-1.2-2.8-6.3h5.9z"/></svg>';
+    el.appendChild(demoEl);
 
     async function fetchChunk(a, b) {
       const q = new URLSearchParams({ mint: opts.mint, tf, a: Math.floor(a), b: Math.ceil(b) });
@@ -256,7 +265,7 @@
     function place() {
       layer.innerHTML = '';
       const v = visible(); if (!v) return;
-      const W = box.clientWidth - scaleW();   // price scale on the right
+      const W = box.clientWidth - scaleW(), bands = [];   // price scale on the right
       windows.forEach((w, i) => {
         if (!w.from || !w.to || w.to < v.a || w.from > v.b) return;
         const x1 = xOf(w.from), x2 = xOf(w.to); if (x1 == null || x2 == null) return;
@@ -264,8 +273,10 @@
         d.style.left = Math.min(x1, W) + 'px'; d.style.width = Math.max(2, Math.min(x2, W) - Math.min(x1, W)) + 'px';
         const lbl = document.createElement('span'); lbl.className = 'lbl'; lbl.textContent = (w.n || (i + 1)) + (w.label && i === selected ? ' · ' + w.label : ''); lbl.title = w.label || '';
         lbl.addEventListener('click', e => { e.stopPropagation(); if (opts.onSelect) opts.onSelect(i); else focus(w.from, w.to, null); });
-        d.appendChild(lbl); layer.appendChild(d);
+        d.appendChild(lbl); layer.appendChild(d); bands.push({ x: Math.min(x1, W), lbl });
       });
+      // a label ends where the next range starts, so "1 · Pump 1" never hides the 2 of a close neighbour (phone, 01.10)
+      bands.forEach(b => { const nx = Math.min(W, ...bands.filter(o => o.x > b.x).map(o => o.x)); b.lbl.style.maxWidth = Math.max(16, nx - b.x - 8) + 'px'; });
       // events of the token's own life: the move off the launchpad, the payments for visibility. Thin full-height
       // lines, because trade markers already live next to the candles and must not compete with these.
       // A badge at the point where it happened, not a line through the whole chart: these events sit within a
@@ -273,7 +284,8 @@
       const drawn = {}, placed = [];           // дві оплати за хвилину одна від одної — один значок, обидві в підказці
       events.forEach(e => {
         if (!e.sec || e.sec < v.a || e.sec > v.b) return;
-        const x = xOf(e.sec); if (x == null || x > W) return;
+        const x0 = xOf(e.sec); if (x0 == null || x0 > W) return;
+        const x = Math.max(12, Math.min(x0, W - 12));   // a badge at the very edge stays whole (phone, 01.10: the M was cut in half)
         const kind = e.kind || 'ev', prev = drawn[kind];
         if (prev && Math.abs(x - prev.x) < 16) { prev.n++; prev.el.title += '\n' + (e.title || ''); prev.el.dataset.n = prev.n; return; }
         const y = stackY(x, Math.min(Math.max(18, yOf(e.sec) ?? 40), box.clientHeight - 30), placed, box.clientHeight - 30);   // never below the box, whatever the scale says
@@ -287,6 +299,21 @@
       });
       if (exitSec && exitSec >= v.a && exitSec <= v.b) { const x = xOf(exitSec); if (x != null) { const d = document.createElement('div'); d.className = 'exitline'; d.style.left = x + 'px'; d.title = 'Trades up to'; layer.appendChild(d); } }
       if (marker && marker >= v.a && marker <= v.b) { const x = xOf(marker); if (x != null) { const d = document.createElement('div'); d.className = 'marker'; d.style.left = x + 'px'; layer.appendChild(d); } }
+      placeDemo(v, W);
+    }
+    function placeDemo(v, W) {
+      // the clicks sit in the middle of what is on screen; the second one, right of the first mark while it is in view
+      if (!demo || !v) { demoEl.hidden = true; return; }
+      let x1 = W * 0.34, x2 = W * 0.62;
+      if (demo.after) {
+        x1 = demo.after >= v.a && demo.after <= v.b ? xOf(demo.after) : null;
+        if (x1 == null || x1 > W - 60) { demoEl.hidden = true; return; }
+        x2 = Math.min(W - 24, x1 + Math.max(80, W * 0.2));
+      }
+      demoEl.hidden = false; demoEl.classList.toggle('one', !!demo.after);
+      demoEl.style.width = W + 'px';
+      demoEl.style.setProperty('--x1', Math.round(x1) + 'px'); demoEl.style.setProperty('--x2', Math.round(x2) + 'px');
+      demoEl.style.setProperty('--y', Math.round((box.clientHeight - 34) * 0.56) + 'px');
     }
     if (opts.interactive) chart.subscribeClick(p => { if (p.time && opts.onClick) opts.onClick(p.time * 1000); });
 
@@ -341,10 +368,10 @@
     // timeframe buttons
     const tfs = document.createElement('div'); tfs.className = 'tfs';
     Object.keys(TF_SEC).forEach(k => { const b = document.createElement('button'); b.type = 'button'; b.className = 'tf'; b.dataset.tf = k; b.textContent = k; b.addEventListener('click', () => { setTf(k, true); if (window.EarlyUI) EarlyUI.use('tf', { tf: k }); }); tfs.appendChild(b); });
-    const back = document.createElement('button'); back.type = 'button'; back.className = 'tf back'; back.textContent = '⌖ Back to range'; back.title = 'Bring the range you marked back into view'; back.hidden = !windows.some(w => w && w.from && w.to);   // a result page has its range from the start
+    const back = document.createElement('button'); back.type = 'button'; back.className = 'tf back'; back.innerHTML = '<span class="wide">⌖ Back to range</span><span class="narrow">⌖ Range</span>'; back.title = 'Bring the range you marked back into view'; back.hidden = !windows.some(w => w && w.from && w.to);   // a result page has its range from the start
     back.addEventListener('click', () => { const w = windows[selected] || windows[0]; if (w && w.from && w.to) focus(w.from, w.to, null); if (window.EarlyUI) EarlyUI.use('chart-nav', { to: 'range' }); });
     tfs.appendChild(back);
-    const launch = document.createElement('button'); launch.type = 'button'; launch.className = 'tf back'; launch.textContent = '⇤ First hours';
+    const launch = document.createElement('button'); launch.type = 'button'; launch.className = 'tf back'; launch.innerHTML = '<span class="wide">⇤ First hours</span><span class="narrow">⇤ Start</span>';
     launch.title = 'Jump to the first hours of trading, right after the token launched';
     launch.addEventListener('click', () => { focus(created, created + 3 * 3600, null); if (window.EarlyUI) EarlyUI.use('chart-nav', { to: 'launch' }); });
     tfs.appendChild(launch);
@@ -355,6 +382,8 @@
       setEvents(list) { events = (list || []).map(e => ({ ...e, sec: sec(e.ms) })).filter(e => e.sec); place(); },
       setExit(v) { exitSec = sec(v); place(); },
       setMarker(v) { marker = sec(v); place(); },
+      setDemo(m) { const next = m === 'two' ? 'two' : m && m.after ? { after: sec(m.after) } : null;
+        if (JSON.stringify(next) !== JSON.stringify(demo)) { demo = next; place(); } },
       setWalletMarkers(list) { wallets = list || []; renderMarkers(); },
       focus: (from, to, exit) => focus(sec(from), sec(to), sec(exit)),
       setTf, init: async first => { if (first) await setTf(first, false, 'recent'); else await setTf(pickTf(now - created), false); },

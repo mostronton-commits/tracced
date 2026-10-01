@@ -17,7 +17,7 @@ DEFS = {
     "pre-range":  "Also bought before the range",
     "transfer-in": "Sold more than it was ever seen buying — the rest arrived another way, usually a transfer",
     "re-bought":  "Bought again after the range",
-    "bundle":     "First SOL from the same wallet as 2+ others here — likely one operator. From an exchange or an app (1,000+ transactions a day) only when the wallets were created together, within 30 min",
+    "bundle":     "First SOL from the same wallet as 2+ others here — likely one operator. From a busy exchange or app, only when the wallets were created together",
     "no-exits":   "Exits not fetched (over the cap)",
     "seen-before": "Also an early buyer in another analysis you saved — shown as a chain link, click it for the list",
 }

@@ -20,7 +20,7 @@ UI = {
     "filter": ("k",), "hide": ("tag", "on"), "filters-reset": (), "filters-toggle": ("on",), "funder": ("on",),
     "sort": ("key", "dir", "via"), "select": ("count",), "select-all": ("on",), "select-clear": (),
     "export": ("format", "sel", "filtered", "where"), "agent-open": (), "agent-close": (),
-    "show-more": ("all",), "find-pump": (), "limit-window": ("kind",),
+    "show-more": ("all",), "find-pump": (), "range-preset": ("p",), "finding": ("k",), "limit-window": ("kind",),
     "range-set": ("end",), "range-add": (), "range-reset": (), "tf": ("tf",), "chart-nav": ("to",),
     "list-tab": (), "copy": ("what",), "ext": ("to",), "cur": ("to",), "tz": ("to",), "leave": ("secs",),
     "egg": ("what",),
@@ -136,7 +136,7 @@ PERIODS = {"today": 1, "7d": 7, "30d": 30, "all": None}
 SESSION_GAP = 30 * 60_000                # пауза, після якої починається новий візит
 DAY_MS = 86_400_000
 PK_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
-NOT_ACTIVITY = {"run"}                   # прогін закінчується без людини: активність — це її `analyze`
+NOT_ACTIVITY = {"run", "alert", "alert_fail", "alert_cap"}   # сповіщення шле сервер: це не дія людини (рев'ю 30.09)                   # прогін закінчується без людини: активність — це її `analyze`
 CARD_SPEND = {"card-profile", "card-trades", "card-age"}
 
 # на що пішли кредити: підписи для таблиці витрат
@@ -144,7 +144,8 @@ FEATURES = {"run": "Analyses", "names": "Wallet names", "enrich": "Wallet age an
             "overview": "Token overviews", "chart": "Chart candles", "card-profile": "Card: last 30 days",
             "card-trades": "Card: trades on the token", "card-age": "Card: age and funder", "demo": "Demo capture",
             "credits": "Balance checks", "onchain": "This dashboard: on-chain facts", "agent": "AI agent",
-            "api-check": "Partner API: token checks"}
+            "api-check": "Partner API: token checks", "alerts": "Telegram alerts: token names and positions",
+            "fresh": "Home: fresh pumps"}
 WHO = {"wallets": "Wallet users", "team": "You and test wallets", "guests": "Guests", "partners": "API partners", "system": "The server"}
 # кліки людською мовою: таблиця «що клікають» і хронологія гаманця
 CLICKS = {"card-open": "Opened a wallet card", "card-close": "Closed a wallet card", "card-period": "Switched 7D/30D in a card",
@@ -152,10 +153,16 @@ CLICKS = {"card-open": "Opened a wallet card", "card-close": "Closed a wallet ca
           "filters-toggle": "Opened or closed the filters", "funder": "Filtered by a funder", "sort": "Sorted the table",
           "select": "Ticked wallets", "select-all": "Ticked all", "select-clear": "Cleared the selection", "export": "Exported",
           "agent-open": "Opened the agent", "agent-close": "Closed the agent", "show-more": "Showed more rows",
-          "find-pump": "Pressed Find the pump", "limit-window": "Saw the daily limit window", "range-set": "Marked a range on the chart",
+          "find-pump": "Pressed Find the pump (Before the pump)", "range-preset": "Picked a quick range (First / Last hour)", "finding": "Opened a finding above the table", "limit-window": "Saw the daily limit window", "range-set": "Marked a range on the chart",
           "range-add": "Added a range", "range-reset": "Reset the ranges", "tf": "Changed the timeframe", "chart-nav": "Jumped on the chart",
           "list-tab": "Switched a list", "copy": "Copied an address", "ext": "Followed a link out", "cur": "Switched USD/SOL",
           "tz": "Switched UTC/local", "leave": "Left a page", "egg": "Found an easter egg"}
+# що на сайті можна натиснути зараз: з цього списку — «ніхто не користувався» (прибрані кнопки сюди не входять,
+# інакше вони висіли б у списку вічно)
+UI_FEATURES = ("card-open", "card-period", "pin", "sort", "filter", "hide", "filters-toggle", "filters-reset", "funder", "finding",
+               "select", "select-all", "export", "show-more", "agent-open", "range-set", "range-add", "range-reset", "tf",
+               "chart-nav", "list-tab", "copy", "ext", "cur", "tz")
+PAGE_NAMES = {"job": "On a result", "token": "On a token's chart", "me": "In Lists", "home": "On the home page", "docs": "In the docs"}
 FUNNEL = (("result", "Opened a result"), ("card", "Opened a wallet card"), ("run", "Ran an analysis"),
           ("keep", "Saved or exported"), ("agent", "Asked the agent"))
 LIMITS = {"run": "Live analyses", "browse": "Charts of new tokens", "age-card": "Age checks from cards",
@@ -534,6 +541,16 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
         f["times"] += 1
         f["wallets"].add(e["pubkey"])
     features = sorted(({**f, "wallets": len(f["wallets"])} for f in feats.values()), key=lambda f: (-f["wallets"], -f["times"]))
+    # те саме, згруповане за сторінкою, де натискали; і те, чого ніхто не натискав, — кандидати сховати чи прибрати
+    feature_groups = []
+    for pg in list(PAGE_NAMES) + sorted({f["page"] or "" for f in features} - set(PAGE_NAMES)):
+        items = [f for f in features if (f["page"] or "") == pg]
+        if items:
+            feature_groups.append({"page": pg, "label": PAGE_NAMES.get(pg, "Elsewhere"), "rows": items})
+    # «найчастіше» — лише дії, а не закриття панелей і пасхалки: закрити картку після відкриття — не окрема функція
+    features_top = [f for f in features if f["name"] not in ("card-close", "agent-close", "filters-toggle", "egg")][:8]
+    used = {f["name"] for f in features}
+    unused = [CLICKS[n] for n in UI_FEATURES if n not in used and n in CLICKS]
     viewers = {}
     for e in in_p:
         if e["event"] == "view" and e.get("page") == "token" and e.get("ref"):
@@ -556,7 +573,7 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
     for e in runs_p:
         if e.get("pad"):
             pads[e["pad"]] = pads.get(e["pad"], 0) + 1
-    tokens["pads"] = sorted(({"pad": k, "n": n} for k, n in pads.items()), key=lambda x: -x["n"])
+    tokens["pads"] = sorted(({"pad": k, "label": k, "n": n} for k, n in pads.items()), key=lambda x: -x["n"])
     lim = {}
     for e in in_p:
         if e["event"] == "limit":
@@ -568,7 +585,7 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
     limits = sorted(({**x, "wallets": len(x["wallets"])} for x in lim.values()), key=lambda x: -x["times"])
     errs = {}
     for e in in_p:
-        if e["event"] == "error":
+        if e["event"] == "error" and e.get("where") != "favicon.ico":        # браузер сам питає іконку: людина цієї помилки не бачить
             x = errs.setdefault((e.get("where"), e.get("status"), e.get("msg")), {"where": e.get("where"), "status": e.get("status"),
                                                                               "msg": e.get("msg"), "times": 0, "wallets": set()})
             x["times"] += 1
@@ -586,12 +603,36 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
                    "trades_median": _median([p.get("swaps") for p in p30 if p]),
                    "in_profit": sum(1 for p in p30 if (p.get("pnl_usd") or 0) > 0), "with_p30": sum(1 for p in p30 if p),
                    "winrate_median": _median([p.get("win_rate") for p in p30 if (p.get("closed") or 0) >= 3])}
+    # ── сповіщення і стрічка пампів: хто підключив Telegram, скільки дзвіночків, що надіслано, чи повертаються з
+    #    повідомлень на сайт, що ламається (рядки сервера з bg — не активність людей, тож читаються з усього журналу) ──
+    evp = [e for e in events if e["ts_ms"] >= p0]
+    sent = [e for e in evp if e.get("event") == "alert" and person(e.get("pubkey"))]
+    # повернення з алертів — як і надіслані, без команди: власник, що сам клацає свої алерти, давав CTR 300% (рев'ю 01.10).
+    # Гості лишаються: вбудований браузер Telegram зазвичай без входу, і це ті самі підписники
+    back = [e for e in evp if e.get("event") == "view" and e.get("src") == "alert" and (e.get("pubkey") == "guest" or person(e.get("pubkey")))]
+    afails, unlinks = {}, {}
+    for e in evp:
+        if e.get("event") == "alert_fail":
+            afails[e.get("why") or "other"] = afails.get(e.get("why") or "other", 0) + 1
+        if e.get("event") == "telegram" and not e.get("on") and person(e.get("pubkey")):
+            unlinks[e.get("via") or "site"] = unlinks.get(e.get("via") or "site", 0) + 1
+    alerts = {"linked": sum(1 for a in accts if (a.get("telegram") or {}).get("chat")),
+              "bells": sum(1 for a in accts for l in (a.get("lists") or {}).values() if isinstance(l, dict) and l.get("alerts")),
+              "started": sum(1 for e in evp if e.get("event") == "tg_link" and person(e.get("pubkey"))),
+              "linked_new": sum(1 for e in evp if e.get("event") == "telegram" and e.get("on") and person(e.get("pubkey"))),
+              "sent": len(sent), "buys": sum(1 for e in sent if e.get("side") == "buy"),
+              "to": len({e["pubkey"] for e in sent}),
+              "lag_s": (_median([e.get("lag_ms") for e in sent if e.get("lag_ms") is not None]) or 0) / 1000 if sent else None,
+              "back": len(back), "ctr": (len(back) / len(sent)) if sent else None,
+              "fails": afails, "caps": sum(1 for e in evp if e.get("event") == "alert_cap"), "unlinks": unlinks,
+              "tape": sum(1 for e in evp if e.get("event") == "view" and e.get("src") == "fresh")}
     return {"period": period if period in PERIODS else "7d", "since_ms": p0, "now_ms": now_ms, "include_team": include_team,
+            "alerts": alerts,
             "tracked_since": min((e["ts_ms"] for e in events if not e.get("backfill")), default=None),
             "pulse": pulse, "key": key_nums, "daily": series, "funnel": funnel, "funnel_base": len(active), "returning": returning,
             "sessions": sessions, "came_back": came_back, "activation": {"n": len(activated), "of": len(new)},
             "ttfa_median_h": _median(ttfa), "runs": runs[:100], "runs_n": len(runs), "run_stats": run_stats, "costs": costs,
-            "ai": ai, "users": users, "features": features, "tokens": tokens, "limits": limits, "onchain": onchain_sum,
+            "ai": ai, "users": users, "features": features, "feature_groups": feature_groups, "features_top": features_top, "unused": unused, "tokens": tokens, "limits": limits, "onchain": onchain_sum,
             "errors": errors, "fails": sorted(({"err": k, "n": n} for k, n in fails.items()), key=lambda x: -x["n"]),
             "devices": {"phone": len(phone), "computer": len(computer)},
             "questions": sum(1 for e in in_p if e["event"] == "agent" and e.get("kind") == "ask")}

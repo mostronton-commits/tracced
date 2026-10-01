@@ -12,6 +12,10 @@ import urllib.request
 
 DEFAULT_URL = "https://openrouter.ai/api/v1"
 DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash"
+# Куди OpenRouter може віддати запит (в ньому чужі адреси гаманців і їхні публічні імена): найшвидший постачальник, але
+# лише той, хто не зберігає запити й не вчиться на них, і не з хостингом у Китаї, Сінгапурі чи Індонезії — без рішення ЄС
+# про адекватний захист даних (юридичний огляд 01.10; на 01.10 лишаються DeepInfra, Fireworks, CoreWeave та інші зі США)
+PROVIDER = {"sort": "throughput", "data_collection": "deny", "ignore": ["deepseek", "alibaba", "streamlake", "dekallm"]}
 MAX_TOKENS = 1500
 MAX_CALLS = 3
 
@@ -77,7 +81,7 @@ class Assistant:
 
     def payload(self, system, user, json_mode=True, reasoning=True):
         p = {"model": self.model, "temperature": 0.2, "max_tokens": MAX_TOKENS, "usage": {"include": True},
-             "provider": {"sort": "throughput"},                # OpenRouter: найшвидший постачальник цієї моделі (картки — сотні токенів)
+             "provider": {**PROVIDER, "ignore": list(PROVIDER["ignore"])},                       # OpenRouter: найшвидший з тих, що нічого не зберігають
              "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
         if self.fallbacks:
             p["models"] = [self.model] + self.fallbacks          # OpenRouter: запасні моделі, якщо основна впала чи перевантажена

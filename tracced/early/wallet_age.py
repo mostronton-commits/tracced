@@ -27,6 +27,11 @@ import urllib.request
 from ..cache import JsonCache
 
 DEFAULT_URL = "https://api.mainnet-beta.solana.com"
+# найновіший формат транзакцій, який ми читаємо. З 0 нода не віддає транзакції версії 1 (Axiom Flash, FOMO та інші з
+# 2026 року): перша транзакція гаманця такої версії лишала його без спонсора. jsonParsed у версії 1 той самий (30.09)
+TX_VERSION = 1
+# «спонсора нема» без позначки txv (записане до читання версії 1) могло бути помилкою ноди на транзакції версії 1, а не
+# фактом: такий запис перевіряється знову. Позначка, не дата: прод отримує це читання пізніше за dev (рев'ю 30.09, 01.10)
 HEAVY = {"getSignaturesForAddress", "getTransaction"}   # платна нода Solana Tracker бере за них по 10 кредитів
 # Helius: повна історія, по 1 кредиту за виклик, і свій метод «від найстарішої» (getTransactionsForAddress, 10 кредитів),
 # що знаходить першу транзакцію зайнятого гаманця одним викликом замість гортання (перевірено 24.09.2026: у гаманця
@@ -363,18 +368,20 @@ class WalletAge:
         key = f"funder:{wallet}"
         can_scan = HELIUS_HOST in self.tx_url
         cached = self._get(key)
+        if cached is not None and not cached.get("funder") and (cached.get("txv") or 0) < TX_VERSION:
+            cached = None
         if cached is not None and (cached.get("funder") or not scan or cached.get("scanned", True) or not can_scan):
             self.cache_hits += 1
             return cached.get("funder")
         if cached is not None:                            # перша транзакція вже прочитана і спонсора не дала
             found, via = self._first_sol_in(wallet), "scan"
         else:
-            tx = self._call("getTransaction", [oldest_sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}],
+            tx = self._call("getTransaction", [oldest_sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": TX_VERSION}],
                             url=self.tx_url, pace_s=self.tx_pace_s)
             found, via = funder_from_tx(tx, wallet), "first"
             if found is None and can_scan and scan:
                 found, via = self._first_sol_in(wallet), "scan"
-        out = {"funder": found, "scanned": bool(found) or scan or not can_scan}
+        out = {"funder": found, "scanned": bool(found) or scan or not can_scan, "txv": TX_VERSION}
         if found:
             out["via"] = via                              # звідки: скільки спонсорів дає лише пошук за 10 кредитів
         if self.cache is not None:
@@ -415,7 +422,15 @@ class WalletAge:
         """Дешева перевірка прочитала лише першу транзакцію, і спонсора там не було: пошук серед перших 100 ще не
         робився. Картка, яку відкрили, його доробляє."""
         c = self._get(f"funder:{wallet}")
-        return bool(c) and not c.get("funder") and c.get("scanned") is False and HELIUS_HOST in self.tx_url
+        if not c or c.get("funder"):
+            return False
+        # «спонсора нема» без позначки версії теж ще не дочитано: картка перечитує через платний шлях (рев'ю 01.10)
+        return (c.get("scanned") is False and HELIUS_HOST in self.tx_url) or (c.get("txv") or 0) < TX_VERSION
+
+    def funder_unread(self, wallet):
+        """funder() піде до ноди: запису нема, або «спонсора нема» записане до читання версії 1 (тоді перечитуємо)."""
+        c = self._get(f"funder:{wallet}")
+        return c is None or (not c.get("funder") and (c.get("txv") or 0) < TX_VERSION)
 
     def _first_sol_in(self, wallet):
         """Гаманець застосунку (комісії за нього платить застосунок) починає не з SOL, а з токенів. Перший вхідний SOL
@@ -424,7 +439,7 @@ class WalletAge:
         try:
             res = self._call("getTransactionsForAddress",
                              [wallet, {"sortOrder": "asc", "limit": 100, "transactionDetails": "full",
-                                       "encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}],
+                                       "encoding": "jsonParsed", "maxSupportedTransactionVersion": TX_VERSION}],
                              url=self.tx_url, pace_s=self.tx_pace_s) or {}
         except RuntimeError:
             return None
