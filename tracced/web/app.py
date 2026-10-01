@@ -36,6 +36,7 @@ from ..early import agent as agent_mod, assistant as assistant_mod, exchanges as
 from ..early.store import TradeStore
 from ..providers import dexscreener
 from . import accounts as acct_mod
+from . import activity as activity_mod
 from . import alerts as alerts_mod
 from . import fresh as fresh_mod
 from . import docs as docs_mod
@@ -122,6 +123,18 @@ def _hold_text(m):
 
 
 env.filters["holdt"] = _hold_text
+
+
+def _ago(ms, now_ms=None):
+    """Скільки минуло: now, 5m, 3h, 2d."""
+    try:
+        m = ((now_ms or time.time() * 1000) - float(ms)) / 60_000
+    except (TypeError, ValueError):
+        return ""
+    return "now" if m < 1 else f"{m:.0f}m" if m < 60 else f"{m / 60:.0f}h" if m < 1440 else f"{m / 1440:.0f}d"
+
+
+env.filters["ago"] = _ago
 
 
 class WebError(Exception):
@@ -447,6 +460,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["alerts_state"] = {"on": False, "connected": False, "url": "", "wallets": 0, "events": 0, "sent": 0, "last_ms": None, "errors": 0}
     app["alerts_wm"], app["alerts_seen"], app["alerts_tok"], app["alerts_hour"], app["sol_px"] = {}, {}, {}, {}, [0.0, 0.0]
     app["alerts_ca"] = {}             # чат → токени, адресу яких він уже отримав (у пам'яті: після перезапуску адреса прийде ще раз)
+    app["activity"] = activity_mod.Activity(Path(out_dir).parent / "usage" / "activity.json")   # угоди гаманців зі списків, для Lists
     app["alerts_fails"], app["alerts_tok_wait"], app["alerts_pending"] = {}, {}, 0   # збої за годину; токени, які саме питаємо; черга
     app["alerts_sem"] = asyncio.Semaphore(int(s.get("alerts_parallel", 4)))         # запитів до ноди водночас   # спроб з невірним ключем з однієї мережі за хвилину
     app["ages"] = ages
@@ -732,7 +746,7 @@ async def _flush_on_exit(app):
             await asyncio.to_thread(app["jobs"]._save, job, True)
         except Exception as e:  # noqa: BLE001
             log.warning("save on exit %s: %s", job.id, e)
-    fns = [app["profile_cache"].flush, app["dex_cache"].flush]
+    fns = [app["profile_cache"].flush, app["dex_cache"].flush, app["activity"].save]
     if hasattr(app["st"], "flush"):
         fns.append(app["st"].flush)
     if app.get("ages") is not None:
@@ -1679,6 +1693,9 @@ async def _alert_tx(app, http, wallet, sig):
         return
     evs = alerts_mod.classify(tx, wallet, px)
     st["events"] += 1
+    for ev in evs:                                   # активність гаманця для Lists: кожному, хто стежить, хоч би що він обрав
+        for x in app["alerts_wm"].get(wallet) or []:
+            app["activity"].bump(x["pk"], wallet, ev["side"], int(ev.get("ts") or 0) * 1000 or None)
     for ev in evs:
         # місце в годинній стелі кожного чату — ДО платних запитів і одразу: двадцять транзакцій водночас інакше всі
         # пройшли б перевірку і всі заплатили б (рев'ю 30.09, 01.10). Не надіслане все одно займає місце — це стеля
@@ -1753,6 +1770,10 @@ async def _alerts_watch_once(app, http, url, wm):
                             asyncio.get_running_loop().create_task(_alert_tx_safe(app, http, w, v["signature"]))
             if time.monotonic() >= next_check:
                 next_check = time.monotonic() + 30
+                try:
+                    await asyncio.to_thread(app["activity"].save)    # лічильники угод — на диск разом з перевіркою списку
+                except OSError as e:
+                    log.warning("activity save: %s", e)
                 now_map = await asyncio.to_thread(_watch_now, app)
                 if set(now_map) != set(wm):
                     return
@@ -2080,8 +2101,9 @@ async def me_page(request):
     lists = [dict(v, id=k, n=sum(1 for w in wallets if k in (w.get("lists") or []))) for k, v in a["lists"].items()]
     _view(request, "me")
     tg = a.get("telegram") or {}
-    wmeta = {w["wallet"]: {k: w.get(k) for k in ("my_tags", "lists", "added_ms")} for w in wallets}   # what the card shows, by wallet
-    return render("me.html", request, wallets=wallets, analyses=analyses, max_my_tags=acct_mod.MAX_MY_TAGS, wmeta=wmeta,
+    act = request.app["activity"].of(pk)                      # угоди за 7 днів, які бачив потік сповіщень (власник, 01.10)
+    wmeta = {w["wallet"]: dict({k: w.get(k) for k in ("my_tags", "lists", "added_ms")}, act=act.get(w["wallet"])) for w in wallets}   # what the card shows, by wallet
+    return render("me.html", request, wallets=wallets, analyses=analyses, max_my_tags=acct_mod.MAX_MY_TAGS, wmeta=wmeta, act=act,
                   demo_mint=(demo or {}).get("mint"), lists=lists, max_lists=acct_mod.MAX_LISTS,
                   alerts_ok=_alerts_allowed(request.app, pk) and _alerts_live(request.app),   # без бота картка не обіцяє того, чого нема
                   tg={"linked": bool(tg.get("chat")), "user": tg.get("user") or ""},

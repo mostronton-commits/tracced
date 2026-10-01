@@ -1,6 +1,7 @@
 """Сповіщення в Telegram на фейковому клієнті: прив'язка кодом, відповіді бота, налаштування, дзвіночок, закритий тест."""
 import asyncio
 import tempfile
+import time
 import unittest
 
 try:
@@ -17,9 +18,9 @@ except ImportError:
 
 if AioHTTPTestCase:
     try:
-        from tests.test_web import FakeWebST, TEST_PK, W1, wallet_cookie
+        from tests.test_web import FakeWebST, TEST_PK, W1, wallet_cookie, seed_demo, DEMO_JID
     except ImportError:
-        from test_web import FakeWebST, TEST_PK, W1, wallet_cookie
+        from test_web import FakeWebST, TEST_PK, W1, wallet_cookie, seed_demo, DEMO_JID
     from unittest import mock
     from tracced.web import app as app_mod
     from tracced.web.app import create_app, tg_reply
@@ -110,6 +111,17 @@ if AioHTTPTestCase:
             self.assertEqual(self.app["accounts"].load(TEST_PK)["telegram"]["chat"], 424242)   # still mine
             self.assertNotIn("telegram", self.app["accounts"].load(W1))                         # they learn nothing
 
+        async def test_lists_show_what_the_alerts_saw(self):
+            seed_demo(self.tmp.name, self.app)
+            r = await self.client.post("/me/wallets", json={"job": DEMO_JID, "wallets": [W1]}, headers=self.origin)
+            self.assertEqual(r.status, 200, await r.text())
+            self.assertNotIn('class="wact', await (await self.client.get("/me")).text())  # nothing seen yet: no counter
+            self.app["activity"].bump(TEST_PK, W1, "buy")
+            self.app["activity"].bump(TEST_PK, W1, "sell")
+            html = await (await self.client.get("/me")).text()
+            self.assertIn('class="wact"', html)
+            self.assertIn("↑1", html)
+
         async def test_no_link_before_the_bot_is_known(self):
             self.app["tg"]["checked"] = False                                              # a name from .env alone is not trusted
             self.assertEqual((await self.client.post("/me/telegram/link", json={}, headers=self.origin)).status, 503)
@@ -124,7 +136,7 @@ if AioHTTPTestCase:
             self.app["s"]["alerts_per_hour"] = 2
             sub = {"pk": TEST_PK, "chat": 7, "prefs": {"buys": True, "sells": True, "min_usd": 0}, "tags": [], "src": ""}
             self.app["alerts_wm"] = {"WAL": [sub]}
-            ev = {"side": "sell", "mint": "M" * 32, "usd": 500.0, "amount": 10.0, "before": 100.0, "pct": 10, "sig": "", "ts": 1, "mcap": 1e6}
+            ev = {"side": "sell", "mint": "M" * 32, "usd": 500.0, "amount": 10.0, "before": 100.0, "pct": 10, "sig": "", "ts": int(time.time()), "mcap": 1e6}
             calls = {"facts": 0, "share": 0, "sent": 0}
 
             async def facts(app, mint):
@@ -150,6 +162,7 @@ if AioHTTPTestCase:
                     mock.patch.object(app_mod.alerts_mod, "classify", lambda tx, w, px: [dict(ev)]):
                 await asyncio.gather(*(app_mod._alert_tx_safe(self.app, None, "WAL", f"sig{i}") for i in range(20)))
             self.assertEqual(calls["sent"], 3)                                             # two alerts and one "skipped" line
+            self.assertEqual(self.app["activity"].of(TEST_PK)["WAL"]["sells"], 20)        # activity counts every trade, sent or not
             self.assertEqual((calls["facts"], calls["share"]), (2, 2))                     # paid lookups only for the two
             self.app["alerts_wm"] = {}
             with mock.patch.object(app_mod, "_rpc", mock.AsyncMock(side_effect=AssertionError("no one watches"))):

@@ -1322,6 +1322,10 @@ header.top { position: relative; z-index: 45; }
 .mewl tbody tr.carded td { background: var(--sage); }
 .mewl tbody tr:focus-visible { outline: 2px solid #6EE7B7; outline-offset: -2px; }
 .mewl .wlrow { display: flex; align-items: center; gap: 10px; min-width: 0; }
+/* the wallet's trades the alerts saw in 7 days, at the row's right end; quiet when none (owner, 01.10) */
+.mewl .wact { margin-left: auto; flex: none; display: inline-flex; align-items: baseline; gap: 5px; font: 12px/1 var(--mono); color: var(--muted); white-space: nowrap; }
+.mewl .wact b { font-weight: 600; } .mewl .wact .up { color: #059669; } .mewl .wact .dn { color: var(--red); }
+.mewl .wact.quiet { opacity: .75; }
 .mewl td.rm { width: 1%; text-align: right; }
 .mewl td.rm .x { width: 30px; height: 30px; padding: 0; font-size: 16px; }
 .wcard .dsrc { padding-top: 10px; padding-bottom: 10px; } .wcard .dsrc .dline { margin: 0; padding: 2px 0; border: 0; }

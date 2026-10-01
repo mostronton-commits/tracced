@@ -20,6 +20,10 @@ A row in a list is the wallet and your tags for it: **+** adds one right there. 
 about the wallet itself: who it is if anyone knows, its age and first funder, the other analyses you saved it in, and its
 last 7 or 30 days on every token. Nothing about the token you found it on: that stays on the result.
 
+In a list with alerts on, a row also shows the wallet's buys (↑) and sells (↓) that the alerts saw in the last 7 days
+and how long ago it last traded; its card says the same. Every trade counts, whatever your alert settings, from the
+moment the list's alerts are on. The counts are kept with your account for 30 days.
+
 ## Your own tags
 
 Each saved wallet takes tags you write yourself: in your lists, right in its row, or in the wallet's card. Type a
