@@ -99,14 +99,18 @@ class Activity:
             self.dirty = True
 
     def done(self, wallet, sig, ms=None):
-        """Підпис оброблено (потоком чи страховкою): переживе перезапуск, щоб страховка не надіслала його вдруге."""
+        """Підпис оброблено (потоком чи страховкою): переживе перезапуск, щоб страховка не надіслала його вдруге.
+        True — уперше; False — його вже рахували."""
         rec = self.data.get(wallet)
         if rec is None or not sig:
-            return
+            return True
         d = rec.setdefault("done", [])
+        if any(x[0] == sig for x in d):
+            return False                              # уже рахували: повтор після невдалої відправки не додає угоду вдруге
         d.append([sig, int(ms or _now())])
         del d[:-DONE_MAX]
         self.dirty = True
+        return True
 
     def recent_done(self, now_ms=None):
         """Ключі «підпис:гаманець», оброблені за останні 15 хв — для пам'яті сповіщень після перезапуску."""

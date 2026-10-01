@@ -35,6 +35,7 @@ if AioHTTPTestCase:
             app["admins"] = {TEST_PK}
             app["tg"]["token"], app["tg"]["name"], app["tg"]["on"] = "test-token", "tracced_bot", True
             app["tg"]["checked"] = True                                                    # getMe has answered
+            app["s"]["alerts_chat_gap_s"] = 0                                              # no second between messages in tests
             return app
 
         async def setUpAsync(self):
@@ -252,6 +253,44 @@ if AioHTTPTestCase:
             await asyncio.sleep(0)
             self.assertEqual(len(calls), 30)                                           # a bot's minute stops at 30
             self.assertIn("B31:BOT", self.app["alerts_seen"])                          # the rest is marked: the poll will not resend it
+
+        async def test_an_alert_nobody_got_is_tried_again_and_counted_once(self):
+            sub = {"pk": TEST_PK, "chat": 7, "prefs": {"buys": True, "sells": True, "min_usd": 0}, "tags": [], "src": ""}
+            self.app["alerts_wm"] = {"WAL": [sub]}
+            self.app["activity"].watch({"WAL"})
+            ev = {"side": "buy", "mint": "M" * 32, "usd": 500.0, "amount": 10.0, "sig": "S", "ts": int(time.time()), "new": True}
+            results = [False, True]
+
+            async def send(app, http, chat, text, pk=None):
+                return results.pop(0)
+            with mock.patch.object(app_mod, "_alert_rpc", mock.AsyncMock(return_value={"tx": 1})), \
+                    mock.patch.object(app_mod, "_sol_price", mock.AsyncMock(return_value=150.0)), \
+                    mock.patch.object(app_mod, "_tg_send", send), mock.patch.object(app_mod, "_st_open_now", lambda app: False), \
+                    mock.patch.object(app_mod.alerts_mod, "classify", lambda tx, w, px: [dict(ev)]):
+                self.assertFalse(await app_mod._alert_tx_safe(self.app, None, "WAL", "S"))   # Telegram failed: not handled
+                self.assertNotIn("S:WAL", self.app["alerts_seen"])
+                self.assertTrue(await app_mod._alert_tx_safe(self.app, None, "WAL", "S", via="poll"))
+            self.assertEqual(self.app["activity"].of(["WAL"])["WAL"]["buys"], 1)      # the retry is not a second trade
+
+        async def test_the_poll_skips_a_bots_minute_too(self):
+            now = int(time.time())
+            self.app["alerts_wm"] = {"BOT": [{"pk": TEST_PK, "chat": 7, "prefs": {}, "tags": []}]}
+            act = self.app["activity"]
+            act.watch({"BOT"}), act.seen("BOT", "BASE")
+            self.app["s"]["alerts_wallet_per_min"] = 3
+            got = []
+
+            async def fake_tx(app, http, w, sig, via="stream", bt=None):
+                got.append(sig)
+                return True
+
+            async def rpc(http, url, method, params):
+                return [{"signature": f"T{i}", "blockTime": now - 30 - i} for i in range(10)]
+            with mock.patch.object(app_mod, "_rpc", rpc), mock.patch.object(app_mod, "_alert_tx_safe", fake_tx):
+                await app_mod._alerts_poll(self.app, None, ["BOT"])
+            self.assertEqual(len(got), 3)                                                # three a minute, the rest skipped
+            self.assertIn("T0:BOT", self.app["alerts_seen"])                             # and marked, so not sent later
+            self.assertEqual(act.last_sig("BOT"), "T0")
 
         async def test_a_trade_the_node_did_not_give_is_retried_not_lost(self):
             self.app["alerts_wm"] = {"WAL": [{"pk": TEST_PK, "chat": 7, "prefs": {}, "tags": []}]}
