@@ -292,6 +292,14 @@ if AioHTTPTestCase:
             self.assertIn("T0:BOT", self.app["alerts_seen"])                             # and marked, so not sent later
             self.assertEqual(act.last_sig("BOT"), "T0")
 
+        async def test_the_poll_does_not_step_over_a_trade_still_in_work(self):
+            self.app["alerts_wm"] = {"WAL": [{"pk": TEST_PK, "chat": 7, "prefs": {}, "tags": []}]}
+            self.app["alerts_seen"]["S:WAL"] = time.time()
+            self.app["alerts_inflight"].add("S:WAL")                                   # the stream is still reading it
+            self.assertFalse(await app_mod._alert_tx(self.app, None, "WAL", "S", via="poll"))
+            self.app["alerts_inflight"].discard("S:WAL")
+            self.assertTrue(await app_mod._alert_tx(self.app, None, "WAL", "S", via="poll"))   # done: the poll moves on
+
         async def test_a_trade_the_node_did_not_give_is_retried_not_lost(self):
             self.app["alerts_wm"] = {"WAL": [{"pk": TEST_PK, "chat": 7, "prefs": {}, "tags": []}]}
             with mock.patch.object(app_mod, "_alert_rpc", mock.AsyncMock(side_effect=RuntimeError("rpc getTransaction: -32005 rate limit"))), \

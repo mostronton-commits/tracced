@@ -466,6 +466,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["alerts_pace"], app["alerts_flood"] = _Pace(s.get("alerts_rps", 12)), {}    # темп запитів до ноди; угоди гаманця за хвилину
     app["alerts_conn_at"] = 0.0                                                     # коли підключився нинішній потік
     app["alerts_poll_wake"], app["alerts_chat_locks"] = asyncio.Event(), {}         # розбудити страховку; черга відправки на чат
+    app["alerts_inflight"] = set()                                                  # угоди, які саме розбираються
     for key in app["activity"].recent_done():                                       # оброблене до перезапуску: не вдруге
         app["alerts_seen"][key] = time.time()   # спроб з невірним ключем з однієї мережі за хвилину
     app["ages"] = ages
@@ -1726,10 +1727,21 @@ async def _alert_tx(app, http, wallet, sig, via="stream", bt=None):
     if not app["alerts_wm"].get(wallet):              # за гаманцем уже ніхто не стежить (відв'язав Telegram, вимкнув дзвіночок)
         return True
     key = sig + ":" + wallet
-    seen = app["alerts_seen"]
+    seen, inflight = app["alerts_seen"], app["alerts_inflight"]
     if key in seen:
-        return True
+        # ще в роботі в іншої задачі (потік читає, страховка дійшла): «не оброблено», щоб страховка не перескочила її
+        # закладкою — якщо та спроба провалиться, наступне опитування візьме угоду знову (рев'ю 01.10)
+        return key not in inflight
     seen[key] = time.time()
+    inflight.add(key)
+    try:
+        return await _alert_tx_work(app, http, wallet, sig, via, bt, key)
+    finally:
+        inflight.discard(key)
+
+
+async def _alert_tx_work(app, http, wallet, sig, via, bt, key):
+    seen = app["alerts_seen"]
     st, s = app["alerts_state"], app["s"]
     if via == "poll":                                # потік цієї угоди не приніс за alerts_poll_grace_s: страховка спрацювала
         st["poll_caught"] = st.get("poll_caught", 0) + 1
