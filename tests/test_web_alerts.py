@@ -35,6 +35,7 @@ if AioHTTPTestCase:
             app["admins"] = {TEST_PK}
             app["tg"]["token"], app["tg"]["name"], app["tg"]["on"] = "test-token", "tracced_bot", True
             app["tg"]["checked"] = True                                                    # getMe has answered
+            app["s"]["alerts_chat_gap_s"] = 0                                              # no second between messages in tests
             return app
 
         async def setUpAsync(self):
@@ -144,8 +145,10 @@ if AioHTTPTestCase:
             act.watch({"WAL"})
             got, asked = [], []
 
-            async def fake_tx(app, http, w, sig, via="stream"):
+            async def fake_tx(app, http, w, sig, via="stream", bt=None):
                 got.append((sig, via))
+                return sig not in fail
+            fail = set()
 
             async def rpc(http, url, method, params):
                 asked.append(params[1])
@@ -163,6 +166,11 @@ if AioHTTPTestCase:
             self.assertEqual(asked[-1].get("until"), "BASE")
             self.assertEqual(got, [("MISSED", "poll")])
             self.assertEqual(act.last_sig("WAL"), "MISSED")                            # not past FRESH: the next poll sees it
+            act.seen("WAL", "BASE")
+            got.clear(), fail.add("MISSED")                                            # the node did not give MISSED this time
+            with mock.patch.object(app_mod, "_rpc", rpc), mock.patch.object(app_mod, "_alert_tx_safe", fake_tx):
+                await app_mod._alerts_poll(self.app, None, ["WAL"])
+            self.assertEqual(act.last_sig("WAL"), "FAILED")                            # the bookmark waits before it: retried next time
 
         async def test_lists_change_without_a_reconnect(self):
             sent, inbox = [], asyncio.Queue()
@@ -186,8 +194,11 @@ if AioHTTPTestCase:
                 async def __aexit__(self, *a):
                     return False
 
+                async def close(self):
+                    return True
+
             class HTTP:
-                def ws_connect(self, *a, **k):
+                async def ws_connect(self, *a, **k):
                     return WS()
             sub = {"pk": TEST_PK, "chat": 7, "prefs": {}, "tags": []}
             maps = [{"W2": [sub], "W3": [sub]}, {}]
@@ -200,6 +211,133 @@ if AioHTTPTestCase:
             self.assertIn(("logsUnsubscribe", 101), calls)                             # W1 left: unsubscribed, same connection
             self.assertIn(("logsSubscribe", "W3"), calls)                              # W3 came: subscribed, same connection
             self.assertEqual(set(self.app["activity"].data), set())                    # nobody left: counts forgotten
+
+        async def test_a_bot_wallet_and_the_subscription_cap(self):
+            sent, inbox = [], asyncio.Queue()
+
+            class WS:
+                async def send_json(self, m):
+                    sent.append(m)
+                    inbox.put_nowait({"id": m["id"], "result": 100 + m["id"]})
+                    if m["method"] == "logsSubscribe" and m["id"] == 1:              # the first wallet starts trading like a bot
+                        for i in range(32):
+                            inbox.put_nowait({"method": "logsNotification", "params": {"subscription": 101,
+                                              "result": {"value": {"signature": f"B{i}", "err": None}}}})
+
+                async def receive(self, timeout=None):
+                    try:
+                        d = inbox.get_nowait()
+                    except asyncio.QueueEmpty:
+                        await asyncio.sleep(0.01)
+                        raise asyncio.TimeoutError
+                    return type("M", (), {"type": aiohttp.WSMsgType.TEXT, "data": json.dumps(d)})()
+
+                async def close(self):
+                    return True
+
+            class HTTP:
+                async def ws_connect(self, *a, **k):
+                    return WS()
+            sub = {"pk": TEST_PK, "chat": 7, "prefs": {}, "tags": []}
+            maps, calls = [{"BOT": [sub], "ZZZ": [sub]}, {}], []
+
+            async def fake_tx(app, http, w, sig, via="stream", bt=None):
+                calls.append(sig)
+                return True
+            self.app["s"].update(alerts_check_s=0.05, alerts_subs_per_conn=1)
+            with mock.patch.object(app_mod, "_watch_now", lambda app: maps.pop(0) if maps else {}), \
+                    mock.patch.object(app_mod, "_alert_tx_safe", fake_tx):
+                await asyncio.wait_for(app_mod._alerts_watch_once(self.app, HTTP(), "wss://x", {"BOT": [sub], "ZZZ": [sub]}), 5)
+            subs = [m["params"][0]["mentions"][0] for m in sent if m["method"] == "logsSubscribe"]
+            self.assertEqual(subs, ["BOT"])                                            # one per connection here: ZZZ left to the poll
+            await asyncio.sleep(0)
+            self.assertEqual(len(calls), 30)                                           # a bot's minute stops at 30
+            self.assertIn("B31:BOT", self.app["alerts_seen"])                          # the rest is marked: the poll will not resend it
+
+        async def test_an_alert_nobody_got_is_tried_again_and_counted_once(self):
+            sub = {"pk": TEST_PK, "chat": 7, "prefs": {"buys": True, "sells": True, "min_usd": 0}, "tags": [], "src": ""}
+            self.app["alerts_wm"] = {"WAL": [sub]}
+            self.app["activity"].watch({"WAL"})
+            ev = {"side": "buy", "mint": "M" * 32, "usd": 500.0, "amount": 10.0, "sig": "S", "ts": int(time.time()), "new": True}
+            results = [False, True]
+
+            async def send(app, http, chat, text, pk=None):
+                return results.pop(0)
+            with mock.patch.object(app_mod, "_alert_rpc", mock.AsyncMock(return_value={"tx": 1})), \
+                    mock.patch.object(app_mod, "_sol_price", mock.AsyncMock(return_value=150.0)), \
+                    mock.patch.object(app_mod, "_tg_send", send), mock.patch.object(app_mod, "_st_open_now", lambda app: False), \
+                    mock.patch.object(app_mod.alerts_mod, "classify", lambda tx, w, px: [dict(ev)]):
+                self.assertFalse(await app_mod._alert_tx_safe(self.app, None, "WAL", "S"))   # Telegram failed: not handled
+                self.assertNotIn("S:WAL", self.app["alerts_seen"])
+                self.assertTrue(await app_mod._alert_tx_safe(self.app, None, "WAL", "S", via="poll"))
+            self.assertEqual(self.app["activity"].of(["WAL"])["WAL"]["buys"], 1)      # the retry is not a second trade
+
+        async def test_the_poll_skips_a_bots_minute_too(self):
+            now = int(time.time())
+            self.app["alerts_wm"] = {"BOT": [{"pk": TEST_PK, "chat": 7, "prefs": {}, "tags": []}]}
+            act = self.app["activity"]
+            act.watch({"BOT"}), act.seen("BOT", "BASE")
+            self.app["s"]["alerts_wallet_per_min"] = 3
+            got = []
+
+            async def fake_tx(app, http, w, sig, via="stream", bt=None):
+                got.append(sig)
+                return True
+
+            async def rpc(http, url, method, params):
+                return [{"signature": f"T{i}", "blockTime": now - 30 - i} for i in range(10)]
+            with mock.patch.object(app_mod, "_rpc", rpc), mock.patch.object(app_mod, "_alert_tx_safe", fake_tx):
+                await app_mod._alerts_poll(self.app, None, ["BOT"])
+            self.assertEqual(len(got), 3)                                                # three a minute, the rest skipped
+            self.assertIn("T0:BOT", self.app["alerts_seen"])                             # and marked, so not sent later
+            self.assertEqual(act.last_sig("BOT"), "T0")
+
+        async def test_a_trade_the_node_did_not_give_is_retried_not_lost(self):
+            self.app["alerts_wm"] = {"WAL": [{"pk": TEST_PK, "chat": 7, "prefs": {}, "tags": []}]}
+            with mock.patch.object(app_mod, "_alert_rpc", mock.AsyncMock(side_effect=RuntimeError("rpc getTransaction: -32005 rate limit"))), \
+                    mock.patch.object(asyncio, "sleep", mock.AsyncMock()):
+                self.assertFalse(await app_mod._alert_tx_safe(self.app, None, "WAL", "S1"))
+            self.assertNotIn("S1:WAL", self.app["alerts_seen"])                       # not marked handled: the poll can take it
+
+        async def test_what_was_handled_survives_a_restart(self):
+            act = self.app["activity"]
+            act.watch({"WAL"}), act.done("WAL", "S9")
+            act.write(act.snapshot())
+            again = create_app(FakeWebST(TRADES), settings.load(), {}, out_dir=self.tmp.name + "/web", store_dir=self.tmp.name + "/cache")
+            self.assertIn("S9:WAL", again["alerts_seen"])                              # the first poll after a restart skips it
+
+        async def test_the_pace_and_its_pause_hold_for_everyone(self):
+            p = app_mod._Pace(20)
+            t0 = time.monotonic()
+            await asyncio.gather(*(p.wait() for _ in range(5)))
+            self.assertGreater(time.monotonic() - t0, 0.15)                            # 5 at 20 a second: about 0.2 s
+            p = app_mod._Pace(50)
+            waits = [asyncio.ensure_future(p.wait()) for _ in range(3)]
+            await asyncio.sleep(0)
+            p.slow(0.3)                                                                # a refusal after they took their places
+            t0 = time.monotonic()
+            await asyncio.gather(*waits)
+            self.assertGreater(time.monotonic() - t0, 0.25)
+            for text in ("rpc getTransaction: {'code': -32005, 'message': 'Rate limit exceeded'}", "429 Too Many Requests"):
+                self.assertTrue(app_mod._limited(RuntimeError(text)))
+            self.assertFalse(app_mod._limited(RuntimeError("Server disconnected")))
+
+        async def test_credits_never_hold_an_alert(self):
+            self.app["s"].update(credits_month=1_000_000, credits_reserve_pct=5)
+            self.app["credits"].update(left=None, at=0)
+            slow = asyncio.Event()
+
+            async def credits(app):
+                await slow.wait()
+                return 10
+            with mock.patch.object(app_mod, "_credits_left", credits):
+                t0 = time.monotonic()
+                self.assertTrue(app_mod._st_open_now(self.app))                        # unknown: allowed, asked in the background
+                self.assertLess(time.monotonic() - t0, 0.05)
+                slow.set()
+                await self.app["credits_task"]
+            self.app["credits"].update(left=10, at=time.time())
+            self.assertFalse(app_mod._st_open_now(self.app))                           # known and under the reserve: no paid lookups
 
         async def test_no_link_before_the_bot_is_known(self):
             self.app["tg"]["checked"] = False                                              # a name from .env alone is not trusted

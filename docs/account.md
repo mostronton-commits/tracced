@@ -21,8 +21,8 @@ about the wallet itself: who it is if anyone knows, its age and first funder, th
 last 7 or 30 days on every token. Nothing about the token you found it on: that stays on the result.
 
 In a list with alerts on, a row also shows the wallet's buys (↑) and sells (↓) that the alerts saw in the last 7 days
-and how long ago it last traded; its card says the same. Every trade counts, whatever your alert settings, from the
-moment the alerts started watching the wallet. When no list with alerts holds it any more, its counts are dropped,
+and how long ago it last traded; its card says the same. Every trade counts, whatever your alert settings (except the
+skipped part of a bot's minute), from the moment the alerts started watching the wallet. When no list with alerts holds it any more, its counts are dropped,
 and they start again the next time. Counts are kept for 8 days.
 
 ## Your own tags
@@ -49,8 +49,9 @@ The chip above the table filters the list down to those wallets.
 ## Telegram alerts
 
 Open a list and switch its alerts on: the buys and sells of its wallets come to Telegram, a few seconds after they
-happen. If the live stream misses one, a check that runs every minute finds it, and that alert says how long ago the
-trade was.
+happen. If the live stream misses a trade, a check that runs every minute finds the trades of the last 10 minutes; an
+alert that comes a minute or more late says how long ago the trade was. A wallet that trades more than 30 times a
+minute is taken for a bot: the rest of that minute is skipped.
 Only trades count: a wallet has to sign the transaction itself and pay SOL or a stablecoin for a token, or get them for
 one. Transfers, incoming SOL, airdrops and token-for-token swaps stay silent, and so does anything under your minimum.
 
