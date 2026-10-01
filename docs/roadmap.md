@@ -10,6 +10,10 @@ known one: a KOL, its X account, the app it trades through. Several named lists 
 token analyzed in seconds. A result that reads on a phone and stays light with thousands of wallets. New analyses
 counted per person a day, not per wallet.
 
+Fresh pumps on the home page: tokens of the last two days that reached a real peak and are really traded, without the
+clones and the wash volume. Telegram alerts for the wallets in a list, in a closed test: a buy or a sell about two
+seconds after the block, and each row counting the wallet's trades of the last 7 days.
+
 An AI agent that reads only the analysis in front of it: answers to your questions and a summary in three cards
 (what happened, what to weigh, whose wallets stand out), each line carrying a number from the table. It needs a connected
 wallet.{% if not assistant_on %}

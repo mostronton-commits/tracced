@@ -53,8 +53,9 @@ number it writes is checked against the table before you see it, and it answers 
 
 ![AI agent](docs/img/agent.png)
 
-Keep what you find in several named lists, tag wallets in your own words, and export a list as CSV or TXT.
-[Your account →](https://tracced.xyz/docs/account)
+Keep what you find in several named lists, tag wallets in your own words, and export a list as CSV or TXT. In a closed
+test, a list sends its wallets' buys and sells to Telegram about two seconds after the block, and each row counts the
+wallet's trades of the last 7 days. [Your account →](https://tracced.xyz/docs/account)
 
 A busy token takes seconds, not minutes. The result page stays light with thousands of wallets: the table arrives
 as numbers and the page draws the first hundred rows, more on request, on a phone too, where each wallet becomes a
