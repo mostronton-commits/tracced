@@ -26,14 +26,16 @@ cap at that exact trade.
 The chart can have a gap, often right after a token leaves pump.fun, and that is usually the pump itself. Once a
 range is analyzed, the chart fills the gap with candles built from that analysis's own trades.
 
-The range is always read in full. The line above the table says for how many wallets exits are known.
+The range is always read in full. The **i** after the counts above the chart says for how many wallets exits are
+known, and how many traded in the range but stay out of the table (too small, or only sold); it turns into **!** when
+exits are not known for every wallet.
 
 ## How long it takes
 
 A busy token takes seconds, not minutes.
 
 The result page stays light however many wallets it holds. The table arrives as numbers, the first hundred rows
-are drawn and more on request, and sorting, filters, selection and export work on the numbers, so a result with
+are drawn and more on request, and sorting, filters and export work on the numbers, so a result with
 thousands of wallets opens and sorts at once, on a phone too.
 
 !!! info "🔧 Checked on the way in"
@@ -106,7 +108,8 @@ that were checked. When the check is paused, the page says so.
 
 ## The wallet card
 
-Click a wallet's name. The card shows, top to bottom:
+Click a wallet's name. The chart icon before it puts its buys and sells on the chart instead, in the wallet's own
+colour. The card shows, top to bottom:
 
 1. who it is, when the wallet is publicly identified (a star for a KOL, its X account, the app it trades through),
    and next to the address its age, like `94d`, and who sent it its first SOL; hover either for the detail. A wallet outside
@@ -115,8 +118,9 @@ Click a wallet's name. The card shows, top to bottom:
    guessed;
 2. its tags, ours and your own;
 3. how it trades on every token over the last 7 or 30 days: realized PnL and its curve, win rate with wins and
-   losses, volume, buys and sells, best and worst day, drawdown, how its closed positions ended, the hours it
-   trades, and its latest tokens;
+   losses, volume, buys and sells, how many tokens and how many still open, average hold, best day, drawdown, how
+   its closed positions ended, the hours it trades, and its latest tokens. Point at the PnL curve for any day's
+   result and the running total after it;
 4. its position in this token, with its ROI;
 5. the analyses you saved where it was early too, if any;
 6. its trades on this token.

@@ -40,6 +40,8 @@
   }
   const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 
+  // each range its own shade of the same mint, so two neighbours are told apart without a rainbow (owner, 02.10)
+  const SHADES = ['52, 211, 153', '45, 212, 191', '134, 239, 172', '34, 211, 238', '110, 231, 183'];
   window.EarlyChart = function (el, opts) {
     const created = opts.created / 1000, now = opts.now / 1000;
     const box = document.createElement('div'); box.className = 'lw'; el.appendChild(box);
@@ -270,6 +272,7 @@
         if (!w.from || !w.to || w.to < v.a || w.from > v.b) return;
         const x1 = xOf(w.from), x2 = xOf(w.to); if (x1 == null || x2 == null) return;
         const d = document.createElement('div'); d.className = 'win' + (i === selected ? ' sel' : '');
+        d.style.setProperty('--wc', SHADES[i % SHADES.length]);
         d.style.left = Math.min(x1, W) + 'px'; d.style.width = Math.max(2, Math.min(x2, W) - Math.min(x1, W)) + 'px';
         const lbl = document.createElement('span'); lbl.className = 'lbl'; lbl.textContent = (w.n || (i + 1)) + (w.label && i === selected ? ' · ' + w.label : ''); lbl.title = w.label || '';
         lbl.addEventListener('click', e => { e.stopPropagation(); if (opts.onSelect) opts.onSelect(i); else focus(w.from, w.to, null); });
@@ -391,4 +394,5 @@
       candles: () => [...data.values()].sort((x, y) => x.time - y.time),   // loaded candles in market cap, oldest first
     };
   };
+  window.EarlyChart.SHADES = SHADES;
 })();

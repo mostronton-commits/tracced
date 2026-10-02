@@ -138,6 +138,24 @@ if AioHTTPTestCase:
             act.data[W1]["last"] = 0
             self.assertIn("no trades yet", await (await self.client.get("/me")).text())       # watched, nothing traded
 
+        async def test_the_cap_says_which_wallets_stay_silent(self):
+            seed_demo(self.tmp.name, self.app)
+            self.assertEqual(settings.load()["alerts_max_wallets"], 10)                     # owner, 02.10: 50 → 10 per account
+            from tracced.web import accounts as acct_mod
+            w2 = acct_mod.b58encode(b"\x02" * 32)
+            r = await self.client.post("/me/wallets", json={"job": DEMO_JID, "wallets": [W1]}, headers=self.origin)
+            self.assertEqual(r.status, 200, await r.text())
+            self.app["accounts"].add_wallets(TEST_PK, [{"wallet": w2}])
+            def later(a): a["wallets"][w2]["added_ms"] = a["wallets"][W1]["added_ms"] + 1000   # saved after W1, whatever the clock
+            self.app["accounts"]._update(TEST_PK, later)
+            self.app["accounts"].set_telegram(TEST_PK, 4242, "@owner")
+            self.assertEqual((await self.client.post("/me/lists/alerts", json={"id": "main", "on": True}, headers=self.origin)).status, 200)
+            self.assertNotIn("stays silent", await (await self.client.get("/me")).text())     # 2 of 10: all watched
+            self.app["s"]["alerts_max_wallets"] = 1
+            html = await (await self.client.get("/me")).text()
+            self.assertIn("Alerts follow your 1 newest wallet on lists with the bell: 1 older one stays silent.", html)
+            self.assertEqual(list(app_mod._watch_now(self.app)), [w2])                       # the newest one, as the page says
+
         async def test_the_poll_catches_what_the_stream_missed(self):
             now = int(time.time())
             self.app["alerts_wm"] = {"WAL": [{"pk": TEST_PK, "chat": 7, "prefs": {}, "tags": []}]}

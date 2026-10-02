@@ -1,3 +1,4 @@
-{% if acct %}<div class="menu acct"><button type="button" class="acct-pill" data-menu title="{{ acct }}"><i class="dot"></i><span class="mono">{{ acct_short }}</span></button>
-  <div class="menu-panel r" hidden><a href="/me">Lists</a><button type="button" data-wallet-signout>Sign out</button></div>
+{# what you keep, one click from any page (designer and trader, 01.10: Lists hid inside the wallet menu) #}
+{% if acct %}<nav class="toplinks" aria-label="What you keep"><a href="/me#list">Lists</a><a href="/me#analyses">Analyses</a></nav><div class="menu acct"><button type="button" class="acct-pill" data-menu title="{{ acct }}"><i class="dot"></i><span class="mono">{{ acct_short }}</span></button>
+  <div class="menu-panel r" hidden><a href="/me#list">Lists</a><a href="/me#analyses">My analyses</a><button type="button" data-wallet-signout>Sign out</button></div>
 </div>{% else %}<button type="button" class="ghost acct-in" data-wallet-signin title="Connect a Solana wallet to save wallets and analyses">Connect</button>{% endif %}

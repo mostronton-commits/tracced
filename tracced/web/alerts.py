@@ -103,7 +103,7 @@ def wants(ev, prefs):
     return bool(prefs["buys" if ev["side"] == "buy" else "sells"]) and ev["usd"] >= prefs["min_usd"]
 
 
-def watch_map(accounts, admins=(), open_to_all=False, max_wallets=50, default_min=None):
+def watch_map(accounts, admins=(), open_to_all=False, max_wallets=10, default_min=None):
     """{гаманець: [{pk, chat, lists, prefs}]} — хто і в яких списках стежить за гаманцем.
 
     Рахується акаунт, у якого прив'язано Telegram і ввімкнено дзвіночок хоча б на одному списку. Поки сповіщення в

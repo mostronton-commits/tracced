@@ -75,9 +75,9 @@ h2.sec .muted { font-weight: 400; margin-left: 8px; }
 .chartbox .lw { position: absolute; inset: 0 0 34px 0; border-radius: var(--r) var(--r) 0 0; overflow: hidden; }
 .chartbox.loading .lw { opacity: .6; }
 .chartbox .overlay { position: absolute; inset: 0 0 34px 0; pointer-events: none; overflow: hidden; z-index: 5; }
-.chartbox .overlay .win { position: absolute; top: 0; bottom: 26px; background: rgba(167, 243, 208, .14); border-left: 1px solid #34D399; border-right: 1px solid #34D399; }
-.chartbox .overlay .win.sel { background: rgba(167, 243, 208, .26); }
-.chartbox .overlay .win .lbl { position: absolute; top: 6px; left: 4px; font: 10px/1 var(--mono); color: var(--mint); background: #0F172A; border: 1px solid #1E293B; border-radius: 4px; padding: 3px 5px; pointer-events: auto; cursor: pointer; }
+.chartbox .overlay .win { --wc: 52, 211, 153; position: absolute; top: 0; bottom: 26px; background: rgba(var(--wc), .10); border-left: 1px solid rgba(var(--wc), .9); border-right: 1px solid rgba(var(--wc), .9); }
+.chartbox .overlay .win.sel { background: rgba(var(--wc), .22); }
+.chartbox .overlay .win .lbl { position: absolute; top: 6px; left: 4px; font: 10px/1 var(--mono); color: rgb(var(--wc)); background: #0F172A; border: 1px solid rgba(var(--wc), .35); border-radius: 4px; padding: 3px 5px; pointer-events: auto; cursor: pointer; }
 .chartbox .overlay .exitline { position: absolute; top: 0; bottom: 26px; width: 0; border-left: 1px dashed #CBD5E1; }
 .chartbox .overlay .marker { position: absolute; top: 0; bottom: 26px; width: 0; border-left: 1px solid var(--mint); }
 /* Підказка просто на графіку: текст збоку від нього на кастдеві не прочитали жодного разу. */
@@ -106,7 +106,8 @@ h2.sec .muted { font-weight: 400; margin-left: 8px; }
 .wrow.sel { border-color: #6ee7b7; background: #F6FEF9; }
 .wrow.locked input { background: var(--bg); color: var(--muted); cursor: default; }   /* an analyzed range: a record, not a field */
 .wrow.locked .label { cursor: default; } .wrow.locked .label:hover { border-color: transparent; background: none; }
-.wrow .n { font-family: var(--mono); color: var(--muted); font-size: 12px; align-self: center; }
+.wrow .n { font-family: var(--mono); color: var(--muted); font-size: 12px; align-self: center; display: inline-flex; align-items: center; gap: 5px; }
+.wrow .n::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: rgb(var(--wc, 52, 211, 153)); flex: none; }
 .wrow .label { font-size: 12.5px; color: var(--ink); align-self: center; font-family: var(--mono); padding: 4px 6px; border-radius: 6px; border: 1px dashed transparent; cursor: text; }
 .wrow .label:hover, .wrow .label:focus { border-color: var(--line); outline: none; background: #F8FAFC; }
 .wrow label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--muted); }
@@ -175,8 +176,18 @@ th.sortable::after { content: " ⇅"; font-size: 9px; color: #CBD5E1; }
 th.sortable:hover::after { color: var(--muted); }
 th.sortable.asc::after { content: " ↑"; color: var(--ink); font-size: 10px; }
 th.sortable.desc::after { content: " ↓"; color: var(--ink); font-size: 10px; }
-td .pick { accent-color: #10b981; }
-tr.picked td { background: #F6FEF9; }
+/* the star by a wallet (owner, 02.10): it shows where it lives when the pointer comes into the row, lights up under the
+   pointer, and one click puts the wallet in the Watchlist; a filled one stays, in amber, and opens its lists */
+.star { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-right: 2px; padding: 0;
+  border: 0; border-radius: 6px; background: transparent; color: #94A3B8; font: 15px/1 var(--sans); vertical-align: -1px; cursor: pointer;
+  opacity: 0; transition: opacity .12s ease, color .12s ease, background .12s ease; }
+.facts tbody tr:hover .star { opacity: .55; }
+.facts tbody tr .star:hover, .star:focus-visible { opacity: 1; color: #B45309; background: #FEF3C7; }
+.star.on, .facts tbody tr .star.on { opacity: 1; color: #D97706; }
+.star.on:hover { background: #FEF3C7; }
+@media (hover: none) { .star { opacity: .5; } }        /* a phone has no pointer to bring it out */
+/* a wallet kept on the chart though the filters would hide it */
+tr.outside > td:not(.wcell) { opacity: .55; }
 
 /* top bar: search + time zone */
 .topsearch { flex: 0 1 420px; }
@@ -318,9 +329,11 @@ td.wcell .wid { white-space: nowrap; }       /* сам гаманець ніко
 [hidden] { display: none !important; }
 
 /* wallet markers on the chart */
-.mk { border: 0; background: transparent; color: #CBD5E1; font-size: 13px; height: 22px; width: 22px; padding: 0; margin-right: 4px; vertical-align: -1px; cursor: pointer; }
-.mk:hover { color: var(--ink); }
-tr.onchart .mk { color: var(--c, #A7F3D0); text-shadow: 0 0 0 var(--c); }
+.mk { display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 6px; background: transparent; color: #64748B;
+  height: 22px; width: 22px; padding: 0; margin-right: 4px; vertical-align: -6px; cursor: pointer; }
+.mk svg { width: 14px; height: 14px; }
+.mk:hover { color: var(--ink); background: #F1F5F9; }
+tr.onchart .mk { color: var(--ink); background: var(--c, #A7F3D0); }      /* the wallet's own colour on the chart */
 tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .onchart-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 0; }
 .chipw { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 4px 2px 8px; font-size: 12px; background: var(--surface); }
@@ -353,8 +366,10 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .herof input:focus { border-color: #34D399; box-shadow: 0 0 0 3px rgba(167, 243, 208, .18); }
 .herof button.primary { height: 40px; }
 .try { margin: 12px 0 0; font-size: 13px; } .try a { color: var(--mint); border-bottom-color: rgba(167, 243, 208, .4); } .try .muted { color: #64748B; margin-left: 6px; }
-.counters { display: flex; gap: 36px; margin-top: 40px; flex-wrap: wrap; }
-.counters b { display: block; font: 600 26px/1.1 var(--mono); color: #F8FAFC; } .counters span { font-size: 12px; color: #94A3B8; }
+/* the counters are background, not a second headline (designer, 01.10: one colour, one size — the hierarchy blurred):
+   smaller, dimmer, under a hairline, with air above them */
+.counters { display: flex; gap: 36px; margin-top: 44px; padding-top: 18px; border-top: 1px solid #1E293B; max-width: 720px; flex-wrap: wrap; }
+.counters b { display: block; font: 600 19px/1.1 var(--mono); color: #CBD5E1; } .counters span { font-size: 11.5px; color: #64748B; }
 @media (prefers-reduced-motion: reduce) { .hero-bg span, .cursor { animation: none; } }
 @media (max-width: 720px) { .hero-dark h1 { font-size: 32px; } .hero-in { padding: 40px 20px 36px; } }
 
@@ -433,6 +448,11 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .filters.compact label { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
 .filters.compact input[type=number] { width: 72px; height: 28px; padding: 3px 6px; font-size: 12px; }
 .filters.compact .sep { width: 1px; height: 22px; background: var(--line); }
+.filters.compact label.rng input[type=number] { width: 64px; }
+.filters.compact label.rng i { font-style: normal; color: #CBD5E1; margin: 0 -2px; }
+.tagchip.mine { color: #92400E; border-color: #FDE68A; font-family: var(--sans); }
+.tagchip.mine.on { background: #FEF3C7; border-color: #F59E0B; color: #78350F; }
+.tablecap { margin: 0 0 8px; }
 .tagchip { height: 24px; padding: 0 9px; border-radius: 999px; font: 11px var(--mono); color: var(--ink); background: var(--surface); border: 1px solid var(--line); }
 .tagchip.off { text-decoration: line-through; color: #CBD5E1; background: #F8FAFC; }
 .tagchip.t-dev { border-color: #FCA5A5; }
@@ -441,7 +461,9 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .wname { border: 0; background: transparent; padding: 0; font-size: 12.5px; color: var(--ink); cursor: pointer; border-bottom: 1px dotted var(--line); }
 .wname:hover { border-bottom-color: var(--ink); background: transparent; }
 .ext { border: 0; color: #CBD5E1; margin-left: 5px; font-size: 12px; } .ext:hover { color: var(--ink); }
-.xbtn { font-size: 12.5px; }
+.xbtn { display: inline-flex; align-items: center; justify-content: center; width: 34px; padding: 0; }
+button.ghost.xbtn { padding: 0; color: #475569; }
+.xbtn svg { width: 17px; height: 17px; }
 .menu.right { margin-left: auto; }
 .menu-panel.r { left: auto; right: 0; }
 .soonwrap { position: relative; }
@@ -462,9 +484,6 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .button.holo:active { transform: translateY(0); }
 @keyframes holo-shift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
 @keyframes holo-sheen { from { background-position: 200% 0; } to { background-position: -50% 0; } }
-/* «+ Watchlist» — звичайна кнопка з лічильником: дія часта, підсвічувати її нема чого */
-.button.wl { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
-.button.wl .wl-n { font: 600 11px/1 var(--mono); padding: 3px 7px; border-radius: 999px; background: var(--navy); color: var(--mint); }
 @media (prefers-reduced-motion: reduce) { .button.holo, .button.holo::after { animation: none; } }
 .mhint { margin: 4px 0 0; }
 .chartbox .tf.back { margin-left: 6px; color: var(--mint); border-color: #1E293B; }
@@ -562,11 +581,11 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .wrow label.fld span { text-transform: none; }
 .wrow .result.ghost { color: var(--muted); }
 .soonwrap.right { margin-left: auto; }
-.soonwrap.right .soon-pop, #watch .soon-pop { left: auto; right: 0; }
+.soonwrap.right .soon-pop { left: auto; right: 0; }
 
 /* ── iteration 11: hero arrow, step bars, micro-animations, responsive ── */
 .herof button.primary { gap: 8px; } .herof .arr { display: block; transition: transform .15s ease; } .herof button.primary:hover .arr { transform: translateX(2px); }
-.hero-dark .lead { font-size: 17px; }
+.hero-dark .lead { font-size: 16.5px; max-width: 800px; margin-bottom: 26px; }   /* one line on a laptop */
 .stepbar { display: flex; align-items: center; gap: 12px; margin: 14px 0 10px; }
 .stepbar .stepn { font: 600 12px var(--mono); color: var(--navy); background: var(--mint); border-radius: 6px; padding: 5px 7px; }
 .stepbar .stepx b { display: block; font-size: 15px; } .stepbar .stepx span { color: var(--muted); font-size: 13px; }
@@ -598,7 +617,7 @@ button.primary { transition: background .12s ease, border-color .12s ease, trans
 @media (max-width: 640px) {
   .top-in { padding: 10px 14px; gap: 10px; } .topsearch { flex: 1 1 auto; }
   main { padding: 14px 12px 40px; } .card { padding: 14px; }
-  .hero-in { padding: 36px 16px 32px; } .hero-dark h1 { font-size: 30px; } .counters { gap: 18px; }
+  .hero-in { padding: 36px 16px 32px; } .hero-dark h1 { font-size: 30px; } .counters { gap: 18px; margin-top: 30px; }
   .herof input[type=text] { min-width: 0; }
   .chartbox { height: 280px; } .chartbox .tfs { gap: 3px; } .chartbox .tf { padding: 0 7px; }
   .chartbox .tf.back { margin-left: 3px; } .chartbox .tf .wide { display: none; } .chartbox .tf .narrow { display: inline; }
@@ -623,7 +642,7 @@ button.tzseg { background: transparent; padding: 0; height: auto; font: inherit;
 
 /* ── hero: brand line + tagline ── */
 .hero-dark h1.brandline { font-size: 64px; letter-spacing: -.02em; font-weight: 700; margin: 0 0 6px; color: #F8FAFC; }
-.hero-dark .tagline { font-size: 20px; letter-spacing: .02em; color: #CBD5E1; margin: 0 0 18px; }
+.hero-dark .tagline { font-size: 20px; letter-spacing: .02em; color: #CBD5E1; margin: 0 0 26px; }
 .hero-dark .tagline em { font-style: normal; color: var(--mint); }
 @media (max-width: 640px) { .hero-dark h1.brandline { font-size: 40px; } .hero-dark .tagline { font-size: 16px; } }
 
@@ -655,6 +674,10 @@ button.tzseg { background: transparent; padding: 0; height: auto; font: inherit;
 .acct-pill:hover { background: #111C2E; border-color: #334155; }
 .acct-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--mint); display: inline-block; box-shadow: 0 0 0 3px rgba(167, 243, 208, .18); }
 .acct-pill .mono { font-size: 12px; }
+.toplinks { display: inline-flex; align-items: center; gap: 2px; margin-right: 10px; }
+.toplinks a { border: 0; padding: 5px 9px; border-radius: 8px; font-size: 13px; color: #CBD5E1; }
+.toplinks a:hover { color: #F8FAFC; background: #0F172A; border: 0; }
+@media (max-width: 640px) { .toplinks { display: none; } }      /* the phone keeps them in the wallet menu */
 .menu.acct .menu-panel { min-width: 180px; color: var(--ink); }
 .menu-panel a { display: flex; align-items: center; height: 34px; padding: 6px 10px; border: 0; border-radius: 6px; font-weight: 500; }
 .menu-panel a:hover { background: #F1F5F9; }
@@ -680,8 +703,6 @@ button.tzseg { background: transparent; padding: 0; height: auto; font: inherit;
 /* a guest's wallet card: the connect step is a real button that says what it unlocks */
 .dconnect { display: grid; justify-items: start; gap: 6px; padding: 10px 12px; margin: 4px 0; border: 1px dashed #86EFAC; border-radius: var(--r);
   background: #F0FDF4; }
-.saved { color: #B45309; margin-left: 5px; font-size: 12px; cursor: default; }
-button.saved { border: 0; background: transparent; padding: 0 2px; height: auto; cursor: pointer; } button.saved:hover { color: var(--red); background: transparent; }
 .savejob.on { color: #B45309; } .savejob:disabled { cursor: default; opacity: 1; }
 .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 70; background: var(--surface); color: var(--ink); border: 1px solid var(--line); padding: 10px 16px; border-radius: 10px; font-size: 13px; white-space: normal; max-width: calc(100vw - 32px); text-align: center; box-shadow: 0 16px 40px -12px rgba(9, 13, 22, .45), 0 0 0 1px rgba(9, 13, 22, .04); animation: toast-in .2s ease; }
 .toast a { color: #047857; border-bottom-color: #A7F3D0; }
@@ -741,14 +762,13 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
 }
 .chart-empty { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); z-index: 5; color: #94A3B8; font: 13px var(--sans); pointer-events: none; }
 /* ── phone: the result table becomes one card per wallet, fewer controls, bigger touch targets ── */
-.msort, .colhelp, .button .short { display: none; }
+.msort, .button .short { display: none; }
 @media (max-width: 640px) {
   .button .long { display: none; } .button .short { display: inline; }
   .h-right { flex-wrap: wrap; gap: 8px; }
   .toolbar { row-gap: 8px; }
   .msort { display: inline-flex; align-items: center; gap: 6px; }
   .msort select { height: 34px; font-size: 13px; padding: 0 6px; }
-  .colhelp { display: block; margin: 6px 0 8px; }
   .tablewrap { overflow: visible; border: 0; border-radius: 0; background: none; }
   table.facts, .facts tbody { display: block; width: 100%; }
   .facts thead { display: none; }
@@ -758,10 +778,7 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
   .facts td { border: 0; padding: 0; white-space: normal; text-align: left; min-width: 0; }
   .facts td.bar, .facts td.bar.neg { background-image: none; }
   .facts td[data-h]::before { content: attr(data-h); display: block; margin-bottom: 2px; font: 600 9.5px/1.3 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
-  .facts td.n { display: none; }
-  .facts td.pk { position: absolute; top: 6px; right: 6px; }
-  .facts td.pk .pick { width: 22px; height: 22px; margin: 7px; }
-  .facts td.wcell { grid-column: 1 / -1; order: 0; padding-right: 40px; }
+  .facts td.wcell { grid-column: 1 / -1; order: 0; }
   .facts td.wcell .tags { display: block; margin-top: 4px; }
   .facts td.wcell .tag:first-child { margin-left: 0; }
   .facts td.c-inv { order: 1; } .facts td.c-sold { order: 2; } .facts td.c-pnl { order: 3; }
@@ -769,11 +786,10 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
   .facts td.c-inv, .facts td.c-pnl, .facts td.c-sold, .facts td.c-held { grid-column: span 2; }
   .facts td.fund:empty { display: none; }
   .facts td.two b, .facts td.num b { font-size: 13.5px; }
-  tr.picked { background: #F6FEF9; } tr.picked td { background: transparent; }
   tr.onchart td:first-child { box-shadow: none; } tr.onchart { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
   /* touch targets: 36 px where a finger has to land */
-  .facts .mk, .facts .wname { min-height: 36px; }
-  .facts .mk { min-width: 36px; }
+  .facts .mk, .facts .wname, .facts .star { min-height: 36px; }
+  .facts .mk, .facts .star { min-width: 36px; }
   .copy, .tf, .chipw .x, .tzseg b { min-height: 34px; }
   .chartbox .tf { min-width: 36px; }
   .tzseg b { display: inline-flex; align-items: center; padding: 0 10px; }
@@ -795,7 +811,6 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
 /* ── tablet: the eight result columns need about 810 px, and below that an inner scroll hid Funded by, the column that
    shows bundles. Between a phone and a laptop each wallet is the phone's card: the wallet on top, five facts under it ── */
 @media (min-width: 641px) and (max-width: 960px) {
-  .colhelp { display: block; margin: 6px 0 8px; }
   .tablewrap:has(> #facts) { overflow: visible; border: 0; border-radius: 0; background: none; }
   #facts, #facts tbody { display: block; width: 100%; }
   #facts thead { display: none; }
@@ -804,10 +819,8 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
   #facts td { border: 0; padding: 0; white-space: normal; text-align: left; min-width: 0; }
   #facts td.bar, #facts td.bar.neg { background-image: none; }
   #facts td[data-h]::before { content: attr(data-h); display: block; margin-bottom: 2px; font: 600 9.5px/1.3 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
-  #facts td.n, #facts td.fund:empty { display: none; }
-  #facts td.pk { position: absolute; top: 8px; right: 8px; }
-  #facts td.wcell { grid-column: 1 / -1; padding-right: 36px; }
-  #facts tr.picked { background: #F6FEF9; } #facts tr.picked td { background: transparent; }
+  #facts td.fund:empty { display: none; }
+  #facts td.wcell { grid-column: 1 / -1; }
   #facts tr.onchart td:first-child { box-shadow: none; } #facts tr.onchart { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 }
 /* ── category markers as pictures (rules of ours, identity from Solana Tracker), one bar metric, copy in rows ── */
@@ -872,6 +885,11 @@ td.wcell .tags .tag { margin-left: 0; }
 .dspark .l { fill: none; stroke: #10B981; stroke-width: 2; vector-effect: non-scaling-stroke; } .dspark.down .l { stroke: #EF4444; }
 .dspark .z { stroke: #CBD5E1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
 .dspark-x { display: flex; justify-content: space-between; font: 10.5px var(--mono); color: var(--muted); margin: 2px 0 10px; }
+.dsparkw { position: relative; touch-action: pan-y; cursor: crosshair; }
+.dsp-dot { position: absolute; width: 9px; height: 9px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--surface); border: 2px solid var(--ink); pointer-events: none; }
+.dsp-tip { position: absolute; top: -6px; transform: translate(-50%, -100%); display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 8px;
+  border-radius: 6px; background: var(--navy); color: #F8FAFC; font: 11.5px var(--mono); white-space: nowrap; pointer-events: none; z-index: 3; }
+.dsp-tip .pos { color: #6EE7B7; } .dsp-tip .neg { color: #FCA5A5; } .dsp-tip small { color: #94A3B8; font-size: 10.5px; }
 .dgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 12px; margin: 4px 0 6px; }
 .dgrid > div { display: grid; gap: 1px; min-width: 0; align-content: start; }
 .dgrid span { font-size: 11px; color: var(--muted); }
@@ -957,9 +975,11 @@ td.c-inv small, td.c-sold small { white-space: nowrap; }
 button.dchip { cursor: pointer; } button.dchip:hover { color: var(--ink); }
 a.dchip.fund { color: var(--ink); border-bottom: 1px solid var(--line); cursor: pointer; } a.dchip.fund:hover { border-color: #94A3B8; }
 .dchip small { font: 600 10px/1 var(--mono); color: var(--muted); }
-.dinfo { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; margin-left: 4px; border: 1px solid var(--line);
+.dinfo, .kinfo { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; margin-left: 4px; border: 1px solid var(--line);
          border-radius: 50%; font: 600 9.5px/1 var(--sans); font-style: normal; color: var(--muted); text-transform: none; letter-spacing: 0; cursor: help; vertical-align: 1px; }
 .dinfo.warn { border-color: #FCD34D; color: #B45309; background: #FFFBEB; }
+.kinfo { width: 16px; height: 16px; margin-left: -10px; align-self: center; cursor: help; }
+.kinfo:hover, .kinfo:focus-visible { color: var(--ink); border-color: #94A3B8; }
 .wcard h5 .muted { font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: 4px; }
 .wcard h4 .muted { font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: 4px; }
 /* ROI in the table: the multiple, the percent in the tooltip */
@@ -1294,6 +1314,7 @@ header.top { position: relative; z-index: 45; }
 .tgbtn:hover { background: #229ED9; border-color: #1E8EC4; }
 .tghint { grid-column: 1; margin: 12px 0 0; color: var(--muted); font-size: 13px; } .tghint .lbell { color: #15803D; margin: 0 2px; }
 .tghint .lbell svg { display: inline-block; vertical-align: -3px; }
+.tghint.over { color: #92400E; }
 /* Lists: your tags right in the row, added there */
 .mewl .wadr { flex: none; }
 .mewl .mytags { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
@@ -1328,6 +1349,15 @@ header.top { position: relative; z-index: 45; }
 .mewl .wact.quiet { opacity: .75; }
 .mewl td.rm { width: 1%; text-align: right; }
 .mewl td.rm .x { width: 30px; height: 30px; padding: 0; font-size: 16px; }
+.mewl td.rm { white-space: nowrap; }
+.mewl td.rm .mv { width: 30px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; }
+.mewl td.rm .mv svg { width: 16px; height: 16px; }
+.mvpop .mvrow { display: flex; align-items: center; gap: 12px; min-height: 32px; padding: 0 8px; border-radius: 6px; font-size: 13px; }
+.mvpop .mvrow:hover { background: #F8FAFC; }
+.mvpop .mvname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mvpop .mvrow .link { font-size: 12.5px; }
+.mvpop .mvin { font-size: 11.5px; color: var(--muted); }
+input.ltabedit { flex: none; width: 150px; min-width: 0; height: 30px; padding: 0 12px; border-radius: 999px; font: 13px var(--sans); border-color: #6EE7B7; }
 .wcard .dsrc { padding-top: 10px; padding-bottom: 10px; } .wcard .dsrc .dline { margin: 0; padding: 2px 0; border: 0; }
 @media (max-width: 720px) {
   /* Lists on a phone: one line a wallet — the address with its tags, × — not the result table's card grid */
@@ -1354,7 +1384,7 @@ header.top { position: relative; z-index: 45; }
 .ftk { display: inline-flex; align-items: center; gap: 9px; margin-right: 10px; padding: 6px 14px 6px 6px; border: 1px solid rgba(167, 243, 208, .16);
   border-radius: 999px; background: rgba(15, 23, 42, .78); color: #E2E8F0; font-size: 13px; white-space: nowrap;
   transition: border-color .15s ease, background .15s ease, transform .15s ease; }
-.ftk:hover { border-color: rgba(167, 243, 208, .6); background: rgba(6, 78, 59, .45); transform: translateY(-1px); }
+.ftk:hover { border-color: rgba(167, 243, 208, .6); background: rgba(6, 78, 59, .45); }
 .fimg { position: relative; flex: none; width: 26px; height: 26px; border-radius: 50%; overflow: hidden; background: #1E293B;
   display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px; color: #94A3B8; }
 .fimg::before { content: attr(data-l); }

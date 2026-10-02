@@ -1574,7 +1574,7 @@ def _alert_fail(app, pk, why):
 def _watch_now(app):
     s = app["s"]
     return alerts_mod.watch_map(app["accounts"].all(), app["admins"], bool(s.get("alerts_open")),
-                                int(s.get("alerts_max_wallets", 50)), s.get("alerts_min_usd"))
+                                int(s.get("alerts_max_wallets", 10)), s.get("alerts_min_usd"))
 
 
 async def _rpc(http, url, method, params):
@@ -2239,7 +2239,8 @@ async def me_remove_wallet(request, pk):
 
 @_acct_route
 async def me_lists(request, pk):
-    """Списки спостереження: створити ({name}), перейменувати ({id, name}) чи прибрати ({id}) — за адресою."""
+    """Списки спостереження: створити ({name}), перейменувати ({id, name}), прибрати ({id}) — за адресою; перенести чи
+    скопіювати збережені гаманці в інший список ({wallets, to, from?}: з from — перенесення, без — копія)."""
     body = await _json_body(request)
     if body is None:
         return _jerr("Bad request body.")
@@ -2253,6 +2254,13 @@ async def me_lists(request, pk):
             out = {}
         elif action == "remove":
             out = {"removed_wallets": acc.delete_list(pk, str(body.get("id") or ""))}
+        elif action == "move":
+            ws = body.get("wallets")
+            if not isinstance(ws, list) or not ws:
+                return _jerr("Pick at least one wallet.")
+            ws = [w for w in ws[: acct_mod.MAX_WALLETS] if acct_mod.valid_pubkey(w)]
+            src = str(body["from"]) if body.get("from") else None
+            out = {"wallets": acc.place_wallets(pk, ws, str(body.get("to") or ""), src), "moved": bool(src)}
         elif action == "alerts":
             if not _alerts_allowed(request.app, pk):
                 return _jerr("Alerts are in a closed test for now.", 403)
@@ -2261,7 +2269,10 @@ async def me_lists(request, pk):
             return _jerr("Unknown action.", 404)
     except acct_mod.AccountError as e:
         return _jerr(str(e))
-    request.app["events"].add(pk, "list_" + action, **({"on": int(bool(out.get("alerts")))} if action == "alerts" else {}))
+    extra = ({"on": int(bool(out.get("alerts")))} if action == "alerts" else
+             {"n": len(out["wallets"]), "how": "move" if out["moved"] else "copy"} if action == "move" else {})
+    if action != "move" or out["wallets"]:                    # нічого не змінилось — нічого в журнал
+        request.app["events"].add(pk, "list_" + action, **extra)
     return web.json_response(dict(out, ok=True, lists=acc.load(pk)["lists"]))
 
 
@@ -2370,13 +2381,18 @@ async def me_page(request):
     # угоди за 7 днів, які бачив потік сповіщень (власник, 01.10) — лише для гаманців, за якими він стежить зараз: інакше
     # «0 угод» означало б «не стежили», а не «не торгував» (рев'ю 01.10)
     s, alerts_ok = request.app["s"], _alerts_allowed(request.app, pk) and _alerts_live(request.app)
-    watched = alerts_mod.watch_map([a], request.app["admins"], bool(s.get("alerts_open")), int(s.get("alerts_max_wallets", 50)),
+    cap = int(s.get("alerts_max_wallets", 10))
+    watched = alerts_mod.watch_map([a], request.app["admins"], bool(s.get("alerts_open")), cap,
                                    s.get("alerts_min_usd")) if alerts_ok else {}
+    # скільки гаманців стоїть під дзвіночками: більше за стелю — сторінка каже, що старші мовчать (власник, 02.10: стеля 10)
+    bells = {k for k, v in a["lists"].items() if isinstance(v, dict) and v.get("alerts")}
+    bell_n = sum(1 for w in wallets if bells & set(w.get("lists") or []))
     act = request.app["activity"].of(watched)
     wmeta = {w["wallet"]: dict({k: w.get(k) for k in ("my_tags", "lists", "added_ms")}, act=act.get(w["wallet"])) for w in wallets}   # what the card shows, by wallet
     return render("me.html", request, wallets=wallets, analyses=analyses, max_my_tags=acct_mod.MAX_MY_TAGS, wmeta=wmeta, act=act,
                   demo_mint=(demo or {}).get("mint"), lists=lists, max_lists=acct_mod.MAX_LISTS,
                   alerts_ok=alerts_ok,   # без бота картка не обіцяє того, чого нема
+                  bell_n=bell_n, watch_cap=cap,
                   tg={"linked": bool(tg.get("chat")), "user": tg.get("user") or ""},
                   prefs=alerts_mod.prefs_of(a.get("alerts"), request.app["s"].get("alerts_min_usd")))
 
@@ -2928,7 +2944,36 @@ async def admin_labels(request):
     return web.json_response({"ok": True, "wallet": wallet, "labels": clean})
 
 
-ME_COLUMNS = ["wallet", "symbol", "mint", "from_job", "entry_mcap", "invested_usd", "multiple", "tags", "my_tags", "lists", "added_utc"]
+# експорт списків — про сам гаманець (кастдев 01.10): хто це, звідки перші SOL, скільки йому; цифри токена, з аналізу якого
+# його зберегли, лишаються в тому аналізі. Де знайшли — останні три колонки
+ME_COLUMNS = ["wallet", "name", "x_handle", "funder", "funder_exchange", "wallet_first_tx_utc", "my_tags", "lists", "added_utc",
+              "symbol", "mint", "from_job"]
+
+
+def _x_handle(idn):
+    """Як EarlyTags.handle на сторінці: лише літери, цифри й підкреслення."""
+    return re.sub(r"[^A-Za-z0-9_]", "", re.sub(r"^@", "", str((idn or {}).get("twitter") or "")))
+
+
+def _display_name(idn):
+    """Як EarlyTags.displayName: відомий трейдер — під іменем, решта — під X-ніком, яким їх кличуть застосунки."""
+    if not idn:
+        return ""
+    h = _x_handle(idn)
+    if idn.get("type") == "kol" or "kol" in (idn.get("tags") or []):
+        return idn.get("name") or h
+    return h or idn.get("name") or ""
+
+
+def _wallet_who(app, w, from_job):
+    """Ім'я, X, спонсор, біржа і перша транзакція гаманця — з уже збереженого результату, жодного запиту назовні."""
+    job = app["jobs"].get(from_job or "")
+    r = job.result if job is not None and job.status == "done" and job.result else {}
+    idn, fnd, age = (r.get("identities") or {}).get(w), (r.get("funders") or {}).get(w), (r.get("ages") or {}).get(w) or {}
+    h = _x_handle(idn)
+    return {"name": _display_name(idn), "x_handle": h, "funder": fnd or "",   # без @: таблиці читають @ як формулу
+            "funder_exchange": exch_mod.name_of(fnd) or "" if fnd else "",
+            "wallet_first_tx_utc": chart.fmt_dt(age["ms"], year=True, utc=True) if age.get("exact") and age.get("ms") else ""}
 
 
 @_acct_route
@@ -2944,8 +2989,8 @@ async def me_wallets_csv(request, pk):
     def cell(v):                                                        # таблиці виконують клітинки з = + - @ як формули
         return "'" + v if isinstance(v, str) and v[:1] in "=+-@\t\r" else ("" if v is None else v)
     for r in wallets:
-        w.writerow({**{k: cell(r.get(k)) for k in ME_COLUMNS},
-                    "tags": "|".join(r.get("tags") or []), "my_tags": "|".join(r.get("my_tags") or []),
+        w.writerow({**{k: cell(r.get(k)) for k in ME_COLUMNS}, **{k: cell(v) for k, v in _wallet_who(request.app, r["wallet"], r.get("from_job")).items()},
+                    "my_tags": cell("|".join(r.get("my_tags") or [])),
                     "lists": cell("|".join(names.get(x, x) for x in r.get("lists") or [])),
                     "added_utc": chart.fmt_dt(r.get("added_ms") or 0, year=True, utc=True)})
     request.app["events"].add(pk, "export", format="csv", what="list" if only else "lists")

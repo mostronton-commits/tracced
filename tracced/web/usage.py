@@ -23,7 +23,7 @@ UI = {
     "show-more": ("all",), "find-pump": (), "range-preset": ("p",), "finding": ("k",), "limit-window": ("kind",),
     "range-set": ("end",), "range-add": (), "range-reset": (), "tf": ("tf",), "chart-nav": ("to",),
     "list-tab": (), "copy": ("what",), "ext": ("to",), "cur": ("to",), "tz": ("to",), "leave": ("secs",),
-    "egg": ("what",),
+    "egg": ("what",), "star": ("on",), "list-move": ("how",),
 }
 # короткий рядок: адреса гаманця (32-44 символи) чи набраний людиною текст сюди не пролазять фізично
 VAL = re.compile(r"^[A-Za-z0-9_.:-]{1,24}$")
@@ -156,12 +156,13 @@ CLICKS = {"card-open": "Opened a wallet card", "card-close": "Closed a wallet ca
           "find-pump": "Pressed Find the pump (Before the pump)", "range-preset": "Picked a quick range (First / Last hour)", "finding": "Opened a finding above the table", "limit-window": "Saw the daily limit window", "range-set": "Marked a range on the chart",
           "range-add": "Added a range", "range-reset": "Reset the ranges", "tf": "Changed the timeframe", "chart-nav": "Jumped on the chart",
           "list-tab": "Switched a list", "copy": "Copied an address", "ext": "Followed a link out", "cur": "Switched USD/SOL",
-          "tz": "Switched UTC/local", "leave": "Left a page", "egg": "Found an easter egg"}
+          "tz": "Switched UTC/local", "leave": "Left a page", "egg": "Found an easter egg",
+          "star": "Starred a wallet into the Watchlist", "list-move": "Moved or copied a wallet to another list"}
 # що на сайті можна натиснути зараз: з цього списку — «ніхто не користувався» (прибрані кнопки сюди не входять,
 # інакше вони висіли б у списку вічно)
 UI_FEATURES = ("card-open", "card-period", "pin", "sort", "filter", "hide", "filters-toggle", "filters-reset", "funder", "finding",
-               "select", "select-all", "export", "show-more", "agent-open", "range-set", "range-add", "range-reset", "tf",
-               "chart-nav", "list-tab", "copy", "ext", "cur", "tz")
+               "star", "export", "show-more", "agent-open", "range-set", "range-add", "range-reset", "tf",
+               "chart-nav", "list-tab", "list-move", "copy", "ext", "cur", "tz")
 PAGE_NAMES = {"job": "On a result", "token": "On a token's chart", "me": "In Lists", "home": "On the home page", "docs": "In the docs"}
 FUNNEL = (("result", "Opened a result"), ("card", "Opened a wallet card"), ("run", "Ran an analysis"),
           ("keep", "Saved or exported"), ("agent", "Asked the agent"))
@@ -670,6 +671,8 @@ def label(e):
         return {"text": "ran an analysis:", **link}
     if ev == "delete_analysis":
         return {"text": f"deleted the analysis {g('symbol') or job or ''}".rstrip()}
+    if ev == "list_move":
+        return {"text": f"{'moved' if g('how') == 'move' else 'copied'} {_plural(int(g('n') or 1), 'wallet')} to another list"}
     if ev in ("list_create", "list_rename", "list_remove"):
         return {"text": {"list_create": "made", "list_rename": "renamed", "list_remove": "deleted"}[ev] + " a list"}
     if ev == "tags":

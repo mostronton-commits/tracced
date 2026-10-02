@@ -232,6 +232,7 @@
       const f = tpl.content.firstElementChild.cloneNode(true);
       f.dataset.i = i;
       f.querySelector('.n').textContent = i + 1;
+      if (EarlyChart.SHADES) f.style.setProperty('--wc', EarlyChart.SHADES[i % EarlyChart.SHADES.length]);   // the same shade as its band
       f.querySelector('.label').textContent = r.label || 'Range';
       const s = f.querySelector('.sum'), txt = sumText(r);
       s.textContent = txt || (i === state.sel && !DEMO ? '' : 'not set');

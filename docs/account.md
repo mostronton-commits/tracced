@@ -7,14 +7,18 @@ Works with Phantom. On a phone, open tracced inside the Phantom app: the Connect
 
 ## Lists and saved analyses
 
-Tick wallets in a result and press **+ Add to list**, then pick a list or name a new one. The star in a wallet's
-card opens the same menu for that one wallet: it shows which lists hold it, and a click adds or removes it.
-**Save analysis** keeps the whole result under *My analyses* at `/me`.
+In a result, point at a wallet's row: a star (☆) shows up by its address. One click puts the wallet in your
+*Watchlist* and fills the star (★). A filled star, in the row or in the wallet's card, opens the menu of your lists: it
+shows which lists hold the wallet, and a click adds or removes it, or makes a new list. **★ My lists** among the filters
+keeps only the wallets you have saved. **Save analysis** keeps the whole result under *My analyses* at `/me`; the
+*Lists* and *Analyses* links at the top of every page lead there.
 
 You start with one list, *Watchlist*, and can keep up to twenty: one per strategy, per token family, per person you
-follow. A wallet can sit in several. At `/me` every list has its own tab with its count, where you rename or delete
-it (the first one stays). **Export** there gives the list on screen, or all of them, as CSV or TXT, and the CSV
-says which lists hold each wallet.
+follow. A wallet can sit in several. At `/me` every list has its own tab with its count, where you rename it right in the tab
+or delete it (the first one stays). The folder button in a row moves the wallet to another list or copies it there.
+**Export** there gives the list on screen, or all of them, as CSV or TXT. The CSV is about each wallet itself: its
+name and X account when known, its first funder and the exchange behind it, its first transaction, your tags, the
+lists that hold it, and the token you found it on.
 
 A row in a list is the wallet and your tags for it: **+** adds one right there. Click the row for the wallet's card,
 about the wallet itself: who it is if anyone knows, its age and first funder, the other analyses you saved it in, and its
@@ -59,7 +63,8 @@ one. Transfers, incoming SOL, airdrops and token-for-token swaps stay silent, an
   minutes, and only from the wallet you are signed in with. A chat already connected to another wallet stays with it:
   send /stop there first.
 - **Choose**: buys, sells, and the smallest trade in dollars, the same for every list with the bell on. Up to
-  {{ s.alerts_max_wallets }} wallets per account, and up to {{ s.alerts_per_hour }} alerts an hour.
+  {{ s.alerts_max_wallets }} wallets per account: the newest ones on lists with the bell, the older ones stay silent and
+  the lists page says so. Up to {{ s.alerts_per_hour }} alerts an hour.
 - **Stop**: *Disconnect* on the lists page, or /stop in the bot.
 
 An alert reads like a trades channel, three lines:

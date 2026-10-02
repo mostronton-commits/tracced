@@ -29,13 +29,14 @@
     <button type="button" class="primary tgbtn" id="tgconnect"{% if tg.linked %} hidden{% endif %}>Connect Telegram</button>
     <button type="button" class="link" id="tgunlink"{% if not tg.linked %} hidden{% endif %}>Disconnect</button>
   </div>
+  {% if bell_n > watch_cap %}<p class="tghint over">Alerts follow your {{ watch_cap }} newest wallet{{ '' if watch_cap == 1 else 's' }} on lists with the bell: {{ bell_n - watch_cap }} older {{ 'one stays' if bell_n - watch_cap == 1 else 'ones stay' }} silent.</p>{% endif %}
   <p class="tghint" id="tghint"{% if not tg.linked %} hidden{% endif %}>Turn on the bell <i class="lbell"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2V7.4a4 4 0 0 1 8 0v3.8l1.2 1.4H2.8z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/></svg></i> on a list below: the trades of its wallets come to the chat.</p>
 </section>
 {% endif %}
 <section class="card me" id="list">
   <div class="row mehead">
     <h2>Lists</h2><span class="muted small" id="wcount">{{ wallets|length }} wallet{{ '' if wallets|length == 1 else 's' }}</span>
-    {% if wallets %}<div class="menu right"><button type="button" class="ghost" data-menu>↓ Export</button>
+    {% if wallets %}<div class="menu right"><button type="button" class="ghost xbtn" data-menu title="Export the list on screen: CSV or TXT" aria-label="Export"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v8M4.6 7.2 8 10.6l3.4-3.4M3 13.5h10"/></svg></button>
       <div class="menu-panel r" hidden><a href="/me/wallets.csv" id="xcsv">CSV <small>all columns</small></a><button type="button" id="xtxt">TXT <small>addresses only</small></button></div></div>{% endif %}
   </div>
   <div class="ltabs" role="tablist" id="ltabs">
@@ -55,13 +56,13 @@
   {% for w in wallets %}
     <tr data-w="{{ w.wallet }}" data-lists="{{ (w.lists or ['main'])|join(' ') }}" tabindex="0">
       <td><span class="wlrow"><span class="mono wadr">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</span><span class="mytags">{% for t in w.my_tags or [] %}<button type="button" class="tag mine" title="Click to remove">{{ t }}</button>{% endfor %}<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd" title="Add your own tag: it names the wallet here and in the alerts" aria-label="Add your own tag"{% if (w.my_tags or [])|length >= max_my_tags %} hidden{% endif %}><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg></button></span>{% set ac = (act or {}).get(w.wallet) %}{% if ac %}{% set busy = ac.buys or ac.sells %}{% set ago = ac.last|ago %}{% set when = 'just now' if ago == 'now' else ago ~ ' ago' %}{% set sago = ac.since|ago %}{% set swhen = 'just now' if sago == 'now' else sago ~ ' ago' %}<span class="wact{{ '' if busy else ' quiet' }}" title="{% if busy %}Trades the alerts saw in the last 7 days: {{ ac.buys }} buy{{ '' if ac.buys == 1 else 's' }}, {{ ac.sells }} sell{{ '' if ac.sells == 1 else 's' }}. Last trade {{ when }}.{% elif ac.last %}No trades in the last 7 days. Last trade {{ when }}.{% else %}No trades since the alerts started watching it {{ swhen }}.{% endif %}">{% if busy %}<b class="up">↑{{ ac.buys }}</b><b class="dn">↓{{ ac.sells }}</b><span>· {{ when }}</span>{% elif ac.last %}<span>last trade {{ when }}</span>{% else %}<span>no trades yet</span>{% endif %}</span>{% endif %}</span></td>
-      <td class="rm"><button type="button" class="ghost x" data-rm-wallet title="Remove from this list" aria-label="Remove from this list">×</button></td>
+      <td class="rm">{% if lists|length > 1 %}<button type="button" class="ghost mv" data-mv-wallet title="Move or copy to another list" aria-label="Move or copy to another list"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.5v7.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V6.5a1 1 0 0 0-1-1H8L6.6 3.5h-3.1a1 1 0 0 0-1 1Z"/><path d="M6.5 9.3h4M9 7.6l1.6 1.7L9 11"/></svg></button>{% endif %}<button type="button" class="ghost x" data-rm-wallet title="Remove from this list" aria-label="Remove from this list">×</button></td>
     </tr>
   {% endfor %}
   </tbody></table></div>
-  <p class="muted" id="lempty" hidden>This list is empty. Open a result, tick wallets, then <b>+ Add to list</b>.</p>
+  <p class="muted" id="lempty" hidden>This list is empty. On a result, click the <b>☆</b> by a wallet, or move one here from another list.</p>
   {% else %}
-  <p class="muted">Nothing here yet. Open a result, tick the wallets you want, then <b>+ Add to list</b>.{% if demo_mint %} <a href="/token?mint={{ demo_mint }}">Try it on the demo</a>.{% endif %}</p>
+  <p class="muted">Nothing here yet. On a result, click the <b>☆</b> by a wallet: it lands in your Watchlist.{% if demo_mint %} <a href="/token?mint={{ demo_mint }}">Try it on the demo</a>.{% endif %}</p>
   {% endif %}
 </section>
 
@@ -123,10 +124,12 @@
         const left = current ? tr.dataset.lists.split(' ').filter(x => x !== current) : [];
         if (left.length) { tr.dataset.lists = left.join(' '); if (META[tr.dataset.w]) META[tr.dataset.w].lists = left; }
         else { tr.remove(); if (drawer && drawer.dataset.w === tr.dataset.w) closeCard(); }
-        showList(current);
+        recount(); showList(current);
       } catch (x) { oops(x); }
       return;
     }
+    const mv = e.target.closest('[data-mv-wallet]');
+    if (mv) { openMove(mv, mv.closest('tr').dataset.w); return; }
     const rj = e.target.closest('[data-rm-job]');
     if (rj) { const row = rj.closest('.rrow'); try { await post('/me/analyses/remove', { job: row.dataset.j }); row.remove(); } catch (x) { oops(x); } }
   });
@@ -324,10 +327,65 @@
     try { await post('/me/lists', { name }); location.reload(); } catch (x) { oops(x); }
   });
   const lr = document.getElementById('lrename'), ld = document.getElementById('ldelete');
-  if (lr) lr.addEventListener('click', async () => {
-    const name = prompt('New name for «' + names[current] + '»', names[current]); if (!name) return;
-    try { await post('/me/lists/rename', { id: current, name }); location.reload(); } catch (x) { oops(x); }
+  // the name is edited where it stands, in its tab (designer, 01.10: the browser's prompt box looked broken)
+  if (lr) lr.addEventListener('click', () => {
+    const tab = tabOf(current); if (!tab || tab.hidden) return;
+    const id = current, was = names[id], inp = document.createElement('input');
+    inp.type = 'text'; inp.maxLength = 32; inp.value = was; inp.className = 'ltabedit'; inp.setAttribute('aria-label', 'New name for this list');
+    tab.hidden = true; tab.before(inp); inp.focus(); inp.select();
+    let done = false;
+    const finish = async save => {
+      if (done) return; done = true;
+      const name = inp.value.trim().replace(/\s+/g, ' ');
+      if (save && name && name !== was) {
+        try { await post('/me/lists/rename', { id, name }); names[id] = name; tab.firstChild.textContent = name + ' '; EarlyUI.toast('Renamed to «' + esc(name) + '»'); }
+        catch (x) { oops(x); }
+      }
+      inp.remove(); tab.hidden = false;
+    };
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); finish(true); } else if (e.key === 'Escape') { e.stopPropagation(); finish(false); } });
+    inp.addEventListener('blur', () => finish(true));
   });
+  // the counts on the tabs follow every change on the page, not only a reload
+  function recount() {
+    const rows = [...document.querySelectorAll('tr[data-w]')];
+    document.querySelectorAll('#ltabs .ltab').forEach(b => {
+      const n = b.dataset.list ? rows.filter(tr => tr.dataset.lists.split(' ').includes(b.dataset.list)).length : rows.length;
+      const c = b.querySelector('b'); if (c) c.textContent = n;
+    });
+    const wc = document.getElementById('wcount'); if (wc) wc.textContent = rows.length + ' wallet' + (rows.length === 1 ? '' : 's');
+  }
+  // a saved wallet goes to another list from its row (custdev 01.10): Move takes it out of the open list, Copy keeps it in both
+  const mvpop = document.createElement('div');
+  mvpop.className = 'listpop mvpop'; mvpop.hidden = true; document.body.appendChild(mvpop);
+  function openMove(btn, w) {
+    const tr = rowOf(w), has = tr ? tr.dataset.lists.split(' ') : [];
+    const others = Object.keys(names).filter(id => id !== current);
+    mvpop.dataset.w = w;
+    mvpop.innerHTML = '<div class="lh">' + (current ? 'Move or copy to' : 'Copy to') + '</div>' + others.map(id =>
+      '<div class="mvrow"><span class="mvname">' + esc(names[id]) + '</span>'
+      + (current ? '<button type="button" class="link" data-mv="' + id + '">Move</button>' : '')
+      + (has.includes(id) ? '<span class="mvin" title="Already in this list">✓ in it</span>' : '<button type="button" class="link" data-cp="' + id + '">Copy</button>') + '</div>').join('');
+    const r = btn.getBoundingClientRect();
+    mvpop.style.top = (window.scrollY + r.bottom + 6) + 'px';
+    mvpop.style.left = Math.max(8, Math.min(window.scrollX + r.right - 240, window.scrollX + document.documentElement.clientWidth - 248)) + 'px';
+    mvpop.hidden = false;
+  }
+  mvpop.addEventListener('click', async e => {
+    const b = e.target.closest('[data-mv], [data-cp]'); if (!b) return;
+    const w = mvpop.dataset.w, to = b.dataset.mv || b.dataset.cp, move = !!b.dataset.mv;
+    try {
+      const d = await post('/me/lists/move', move ? { wallets: [w], to, from: current } : { wallets: [w], to });
+      const ls = (d.wallets || {})[w], tr = rowOf(w);
+      if (ls && tr) { tr.dataset.lists = ls.join(' '); if (META[w]) META[w].lists = ls; }
+      mvpop.hidden = true; recount(); showList(current);
+      if (drawer && !drawer.hidden && drawer.dataset.w === w) renderSrc(w);
+      EarlyUI.use('list-move', { how: move ? 'move' : 'copy' });
+      EarlyUI.toast((move ? 'Moved to «' : 'Copied to «') + esc(names[to]) + '»');
+    } catch (x) { oops(x); }
+  });
+  document.addEventListener('click', e => { if (!mvpop.hidden && !e.target.closest('.mvpop, [data-mv-wallet]')) mvpop.hidden = true; });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') mvpop.hidden = true; });
   if (ld) ld.addEventListener('click', async () => {
     if (!confirm('Delete the list «' + names[current] + '»? Wallets that are only in it leave your lists.')) return;
     try { await post('/me/lists/remove', { id: current }); try { localStorage.removeItem('early:list'); } catch (e) {} location.reload(); } catch (x) { oops(x); }

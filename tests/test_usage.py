@@ -290,6 +290,10 @@ class TestSummary(unittest.TestCase):
                          {"text": "saved 1 wallet from", "href": "/job/J1", "link": "ONE"})
         self.assertEqual(usage.label(ev(1, A, "limit", what="run", kind="wallet"))["text"], "hit the daily limit: run (wallet)")
         self.assertIn("off topic", usage.label(ev(1, A, "agent", kind="ask", ok=1, off=1, job="J1"))["text"])
+        self.assertEqual(usage.label(ev(1, A, "list_move", n=2, how="copy"))["text"], "copied 2 wallets to another list")
+        self.assertEqual(usage.label(ev(1, A, "list_move", n=1, how="move"))["text"], "moved 1 wallet to another list")
+        self.assertIn("star", usage.UI_FEATURES)                               # the star replaced the checkboxes (owner, 02.10)
+        self.assertNotIn("select-all", usage.UI_FEATURES)
 
 
 class TestOnchainHelpers(unittest.TestCase):

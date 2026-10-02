@@ -188,6 +188,22 @@ class TestStore(unittest.TestCase):
         with self.assertRaises(A.AccountError):
             self.st.delete_list(self.pk, A.MAIN_LIST)
 
+    def test_moving_and_copying_between_lists(self):
+        w1, w2, stranger = addr(50), addr(51), addr(52)
+        self.st.add_wallets(self.pk, [{"wallet": w1}, {"wallet": w2}])
+        lid, _ = self.st.create_list(self.pk, "Second")
+        self.assertEqual(self.st.place_wallets(self.pk, [w1, w1, stranger], lid), {w1: [A.MAIN_LIST, lid]})   # copy; a stranger is not added
+        self.assertEqual(self.st.place_wallets(self.pk, [w1], lid), {})                                        # already there
+        self.assertEqual(self.st.place_wallets(self.pk, [w2], lid, A.MAIN_LIST), {w2: [lid]})                 # move
+        self.assertEqual(self.st.place_wallets(self.pk, [w1], A.MAIN_LIST, A.MAIN_LIST), {})                  # to where it is: nothing
+        a = self.st.load(self.pk)
+        self.assertEqual((a["wallets"][w1]["lists"], a["wallets"][w2]["lists"]), ([A.MAIN_LIST, lid], [lid]))
+        self.assertNotIn(stranger, a["wallets"])
+        with self.assertRaises(A.AccountError):
+            self.st.place_wallets(self.pk, [w1], "nope")
+        with self.assertRaises(A.AccountError):
+            self.st.place_wallets(self.pk, [w1], lid, "gone")
+
     def test_removing_many_wallets_is_one_write(self):
         # вибір з сотні гаманців прибирається одним записом файлу, а промах не пише нічого
         from unittest import mock
