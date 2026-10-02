@@ -1,5 +1,5 @@
 /* The owner's labels on user wallets in /admin (30.09: who is a friend, which are my own, which are testers). Each
-   .alabels[data-w][data-labels] becomes chips (a click drops one) and a + that opens a field with suggestions; Enter keeps
+   .alabels[data-w][data-labels] becomes chips (each × drops one) and a + that opens a field with suggestions; Enter keeps
    the word. Labels live in a file on the server and are seen only in /admin. .alfilter buttons show only the rows
    carrying a label. */
 (function () {
@@ -7,7 +7,7 @@
   const PLUS = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg>';
   function draw(el) {
     const ls = JSON.parse(el.dataset.labels || '[]');
-    el.innerHTML = ls.map(l => '<button type="button" class="tag mine" title="Click to remove">' + esc(l) + '</button>').join('')
+    el.innerHTML = ls.map(l => '<span class="tag mine"><span>' + esc(l) + '</span><button type="button" class="tagx" data-tag="' + esc(l) + '" title="Remove this label" aria-label="Remove the label ' + esc(l) + '">×</button></span>').join('')
       + '<input type="text" class="tagin" maxlength="24" list="alabel-list" aria-label="New label" hidden>'
       + (ls.length < 6 ? '<button type="button" class="tagadd" title="Label this wallet: me, friend, tester…" aria-label="Add a label">' + PLUS + '</button>' : '');
   }
@@ -22,8 +22,8 @@
   function mount(el) {
     draw(el);
     el.addEventListener('click', e => {
-      const chip = e.target.closest('.tag.mine');
-      if (chip) { save(el, JSON.parse(el.dataset.labels || '[]').filter(l => l !== chip.textContent)); return; }
+      const x = e.target.closest('.tagx');
+      if (x) { save(el, JSON.parse(el.dataset.labels || '[]').filter(l => l !== x.dataset.tag)); return; }
       if (e.target.closest('.tagadd')) { const inp = el.querySelector('.tagin'); inp.hidden = false; e.target.closest('.tagadd').hidden = true; inp.focus(); }
     });
     el.addEventListener('keydown', e => {

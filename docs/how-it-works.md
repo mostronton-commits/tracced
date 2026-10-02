@@ -20,7 +20,7 @@ is refreshed at most every {{ s.fresh_refresh_min|int }} minutes. A click opens 
 
 ## Insights
 
-Above the chart, up to four short conclusions about the buyers, in percent. Each one appears only when it says
+Under the chart, up to four short conclusions about the buyers, in percent. Each one appears only when it says
 something. Where a filter exists for it, a click shows exactly those wallets.
 
 - **Creator bought**: the token's creator bought in the range.
@@ -36,8 +36,6 @@ something. Where a filter exists for it, a click shows exactly those wallets.
 - **N% funded from exchanges**: of the wallets whose first funder is known, the share funded straight from an
   exchange (shown from 10 wallets and 5%).
 - **N% took a profit**: wallets with a realized profit (shown from 20 wallets).
-
-On the home page, every token shows the two strongest conclusions of its latest analysis under its name.
 
 ## Where the numbers come from
 
@@ -104,7 +102,7 @@ When the first SOL came straight from a known exchange, "Funded by" names the ex
 exchange never makes a bundle.
 
 When nearly all of the top {{ s.age_lookups_max }} by PnL are fresh or in bundles, one hand ran the launch and little
-in the list is organic buying. A red mark above the chart says which kind:
+in the list is organic buying. A red mark first among the insights, under the chart, says which kind:
 
 | Word | The top is made of |
 |---|---|

@@ -55,12 +55,12 @@
   </tr></thead><tbody>
   {% for w in wallets %}
     <tr data-w="{{ w.wallet }}" data-lists="{{ (w.lists or ['main'])|join(' ') }}" tabindex="0">
-      <td><span class="wlrow"><span class="mono wadr">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</span><span class="mytags">{% for t in w.my_tags or [] %}<button type="button" class="tag mine" title="Click to remove">{{ t }}</button>{% endfor %}<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd" title="Add your own tag: it names the wallet here and in the alerts" aria-label="Add your own tag"{% if (w.my_tags or [])|length >= max_my_tags %} hidden{% endif %}><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg></button></span>{% set ac = (act or {}).get(w.wallet) %}{% if ac %}{% set busy = ac.buys or ac.sells %}{% set ago = ac.last|ago %}{% set when = 'just now' if ago == 'now' else ago ~ ' ago' %}{% set sago = ac.since|ago %}{% set swhen = 'just now' if sago == 'now' else sago ~ ' ago' %}<span class="wact{{ '' if busy else ' quiet' }}" title="{% if busy %}Trades the alerts saw in the last 7 days: {{ ac.buys }} buy{{ '' if ac.buys == 1 else 's' }}, {{ ac.sells }} sell{{ '' if ac.sells == 1 else 's' }}. Last trade {{ when }}.{% elif ac.last %}No trades in the last 7 days. Last trade {{ when }}.{% else %}No trades since the alerts started watching it {{ swhen }}.{% endif %}">{% if busy %}<b class="up">↑{{ ac.buys }}</b><b class="dn">↓{{ ac.sells }}</b><span>· {{ when }}</span>{% elif ac.last %}<span>last trade {{ when }}</span>{% else %}<span>no trades yet</span>{% endif %}</span>{% endif %}</span></td>
-      <td class="rm">{% if alerts_ok %}<button type="button" class="ghost bell{{ ' on' if w.alert }}" data-bell aria-pressed="{{ 'true' if w.alert else 'false' }}" title="{{ 'Alerts on · click to turn off' if w.alert else 'Get its buys and sells in Telegram' }}" aria-label="Alerts for this wallet"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2V7.4a4 4 0 0 1 8 0v3.8l1.2 1.4H2.8z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/></svg></button>{% endif %}{% if lists|length > 1 %}<button type="button" class="ghost mv" data-mv-wallet title="Move or copy to another list" aria-label="Move or copy to another list"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.5v7.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V6.5a1 1 0 0 0-1-1H8L6.6 3.5h-3.1a1 1 0 0 0-1 1Z"/><path d="M6.5 9.3h4M9 7.6l1.6 1.7L9 11"/></svg></button>{% endif %}<button type="button" class="ghost x" data-rm-wallet title="Remove from this list" aria-label="Remove from this list">×</button></td>
+      <td><span class="wlrow"><span class="wadr" title="Open the wallet's card"><span class="mono">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</span><svg class="wopen" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M10 3v10"/></svg></span><span class="mytags">{% for t in w.my_tags or [] %}<span class="tag mine" title="Your tag"><span>{{ t }}</span><button type="button" class="tagx" data-tag="{{ t }}" title="Remove this tag" aria-label="Remove the tag {{ t }}">×</button></span>{% endfor %}<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd" title="Add your own tag: it names the wallet here and in the alerts" aria-label="Add your own tag"{% if (w.my_tags or [])|length >= max_my_tags %} hidden{% endif %}><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg></button></span>{% set ac = (act or {}).get(w.wallet) %}{% if ac %}{% set busy = ac.buys or ac.sells %}{% set ago = ac.last|ago %}{% set when = 'just now' if ago == 'now' else ago ~ ' ago' %}{% set sago = ac.since|ago %}{% set swhen = 'just now' if sago == 'now' else sago ~ ' ago' %}<span class="wact{{ '' if busy else ' quiet' }}" title="{% if busy %}Trades the alerts saw in the last 7 days: {{ ac.buys }} buy{{ '' if ac.buys == 1 else 's' }}, {{ ac.sells }} sell{{ '' if ac.sells == 1 else 's' }}. Last trade {{ when }}.{% elif ac.last %}No trades in the last 7 days. Last trade {{ when }}.{% else %}No trades since the alerts started watching it {{ swhen }}.{% endif %}">{% if busy %}<b class="up">↑{{ ac.buys }}</b><b class="dn">↓{{ ac.sells }}</b><span>· {{ when }}</span>{% elif ac.last %}<span>last trade {{ when }}</span>{% else %}<span>no trades yet</span>{% endif %}</span>{% endif %}</span></td>
+      <td class="rm">{% if alerts_ok %}<button type="button" class="ghost bell{{ ' on' if w.alert }}" data-bell aria-pressed="{{ 'true' if w.alert else 'false' }}" title="{{ 'Alerts on · click to turn off' if w.alert else 'Get its buys and sells in Telegram' }}" aria-label="Alerts for this wallet"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2V7.4a4 4 0 0 1 8 0v3.8l1.2 1.4H2.8z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/></svg></button>{% endif %}<button type="button" class="ghost x" data-rm-wallet title="Remove from this list" aria-label="Remove from this list">×</button></td>
     </tr>
   {% endfor %}
   </tbody></table></div>
-  <p class="muted" id="lempty" hidden>This list is empty. On a result, click the <b>☆</b> by a wallet, or move one here from another list.</p>
+  <p class="muted" id="lempty" hidden>This list is empty. On a result, click the <b>☆</b> by a wallet, or add one from another list in its card.</p>
   {% else %}
   <p class="muted">Nothing here yet. On a result, click the <b>☆</b> by a wallet: it lands in your Watchlist.{% if demo_mint %} <a href="/token?mint={{ demo_mint }}">Try it on the demo</a>.{% endif %}</p>
   {% endif %}
@@ -128,8 +128,6 @@
       } catch (x) { oops(x); }
       return;
     }
-    const mv = e.target.closest('[data-mv-wallet]');
-    if (mv) { openMove(mv, mv.closest('tr').dataset.w); return; }
     const rj = e.target.closest('[data-rm-job]');
     if (rj) { const row = rj.closest('.rrow'); try { await post('/me/analyses/remove', { job: row.dataset.j }); row.remove(); } catch (x) { oops(x); } }
   });
@@ -137,6 +135,9 @@
   const drawer = document.getElementById('drawer'), META = drawer ? JSON.parse(document.getElementById('mewmeta').textContent) : {};
   const MAX_TAGS = {{ max_my_tags }}, esc = EarlyTags.esc, short = w => w.slice(0, 6) + '…' + w.slice(-4);
   const PLUS = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg>';
+  // your tag goes only by its own × (owner, 02.10: a tap on the word dropped it by accident)
+  const MINE = t => '<span class="tag mine" title="Your tag"><span>' + esc(t) + '</span><button type="button" class="tagx" data-tag="' + esc(t)
+    + '" title="Remove this tag" aria-label="Remove the tag ' + esc(t) + '">×</button></span>';
   const rowOf = w => document.querySelector('tr[data-w="' + CSS.escape(w) + '"]');
   let period = '30';
   const profiles = new Map();
@@ -151,7 +152,7 @@
     const tr = rowOf(w); if (!tr) return;
     const box = tr.querySelector('.mytags'), inp = box.querySelector('.tagin'), add = box.querySelector('.tagadd'), tags = (META[w] || {}).my_tags || [];
     box.querySelectorAll('.tag.mine').forEach(b => b.remove());
-    tags.forEach(t => { const b = document.createElement('button'); b.type = 'button'; b.className = 'tag mine'; b.title = 'Click to remove'; b.textContent = t; box.insertBefore(b, inp); });
+    tags.forEach(t => inp.insertAdjacentHTML('beforebegin', MINE(t)));
     inp.hidden = true; inp.value = ''; add.hidden = tags.length >= MAX_TAGS;
   }
   // the card is about the wallet itself (owner, 30.09 and 01.10): who it is, its age and funder, where else you met it,
@@ -174,12 +175,13 @@
     // the card in Lists is about the wallet, not the token it was saved from (owner, 30.09): its age today, its funder
     const out = [], age = d.age;
     if (age && age.ms && age.exact) {
-      out.push('<span class="dchip age' + (Date.now() - age.ms < 86400000 ? ' young' : '') + '" title="Wallet age today. First transaction ' + EarlyTZ.fmt(age.ms, true) + '">' + ageText(age.ms) + '</span>');
+      out.push('<span class="dchip age' + (Date.now() - age.ms < 86400000 ? ' young' : '') + '" title="Wallet age today. First transaction ' + EarlyTZ.fmt(age.ms, true) + '">' + ageText(age.ms) + ' old</span>');
     } else if (age && age.ms) out.push('<span class="dchip age" title="More than ' + nf(age.n || 6000) + ' transactions: its first one is older than the ones read">' + Math.floor((+age.n || 6000) / 1000) + 'k+ tx</span>');
     const f = d.funder;
-    if (f && d.exchange) out.push('<a class="dchip fund cex" href="https://solscan.io/account/' + esc(f) + '" target="_blank" rel="noopener" title="First SOL came straight from ' + esc(d.exchange[1]) + ', an exchange">↘ ' + esc(d.exchange[0]) + '</a>');
-    else if (f) out.push('<a class="dchip fund mono" href="https://solscan.io/account/' + esc(f) + '" target="_blank" rel="noopener" title="First SOL came from ' + esc(f)
-      + (d.service ? ', an exchange or an app' : '') + '">↘ ' + short(f) + '</a>');
+    // the funder says what it is, without a hover (owner, 02.10)
+    if (f && d.exchange) out.push('<a class="dchip fund cex" href="https://solscan.io/account/' + esc(f) + '" target="_blank" rel="noopener" title="First SOL came straight from ' + esc(d.exchange[1]) + ', an exchange · opens Solscan"><span class="dl">funded by</span>' + esc(d.exchange[0]) + '</a>');
+    else if (f) out.push('<a class="dchip fund" href="https://solscan.io/account/' + esc(f) + '" target="_blank" rel="noopener" title="First SOL came from ' + esc(f)
+      + (d.service ? ', an exchange or an app' : '') + ' · opens Solscan"><span class="dl">funded by</span><span class="mono">' + short(f) + '</span></a>');
     document.getElementById('dchips').innerHTML = out.join('');
     const cx = d.seen || [];
     document.getElementById('dcross').innerHTML = cx.length ? '<b>' + CHAIN + ' Also in ' + cx.length + ' of your saved analyses</b><ul>' + cx.map(c =>
@@ -197,19 +199,27 @@
   function renderTags(w) {
     const mine = (META[w] || {}).my_tags || [], d = cards.get(w) || {};
     document.getElementById('dname').textContent = nameOf(w);
-    document.getElementById('dtags').innerHTML = mine.map(t => '<button type="button" class="tag mine" title="Your tag · click to remove">' + esc(t) + '</button>').join('')
+    document.getElementById('dtags').innerHTML = mine.map(MINE).join('')
       + (mine.length < MAX_TAGS ? '<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd wide" title="Your own tag for this wallet: it names the wallet here and in the Telegram alerts" aria-label="Add your own tag">' + PLUS + '<span>tag</span></button>' : '');
   }
   function renderSrc(w) {
-    const m = META[w] || {}, names = (m.lists || []).map(id => LISTNAMES[id] || id);
+    const m = META[w] || {}, has = m.lists || [], ids = Object.keys(LISTNAMES);
     const a = m.act, n = (k, x) => k + ' ' + x + (k === 1 ? '' : 's');
     // what the alerts saw this wallet do in 7 days (owner, 01.10: who is how active); only lists with the bell are watched
     const act = !a ? '' : '<p class="dline small">' + (a.buys || a.sells ? '<b>' + n(a.buys, 'buy') + ', ' + n(a.sells, 'sell') + '</b> in 7 days · ' : 'No trades in 7 days · ')
       + (a.big ? 'biggest buy $' + EarlyUI.fmtShort(a.big) + ' · ' : '') + (m.sent_today ? n(m.sent_today, 'alert') + ' to you today · ' : '')
       + (a.last ? 'last trade ' + EarlyTZ.fmt(a.last, true) : 'watched since ' + EarlyTZ.fmt(a.since, true)) + '</p>';
-    document.getElementById('dsrc').innerHTML = act + '<p class="dline muted small">In ' + esc(names.join(', ') || 'no list') + (m.added_ms ? ' · saved ' + EarlyTZ.fmt(m.added_ms, false) : '') + '</p>';
+    // which lists hold it, as switches (owner, 02.10: a folder button in every row looked out of place); with one list
+    // there is nothing to switch, so it is said in words
+    const lists = ids.length < 2 ? '' : '<div class="dlists" role="group" aria-label="Lists that hold this wallet"><span class="dl">Lists</span>'
+      + ids.map(id => { const on = has.includes(id);
+          return '<button type="button" class="lchip' + (on ? ' on' : '') + '" data-lt="' + esc(id) + '" aria-pressed="' + on + '" title="'
+            + (on ? 'In this list · click to take it out' : 'Click to add it to this list') + '">' + (on ? '✓ ' : '') + esc(LISTNAMES[id]) + '</button>'; }).join('') + '</div>';
+    const saved = m.added_ms ? EarlyTZ.fmt(m.added_ms, false) : '';
+    const foot = lists ? (saved ? 'Saved ' + saved : '') : 'In ' + esc(has.map(id => LISTNAMES[id] || id).join(', ') || 'no list') + (saved ? ' · saved ' + saved : '');
+    document.getElementById('dsrc').innerHTML = act + lists + (foot ? '<p class="dline muted small">' + foot + '</p>' : '');
   }
-  async function dropTag(w, tag) {                          // one tap removes a tag; a mis-tap on a phone is one Undo away (review 01.10)
+  async function dropTag(w, tag) {                          // by its ×, and one Undo brings it back (review 01.10)
     const before = ((META[w] || {}).my_tags || []).slice();
     if (!await saveTags(w, before.filter(t => t !== tag))) return;      // not saved: the error stays on screen, no Undo
     EarlyUI.toast('Tag «' + esc(tag) + '» removed · <button type="button" class="link" id="tagundo">Undo</button>', 6000);
@@ -256,11 +266,11 @@
   }
   if (drawer) {
     const tbody = document.querySelector('.mewl tbody');
-    // tags right in the row, as fast as before the card: + opens a field, Enter keeps the word, a click on a tag drops it
+    // tags right in the row, as fast as before the card: + opens a field, Enter keeps the word, a tag's × drops it
     tbody.addEventListener('click', e => {
       const tr = e.target.closest('tr[data-w]'); if (!tr) return;
-      const w = tr.dataset.w, mine = e.target.closest('.mytags .tag.mine');
-      if (mine) { dropTag(w, mine.textContent); return; }
+      const w = tr.dataset.w, x = e.target.closest('.mytags .tagx');
+      if (x) { dropTag(w, x.dataset.tag); return; }
       if (e.target.closest('.mytags .tagadd')) { const inp = tr.querySelector('.tagin'); inp.hidden = false; e.target.closest('.tagadd').hidden = true; inp.focus(); }
     });
     tbody.addEventListener('keydown', e => {
@@ -287,8 +297,8 @@
     });
     const dtags = document.getElementById('dtags');
     dtags.addEventListener('click', e => {
-      const w = drawer.dataset.w, mine = e.target.closest('.tag.mine');
-      if (mine) { dropTag(w, mine.textContent); return; }
+      const w = drawer.dataset.w, x = e.target.closest('.tagx');
+      if (x) { dropTag(w, x.dataset.tag); return; }
       if (!e.target.closest('.tagadd')) return;
       const inp = dtags.querySelector('.tagin'), add = dtags.querySelector('.tagadd');
       inp.hidden = false; add.hidden = true; inp.focus();
@@ -303,6 +313,24 @@
       saveTags(w, ((META[w] || {}).my_tags || []).concat([v]));
     });
     dtags.addEventListener('focusout', e => { const inp = e.target.closest('.tagin'); if (inp && !inp.value.trim()) setTimeout(() => { if (!dtags.contains(document.activeElement)) renderTags(drawer.dataset.w); }, 0); });
+    // a wallet's lists from its card: a click adds it to a list or takes it out. The last list stays: × in the row drops
+    // the wallet itself
+    document.getElementById('dsrc').addEventListener('click', async e => {
+      const b = e.target.closest('[data-lt]'); if (!b || b.disabled) return;
+      const w = drawer.dataset.w, id = b.dataset.lt, m = META[w] = META[w] || {}, tr = rowOf(w);
+      const had = (m.lists || (tr ? tr.dataset.lists.split(' ') : [])).slice(), out = had.includes(id);
+      if (out && had.length === 1) { EarlyUI.toast('A saved wallet stays in at least one list. To drop it, use × in its row.'); return; }
+      b.disabled = true;
+      try {
+        if (out) { await post('/me/wallets/remove', { wallets: [w], list: id }); m.lists = had.filter(x => x !== id); }
+        else { const d = await post('/me/lists/move', { wallets: [w], to: id }); m.lists = (d.wallets || {})[w] || had.concat([id]); }
+        if (tr) tr.dataset.lists = m.lists.join(' ');
+        recount(); showList(current);
+        EarlyUI.use('list-move', { how: out ? 'remove' : 'copy' });
+        EarlyUI.toast((out ? 'Taken out of «' : 'Added to «') + esc(LISTNAMES[id]) + '»');
+      } catch (x) { oops(x); }
+      if (drawer.dataset.w === w) renderSrc(w);
+    });
   }
   // several lists: a tab shows one, «All» shows every saved wallet once; export follows the tab
   let current = '';
@@ -354,37 +382,6 @@
     });
     const wc = document.getElementById('wcount'); if (wc) wc.textContent = rows.length + ' wallet' + (rows.length === 1 ? '' : 's');
   }
-  // a saved wallet goes to another list from its row (custdev 01.10): Move takes it out of the open list, Copy keeps it in both
-  const mvpop = document.createElement('div');
-  mvpop.className = 'listpop mvpop'; mvpop.hidden = true; document.body.appendChild(mvpop);
-  function openMove(btn, w) {
-    const tr = rowOf(w), has = tr ? tr.dataset.lists.split(' ') : [];
-    const others = Object.keys(names).filter(id => id !== current);
-    mvpop.dataset.w = w;
-    mvpop.innerHTML = '<div class="lh">' + (current ? 'Move or copy to' : 'Copy to') + '</div>' + others.map(id =>
-      '<div class="mvrow"><span class="mvname">' + esc(names[id]) + '</span>'
-      + (current ? '<button type="button" class="link" data-mv="' + id + '">Move</button>' : '')
-      + (has.includes(id) ? '<span class="mvin" title="Already in this list">✓ in it</span>' : '<button type="button" class="link" data-cp="' + id + '">Copy</button>') + '</div>').join('');
-    const r = btn.getBoundingClientRect();
-    mvpop.style.top = (window.scrollY + r.bottom + 6) + 'px';
-    mvpop.style.left = Math.max(8, Math.min(window.scrollX + r.right - 240, window.scrollX + document.documentElement.clientWidth - 248)) + 'px';
-    mvpop.hidden = false;
-  }
-  mvpop.addEventListener('click', async e => {
-    const b = e.target.closest('[data-mv], [data-cp]'); if (!b) return;
-    const w = mvpop.dataset.w, to = b.dataset.mv || b.dataset.cp, move = !!b.dataset.mv;
-    try {
-      const d = await post('/me/lists/move', move ? { wallets: [w], to, from: current } : { wallets: [w], to });
-      const ls = (d.wallets || {})[w], tr = rowOf(w);
-      if (ls && tr) { tr.dataset.lists = ls.join(' '); if (META[w]) META[w].lists = ls; }
-      mvpop.hidden = true; recount(); showList(current);
-      if (drawer && !drawer.hidden && drawer.dataset.w === w) renderSrc(w);
-      EarlyUI.use('list-move', { how: move ? 'move' : 'copy' });
-      EarlyUI.toast((move ? 'Moved to «' : 'Copied to «') + esc(names[to]) + '»');
-    } catch (x) { oops(x); }
-  });
-  document.addEventListener('click', e => { if (!mvpop.hidden && !e.target.closest('.mvpop, [data-mv-wallet]')) mvpop.hidden = true; });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') mvpop.hidden = true; });
   if (ld) ld.addEventListener('click', async () => {
     if (!confirm('Delete the list «' + names[current] + '»? Wallets that are only in it leave your lists.')) return;
     try { await post('/me/lists/remove', { id: current }); try { localStorage.removeItem('early:list'); } catch (e) {} location.reload(); } catch (x) { oops(x); }

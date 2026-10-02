@@ -1148,7 +1148,9 @@ if AioHTTPTestCase:
             self.assertNotIn("Copy addresses", html)
             self.assertIn('class="sortable"', html)
             self.assertIn('data-count=', html)                          # count-up tiles
-            self.assertIn("Hide wallets tagged", html)                  # the tags live under the Wallet funnel
+            self.assertIn("Hide wallets tagged", html)                  # the tags live in the Filters menu (owner, 02.10)
+            self.assertNotIn('data-fil="w"', html)                       # funnels only by the numbers
+            self.assertIn('id="freset"', html)                           # Reset beside Filters
             self.assertIn("Exits known for", html)                       # coverage line
             self.assertNotIn("Only:", html)                              # the "Only" chips are gone (owner, 25.09)
             self.assertIn("Trades up to", html)
@@ -2353,7 +2355,8 @@ if AioHTTPTestCase:
             moves = [e for e in self.app["events"].tail(50) if e.get("event") == "list_move"]
             self.assertEqual(sorted(e["how"] for e in moves), ["copy", "move"])          # the no-op wrote nothing
             html = await (await self.client.get("/me", headers=h)).text()
-            self.assertIn("data-mv-wallet", html)                                       # two lists: the row can move
+            self.assertNotIn("data-mv-wallet", html)                                    # no folder button in the row (owner, 02.10)
+            self.assertIn('data-lt="', html)                                            # the card switches the lists
             self.assertNotIn("prompt(", html)                                           # the name is edited in its tab
             self.assertIsNone(CYRILLIC.search(html))
             with mock.patch.dict(exch_mod.KNOWN, {funder: ["Binance", "Binance hot wallet"]}):

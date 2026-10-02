@@ -10,13 +10,14 @@ takes you there.
 
 In a result, point just before a wallet's address: a star (☆) lights up there. One click puts the wallet in your
 *Watchlist* and fills the star (★). A filled star, in the row or in the wallet's card, opens the menu of your lists: it
-shows which lists hold the wallet, and a click adds or removes it, or makes a new list. **★ Only my lists**, under the
-funnel by the Wallet column, keeps only the wallets you have saved. **Save analysis** keeps the whole result under *My analyses* at `/me`; the
+shows which lists hold the wallet, and a click adds or removes it, or makes a new list. **★ Only my lists**, in the
+Filters menu, keeps only the wallets you have saved. **Save analysis** keeps the whole result under *My analyses* at `/me`; the
 *Lists* and *Analyses* links at the top of every page lead there.
 
 You start with one list, *Watchlist*, and can keep up to twenty: one per strategy, per token family, per person you
 follow. A wallet can sit in several. At `/me` every list has its own tab with its count, where you rename it right in the tab
-or delete it (the first one stays). The folder button in a row moves the wallet to another list or copies it there.
+or delete it (the first one stays). A wallet's card there shows the lists that hold it: a click adds it to a list or
+takes it out. It stays in at least one; × in its row drops the wallet.
 **Export** there gives the list on screen, or all of them, as CSV or TXT. The CSV is about each wallet itself: its
 name and X account when known, its first funder and the exchange behind it, its first transaction, your tags, the
 lists that hold it, and the token you found it on.
@@ -34,7 +35,7 @@ Counts are kept for 8 days.
 ## Your own tags
 
 Each saved wallet takes tags you write yourself: in your lists, right in its row, or in the wallet's card. Type a
-short word, press Enter. Click a tag to remove it. Tagging a wallet in its card on a result adds it to your *Watchlist*,
+short word, press Enter. A tag goes only by its own ×, and Undo in the message that follows brings it back. Tagging a wallet in its card on a result adds it to your *Watchlist*,
 because a tag is a reason to watch it. A tag is the wallet's name for you: your lists and your Telegram alerts show
 it instead of the address.
 

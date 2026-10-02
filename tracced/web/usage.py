@@ -153,11 +153,11 @@ CLICKS = {"card-open": "Opened a wallet card", "card-close": "Closed a wallet ca
           "filters-toggle": "Opened or closed the filters", "funder": "Filtered by a funder", "sort": "Sorted the table",
           "select": "Ticked wallets", "select-all": "Ticked all", "select-clear": "Cleared the selection", "export": "Exported",
           "agent-open": "Opened the agent", "agent-close": "Closed the agent", "show-more": "Showed more rows",
-          "find-pump": "Pressed Find the pump (Before the pump)", "range-preset": "Picked a quick range (First / Last hour)", "finding": "Opened a finding above the table", "limit-window": "Saw the daily limit window", "range-set": "Marked a range on the chart",
+          "find-pump": "Pressed Find the pump (Before the pump)", "range-preset": "Picked a quick range (First / Last hour)", "finding": "Opened an insight under the chart", "limit-window": "Saw the daily limit window", "range-set": "Marked a range on the chart",
           "range-add": "Added a range", "range-reset": "Reset the ranges", "tf": "Changed the timeframe", "chart-nav": "Jumped on the chart",
           "list-tab": "Switched a list", "copy": "Copied an address", "ext": "Followed a link out", "cur": "Switched USD/SOL",
           "tz": "Switched UTC/local", "leave": "Left a page", "egg": "Found an easter egg",
-          "star": "Starred a wallet into the Watchlist", "list-move": "Moved or copied a wallet to another list",
+          "star": "Starred a wallet into the Watchlist", "list-move": "Changed a wallet's lists in its card",
           "wallet-bell": "Switched a wallet's alerts"}
 # що на сайті можна натиснути зараз: з цього списку — «ніхто не користувався» (прибрані кнопки сюди не входять,
 # інакше вони висіли б у списку вічно)

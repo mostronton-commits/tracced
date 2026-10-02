@@ -176,14 +176,17 @@ th.sortable::after { content: " ⇅"; font-size: 9px; color: #CBD5E1; }
 th.sortable:hover::after { color: var(--muted); }
 th.sortable.asc::after { content: " ↑"; color: var(--ink); font-size: 10px; }
 th.sortable.desc::after { content: " ↓"; color: var(--ink); font-size: 10px; }
-/* the result table's head carries its filters (owner, 02.10): the sort mark sits on the name, then the funnel */
+/* the result table's head carries its filters (owner, 02.10): the sort mark left of the name, the funnel right of it,
+   one line */
+#facts th { white-space: nowrap; }
 #facts th.sortable::after { content: none; }
-#facts th .hl::after { content: " ⇅"; font-size: 9px; color: #CBD5E1; }
-#facts th.sortable:hover .hl::after { color: var(--muted); }
-#facts th.asc .hl::after { content: " ↑"; color: var(--ink); font-size: 10px; }
-#facts th.desc .hl::after { content: " ↓"; color: var(--ink); font-size: 10px; }
+#facts th .hl::before { content: "⇅"; display: inline-block; width: 15px; margin-right: 2px; border-radius: 4px; text-align: center;
+  font-size: 10px; line-height: 18px; color: #94A3B8; transition: color .12s ease, background .12s ease; }
+#facts th.sortable:hover .hl::before { color: var(--ink); background: #F1F5F9; }
+#facts th.asc .hl::before { content: "↑"; color: var(--ink); font-size: 11px; }
+#facts th.desc .hl::before { content: "↓"; color: var(--ink); font-size: 11px; }
 #facts th .hfil, #facts th .hcur { display: inline-flex; align-items: center; justify-content: center; height: 20px; min-width: 20px; padding: 0 3px;
-  margin: 0 0 0 3px; border: 0; border-radius: 5px; background: transparent; color: #CBD5E1; vertical-align: -5px; cursor: pointer; }
+  margin: 0 0 0 3px; border: 0; border-radius: 5px; background: transparent; color: #94A3B8; vertical-align: -5px; cursor: pointer; }
 #facts th .hfil svg { width: 12px; height: 12px; }
 #facts th .hfil:hover, #facts th .hcur:hover { color: var(--ink); background: #F1F5F9; }
 #facts th .hfil.on { color: #047857; background: var(--sage); }
@@ -205,8 +208,9 @@ th.sortable.desc::after { content: " ↓"; color: var(--ink); font-size: 10px; }
 .fpop .fck input { accent-color: #10b981; margin: 0; }
 .fpop .fpf { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
 .fpop .fpf .primary { height: 32px; padding: 0 16px; }
-.fmenu { width: 260px; padding: 6px; gap: 2px; }
-.fmenu .fmi { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; height: auto; min-height: 36px; padding: 6px 10px;
+.fmenu { width: 300px; padding: 10px; gap: 6px; }
+.fmenu .fph.sub { margin: 6px 0 0; font: 600 10.5px/1.4 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.fmenu .fmi { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; height: auto; min-height: 34px; padding: 6px 8px;
   border: 0; border-radius: 6px; background: transparent; font-weight: 500; text-align: left; }
 .fmenu .fmi:hover { background: #F1F5F9; }
 .fmenu .fmi small { font: 11.5px var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
@@ -238,8 +242,13 @@ thead tr:not(.grp) th { top: 22px; }
 td.notes { font-size: 11.5px; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
 /* your own labels on a watchlist wallet */
 td.mytags { white-space: normal; min-width: 170px; }
-.tag.mine { border-color: #C7D2FE; background: #EEF2FF; color: #3730A3; cursor: pointer; font: inherit; font-size: 11px; height: auto; padding: 1px 7px; margin: 1px 3px 1px 0; }
-.tag.mine:hover { border-color: #A5B4FC; background: #E0E7FF; }
+/* your tag goes only by its own × (owner, 02.10: a click on the word dropped it by accident) */
+.tag.mine { display: inline-flex; align-items: center; gap: 1px; border-color: #C7D2FE; background: #EEF2FF; color: #3730A3; cursor: default; font: inherit;
+  font-size: 11px; height: auto; padding: 1px 2px 1px 7px; margin: 1px 3px 1px 0; }
+.tag.mine .tagx { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; padding: 0; border: 0; border-radius: 999px;
+  background: transparent; color: #818CF8; font: 13px/1 var(--sans); cursor: pointer; }
+.tag.mine .tagx:hover { background: #C7D2FE; color: #312E81; }
+@media (pointer: coarse) { .tag.mine .tagx { width: 22px; height: 22px; } }
 input.tagin { width: 108px; min-width: 0; flex: none; height: 22px; padding: 0 9px; font: 11px/1 var(--sans); border: 1px solid #A5B4FC; border-radius: 999px; background: var(--surface); }   /* глобальне input[type=text] має min-width 320px — воно б'є будь-яку width */
 input.tagin:focus { box-shadow: 0 0 0 3px #EEF2FF; }
 .tagadd { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0; border: 1px dashed #C7D2FE; border-radius: 999px; background: transparent; color: #6366F1; cursor: pointer; vertical-align: -5px; }
@@ -355,6 +364,7 @@ td.wcell .wid { white-space: nowrap; }       /* сам гаманець ніко
 .menu-panel button small { color: var(--muted); font-weight: 400; }
 .menu-panel button:hover { background: #F1F5F9; }
 #ftoggle.on { background: var(--sage); border-color: #A7F3D0; }
+#freset { margin-left: -4px; color: #475569; }      /* beside Filters while anything differs from how the table came */
 .filters { border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; margin: 0 0 10px; gap: 10px 22px; }
 .filters .f { display: flex; flex-direction: column; gap: 2px; }
 .filters .f small { color: var(--muted); font-size: 11px; }
@@ -495,8 +505,15 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .tagchip.t-dev { border-color: #FCA5A5; }
 .tagchip.t-sniper, .tagchip.t-bot-like, .tagchip.t-fresh { border-color: #FDE68A; }
 .tagchip.t-sniper.off, .tagchip.t-bot-like.off, .tagchip.t-fresh.off { border-color: var(--line); }
-.wname { border: 0; background: transparent; padding: 0; font-size: 12.5px; color: var(--ink); cursor: pointer; border-bottom: 1px dotted var(--line); }
-.wname:hover { border-bottom-color: var(--ink); background: transparent; }
+/* the address opens the card (owner, 02.10: it looked like a copy): a side-panel mark by it, the whole row answers */
+.wname { border: 0; background: transparent; padding: 0; gap: 5px; font-size: 12.5px; color: var(--ink); cursor: pointer; }
+.wname .mono { border-bottom: 1px dotted #CBD5E1; }
+.wname:hover { background: transparent; }
+.wopen { width: 13px; height: 13px; flex: none; color: #94A3B8; transition: color .12s ease; }
+#facts tbody tr { cursor: pointer; }
+#facts tbody tr:hover .wname .mono { border-bottom-color: var(--ink); }
+#facts tbody tr:hover .wopen, .mewl tbody tr:hover .wopen, .wname:focus-visible .wopen { color: var(--ink); }
+@media (hover: hover) and (min-width: 961px) { #facts tbody tr:hover td { background-color: #F8FAFC; } }
 .ext { border: 0; color: #CBD5E1; margin-left: 5px; font-size: 12px; } .ext:hover { color: var(--ink); }
 .xbtn { display: inline-flex; align-items: center; justify-content: center; width: 34px; padding: 0; }
 button.ghost.xbtn { padding: 0; color: #475569; }
@@ -620,11 +637,7 @@ button.ghost.xbtn { padding: 0; color: #475569; }
 .soonwrap.right .soon-pop { left: auto; right: 0; }
 
 /* ── iteration 11: hero arrow, step bars, micro-animations, responsive ── */
-/* the hero's one action is a plain key in the brand's mono: no arrow, no lift (owner, 02.10: the arrow and the weight read as a template) */
-.herof button.go { height: 40px; padding: 0 18px; border-radius: 6px; font: 500 12.5px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase;
-  background: var(--mint); border-color: #6EE7B7; color: var(--navy); }
-.herof button.go:hover { background: #BBF7D0; border-color: #86EFAC; }
-.herof button.go:active { background: #86EFAC; }
+/* the hero's one action: the primary key in the site's own type, without the arrow and the lift (owner, 02.10) */
 /* three levels, not two of the same (designer, 01.10; owner, 02.10): the wordmark, the line in bright mono, then the
    explanation small and quiet */
 .hero-dark .lead { font-size: 14px; line-height: 1.55; color: #94A3B8; max-width: 660px; margin: 0 0 22px; }
@@ -645,7 +658,7 @@ button.ghost.xbtn { padding: 0; color: #475569; }
 .steps3 > div, .stats div, .rrow { transition: transform .15s ease, border-color .15s ease, background .15s ease; }
 .steps3 > div:hover, .stats div:hover { transform: translateY(-1px); border-color: #CBD5E1; }
 button.primary { transition: background .12s ease, border-color .12s ease; }   /* no hover lift: it reads as a template (owner, 02.10) */
-@media (prefers-reduced-motion: reduce) { .facts tbody tr[style*="--i"], .tag, .wrow, .chartbox.loading::before, .dspark { animation: none; transition: none; } }
+@media (prefers-reduced-motion: reduce) { .facts tbody tr[style*="--i"], .tag, .wrow, .chartbox.loading::before { animation: none; transition: none; } }
 /* responsive */
 @media (max-width: 1000px) {
   .tokenhead { flex-direction: column; } .h-right { width: 100%; justify-content: flex-start; }
@@ -923,15 +936,10 @@ td.wcell .tags .tag { margin-left: 0; }
 .dhero .lbl { font-size: 11px; color: var(--muted); }
 .dhero .big { font: 700 24px/1.1 var(--mono); letter-spacing: -.02em; }
 .dhero .sub { font-size: 12px; color: var(--muted); }
-.dspark { width: 100%; height: 92px; display: block; color: #10B981; animation: dsp-in .6s cubic-bezier(.2, .7, .2, 1) both; }
-.dspark.down { color: #EF4444; }
-.dspark .a { opacity: .55; }
-.dspark .l { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-.dspark .z { stroke: #CBD5E1; stroke-dasharray: 2 4; vector-effect: non-scaling-stroke; }
-@keyframes dsp-in { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
-.dsp-end { position: absolute; width: 7px; height: 7px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--surface); border: 2px solid #10B981; pointer-events: none; }
-.dsparkw:has(.dspark.down) .dsp-end { border-color: #EF4444; }
-.dsp-guide { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px dashed #94A3B8; pointer-events: none; }
+.dspark { width: 100%; height: 92px; display: block; }
+.dspark .a { fill: rgba(16, 185, 129, .12); } .dspark.down .a { fill: rgba(239, 68, 68, .10); }
+.dspark .l { fill: none; stroke: #10B981; stroke-width: 2; vector-effect: non-scaling-stroke; } .dspark.down .l { stroke: #EF4444; }
+.dspark .z { stroke: #CBD5E1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
 .dspark-x { display: flex; justify-content: space-between; font: 10.5px var(--mono); color: var(--muted); margin: 2px 0 10px; }
 .dsparkw { position: relative; touch-action: pan-y; cursor: crosshair; }
 .dsp-dot { position: absolute; width: 9px; height: 9px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--surface); border: 2px solid var(--ink); pointer-events: none; }
@@ -1023,6 +1031,7 @@ td.c-inv small, td.c-sold small { white-space: nowrap; }
 button.dchip { cursor: pointer; } button.dchip:hover { color: var(--ink); }
 a.dchip.fund { color: var(--ink); border-bottom: 1px solid var(--line); cursor: pointer; } a.dchip.fund:hover { border-color: #94A3B8; }
 .dchip small { font: 600 10px/1 var(--mono); color: var(--muted); }
+.dchip .dl { font: 500 10.5px/1 var(--sans); color: var(--muted); margin-right: 2px; }
 .dinfo, .kinfo { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; margin-left: 4px; border: 1px solid var(--line);
          border-radius: 50%; font: 600 9.5px/1 var(--sans); font-style: normal; color: var(--muted); text-transform: none; letter-spacing: 0; cursor: help; vertical-align: 1px; }
 .dinfo.warn { border-color: #FCD34D; color: #B45309; background: #FFFBEB; }
@@ -1049,7 +1058,7 @@ td.c-roi b { font-size: 13px; }
 
 /* sorting: the column headers do it on a wide screen; on a phone the table is cards without headers, so the list stays */
 .sortby { display: none; }
-@media (max-width: 640px) { .sortby { display: inline-flex; } }
+@media (max-width: 960px) { .sortby { display: inline-flex; } }   /* wherever the table has no head: a tablet too, not only a phone */
 /* ── the owner's dashboard (/admin): period links, day bars, the funnel, small flags ── */
 .unav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 2px 0 10px; }
 .unav .seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
@@ -1321,7 +1330,7 @@ header.top { position: relative; z-index: 45; }
 .wrow .editt { padding: 4px 8px; line-height: 1; }
 .wrow .del { margin-left: auto; }
 
-/* знахідки — короткі позначки над графіком (іконка, число, два слова); речення — у підказці. Колір — лише сенс */
+/* знахідки — короткі позначки під графіком (іконка, число, два слова); речення — у підказці. Колір — лише сенс */
 .fpills { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0 10px; }
 .fpills .flabel { font: 600 10.5px/1 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
 span.fpill { cursor: help; }                    /* a fact with no filter behind it: it explains, it does not filter */
@@ -1336,6 +1345,12 @@ span.fpill { cursor: help; }                    /* a fact with no filter behind 
 .fpill.info { background: #F1F5F9; border-color: #E2E8F0; color: #334155; }
 .fpill.good { background: #F0FDF4; border-color: #BBF7D0; color: #166534; }
 .fpill.bad { background: #FEF2F2; border-color: #FECACA; color: #991B1B; font-weight: 600; cursor: help; }
+/* under the chart there is room (owner, 02.10): larger pills, the label on their line */
+.fpills.big { gap: 8px; margin: 12px 0 14px; }
+.fpills.big .flabel { font-size: 11px; margin-right: 4px; }
+.fpills.big .fpill { height: 34px; padding: 0 14px; gap: 8px; font-size: 14px; }
+.fpills.big .fpill b { font-size: 14px; }
+.fpills.big .fpill svg { width: 16px; height: 16px; }
 .factive { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 2px 4px 2px 10px; border-radius: 999px;
   background: #F1F5F9; border: 1px solid var(--line); font-size: 12px; color: var(--ink); }
 .factive button { padding: 0 6px; line-height: 1; min-width: 32px; }
@@ -1374,7 +1389,7 @@ span.fpill { cursor: help; }                    /* a fact with no filter behind 
 .mewl td.rm .bell:hover, .wcard .dh-act .bell:hover { color: var(--ink); }
 .mewl td.rm .bell.on:hover, .wcard .dh-act .bell.on:hover { color: #166534; background: #DCFCE7; }
 /* Lists: your tags right in the row, added there */
-.mewl .wadr { flex: none; }
+.mewl .wadr { flex: none; display: inline-flex; align-items: center; gap: 5px; }
 .mewl .mytags { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
 .mewl .mytags .tag.mine { margin: 0; }
 .mewl .mytags .tagin { width: 120px; height: 24px; min-width: 0; padding: 0 7px; font-size: 12px; }
@@ -1408,13 +1423,12 @@ span.fpill { cursor: help; }                    /* a fact with no filter behind 
 .mewl td.rm { width: 1%; text-align: right; }
 .mewl td.rm .x { width: 30px; height: 30px; padding: 0; font-size: 16px; }
 .mewl td.rm { white-space: nowrap; }
-.mewl td.rm .mv { width: 30px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; }
-.mewl td.rm .mv svg { width: 16px; height: 16px; }
-.mvpop .mvrow { display: flex; align-items: center; gap: 12px; min-height: 32px; padding: 0 8px; border-radius: 6px; font-size: 13px; }
-.mvpop .mvrow:hover { background: #F8FAFC; }
-.mvpop .mvname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mvpop .mvrow .link { font-size: 12.5px; }
-.mvpop .mvin { font-size: 11.5px; color: var(--muted); }
+/* a wallet's lists in its card, as switches; on is the lists' amber (owner, 02.10: instead of a folder button in each row) */
+.wcard .dlists { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0 6px; }
+.wcard .dlists .dl { font: 600 10.5px/1 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
+.lchip { height: 28px; padding: 0 11px; border-radius: 999px; font-size: 12.5px; color: #475569; }
+.lchip.on { background: #FEF3C7; border-color: #FDE68A; color: #92400E; }
+.lchip.on:hover { background: #FDE68A; border-color: #F59E0B; }
 input.ltabedit { flex: none; width: 150px; min-width: 0; height: 30px; padding: 0 12px; border-radius: 999px; font: 13px var(--sans); border-color: #6EE7B7; }
 .wcard .dsrc { padding-top: 10px; padding-bottom: 10px; } .wcard .dsrc .dline { margin: 0; padding: 2px 0; border: 0; }
 @media (max-width: 720px) {

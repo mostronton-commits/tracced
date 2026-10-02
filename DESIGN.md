@@ -269,7 +269,7 @@ There are two faces, both self-hosted: **Geist** for words and **Geist Mono** fo
   result table turns into one card per wallet. Before a change counts as done, check it
   at 1920, 1440, 1280, 768 and 390 px. Nothing scrolls the page sideways, wide tables scroll inside their own frame,
   and the footer sits at the bottom.
-- **The result page** runs top to bottom: the counts with their `i`, the insights, the chart, the toolbar, the table
+- **The result page** runs top to bottom: the counts with their `i`, the chart, the insights, the toolbar, the table
   with its filters in its head. The wallet card slides in from the right.
 
 ## Elevation & Depth
@@ -298,30 +298,36 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   - ghost: transparent with muted text, for secondary and icon actions.
   
   Pressing changes the fill; nothing scales and nothing rises on hover. No arrows inside buttons: the label says it.
-  The hero's Analyze is a plain key set in mono capitals.
-- **Icon-only buttons** (export, close, copy, move) always carry an `aria-label` and a `title`, centre their glyph
+  The hero's Analyze is the plain primary key in Geist 600 (owner, 02.10: the mono capitals went back).
+- **Icon-only buttons** (export, close, copy, bell) always carry an `aria-label` and a `title`, centre their glyph
   and are at least 30 px, 36 px on a phone.
 - **Chips and tags** are pills set in mono at 10.5–11 px. A filter chip that is on gets a filled background. A hidden
-  tag is struck through and pale.
+  tag is struck through and pale. Your own tag carries its own × and goes only by it, with an Undo in the toast; a
+  click on the word does nothing (owner, 02.10: tags went by accident).
 - **Tables** are white, with 1 px row lines, a sticky uppercase header, numbers right-aligned in mono, and a sage bar
   behind PnL (a red-tinted bar for a loss). The first 100 rows are drawn and the rest wait behind "Show more".
-- **Filters live in the table's head** (owner, 02.10). A funnel sits by a column's name and opens one small window:
-  "from … to …", Reset, Apply; Enter applies and Escape closes. A funnel holding a filter turns sage. The Wallet funnel
-  finds a wallet and hides tags. The money unit is a small `$`/◎ key by "Bought". The Filters button lists every
-  filter with its value: it is the only way in on a phone, where the table has no head.
+- **Filters live in the table's head** (owner, 02.10). A head reads, on one line: the sort mark, the name, the
+  funnel. Funnels stand only by numbers and open one small window: "from … to …", Reset, Apply; Enter applies and
+  Escape closes. A funnel holding a filter turns sage. The money unit is a small `$`/◎ key by "Bought". Everything
+  that is not a number lives in the Filters menu and applies at once: finding a wallet, ★ Only my lists, the tags to
+  hide. The menu lists the number filters too, the only way in on a phone or a tablet, where the table has no head.
+  **Reset** stands beside Filters whenever a filter is on or the order is not "PnL, highest first", and clears both.
 - **The star** (save to lists) stays invisible until the pointer reaches its own place before the address, and then
   lights up. One click on an empty star saves the wallet to the Watchlist, and the star turns filled amber. A filled
   star always shows and opens the lists menu. Where there is no hover, as on a phone, the star always shows at 0.5
   opacity.
 - **The wallet card** is a right-hand sheet, 420–440 px wide and full width on a phone, with a sticky head: identity,
-  then the token facts, then the 7D/30D block (30D by default), then the trades.
+  then the token facts, then the 7D/30D block (30D by default), then the trades. A wallet's address opens it, never
+  copies: the address carries a side-panel mark, and a click anywhere else in the row opens the card too. Its chips
+  say what they are without a hover: "funded by Binance", "94d old". In Lists the card shows the lists holding the
+  wallet as switches, amber when on; the last one stays, × in the row drops the wallet.
 - **Tooltips** come from `title` and stay short, about 90 characters at most. On a touch screen a tap on a `.tipt`
   element shows the same text as a toast. An `i` mark (`.dinfo`, `.kinfo`) holds the method; it turns into an amber
   `!` when the data is incomplete.
-- **Insights** sit above the chart: a small uppercase "Insights" label, then up to four pills. Each pill is a share in
-  percent and a few words ("Top 10 took 47% of the profit"). Amber means a warning, grey means information, violet
-  means repeats. A pill with a filter behind it is a button, and one without is plain text with a tooltip. On the home
-  page, each token shows its two strongest insights as one line in `ink` above the muted date.
+- **Insights** sit under the chart (owner, 02.10: there is room there): a small uppercase "Insights" label, then up
+  to four pills, 34 px tall at 14 px. Each pill is a share in percent and a few words ("Top 10 took 47% of the
+  profit"). Amber means a warning, grey means information, violet means repeats. A pill with a filter behind it is a
+  button, and one without is plain text with a tooltip. The home page shows none.
 - **Toasts** sit at the bottom centre, one at a time. They name the result and can carry one link ("Lists →") or one
   Undo.
 - **Menus and popovers** are white with a 1 px border. Menus have an 8 px radius, popovers 10 px. Escape or a click

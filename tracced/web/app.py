@@ -39,7 +39,6 @@ from . import accounts as acct_mod
 from . import activity as activity_mod
 from . import alerts as alerts_mod
 from . import fresh as fresh_mod
-from . import insights as insights_mod
 from . import docs as docs_mod
 from . import chart
 from . import demo as demo_mod
@@ -3221,30 +3220,11 @@ def _demo(app):
     return app["demo"]
 
 
-_HEADLINES = {}          # (аналіз, коли закінчено, стан перевірок) → рядок висновків; головна не перераховує тисячі рядків щоразу
-
-
-def _headline(j, checked):
-    """Висновки останнього готового аналізу для рядка на головній (insights.headline); з пам'яті, поки результат той самий.
-    Перевірки віку й спонсорів дописують теги вже після прогону, тож ключ знає і про них."""
-    en = (j.result or {}).get("enrich") or {}
-    key = (j.id, j.finished_ms, en.get("done"), en.get("funders_done"), len((j.result or {}).get("rows") or []))
-    hit = _HEADLINES.get(j.id)
-    if hit and hit[0] == key:
-        return hit[1]
-    if len(_HEADLINES) > 500:
-        _HEADLINES.clear()
-    line = insights_mod.headline(j.result, checked)
-    _HEADLINES[j.id] = (key, line)
-    return line
-
-
-def _by_token(jobs, example_id=None, checked=None):
+def _by_token(jobs, example_id=None):
     """Один запис на токен: скільки діапазонів по ньому проаналізовано і що з них вийшло.
 
     На головній цікавий токен, а не окремий прогін: рядок веде на сторінку токена, де діапазони видно
-    на графіку і кожен відкривається своїм результатом. Під назвою — висновки останнього готового аналізу (кастдев
-    01.10: «підтягувати висновки, які підштовхують натиснути»).
+    на графіку і кожен відкривається своїм результатом.
     """
     groups = {}
     for j in jobs:
@@ -3253,9 +3233,7 @@ def _by_token(jobs, example_id=None, checked=None):
     for mint, js in groups.items():
         done = [j for j in js if j.status == "done" and j.result]
         best = max(((j.result.get("summary") or {}).get("best_multiple") or 0 for j in done), default=0)
-        last = max(done, key=lambda j: j.finished_ms or j.created_ms or 0) if done else None
         out.append({
-            "insight": _headline(last, checked) if last else "",
             "mint": mint,
             "symbol": next((j.symbol for j in js if j.symbol), mint[:6]),
             "ranges": len(js),
@@ -3291,7 +3269,7 @@ async def index(request):
     if s.get("fresh_on") and f["ok_at"] and now_ms - f["ok_at"] < float(s.get("fresh_stale_hours", 3)) * 3_600_000:
         # вік рахується зараз, а не в момент оновлення; список, старший за кілька годин, не показується зовсім (рев'ю 30.09)
         fresh = [dict(r, age_h=max(0.0, (now_ms - r["created_ms"]) / 3_600_000) if r.get("created_ms") else None) for r in f["rows"]]
-    return render("index.html", request, tokens=_by_token(jobs, example.id if example else None, s.get("age_lookups_max")),
+    return render("index.html", request, tokens=_by_token(jobs, example.id if example else None),
                   totals=totals, sample=sample, bg_lines=lines, my_n=my_n,
                   fresh=fresh, fresh_min=int((now_ms - f["ok_at"]) / 60_000) if f["ok_at"] else None)
 
