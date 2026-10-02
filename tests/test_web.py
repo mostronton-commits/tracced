@@ -1141,21 +1141,23 @@ if AioHTTPTestCase:
             self.assertIn("Back to the chart", html)
             self.assertIn('id="chart"', html)
             self.assertIsNone(CYRILLIC.search(html))
-            self.assertIn('id="filters"', html)                        # facts filters + selection + export
+            self.assertNotIn('id="filters"', html)                     # no filter panel: a funnel in each column's head (owner, 02.10)
+            self.assertIn('class="hfil" data-fil="inv"', html)
+            self.assertIn('class="hcur"', html)                          # the money unit sits in the head too
             self.assertIn("Export", html)
             self.assertNotIn("Copy addresses", html)
             self.assertIn('class="sortable"', html)
             self.assertIn('data-count=', html)                          # count-up tiles
-            self.assertIn(">Hide:<", html)
+            self.assertIn("Hide wallets tagged", html)                  # the tags live under the Wallet funnel
             self.assertIn("Exits known for", html)                       # coverage line
             self.assertNotIn("Only:", html)                              # the "Only" chips are gone (owner, 25.09)
             self.assertIn("Trades up to", html)
             self.assertNotIn("Select all", html)                         # no checkboxes (owner, 02.10): the star does it
             self.assertNotIn('class="pick"', html)
             self.assertIn("Add to your Watchlist", html)                  # the star in every row
-            self.assertIn('data-f="invMax"', html)                        # Bought and Held: from and to
-            self.assertIn('data-f="holdMax"', html)
-            self.assertIn("every number is their whole history on", html)  # who the table is, said once
+            self.assertIn('data-fil="hold"', html)                       # Held: from and to, buys too
+            self.assertNotIn("every number is their whole history on", html)   # owner, 02.10: not needed on the page
+            self.assertNotIn('class="ghost wcopy" data-copy="\' + o.w', html)  # copying the address lives in the card
             self.assertIn('class="kinfo tipt"', html)                     # the grey lines under the chart went into the i
             self.assertIn('id="more"', html)                             # rows beyond the first 100 wait behind "Show more"
             self.assertIn("Show 100 more", html)

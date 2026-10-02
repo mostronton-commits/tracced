@@ -26,10 +26,18 @@
     // under the pointer (custdev 01.10): the day it points at, what that day made, the running total after it
     let run = 0;
     const marks = days.map(d => { run += d[1]; const e = Math.min(d[0] + DAYMS, t1); return [+(X(e) / W * 100).toFixed(2), +(Y(run) / H * 100).toFixed(2), utcDay(d[0]), d[1], run]; });
+    // drawn by hand in the manner of EvilCharts (owner, 02.10): a thin line, a hatched area that fades downwards, the
+    // curve revealed left to right, a dot on the latest total. No chart library: the page stays ours and light
+    const last = [100, +(Y(cum) / H * 100).toFixed(2)];                     // the total now, at the right edge
     return '<div class="dsparkw" data-marks="' + esc(JSON.stringify(marks)) + '">'
       + '<svg class="dspark ' + (cum >= 0 ? 'up' : 'down') + '" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true">'
-      + '<path class="a" d="' + line + ' L' + W + ' ' + zero + ' L0 ' + zero + ' Z"/><path class="z" d="M0 ' + zero + ' H' + W + '"/><path class="l" d="' + line + '"/></svg>'
-      + '<i class="dsp-dot" hidden></i><span class="dsp-tip" hidden></span></div>'
+      + '<defs><linearGradient id="dspFade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>'
+      + '<pattern id="dspHatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="5" stroke="currentColor" stroke-width="1.4"/></pattern>'
+      + '<mask id="dspMask"><rect width="' + W + '" height="' + H + '" fill="url(#dspFade)"/></mask></defs>'
+      + '<path class="a" d="' + line + ' L' + W + ' ' + zero + ' L0 ' + zero + ' Z" fill="url(#dspHatch)" mask="url(#dspMask)"/>'
+      + '<path class="z" d="M0 ' + zero + ' H' + W + '"/><path class="l" d="' + line + '"/></svg>'
+      + '<i class="dsp-end" style="left:' + last[0] + '%;top:' + last[1] + '%"></i>'
+      + '<i class="dsp-guide" hidden></i><i class="dsp-dot" hidden></i><span class="dsp-tip" hidden></span></div>'
       + '<div class="dspark-x"><span>' + utcDay(t0) + '</span><span>' + utcDay(t1) + '</span></div>';
   }
   const DIST = [['>500', '> 500%', 'g3'], ['200-500', '200–500%', 'g2'], ['50-200', '50–200%', 'g1'], ['0-50', '0–50%', 'g0'], ['-50-0', '−50–0%', 'r0'], ['<-50', '< −50%', 'r1']];
@@ -116,13 +124,14 @@
     if (!m.length) return;
     const r = w.getBoundingClientRect(), fx = (e.clientX - r.left) / r.width * 100;
     const k = m.reduce((b, q) => Math.abs(q[0] - fx) < Math.abs(b[0] - fx) ? q : b, m[0]);
-    const dot = w.querySelector('.dsp-dot'), tip = w.querySelector('.dsp-tip');
+    const dot = w.querySelector('.dsp-dot'), tip = w.querySelector('.dsp-tip'), guide = w.querySelector('.dsp-guide');
     dot.style.left = k[0] + '%'; dot.style.top = k[1] + '%'; dot.hidden = false;
+    if (guide) { guide.style.left = k[0] + '%'; guide.hidden = false; }
     tip.innerHTML = '<b>' + k[2] + '</b> <span class="' + (k[3] >= 0 ? 'pos' : 'neg') + '">' + (k[3] > 0 ? '+' : '') + money(k[3]) + '</span><small>total ' + money(k[4]) + '</small>';
     tip.hidden = false;
     tip.style.left = Math.min(Math.max(k[0], 14), 86) + '%';
   }
-  const sparkOff = e => { const w = e.target.closest && e.target.closest('.dsparkw'); if (w) w.querySelectorAll('.dsp-dot, .dsp-tip').forEach(x => { x.hidden = true; }); };
+  const sparkOff = e => { const w = e.target.closest && e.target.closest('.dsparkw'); if (w) w.querySelectorAll('.dsp-dot, .dsp-tip, .dsp-guide').forEach(x => { x.hidden = true; }); };
   document.addEventListener('pointermove', sparkAt);
   document.addEventListener('pointerdown', sparkAt);
   document.addEventListener('pointerout', e => { if (e.target.closest && e.target.closest('.dsparkw') && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.dsparkw'))) sparkOff(e); });

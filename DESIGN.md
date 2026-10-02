@@ -269,8 +269,8 @@ There are two faces, both self-hosted: **Geist** for words and **Geist Mono** fo
   result table turns into one card per wallet. Before a change counts as done, check it
   at 1920, 1440, 1280, 768 and 390 px. Nothing scrolls the page sideways, wide tables scroll inside their own frame,
   and the footer sits at the bottom.
-- **The result page** runs top to bottom: the counts with their `i`, the findings, the chart, the toolbar, the
-  filters, one sentence about who is in the table, the table. The wallet card slides in from the right.
+- **The result page** runs top to bottom: the counts with their `i`, the insights, the chart, the toolbar, the table
+  with its filters in its head. The wallet card slides in from the right.
 
 ## Elevation & Depth
 
@@ -297,13 +297,18 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   - primary: mint, one per view;
   - ghost: transparent with muted text, for secondary and icon actions.
   
-  Pressing changes the fill; nothing scales. Only buttons may rise 1 px on hover.
+  Pressing changes the fill; nothing scales and nothing rises on hover. No arrows inside buttons: the label says it.
+  The hero's Analyze is a plain key set in mono capitals.
 - **Icon-only buttons** (export, close, copy, move) always carry an `aria-label` and a `title`, centre their glyph
   and are at least 30 px, 36 px on a phone.
 - **Chips and tags** are pills set in mono at 10.5–11 px. A filter chip that is on gets a filled background. A hidden
   tag is struck through and pale.
 - **Tables** are white, with 1 px row lines, a sticky uppercase header, numbers right-aligned in mono, and a sage bar
   behind PnL (a red-tinted bar for a loss). The first 100 rows are drawn and the rest wait behind "Show more".
+- **Filters live in the table's head** (owner, 02.10). A funnel sits by a column's name and opens one small window:
+  "from … to …", Reset, Apply; Enter applies and Escape closes. A funnel holding a filter turns sage. The Wallet funnel
+  finds a wallet and hides tags. The money unit is a small `$`/◎ key by "Bought". The Filters button lists every
+  filter with its value: it is the only way in on a phone, where the table has no head.
 - **The star** (save to lists) stays invisible until the pointer reaches its own place before the address, and then
   lights up. One click on an empty star saves the wallet to the Watchlist, and the star turns filled amber. A filled
   star always shows and opens the lists menu. Where there is no hover, as on a phone, the star always shows at 0.5
@@ -329,7 +334,7 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
 - **Hover and focus colour changes** take 120–150 ms with `ease`.
 - **Panels, popovers and tooltips** come in within 200–300 ms with `ease-out`. Nothing that answers a click lasts
   longer than 300 ms, and nothing uses `ease-in`.
-- **Content never jumps on hover.** No `translateY` on rows, chips or cards, because a chip in a clipped strip gets cut.
+- **Nothing jumps on hover.** No `translateY` on buttons, rows, chips or cards; a chip in a clipped strip gets cut.
 - **Name the properties being animated.** Never write `transition: all`.
 - **Decorative loops** (the agent button's sheen, the fresh-pumps tape, the live dot) run briefly or only under the
   pointer. All of them stop under `prefers-reduced-motion: reduce`.
@@ -347,3 +352,6 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
 - Do check 1920, 1440, 1280, 768 and 390 px before calling a change done. Don't let anything scroll the page sideways.
 - Don't add shadows to cards, gradients beyond the two that exist, or new fonts.
 - Don't copy the look of another product or exchange. tracced must never pass for anyone else.
+- Don't reach for the template look that AI tools produce by default (owner, 02.10): an arrow in every button, hover
+  lifts, semibold everything, stock chart libraries, stock component kits. Each detail is chosen for tracced: the
+  ledger's mono, the record's cursor, facts in tables.

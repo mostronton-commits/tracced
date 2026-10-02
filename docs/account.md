@@ -10,8 +10,8 @@ takes you there.
 
 In a result, point just before a wallet's address: a star (☆) lights up there. One click puts the wallet in your
 *Watchlist* and fills the star (★). A filled star, in the row or in the wallet's card, opens the menu of your lists: it
-shows which lists hold the wallet, and a click adds or removes it, or makes a new list. **★ My lists** among the filters
-keeps only the wallets you have saved. **Save analysis** keeps the whole result under *My analyses* at `/me`; the
+shows which lists hold the wallet, and a click adds or removes it, or makes a new list. **★ Only my lists**, under the
+funnel by the Wallet column, keeps only the wallets you have saved. **Save analysis** keeps the whole result under *My analyses* at `/me`; the
 *Lists* and *Analyses* links at the top of every page lead there.
 
 You start with one list, *Watchlist*, and can keep up to twenty: one per strategy, per token family, per person you

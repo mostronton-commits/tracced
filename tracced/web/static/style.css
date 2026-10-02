@@ -176,6 +176,44 @@ th.sortable::after { content: " ⇅"; font-size: 9px; color: #CBD5E1; }
 th.sortable:hover::after { color: var(--muted); }
 th.sortable.asc::after { content: " ↑"; color: var(--ink); font-size: 10px; }
 th.sortable.desc::after { content: " ↓"; color: var(--ink); font-size: 10px; }
+/* the result table's head carries its filters (owner, 02.10): the sort mark sits on the name, then the funnel */
+#facts th.sortable::after { content: none; }
+#facts th .hl::after { content: " ⇅"; font-size: 9px; color: #CBD5E1; }
+#facts th.sortable:hover .hl::after { color: var(--muted); }
+#facts th.asc .hl::after { content: " ↑"; color: var(--ink); font-size: 10px; }
+#facts th.desc .hl::after { content: " ↓"; color: var(--ink); font-size: 10px; }
+#facts th .hfil, #facts th .hcur { display: inline-flex; align-items: center; justify-content: center; height: 20px; min-width: 20px; padding: 0 3px;
+  margin: 0 0 0 3px; border: 0; border-radius: 5px; background: transparent; color: #CBD5E1; vertical-align: -5px; cursor: pointer; }
+#facts th .hfil svg { width: 12px; height: 12px; }
+#facts th .hfil:hover, #facts th .hcur:hover { color: var(--ink); background: #F1F5F9; }
+#facts th .hfil.on { color: #047857; background: var(--sage); }
+#facts th .hcur { margin: 0 4px 0 0; font: 600 11px var(--mono); color: var(--muted); border: 1px solid var(--line); text-transform: none; letter-spacing: 0; }
+#facts th .hcur .insol::before { margin: 0; }
+/* the window behind a funnel: «from … to …», Reset and Apply; the same window opens from the Filters list on a phone */
+.fpop { position: absolute; z-index: 85; width: 290px; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 12px 32px -12px rgba(15, 23, 42, .35); display: grid; gap: 8px; }
+.fpop .fph { font: 600 12.5px var(--sans); color: var(--ink); display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.fpop .fph small { font-weight: 400; color: var(--muted); font-size: 11.5px; }
+.fpop .fph.sub { margin-top: 4px; font-weight: 500; color: var(--muted); }
+.fpop .fprow { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
+.fpop .fprow span { font-size: 12px; color: var(--muted); }
+.fpop input[type=number], .fpop input.fq { width: 100%; min-width: 0; height: 34px; font: 13px var(--mono); -moz-appearance: textfield; }
+.fpop input[type=number]::-webkit-inner-spin-button, .fpop input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.fpop .fcks { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
+.fpop .fck { display: inline-flex; align-items: center; gap: 6px; font: 12px var(--mono); color: var(--ink); cursor: pointer; min-height: 26px; }
+.fpop .fck svg { width: 13px; height: 13px; flex: none; color: var(--muted); }
+.fpop .fck input { accent-color: #10b981; margin: 0; }
+.fpop .fpf { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+.fpop .fpf .primary { height: 32px; padding: 0 16px; }
+.fmenu { width: 260px; padding: 6px; gap: 2px; }
+.fmenu .fmi { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; height: auto; min-height: 36px; padding: 6px 10px;
+  border: 0; border-radius: 6px; background: transparent; font-weight: 500; text-align: left; }
+.fmenu .fmi:hover { background: #F1F5F9; }
+.fmenu .fmi small { font: 11.5px var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
+.fmenu .fmi.on small { color: #047857; }
+.fmenu .fmi.rst { border-top: 1px solid var(--line); border-radius: 0 0 6px 6px; margin-top: 4px; color: var(--muted); font-weight: 400; font-size: 12.5px; }
+/* the money unit lives in the table's head; the toolbar keeps its switch only where the head is hidden */
+@media (min-width: 961px) { .toolbar #cur { display: none; } }
 /* the star by a wallet (owner, 02.10): invisible until the pointer reaches its own place before the address, then it
    lights up; one click puts the wallet in the Watchlist. A filled one stays, in amber, and opens its lists */
 .star { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-right: 2px; padding: 0;
@@ -381,8 +419,6 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .rrow { display: grid; grid-template-columns: 90px 1fr 110px 110px 80px 70px; gap: 12px; align-items: center; padding: 9px 6px; border: 0; border-top: 1px solid var(--line); font-size: 13px; }
 .rrow:first-child { border-top: 0; } .rrow:hover { background: #F8FAFC; }
 .rrow .sym { font-weight: 600; } .rrow .n { text-align: right; } .rrow .open { text-align: right; color: var(--muted); }
-#recent .rrow .win { display: flex; flex-direction: column; gap: 2px; min-width: 0; }   /* the home list only: Lists has its own .win */
-#recent .rrow .win .ins { color: var(--ink); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 720px) { .rrow { grid-template-columns: 80px 1fr 60px auto; } .rrow .n:nth-child(4), .rrow .chip { display: none; } }
 
 .foot { border-top: 1px solid var(--line); font-size: 13px; }
@@ -481,8 +517,7 @@ button.ghost.xbtn { padding: 0; color: #475569; }
 .button.holo::after { content: ""; position: absolute; inset: 0; border-radius: 10px; pointer-events: none;
   background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.75) 50%, transparent 70%); background-size: 250% 100%; animation: holo-sheen 3.2s linear 4; mix-blend-mode: soft-light; }
 .button.holo:hover, .button.holo:hover::after, .button.holo:focus-visible, .button.holo:focus-visible::after { animation-iteration-count: infinite; }
-.button.holo:hover { transform: translateY(-1px); box-shadow: 0 0 0 1px rgba(15, 23, 42, .1), 0 10px 22px -8px rgba(196, 181, 253, .9); }
-.button.holo:active { transform: translateY(0); }
+.button.holo:hover { box-shadow: 0 0 0 1px rgba(15, 23, 42, .1), 0 10px 22px -8px rgba(196, 181, 253, .9); }
 @keyframes holo-shift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
 @keyframes holo-sheen { from { background-position: 200% 0; } to { background-position: -50% 0; } }
 @media (prefers-reduced-motion: reduce) { .button.holo, .button.holo::after { animation: none; } }
@@ -585,8 +620,14 @@ button.ghost.xbtn { padding: 0; color: #475569; }
 .soonwrap.right .soon-pop { left: auto; right: 0; }
 
 /* ── iteration 11: hero arrow, step bars, micro-animations, responsive ── */
-.herof button.primary { gap: 8px; } .herof .arr { display: block; transition: transform .15s ease; } .herof button.primary:hover .arr { transform: translateX(2px); }
-.hero-dark .lead { font-size: 16.5px; max-width: 800px; margin-bottom: 26px; }   /* one line on a laptop */
+/* the hero's one action is a plain key in the brand's mono: no arrow, no lift (owner, 02.10: the arrow and the weight read as a template) */
+.herof button.go { height: 40px; padding: 0 18px; border-radius: 6px; font: 500 12.5px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase;
+  background: var(--mint); border-color: #6EE7B7; color: var(--navy); }
+.herof button.go:hover { background: #BBF7D0; border-color: #86EFAC; }
+.herof button.go:active { background: #86EFAC; }
+/* three levels, not two of the same (designer, 01.10; owner, 02.10): the wordmark, the line in bright mono, then the
+   explanation small and quiet */
+.hero-dark .lead { font-size: 14px; line-height: 1.55; color: #94A3B8; max-width: 660px; margin: 0 0 22px; }
 .stepbar { display: flex; align-items: center; gap: 12px; margin: 14px 0 10px; }
 .stepbar .stepn { font: 600 12px var(--mono); color: var(--navy); background: var(--mint); border-radius: 6px; padding: 5px 7px; }
 .stepbar .stepx b { display: block; font-size: 15px; } .stepbar .stepx span { color: var(--muted); font-size: 13px; }
@@ -603,8 +644,8 @@ button.ghost.xbtn { padding: 0; color: #475569; }
 .chartbox.loading .lw { opacity: 1; }
 .steps3 > div, .stats div, .rrow { transition: transform .15s ease, border-color .15s ease, background .15s ease; }
 .steps3 > div:hover, .stats div:hover { transform: translateY(-1px); border-color: #CBD5E1; }
-button.primary { transition: background .12s ease, border-color .12s ease, transform .12s ease; } button.primary:hover { transform: translateY(-1px); }
-@media (prefers-reduced-motion: reduce) { .facts tbody tr[style*="--i"], .tag, .wrow, .chartbox.loading::before, .herof .arr { animation: none; transition: none; } }
+button.primary { transition: background .12s ease, border-color .12s ease; }   /* no hover lift: it reads as a template (owner, 02.10) */
+@media (prefers-reduced-motion: reduce) { .facts tbody tr[style*="--i"], .tag, .wrow, .chartbox.loading::before, .dspark { animation: none; transition: none; } }
 /* responsive */
 @media (max-width: 1000px) {
   .tokenhead { flex-direction: column; } .h-right { width: 100%; justify-content: flex-start; }
@@ -643,9 +684,9 @@ button.tzseg { background: transparent; padding: 0; height: auto; font: inherit;
 
 /* ── hero: brand line + tagline ── */
 .hero-dark h1.brandline { font-size: 64px; letter-spacing: -.02em; font-weight: 700; margin: 0 0 6px; color: #F8FAFC; }
-.hero-dark .tagline { font-size: 20px; letter-spacing: .02em; color: #CBD5E1; margin: 0 0 26px; }
+.hero-dark .tagline { font-size: 26px; letter-spacing: .01em; color: #F8FAFC; margin: 0 0 14px; }
 .hero-dark .tagline em { font-style: normal; color: var(--mint); }
-@media (max-width: 640px) { .hero-dark h1.brandline { font-size: 40px; } .hero-dark .tagline { font-size: 16px; } }
+@media (max-width: 640px) { .hero-dark h1.brandline { font-size: 40px; } .hero-dark .tagline { font-size: 18px; } .hero-dark .lead { font-size: 13.5px; } }
 
 /* ── demo token note ── */
 .demo-note { margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; background: var(--sage, #D1FAE5); color: #0F172A; font-size: 14px; line-height: 1.45; }
@@ -836,6 +877,7 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
 .tagchip svg { width: 13px; height: 13px; }
 td.wcell .tags { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; vertical-align: middle; }
 td.wcell .tags .tag { margin-left: 0; }
+.facts small.bs .up { color: #059669; } .facts small.bs .dn { color: var(--red); }   /* buys and sells: ↑ and ↓, as in Lists */
 .ids { display: inline-flex; align-items: center; gap: 3px; }
 .idm { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 6px; border: 1px solid var(--line);
        background: var(--surface); cursor: help; vertical-align: middle; }
@@ -881,10 +923,15 @@ td.wcell .tags .tag { margin-left: 0; }
 .dhero .lbl { font-size: 11px; color: var(--muted); }
 .dhero .big { font: 700 24px/1.1 var(--mono); letter-spacing: -.02em; }
 .dhero .sub { font-size: 12px; color: var(--muted); }
-.dspark { width: 100%; height: 92px; display: block; }
-.dspark .a { fill: rgba(16, 185, 129, .12); } .dspark.down .a { fill: rgba(239, 68, 68, .10); }
-.dspark .l { fill: none; stroke: #10B981; stroke-width: 2; vector-effect: non-scaling-stroke; } .dspark.down .l { stroke: #EF4444; }
-.dspark .z { stroke: #CBD5E1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.dspark { width: 100%; height: 92px; display: block; color: #10B981; animation: dsp-in .6s cubic-bezier(.2, .7, .2, 1) both; }
+.dspark.down { color: #EF4444; }
+.dspark .a { opacity: .55; }
+.dspark .l { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.dspark .z { stroke: #CBD5E1; stroke-dasharray: 2 4; vector-effect: non-scaling-stroke; }
+@keyframes dsp-in { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+.dsp-end { position: absolute; width: 7px; height: 7px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--surface); border: 2px solid #10B981; pointer-events: none; }
+.dsparkw:has(.dspark.down) .dsp-end { border-color: #EF4444; }
+.dsp-guide { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px dashed #94A3B8; pointer-events: none; }
 .dspark-x { display: flex; justify-content: space-between; font: 10.5px var(--mono); color: var(--muted); margin: 2px 0 10px; }
 .dsparkw { position: relative; touch-action: pan-y; cursor: crosshair; }
 .dsp-dot { position: absolute; width: 9px; height: 9px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--surface); border: 2px solid var(--ink); pointer-events: none; }
