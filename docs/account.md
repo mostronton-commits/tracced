@@ -79,6 +79,11 @@ An alert reads like a trades channel, three lines:
 A trade made through an app that pays the network fee for its users (FOMO and the like) counts the same: the wallet
 still signs it.
 
+The token's name, its market cap and the share sold come from our data provider, and alerts have a daily share of it:
+{{ '{:,}'.format(s.alerts_st_per_day) }} requests for everyone together. On a day that uses it up, alerts keep coming
+until 00:00 UTC, with the token's short address in place of its name (unless it came up in the last ten minutes), and
+without the cap and the sold share.
+
 We keep the Telegram chat the alerts go to and your Telegram username; nothing else from Telegram. Alerts are in a
 closed test for now.
 

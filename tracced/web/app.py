@@ -444,6 +444,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["browse_daily"] = DailyCount(daily_dir / "browse.json")   # запити на графіки живих токенів: на адресу, на гаманець, на сайт
     app["runs_daily"] = DailyCount(daily_dir / "runs.json")       # живі прогони на весь сайт за добу (будь-який ключ підписує безкоштовно)
     app["usage_daily"] = DailyCount(daily_dir / "usage.json")     # рядків журналу (перегляди, кліки) на гаманець і на сайт за добу
+    app["alerts_st_daily"] = DailyCount(daily_dir / "alerts_st.json")   # запити Solana Tracker від сповіщень за добу
     app["feedback"] = FeedbackStore(Path(out_dir).parent / "feedback" / "feedback.jsonl")   # «Contact»: листи власнику
     app["feedback_throttle"] = Throttle(max_fails=5, window_s=3600, block_s=3600)       # п'ять листів на годину з однієї адреси
     app["usage_cache"], app["view_last"] = {}, {}                 # порахований дашборд на хвилину; останній перегляд сторінки
@@ -1394,7 +1395,8 @@ async def me_tg_status(request, pk):
     tg = a.get("telegram") or {}
     out = {"linked": bool(tg.get("chat")), "user": tg.get("user") or "", "prefs": alerts_mod.prefs_of(a.get("alerts"), app["s"].get("alerts_min_usd"))}
     if pk in app["admins"]:
-        out["state"] = app["alerts_state"]
+        out["state"] = dict(app["alerts_state"], st_today=int(app["s"].get("alerts_st_per_day", 3000)) - _alerts_st_left(app),
+                            st_per_day=int(app["s"].get("alerts_st_per_day", 3000)))
     return web.json_response(out, headers={"Cache-Control": "no-store"})
 
 
@@ -1602,6 +1604,12 @@ async def _sol_price(app, http):
     return px
 
 
+def _token_cached(app, mint):
+    """Назва й капа з пам'яті (10 хв), без запиту: для повідомлення, якому платити вже не можна."""
+    hit = app["alerts_tok"].get(mint)
+    return hit[1] if hit and time.time() - hit[0] < 600 else {}
+
+
 async def _token_facts(app, mint):
     """Назва і капа токена для повідомлення: один запит Solana Tracker на новий токен, далі 10 хвилин з пам'яті."""
     hit = app["alerts_tok"].get(mint)
@@ -1631,7 +1639,7 @@ async def _token_facts_fetch(app, mint):
             except Exception:  # noqa: BLE001 — без назви повідомлення все одно йде: з адресою
                 return {}
             finally:
-                _spend(app, "system", "alerts", st=st.requests_here() - n0, mint=mint)
+                _alerts_spent(app, st.requests_here() - n0, mint)
     facts = await asyncio.to_thread(work)
     if len(app["alerts_tok"]) > 2000:
         app["alerts_tok"].clear()
@@ -1652,9 +1660,21 @@ async def _sold_share(app, wallet, ev):
             except Exception:  # noqa: BLE001
                 return None
             finally:
-                _spend(app, "system", "alerts", st=st.requests_here() - n0, mint=ev["mint"])
+                _alerts_spent(app, st.requests_here() - n0, ev["mint"])
     trades = await asyncio.to_thread(work)
     return alerts_mod.sold_share(trades, ev) if trades else None
+
+
+def _alerts_spent(app, n, mint):
+    """Запити Solana Tracker, які щойно пішли на сповіщення: у журнал витрат і в добовий лічильник сповіщень."""
+    _spend(app, "system", "alerts", st=n, mint=mint)
+    if n:
+        app["alerts_st_daily"].add("all", n)
+
+
+def _alerts_st_left(app):
+    """Скільки запитів Solana Tracker сповіщенням лишилось на сьогодні (UTC)."""
+    return app["alerts_st_daily"].left("all", int(app["s"].get("alerts_st_per_day", 3000)))
 
 
 def _hour_rec(app, chat):
@@ -1794,7 +1814,9 @@ async def _alert_tx_work(app, http, wallet, sig, via, bt, key):
                     subs.append((x, b))
         if not subs:
             continue
-        paid = any(b is None for _, b in subs) and _st_open_now(app)
+        # платне — лише поки є і місячний запас Solana Tracker, і добова частка сповіщень; інакше повідомлення йде без назви,
+        # капи й частки проданого, але йде (план 0.8, п. 17)
+        paid = any(b is None for _, b in subs) and _st_open_now(app) and _alerts_st_left(app) > 0
         # назва й капа токена і частка проданого — паралельно і не довше alerts_enrich_s: повідомлення не чекає повільне
         # джерело (власник, 01.10: «є транзакція — відправляється алерт»); те, що не встигло, допрацює в кеш на наступний
         # раз, а частка проданого, що запізнилась, просто не потрапляє в це повідомлення
@@ -1804,7 +1826,7 @@ async def _alert_tx_work(app, http, wallet, sig, via, bt, key):
         if waits:
             await asyncio.wait(waits, timeout=float(s.get("alerts_enrich_s", 2.5)))
         ok = lambda x: x is not None and x.done() and not x.cancelled() and x.exception() is None
-        token = (t_tok.result() or {}) if ok(t_tok) else {}
+        token = (t_tok.result() or {}) if ok(t_tok) else ({} if paid else _token_cached(app, ev["mint"]))   # без оплати — те, що вже в пам'яті
         share = t_share.result() if ok(t_share) else None
         if share:
             ev["total"], ev["step"] = share

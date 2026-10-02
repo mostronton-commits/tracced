@@ -413,6 +413,48 @@ if AioHTTPTestCase:
             with mock.patch.object(app_mod, "_rpc", mock.AsyncMock(side_effect=AssertionError("no one watches"))):
                 await app_mod._alert_tx_safe(self.app, None, "WAL", "late")               # nobody watches: not even the node is asked
 
+        async def test_alerts_have_a_daily_share_of_the_data_provider(self):
+            # plan 0.8, item 17: past the day's share an alert still goes, without paid lookups (cached name only)
+            self.app["s"].update(alerts_per_hour=100, alerts_st_per_day=3)
+            sub = {"pk": TEST_PK, "chat": 7, "prefs": {"buys": True, "sells": True, "min_usd": 0}, "tags": [], "src": ""}
+            self.app["alerts_wm"] = {"WAL": [sub]}
+            self.app["activity"].watch({"WAL"})
+            ev = {"side": "buy", "mint": "M" * 32, "usd": 500.0, "amount": 10.0, "before": 0.0, "sig": "", "ts": int(time.time()), "mcap": 1e6}
+            calls, texts = {"facts": 0}, []
+
+            async def fetch(app, mint):                       # what a real lookup costs: two requests, counted the real way
+                calls["facts"] += 1
+                app_mod._alerts_spent(app, 2, mint)
+                app["alerts_tok"][mint] = (time.time(), {"symbol": "PAID"})                # and kept for 10 minutes, as the real one
+                return {"symbol": "PAID"}
+
+            async def send(app, http, chat, text, pk=None):
+                texts.append(text)
+                return True
+
+            async def rpc(*a, **k):
+                return {"tx": 1}
+
+            async def price(app, http):
+                return 150.0
+            with mock.patch.object(app_mod, "_rpc", rpc), mock.patch.object(app_mod, "_sol_price", price), \
+                    mock.patch.object(app_mod, "_token_facts_fetch", fetch), mock.patch.object(app_mod, "_tg_send", send), \
+                    mock.patch.object(app_mod.alerts_mod, "classify", lambda tx, w, px: [dict(ev)]):
+                await app_mod._alert_tx_safe(self.app, None, "WAL", "sig1")                # pays: 2 of 3
+                self.app["alerts_tok"].clear()                                             # a token not seen for 10 minutes
+                await app_mod._alert_tx_safe(self.app, None, "WAL", "sig2")                # pays again: 4 of 3, the day is used up
+                await app_mod._alert_tx_safe(self.app, None, "WAL", "sig3")                # no lookup, the name from memory
+                self.app["alerts_tok"].clear()
+                await app_mod._alert_tx_safe(self.app, None, "WAL", "sig4")                # no lookup, no name: the short address
+            self.assertEqual(calls["facts"], 2)
+            self.assertEqual(len(texts), 4)                                                # every trade still alerted
+            self.assertIn("$PAID", texts[2])
+            self.assertNotIn("$PAID", texts[3])
+            self.assertIn("MMMMMM", texts[3])
+            self.assertEqual(app_mod._alerts_st_left(self.app), -1)
+            st = await (await self.client.get("/me/telegram.json")).json()
+            self.assertEqual((st["state"]["st_today"], st["state"]["st_per_day"]), (4, 3))   # the owner sees the day's spend
+
 
 if __name__ == "__main__":
     unittest.main()
