@@ -15,6 +15,7 @@
     usd: v => (v < 0 ? '-$' : '$') + fmtShort(Math.abs(v)),
     short: v => fmtShort(v),
     mult: v => (v ? (v >= 10 ? v.toFixed(0) : v.toFixed(1)) + '×' : '—'),
+    pct: v => Math.round(v) + '%',
   };
 
   /* Count from 0 to data-count; bigger numbers take longer (log scale), smaller ones stop earlier. */

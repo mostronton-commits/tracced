@@ -1709,6 +1709,21 @@ def _day_undo(app, pk):
     app["alerts_day"].add("a:" + pk, -1)
 
 
+def _wallet_budget(app, pk, wallet):
+    """Не більше alerts_per_wallet_day повідомлень від одного гаманця на акаунт за добу UTC (власник, 02.10: 50): бот, що
+    торгує щохвилини, не з'їдає добову стелю всіх інших. None — можна (місце зайняте); 'wallet' — щойно вичерпано, одне
+    попередження про цей гаманець; False — він мовчить до 00:00 UTC."""
+    cap, dc = int(app["s"].get("alerts_per_wallet_day", 50)), app["alerts_day"]
+    if dc.take("c:" + pk + ":" + wallet, cap):
+        return None
+    return "wallet" if dc.take("cw:" + pk + ":" + wallet, 1) else False
+
+
+def _wallet_undo(app, pk, wallet):
+    """Місце, яке зайняв _wallet_budget, звільняється: повідомлення не піде (стеля доби чи години)."""
+    app["alerts_day"].add("c:" + pk + ":" + wallet, -1)
+
+
 def _hour_budget(app, chat):
     """Не більше alerts_per_hour повідомлень на чат за годину. None — можна; 'first' — щойно вичерпано (одне
     попередження); False — мовчимо до наступної години."""
@@ -1833,11 +1848,15 @@ async def _alert_tx_work(app, http, wallet, sig, via, bt, key):
         subs = []
         for x in app["alerts_wm"].get(wallet) or []:
             if alerts_mod.wants(ev, x["prefs"]):
-                b = _day_budget(app, x["pk"])             # спершу доба на акаунт, потім година на чат
+                b = _wallet_budget(app, x["pk"], wallet)  # спершу цей гаманець за добу, потім доба на акаунт, потім година на чат
                 if b is None:
-                    b = _hour_budget(app, x["chat"])
+                    b = _day_budget(app, x["pk"])
+                    if b is None:
+                        b = _hour_budget(app, x["chat"])
+                        if b is not None:
+                            _day_undo(app, x["pk"])
                     if b is not None:
-                        _day_undo(app, x["pk"])
+                        _wallet_undo(app, x["pk"], wallet)
                 if b is not False:
                     subs.append((x, b))
         if not subs:
@@ -1868,6 +1887,11 @@ async def _alert_tx_work(app, http, wallet, sig, via, bt, key):
             elif b == "day":
                 app["events"].add(sub["pk"], "alert_cap", what="day", bg=True)
                 text = "⏸ " + str(s.get("alerts_per_day", 200)) + " alerts today: the rest are skipped until 00:00 UTC."
+            elif b == "wallet":                          # одна людина бачить його своїм тегом, як в алертах
+                app["events"].add(sub["pk"], "alert_cap", what="wallet", bg=True)
+                who = (sub.get("tags") or [None])[0] or (wallet[:4] + "…" + wallet[-4:])
+                text = ("⏸ " + str(s.get("alerts_per_wallet_day", 50)) + " alerts from " + who
+                        + " today: its trades are skipped until 00:00 UTC. Your other wallets keep coming.")
             else:
                 first = ev["mint"] not in seen_ca
                 if len(seen_ca) > 2000:

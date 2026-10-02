@@ -1136,7 +1136,11 @@ if AioHTTPTestCase:
                     break
                 await asyncio.sleep(0.05)
             self.assertIn('aria-label="Export"', html)
-            self.assertIn("spent in the range", html)                     # counts in one line; findings above them
+            self.assertIn('id="tally"', html)                             # the counts and the findings, one strip under the chart
+            self.assertIn("<i>spent</i>", html)
+            self.assertNotIn('data-key="funder"', html)                  # no Funded by column (owner, 02.10): the card says it
+            self.assertNotIn('data-key="w"', html)                       # nor sorting by the address
+            self.assertIn('data-v="all"', html)                          # the card: this token | all tokens
             self.assertIn('id="finds"', html)
             self.assertIn("Back to the chart", html)
             self.assertIn('id="chart"', html)
@@ -1146,7 +1150,7 @@ if AioHTTPTestCase:
             self.assertIn('class="hcur"', html)                          # the money unit sits in the head too
             self.assertIn("Export", html)
             self.assertNotIn("Copy addresses", html)
-            self.assertIn('class="sortable"', html)
+            self.assertIn('class="num sortable"', html)                   # the numbers sort; the address does not (owner, 02.10)
             self.assertIn('data-count=', html)                          # count-up tiles
             self.assertIn("Hide wallets tagged", html)                  # the tags live in the Filters menu (owner, 02.10)
             self.assertNotIn('data-fil="w"', html)                       # funnels only by the numbers

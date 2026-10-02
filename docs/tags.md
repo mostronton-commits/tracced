@@ -3,8 +3,8 @@
 A tag is a rule, not an opinion. Each one is computed from the table or the chain, each shows its definition on
 hover, and each can be argued with.
 
-In the table a tag is a small picture, so a long list stays readable. Hover it for the rule; the filter chips above
-the table and the wallet's card name every one of them in words.
+In the table a tag is a small picture, so a long list stays readable. Hover it for the rule; the Filters menu and the
+wallet's card name every one of them in words.
 
 | Tag | The rule |
 |---|---|

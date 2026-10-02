@@ -23,7 +23,7 @@ UI = {
     "show-more": ("all",), "find-pump": (), "range-preset": ("p",), "finding": ("k",), "limit-window": ("kind",),
     "range-set": ("end",), "range-add": (), "range-reset": (), "tf": ("tf",), "chart-nav": ("to",),
     "list-tab": (), "copy": ("what",), "ext": ("to",), "cur": ("to",), "tz": ("to",), "leave": ("secs",),
-    "egg": ("what",), "star": ("on",), "list-move": ("how",), "wallet-bell": ("on",),
+    "egg": ("what",), "star": ("on",), "list-move": ("how",), "wallet-bell": ("on",), "card-view": ("v",),
 }
 # короткий рядок: адреса гаманця (32-44 символи) чи набраний людиною текст сюди не пролазять фізично
 VAL = re.compile(r"^[A-Za-z0-9_.:-]{1,24}$")
@@ -153,17 +153,17 @@ CLICKS = {"card-open": "Opened a wallet card", "card-close": "Closed a wallet ca
           "filters-toggle": "Opened or closed the filters", "funder": "Filtered by a funder", "sort": "Sorted the table",
           "select": "Ticked wallets", "select-all": "Ticked all", "select-clear": "Cleared the selection", "export": "Exported",
           "agent-open": "Opened the agent", "agent-close": "Closed the agent", "show-more": "Showed more rows",
-          "find-pump": "Pressed Find the pump (Before the pump)", "range-preset": "Picked a quick range (First / Last hour)", "finding": "Opened an insight under the chart", "limit-window": "Saw the daily limit window", "range-set": "Marked a range on the chart",
+          "find-pump": "Pressed Find the pump (Before the pump)", "range-preset": "Picked a quick range (First / Last hour)", "finding": "Clicked a number under the chart", "limit-window": "Saw the daily limit window", "range-set": "Marked a range on the chart",
           "range-add": "Added a range", "range-reset": "Reset the ranges", "tf": "Changed the timeframe", "chart-nav": "Jumped on the chart",
           "list-tab": "Switched a list", "copy": "Copied an address", "ext": "Followed a link out", "cur": "Switched USD/SOL",
           "tz": "Switched UTC/local", "leave": "Left a page", "egg": "Found an easter egg",
           "star": "Starred a wallet into the Watchlist", "list-move": "Changed a wallet's lists in its card",
-          "wallet-bell": "Switched a wallet's alerts"}
+          "wallet-bell": "Switched a wallet's alerts", "card-view": "Switched a card between this token and all tokens"}
 # що на сайті можна натиснути зараз: з цього списку — «ніхто не користувався» (прибрані кнопки сюди не входять,
 # інакше вони висіли б у списку вічно)
 UI_FEATURES = ("card-open", "card-period", "pin", "sort", "filter", "hide", "filters-toggle", "filters-reset", "funder", "finding",
                "star", "export", "show-more", "agent-open", "range-set", "range-add", "range-reset", "tf",
-               "chart-nav", "list-tab", "list-move", "wallet-bell", "copy", "ext", "cur", "tz")
+               "chart-nav", "list-tab", "list-move", "wallet-bell", "card-view", "copy", "ext", "cur", "tz")
 PAGE_NAMES = {"job": "On a result", "token": "On a token's chart", "me": "In Lists", "home": "On the home page", "docs": "In the docs"}
 FUNNEL = (("result", "Opened a result"), ("card", "Opened a wallet card"), ("run", "Ran an analysis"),
           ("keep", "Saved or exported"), ("agent", "Asked the agent"))

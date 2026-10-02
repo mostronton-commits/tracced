@@ -502,6 +502,42 @@ if AioHTTPTestCase:
             self.assertIn("alerts today", texts[-1])
             self.assertIn("00:00 UTC", texts[-1])
 
+        async def test_one_wallet_gets_at_most_its_day_of_alerts(self):
+            # owner, 02.10: 50 a day from any one wallet, so a bot trading every minute does not use up the account's day.
+            # Past it one line about that wallet, then it alone stays silent; the others keep coming
+            sub = {"pk": TEST_PK, "chat": 7, "prefs": {"buys": True, "sells": True, "min_usd": 0}, "tags": ["botty"], "src": ""}
+            self.app["alerts_wm"] = {"WAL": [sub], "OTHER": [dict(sub, tags=[])]}
+            self.app["activity"].watch({"WAL", "OTHER"})
+            ev = {"side": "buy", "mint": "M" * 32, "usd": 500.0, "amount": 10.0, "before": 0.0, "sig": "", "ts": int(time.time()), "mcap": 1e6}
+            texts = []
+
+            async def send(app, http, chat, text, pk=None):
+                texts.append(text)
+                return True
+
+            async def rpc(*a, **k):
+                return {"tx": 1}
+
+            async def price(app, http):
+                return 150.0
+            with mock.patch.object(app_mod, "_rpc", rpc), mock.patch.object(app_mod, "_sol_price", price), \
+                    mock.patch.object(app_mod, "_token_facts", mock.AsyncMock(return_value={"symbol": "X"})), mock.patch.object(app_mod, "_tg_send", send), \
+                    mock.patch.object(app_mod.alerts_mod, "classify", lambda tx, w, px: [dict(ev)]):
+                self.app["s"].update(alerts_per_hour=100, alerts_per_day=10, alerts_per_wallet_day=2)
+                for i in range(4):
+                    await app_mod._alert_tx_safe(self.app, None, "WAL", f"w{i}")
+                self.assertEqual(len(texts), 3)                                            # two alerts, then one line about it
+                self.assertIn("2 alerts from botty today", texts[-1])
+                self.assertIn("00:00 UTC", texts[-1])
+                self.assertEqual(self.app["alerts_day"].count("a:" + TEST_PK), 2)         # its silence took nothing from the day
+                await app_mod._alert_tx_safe(self.app, None, "OTHER", "o1")              # another wallet still comes through
+                self.assertEqual(len(texts), 4)
+                self.assertNotIn("⏸", texts[-1])
+                self.app["s"]["alerts_per_day"] = 3                                         # the account's day ends first:
+                await app_mod._alert_tx_safe(self.app, None, "OTHER", "o2")              # its line, and OTHER keeps its place
+                self.assertIn("alerts today", texts[-1])
+                self.assertEqual(self.app["alerts_day"].count("c:" + TEST_PK + ":OTHER"), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

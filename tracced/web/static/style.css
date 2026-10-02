@@ -179,18 +179,19 @@ th.sortable.desc::after { content: " ↓"; color: var(--ink); font-size: 10px; }
 /* the result table's head carries its filters (owner, 02.10): the sort mark left of the name, the funnel right of it,
    one line */
 #facts th { white-space: nowrap; }
+#facts th .thc, #facts th .hl { display: inline-flex; align-items: center; vertical-align: middle; }   /* $, mark, name, funnel on one line */
 #facts th.sortable::after { content: none; }
-#facts th .hl::before { content: "⇅"; display: inline-block; width: 15px; margin-right: 2px; border-radius: 4px; text-align: center;
+#facts th.sortable .hl::before { content: "⇅"; display: inline-block; width: 15px; margin-right: 2px; border-radius: 4px; text-align: center;
   font-size: 10px; line-height: 18px; color: #94A3B8; transition: color .12s ease, background .12s ease; }
 #facts th.sortable:hover .hl::before { color: var(--ink); background: #F1F5F9; }
 #facts th.asc .hl::before { content: "↑"; color: var(--ink); font-size: 11px; }
 #facts th.desc .hl::before { content: "↓"; color: var(--ink); font-size: 11px; }
 #facts th .hfil, #facts th .hcur { display: inline-flex; align-items: center; justify-content: center; height: 20px; min-width: 20px; padding: 0 3px;
-  margin: 0 0 0 3px; border: 0; border-radius: 5px; background: transparent; color: #94A3B8; vertical-align: -5px; cursor: pointer; }
+  margin: 0 0 0 3px; border: 0; border-radius: 5px; background: transparent; color: #94A3B8; cursor: pointer; }
 #facts th .hfil svg { width: 12px; height: 12px; }
 #facts th .hfil:hover, #facts th .hcur:hover { color: var(--ink); background: #F1F5F9; }
 #facts th .hfil.on { color: #047857; background: var(--sage); }
-#facts th .hcur { margin: 0 4px 0 0; font: 600 11px var(--mono); color: var(--muted); border: 1px solid var(--line); text-transform: none; letter-spacing: 0; }
+#facts th .hcur { height: 18px; margin: 0 4px 0 0; font: 600 11px/1 var(--mono); color: var(--muted); border: 1px solid var(--line); text-transform: none; letter-spacing: 0; }
 #facts th .hcur .insol::before { margin: 0; }
 /* the window behind a funnel: «from … to …», Reset and Apply; the same window opens from the Filters list on a phone */
 .fpop { position: absolute; z-index: 85; width: 290px; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
@@ -257,11 +258,6 @@ input.tagin:focus { box-shadow: 0 0 0 3px #EEF2FF; }
 td.bar { background-image: linear-gradient(to right, var(--sage) var(--w, 0%), transparent var(--w, 0%)); background-size: 100% 100%; background-repeat: no-repeat; background-position: left center; background-origin: padding-box; }
 td.bar.neg { background-image: linear-gradient(to right, #FEE2E2 var(--w, 0%), transparent var(--w, 0%)); }
 /* who funded the wallet: filled in after the background check, click filters to that group */
-td.fund { white-space: nowrap; font-size: 12px; }
-td.fund .fundb { padding: 0; height: auto; font-size: 12px; }
-td.fund .fundb.svc { color: var(--muted); }              /* an exchange or an app: a fact, not a bundle */
-td.fund .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); display: inline-block; margin-right: 4px; vertical-align: 0; }
-th.fundh { font-weight: 500; }
 .pos { color: #059669; }
 
 /* result v5: compact two-line cells, tags, export menu, collapsible filters */
@@ -505,14 +501,12 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .tagchip.t-dev { border-color: #FCA5A5; }
 .tagchip.t-sniper, .tagchip.t-bot-like, .tagchip.t-fresh { border-color: #FDE68A; }
 .tagchip.t-sniper.off, .tagchip.t-bot-like.off, .tagchip.t-fresh.off { border-color: var(--line); }
-/* the address opens the card (owner, 02.10: it looked like a copy): a side-panel mark by it, the whole row answers */
-.wname { border: 0; background: transparent; padding: 0; gap: 5px; font-size: 12.5px; color: var(--ink); cursor: pointer; }
-.wname .mono { border-bottom: 1px dotted #CBD5E1; }
+/* the address opens the card (owner, 02.10): it is underlined like a link, and the whole row answers too */
+.wname { border: 0; background: transparent; padding: 0; font-size: 12.5px; color: var(--ink); cursor: pointer; }
+.wname .mono { border-bottom: 1px dotted #94A3B8; }
 .wname:hover { background: transparent; }
-.wopen { width: 13px; height: 13px; flex: none; color: #94A3B8; transition: color .12s ease; }
 #facts tbody tr { cursor: pointer; }
-#facts tbody tr:hover .wname .mono { border-bottom-color: var(--ink); }
-#facts tbody tr:hover .wopen, .mewl tbody tr:hover .wopen, .wname:focus-visible .wopen { color: var(--ink); }
+#facts tbody tr:hover .wname .mono, .wname:focus-visible .mono { border-bottom: 1px solid var(--ink); }
 @media (hover: hover) and (min-width: 961px) { #facts tbody tr:hover td { background-color: #F8FAFC; } }
 .ext { border: 0; color: #CBD5E1; margin-left: 5px; font-size: 12px; } .ext:hover { color: var(--ink); }
 .xbtn { display: inline-flex; align-items: center; justify-content: center; width: 34px; padding: 0; }
@@ -837,9 +831,8 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
   .facts td.wcell .tags { display: block; margin-top: 4px; }
   .facts td.wcell .tag:first-child { margin-left: 0; }
   .facts td.c-inv { order: 1; } .facts td.c-sold { order: 2; } .facts td.c-pnl { order: 3; }
-  .facts td.c-held { order: 4; } .facts td.fund { order: 5; grid-column: span 4; }
+  .facts td.c-held { order: 4; }
   .facts td.c-inv, .facts td.c-pnl, .facts td.c-sold, .facts td.c-held { grid-column: span 2; }
-  .facts td.fund:empty { display: none; }
   .facts td.two b, .facts td.num b { font-size: 13.5px; }
   tr.onchart td:first-child { box-shadow: none; } tr.onchart { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
   /* touch targets: 36 px where a finger has to land */
@@ -874,7 +867,6 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
   #facts td { border: 0; padding: 0; white-space: normal; text-align: left; min-width: 0; }
   #facts td.bar, #facts td.bar.neg { background-image: none; }
   #facts td[data-h]::before { content: attr(data-h); display: block; margin-bottom: 2px; font: 600 9.5px/1.3 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
-  #facts td.fund:empty { display: none; }
   #facts td.wcell { grid-column: 1 / -1; }
   #facts tr.onchart td:first-child { box-shadow: none; } #facts tr.onchart { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 }
@@ -1044,7 +1036,6 @@ td.c-roi b { font-size: 13px; }
 @media (max-width: 640px) {
   .facts td.c-roi { order: 4; grid-column: span 2; }
   .facts td.c-held { order: 5; }
-  .facts td.fund { order: 6; grid-column: span 2; white-space: normal; }
 }
 
 /* ── the agent: the owner's method at /admin ── */
@@ -1278,8 +1269,6 @@ td.c-roi b { font-size: 13px; }
 header.top { position: relative; z-index: 45; }
 
 /* спонсор — відома біржа: назва замість адреси; «Organised launch» — угорі результату, коли майже весь топ свіжий чи в бандлах */
-.fundb.cex { font: 500 12px var(--sans); padding: 2px 8px; border-radius: 999px; background: #EEF2F6; color: var(--ink); border: 1px solid var(--line); text-decoration: none; }
-.fundb.cex:hover { border-color: #CBD5E1; }
 .dchip.fund.cex { font-family: var(--sans); }
 
 /* 30.09: the range is set on the chart or by a quick range; the time fields wait behind ✎, since the first traders typed
@@ -1330,34 +1319,43 @@ header.top { position: relative; z-index: 45; }
 .wrow .editt { padding: 4px 8px; line-height: 1; }
 .wrow .del { margin-left: auto; }
 
-/* знахідки — короткі позначки під графіком (іконка, число, два слова); речення — у підказці. Колір — лише сенс */
-.fpills { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0 10px; }
-.fpills .flabel { font: 600 10.5px/1 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
-span.fpill { cursor: help; }                    /* a fact with no filter behind it: it explains, it does not filter */
-.fpill b { font: 600 12.5px var(--mono); }
-.fpill { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 999px; cursor: pointer;
-  border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: 500 12.5px/1 var(--sans); white-space: nowrap;
-  transition: border-color .15s ease, background .15s ease; }
-.fpill svg { width: 14px; height: 14px; flex: none; }
-.fpill b { font: 600 12.5px var(--mono); }
-.fpill:hover { border-color: #CBD5E1; }
-.fpill.warn { background: #FFFBEB; border-color: #FDE68A; color: #92400E; }
-.fpill.info { background: #F1F5F9; border-color: #E2E8F0; color: #334155; }
-.fpill.good { background: #F0FDF4; border-color: #BBF7D0; color: #166534; }
-.fpill.bad { background: #FEF2F2; border-color: #FECACA; color: #991B1B; font-weight: 600; cursor: help; }
-/* under the chart there is room (owner, 02.10): larger pills, the label on their line */
-.fpills.big { gap: 8px; margin: 12px 0 14px; }
-.fpills.big .flabel { font-size: 11px; margin-right: 4px; }
-.fpills.big .fpill { height: 34px; padding: 0 14px; gap: 8px; font-size: 14px; }
-.fpills.big .fpill b { font-size: 14px; }
-.fpills.big .fpill svg { width: 16px; height: 16px; }
+/* what tracced counted and found, one strip under the chart: a number over a word, the way the table's own head reads
+   (owner, 02.10: no pills, no sentence of counts). Colour only for meaning: amber a warning, red the creator or a staged
+   launch, violet repeats. A cell with a filter behind it is a button */
+.tally { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); margin: 12px 0 14px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface); overflow: hidden; }   /* a short last row keeps its cells' width: no lonely cell across the page */
+.tally .tfinds { display: contents; }
+.tally .tc { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 4px; min-width: 0; height: auto; margin: 0;
+  padding: 10px 16px; border: 0; border-radius: 0; box-shadow: 1px 0 0 var(--line), 0 1px 0 var(--line);   /* the outer ones are clipped */
+  background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: default; }
+.tally button.tc { cursor: pointer; transition: background .12s ease; }
+.tally button.tc:hover { background: #F8FAFC; }
+.tally .tc b { font: 600 18px/1.1 var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tally .tc i { display: inline-flex; align-items: center; gap: 6px; font: 600 10.5px/1.2 var(--sans); font-style: normal; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.tally .tc i .kinfo { margin: 0; text-transform: none; letter-spacing: 0; }
+.tally .tc.warn b { color: #B45309; } .tally .tc.bad b { color: #B91C1C; } .tally .tc.rep b { color: #6D28D9; }
+.tally .tc.bad.tipt { cursor: help; }
+.tally .tc b.pos { color: #059669; } .tally .tc b.neg { color: var(--red); }
+@media (max-width: 640px) { .tally .tc { padding: 9px 12px; } .tally .tc b { font-size: 16px; } }
+@media (max-width: 960px) { .toolbar #enrich { display: none; } }   /* with Sort in the toolbar there, the age-check note would wrap Export away */
+/* the card: this token or every token, two tabs under the tags (owner, 02.10) */
+.dview { display: flex; margin: 10px 16px 0; border-bottom: 1px solid var(--line); }
+.dview button { height: 34px; margin-bottom: -1px; padding: 0 12px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent;
+  color: var(--muted); font-weight: 500; }
+.dview button:hover { background: transparent; color: var(--ink); }
+.dview button.on { color: var(--ink); border-bottom-color: var(--ink); }
+.wcard .dtally { margin: 12px 16px 2px; }
+.wcard .dtally { grid-template-columns: repeat(auto-fit, minmax(76px, 1fr)); }
+.wcard .dtally .tc { padding: 8px 12px; }
+.wcard .dtally .tc b { font-size: 15px; }
+.wcard .dtrades { border-top: 0; }
+/* a bundle in its group's colour: the Funded by column is gone (owner, 02.10), so the colour tells the groups apart */
+.tag.t-bundle.bundb { background: var(--c, #FFF7ED); border-color: transparent; color: #1E293B; cursor: pointer; }
+.tag.t-bundle.bundb:hover { box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .4); }
 .factive { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 2px 4px 2px 10px; border-radius: 999px;
   background: #F1F5F9; border: 1px solid var(--line); font-size: 12px; color: var(--ink); }
 .factive button { padding: 0 6px; line-height: 1; min-width: 32px; }
-.kline.counts { margin: 2px 2px 8px; }
-/* one zone above the chart: the counts, then the findings on the same line while they fit */
-.sumzone { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; margin: 2px 0 12px; }
-.sumzone .kline.counts { margin: 0 2px; } .sumzone .fpills { margin: 0; }
 
 /* сповіщення в Telegram: окрема картка над списками (власник, 30.09: смужка всередині списків виглядала слабко) —
    що це, перемикач, налаштування і зразок повідомлення праворуч; дзвіночок на вкладці списку */

@@ -67,8 +67,9 @@ one. Transfers, incoming SOL, airdrops and token-for-token swaps stay silent, an
   send /stop there first.
 - **Choose**: buys, sells, and the smallest trade in dollars, the same for every wallet with its bell on. Up to
   {{ s.alerts_max_wallets }} wallets per account: with all of them on, turn one off before you turn another on. Up to
-  {{ s.alerts_per_hour }} alerts an hour and {{ s.alerts_per_day }} a day (UTC); past either, one message says so and the
-  rest of that hour or day is skipped. The lists page counts both: how many wallets have their bell on, and how many
+  {{ s.alerts_per_hour }} alerts an hour and {{ s.alerts_per_day }} a day (UTC), and {{ s.alerts_per_wallet_day }} a day from
+  any one wallet, so a bot trading every minute does not use up the rest; past any of them, one message says so and
+  the rest of that hour or day is skipped (for that wallet alone, when it is the wallet's cap). The lists page counts both: how many wallets have their bell on, and how many
   alerts went out today.
 - **Stop**: *Disconnect* on the lists page, or /stop in the bot.
 

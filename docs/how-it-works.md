@@ -18,24 +18,30 @@ Tokens created in the last {{ s.fresh_hours|int }} hours that reached a real mar
 Clones with huge caps and no trading, and charts bought by one bot, are filtered out. Biggest peak first; the list
 is refreshed at most every {{ s.fresh_refresh_min|int }} minutes. A click opens the chart, where you mark the range.
 
-## Insights
+## The numbers under the chart
 
-Under the chart, up to four short conclusions about the buyers, in percent. Each one appears only when it says
-something. Where a filter exists for it, a click shows exactly those wallets.
+One strip under the chart, a number and a word each. A click on a number shows exactly those wallets, or sorts by it.
 
-- **Creator bought**: the token's creator bought in the range.
-- **N% bought through bundles**: wallets that share a funder made that share of the range's buying (shown from 10%).
-- **N% fresh wallets**: of the wallets checked for age, the share under a day old when they bought (shown from 10
-  wallets and 10%).
-- **Top 10 took N% of the profit**: the ten most profitable wallets' share of all the profit made (shown from 20
-  wallets in profit and 40%).
-- **N early in your other pumps**: with a wallet connected, wallets that were early in your other saved analyses
-  too (shown from 3).
-- **N% already sold out**: wallets that sold 99% or more (shown from 60%). Otherwise **N% still holding**: wallets
-  that sold less than half (shown from 40%).
-- **N% funded from exchanges**: of the wallets whose first funder is known, the share funded straight from an
-  exchange (shown from 10 wallets and 5%).
-- **N% took a profit**: wallets with a realized profit (shown from 20 wallets).
+Always there:
+
+- **bought**: the wallets that bought in the range, the list below. Its **i** says how they were counted.
+- **spent**: what they spent in the range.
+- **sold out**: the share that sold 99% or more of what they bought.
+- **holding**: the share that sold less than half.
+- **best ROI**: the highest average exit cap ÷ average entry cap among them.
+
+Then up to four findings, each only when it says something:
+
+- **creator bought**: the token's creator bought in the range, and how much.
+- **bundled**: wallets that share a funder made that share of the range's buying (shown from 10%).
+- **fresh**: of the wallets checked for age, the share under a day old when they bought (shown from 10 wallets and
+  10%).
+- **to top 10**: the ten most profitable wallets' share of all the profit made (shown from 20 wallets in profit and
+  40%).
+- **seen before**: with a wallet connected, wallets that were early in your other saved analyses too (shown from 3).
+- **from exchanges**: of the wallets whose first funder is known, the share funded straight from an exchange (shown
+  from 10 wallets and 5%).
+- **in profit**: wallets with a realized profit (shown from 20 wallets).
 
 ## Where the numbers come from
 
@@ -94,15 +100,18 @@ answer stays in the result for everyone. When a funder cannot be found, it stays
 A `bundle` is three or more wallets here whose first SOL came from the same wallet. An exchange or an app funds
 thousands of wallets that have nothing to do with each other, at any time. From such a busy funder, only the wallets
 it funded close together in time form a bundle: that is how one operator creates wallets for a launch. The rest stay
-in "Funded by", greyed out. In the PAID demo most of what looked like bundles was one app's service wallet (154 of
+out of any bundle. In the PAID demo most of what looked like bundles was one app's service wallet (154 of
 the buyers) and an exchange (33). On another token, one wallet created 200 wallets in 41 minutes, and all of them bought
 within minutes of the launch: that is still a bundle, however busy its funder.
 
-When the first SOL came straight from a known exchange, "Funded by" names the exchange instead of an address. An
-exchange never makes a bundle.
+When the first SOL came straight from a known exchange, the wallet's card says "funded by" and the exchange's name
+instead of an address. From an exchange, as from any busy funder, only wallets created close together make a bundle.
+
+In the table a bundle's tag takes one colour per funder, so two bundles side by side are told apart; a click on the tag
+shows that bundle alone.
 
 When nearly all of the top {{ s.age_lookups_max }} by PnL are fresh or in bundles, one hand ran the launch and little
-in the list is organic buying. A red mark first among the insights, under the chart, says which kind:
+in the list is organic buying. A red word, first among the findings under the chart, says which kind:
 
 | Word | The top is made of |
 |---|---|

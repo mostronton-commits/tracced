@@ -269,8 +269,8 @@ There are two faces, both self-hosted: **Geist** for words and **Geist Mono** fo
   result table turns into one card per wallet. Before a change counts as done, check it
   at 1920, 1440, 1280, 768 and 390 px. Nothing scrolls the page sideways, wide tables scroll inside their own frame,
   and the footer sits at the bottom.
-- **The result page** runs top to bottom: the counts with their `i`, the chart, the insights, the toolbar, the table
-  with its filters in its head. The wallet card slides in from the right.
+- **The result page** runs top to bottom: the chart, the tally (the counts and the insights in one strip), the
+  toolbar, the table with its filters in its head. The wallet card slides in from the right.
 
 ## Elevation & Depth
 
@@ -301,13 +301,15 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   The hero's Analyze is the plain primary key in Geist 600 (owner, 02.10: the mono capitals went back).
 - **Icon-only buttons** (export, close, copy, bell) always carry an `aria-label` and a `title`, centre their glyph
   and are at least 30 px, 36 px on a phone.
-- **Chips and tags** are pills set in mono at 10.5–11 px. A filter chip that is on gets a filled background. A hidden
+- **Chips and tags** are pills set in mono at 10.5–11 px. A bundle's tag in the table takes its group's colour (one
+  colour per funder; no violet, which means repeats), and a click on it shows that bundle alone. A filter chip that is on gets a filled background. A hidden
   tag is struck through and pale. Your own tag carries its own × and goes only by it, with an Undo in the toast; a
   click on the word does nothing (owner, 02.10: tags went by accident).
 - **Tables** are white, with 1 px row lines, a sticky uppercase header, numbers right-aligned in mono, and a sage bar
   behind PnL (a red-tinted bar for a loss). The first 100 rows are drawn and the rest wait behind "Show more".
-- **Filters live in the table's head** (owner, 02.10). A head reads, on one line: the sort mark, the name, the
-  funnel. Funnels stand only by numbers and open one small window: "from … to …", Reset, Apply; Enter applies and
+- **Filters live in the table's head** (owner, 02.10). A head reads, on one line: the money key where there is one,
+  the sort mark, the name, the funnel. Only the numbers sort; the address does not, and there is no Funded by column:
+  the card says who funded a wallet. Funnels stand only by numbers and open one small window: "from … to …", Reset, Apply; Enter applies and
   Escape closes. A funnel holding a filter turns sage. The money unit is a small `$`/◎ key by "Bought". Everything
   that is not a number lives in the Filters menu and applies at once: finding a wallet, ★ Only my lists, the tags to
   hide. The menu lists the number filters too, the only way in on a phone or a tablet, where the table has no head.
@@ -317,17 +319,21 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   star always shows and opens the lists menu. Where there is no hover, as on a phone, the star always shows at 0.5
   opacity.
 - **The wallet card** is a right-hand sheet, 420–440 px wide and full width on a phone, with a sticky head: identity,
-  then the token facts, then the 7D/30D block (30D by default), then the trades. A wallet's address opens it, never
-  copies: the address carries a side-panel mark, and a click anywhere else in the row opens the card too. Its chips
+  then two tabs, "<symbol> token" and "All tokens". The token tab holds the wallet's numbers here as a small tally and
+  its trades; the other tab holds the 7D/30D block (30D by default), loaded only when it is opened. The last tab chosen
+  stays for the next card. A wallet's address opens the card, never copies: it is underlined like a link, and a click
+  anywhere else in the row opens the card too. Its chips
   say what they are without a hover: "funded by Binance", "94d old". In Lists the card shows the lists holding the
   wallet as switches, amber when on; the last one stays, × in the row drops the wallet.
 - **Tooltips** come from `title` and stay short, about 90 characters at most. On a touch screen a tap on a `.tipt`
   element shows the same text as a toast. An `i` mark (`.dinfo`, `.kinfo`) holds the method; it turns into an amber
   `!` when the data is incomplete.
-- **Insights** sit under the chart (owner, 02.10: there is room there): a small uppercase "Insights" label, then up
-  to four pills, 34 px tall at 14 px. Each pill is a share in percent and a few words ("Top 10 took 47% of the
-  profit"). Amber means a warning, grey means information, violet means repeats. A pill with a filter behind it is a
-  button, and one without is plain text with a tooltip. The home page shows none.
+- **The tally** sits under the chart (owner, 02.10: no pills, no sentence of counts): one strip of cells, each a
+  number in mono at 18 px over one uppercase word, the way the table's head reads. First the counts (bought, spent,
+  sold out, holding, best ROI, with the `i` of the method), then up to four findings and the launch word when they say
+  something. Colour only for meaning: amber a warning, red the creator or a staged launch, violet repeats. A cell with
+  a filter or an order behind it is a button. The strip is a grid: a short last row keeps its cells' width. The home
+  page shows none.
 - **Toasts** sit at the bottom centre, one at a time. They name the result and can carry one link ("Lists →") or one
   Undo.
 - **Menus and popovers** are white with a 1 px border. Menus have an 8 px radius, popovers 10 px. Escape or a click
@@ -359,5 +365,5 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
 - Don't add shadows to cards, gradients beyond the two that exist, or new fonts.
 - Don't copy the look of another product or exchange. tracced must never pass for anyone else.
 - Don't reach for the template look that AI tools produce by default (owner, 02.10): an arrow in every button, hover
-  lifts, semibold everything, stock chart libraries, stock component kits. Each detail is chosen for tracced: the
+  lifts, semibold everything, pill-shaped stat chips, stock chart libraries, stock component kits. Each detail is chosen for tracced: the
   ledger's mono, the record's cursor, facts in tables.

@@ -15,11 +15,11 @@ DEFS = {
     "fresh":      "Wallet younger than 24 h at its first buy",
     "bot-like":   "30+ trades with a median hold under 2 min, or 5+ buy→sell pairs within 5 s",
     "pre-range":  "Also bought before the range",
-    "transfer-in": "Sold more than it was ever seen buying — the rest arrived another way, usually a transfer",
+    "transfer-in": "Sold more than it bought here: the rest came by transfer",
     "re-bought":  "Bought again after the range",
-    "bundle":     "First SOL from the same wallet as 2+ others here — likely one operator. From a busy exchange or app, only when the wallets were created together",
+    "bundle":     "Its first SOL came from the same wallet as 2+ others here: likely one operator",
     "no-exits":   "Exits not fetched (over the cap)",
-    "seen-before": "Also an early buyer in another analysis you saved — shown as a chain link, click it for the list",
+    "seen-before": "Also early in another analysis you saved",
 }
 BUNDLE_MIN = 3        # стільки гаманців списку з одним спонсором = бандл
 BURST_MS = 30 * 60_000   # від біржі чи застосунку — лише гаманці, народжені за пів години один від одного
