@@ -17,9 +17,9 @@ Built for the Colosseum Crypto World's Fair, 2026. [Why it exists →](https://t
    the chart itself. The home page runs the last two days' fresh pumps to start from.
 3. **Read the wallets.** Everyone who bought inside it, with what they paid, sold and still hold. Export CSV, TXT or JSON.
 
-Looking is free: the demo, every finished result, the chart of any token. A new analysis needs a connected Phantom
-wallet (a signed message, no transaction, no fee) and counts against a daily allowance per person: the wallet and the
-browser count together, one network has its own count, and all of them reset at midnight UTC.
+Looking is free: the demo, every finished result, the chart of any token. A new analysis needs a connected wallet:
+Phantom, Backpack or Solflare, a signed message, no transaction, no fee. It counts against a daily allowance per person:
+the wallet and the browser count together, one network has its own count, and all of them reset at midnight UTC.
 [Limits →](https://tracced.xyz/docs/limits)
 
 ![Range](docs/img/range.png)

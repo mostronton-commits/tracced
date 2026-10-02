@@ -304,14 +304,19 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   tag is struck through and pale.
 - **Tables** are white, with 1 px row lines, a sticky uppercase header, numbers right-aligned in mono, and a sage bar
   behind PnL (a red-tinted bar for a loss). The first 100 rows are drawn and the rest wait behind "Show more".
-- **The star** (save to lists) appears by a wallet when the pointer is in its row, at 0.55 opacity, and lights up
-  under the pointer. One click on an empty star saves the wallet to the Watchlist, and the star turns filled amber. A
-  filled star opens the lists menu. Where there is no hover, as on a phone, the star always shows at 0.5 opacity.
+- **The star** (save to lists) stays invisible until the pointer reaches its own place before the address, and then
+  lights up. One click on an empty star saves the wallet to the Watchlist, and the star turns filled amber. A filled
+  star always shows and opens the lists menu. Where there is no hover, as on a phone, the star always shows at 0.5
+  opacity.
 - **The wallet card** is a right-hand sheet, 420–440 px wide and full width on a phone, with a sticky head: identity,
   then the token facts, then the 7D/30D block (30D by default), then the trades.
 - **Tooltips** come from `title` and stay short, about 90 characters at most. On a touch screen a tap on a `.tipt`
   element shows the same text as a toast. An `i` mark (`.dinfo`, `.kinfo`) holds the method; it turns into an amber
   `!` when the data is incomplete.
+- **Insights** sit above the chart: a small uppercase "Insights" label, then up to four pills. Each pill is a share in
+  percent and a few words ("Top 10 took 47% of the profit"). Amber means a warning, grey means information, violet
+  means repeats. A pill with a filter behind it is a button, and one without is plain text with a tooltip. On the home
+  page, each token shows its two strongest insights as one line in `ink` above the muted date.
 - **Toasts** sit at the bottom centre, one at a time. They name the result and can carry one link ("Lists →") or one
   Undo.
 - **Menus and popovers** are white with a 1 px border. Menus have an 8 px radius, popovers 10 px. Escape or a click

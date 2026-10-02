@@ -455,6 +455,41 @@ if AioHTTPTestCase:
             st = await (await self.client.get("/me/telegram.json")).json()
             self.assertEqual((st["state"]["st_today"], st["state"]["st_per_day"]), (4, 3))   # the owner sees the day's spend
 
+        async def test_an_account_gets_at_most_its_day_of_alerts(self):
+            # owner, 02.10: 200 a day per account; past it one line, then silence until 00:00 UTC. What the hour's cap
+            # skipped does not use up the day
+            sub = {"pk": TEST_PK, "chat": 7, "prefs": {"buys": True, "sells": True, "min_usd": 0}, "tags": [], "src": ""}
+            self.app["alerts_wm"] = {"WAL": [sub]}
+            self.app["activity"].watch({"WAL"})
+            ev = {"side": "buy", "mint": "M" * 32, "usd": 500.0, "amount": 10.0, "before": 0.0, "sig": "", "ts": int(time.time()), "mcap": 1e6}
+            texts = []
+
+            async def send(app, http, chat, text, pk=None):
+                texts.append(text)
+                return True
+
+            async def rpc(*a, **k):
+                return {"tx": 1}
+
+            async def price(app, http):
+                return 150.0
+            with mock.patch.object(app_mod, "_rpc", rpc), mock.patch.object(app_mod, "_sol_price", price), \
+                    mock.patch.object(app_mod, "_token_facts", mock.AsyncMock(return_value={"symbol": "X"})), mock.patch.object(app_mod, "_tg_send", send), \
+                    mock.patch.object(app_mod.alerts_mod, "classify", lambda tx, w, px: [dict(ev)]):
+                self.app["s"].update(alerts_per_hour=2, alerts_per_day=3)
+                for i in range(4):
+                    await app_mod._alert_tx_safe(self.app, None, "WAL", f"h{i}")
+                self.assertEqual(len(texts), 3)                                            # two alerts, one line about the hour
+                self.assertIn("this hour", texts[-1])
+                self.assertEqual(self.app["alerts_day"].left("a:" + TEST_PK, 3), 1)      # the skipped two did not use up the day
+                self.app["alerts_hour"].clear()                                             # a new hour
+                self.app["s"]["alerts_per_hour"] = 100
+                for i in range(4):
+                    await app_mod._alert_tx_safe(self.app, None, "WAL", f"d{i}")
+            self.assertEqual(len(texts), 5)                                                # one more alert, then the day's line, then silence
+            self.assertIn("alerts today", texts[-1])
+            self.assertIn("00:00 UTC", texts[-1])
+
 
 if __name__ == "__main__":
     unittest.main()

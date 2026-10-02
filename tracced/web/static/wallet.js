@@ -1,7 +1,7 @@
 /* Sign in with a Solana wallet: connect → sign a server-issued message → the server sets a cookie.
-   No libraries, no transaction. Phantom only (the owner's call): through Wallet Standard when it registers itself,
-   or its injected provider; any other wallet is not offered. On a phone without Phantom in the browser, the row opens
-   this page inside the Phantom app, where the wallet is. */
+   No libraries, no transaction. Phantom, Backpack and Solflare (owner, 02.10): through Wallet Standard when the wallet
+   registers itself, or its injected provider; any other wallet is not offered. On a phone without the wallet in the
+   browser, its row opens this page inside that wallet's app, where the wallet is. */
 (function () {
   const sheet = () => document.getElementById('wsheet'), list = () => document.getElementById('wlist'), st = () => document.getElementById('wstate');
   let onDone = null, busy = false, opener = null;
@@ -20,25 +20,32 @@
     try { window.dispatchEvent(new CustomEvent('wallet-standard:app-ready', { detail: { register: (...ws) => { ws.forEach(w => out.push(w)); return () => {}; } } })); } catch (e) {}
     return out.filter(w => w && w.features && w.features['standard:connect'] && w.features['solana:signMessage']);
   }
-  /* Phantom only: whatever else registers itself (MetaMask, Rabby, Solflare, …) is not offered */
+  /* these three only: whatever else registers itself (MetaMask, Rabby, …) is not offered. browse: the wallet's own link
+     that opens a page in its in-app browser (Phantom, Backpack and Solflare docs, "browse" deeplink) */
+  const here = () => encodeURIComponent(location.href) + '?ref=' + encodeURIComponent(location.origin);
   const KNOWN = [
-    { name: 'Phantom', url: 'https://phantom.com/download', legacy: () => (window.phantom && window.phantom.solana) || (window.solana && window.solana.isPhantom ? window.solana : null) },
+    { name: 'Phantom', url: 'https://phantom.com/download', browse: () => 'https://phantom.app/ul/browse/' + here(), display: 'utf8',
+      legacy: () => (window.phantom && window.phantom.solana) || (window.solana && window.solana.isPhantom ? window.solana : null) },
+    { name: 'Backpack', url: 'https://backpack.app/downloads', browse: () => 'https://backpack.app/ul/v1/browse/' + here(), display: null,
+      legacy: () => (window.backpack && window.backpack.isBackpack ? window.backpack : null) },
+    { name: 'Solflare', url: 'https://solflare.com/download', browse: () => 'https://solflare.com/ul/v1/browse/' + here(), display: 'utf8',
+      legacy: () => (window.solflare && window.solflare.isSolflare ? window.solflare : null) },
   ];
   const onPhone = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (matchMedia('(pointer: coarse)').matches && innerWidth < 900);
-  const inPhantom = () => 'https://phantom.app/ul/browse/' + encodeURIComponent(location.href) + '?ref=' + encodeURIComponent(location.origin);
   function adapters() {
     const std = standardWallets();
     const byName = n => std.find(w => String(w.name || '').toLowerCase().startsWith(n.toLowerCase()));
     return KNOWN.map(k => {
       const w = byName(k.name);
-      if (w) return { name: k.name, url: k.url, icon: w.icon, acc: null,
+      if (w) return { name: k.name, url: k.url, browse: k.browse, icon: w.icon, acc: null,
         async connect() { const r = await w.features['standard:connect'].connect(); this.acc = (r.accounts || [])[0]; if (!this.acc) throw new Error('No account'); return this.acc.address; },
         async sign(bytes) { const [r] = await w.features['solana:signMessage'].signMessage({ account: this.acc, message: bytes }); return r.signature; } };
       const p = k.legacy && k.legacy();
-      if (p) return { name: k.name, url: k.url, icon: p.icon,
+      if (p) return { name: k.name, url: k.url, browse: k.browse, icon: p.icon,
         async connect() { const r = await p.connect(); const pk = p.publicKey || (r && r.publicKey); if (!pk) throw new Error('No public key'); return pk.toString(); },
-        async sign(bytes) { const r = await p.signMessage(bytes, 'utf8'); return r && r.signature ? r.signature : r; } };
-      return { name: k.name, url: k.url, missing: true };
+        // Phantom and Solflare take the display encoding second; Backpack takes a public key there, so it gets nothing
+        async sign(bytes) { const r = await (k.display ? p.signMessage(bytes, k.display) : p.signMessage(bytes)); return r && r.signature ? r.signature : r; } };
+      return { name: k.name, url: k.url, browse: k.browse, missing: true };
     });
   }
 
@@ -88,10 +95,11 @@
     const wn = document.getElementById('wnote'); if (wn) { wn.textContent = note || ''; wn.hidden = !note; }   // why we ask, in context
     const l = list(); l.innerHTML = '';
     const as = adapters();
-    as.forEach(a => {
+    // the wallets this browser has come first; the rest below them, to open this page in their app or to install
+    as.filter(a => !a.missing).concat(as.filter(a => a.missing)).forEach(a => {
       if (a.missing) {                                   // not in this browser: on a phone open the page in the app, else install
         const phone = onPhone(), x = document.createElement('a'); x.className = 'button winstall'; x.rel = 'noopener';
-        x.href = phone ? inPhantom() : a.url; if (!phone) x.target = '_blank';
+        x.href = phone ? a.browse() : a.url; if (!phone) x.target = '_blank';
         x.innerHTML = '<span>' + a.name + '</span><small>' + (phone ? 'Open in the app ↗' : 'Install ↗') + '</small>'; l.appendChild(x); return;
       }
       const b = document.createElement('button'); b.type = 'button';
@@ -100,7 +108,8 @@
       b.addEventListener('click', () => signIn(a));
       l.appendChild(b);
     });
-    if (!as.some(a => !a.missing)) state(onPhone() ? 'On a phone, tracced connects inside the Phantom app.' : 'Phantom is not in this browser. Install it, then reload this page.');
+    if (!as.some(a => !a.missing)) state(onPhone() ? 'On a phone, tracced connects inside your wallet app: pick it below.'
+      : 'No Phantom, Backpack or Solflare in this browser. Install one, then reload this page.');
     s.hidden = false;
     const first = l.querySelector('button, a'); if (first) first.focus();
   }

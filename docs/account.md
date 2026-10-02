@@ -3,11 +3,12 @@
 A Solana wallet signs a one-time message. That signature is the account: no password, no e-mail, no transaction,
 no fee.
 
-Works with Phantom. On a phone, open tracced inside the Phantom app: the Connect button takes you there.
+Works with Phantom, Backpack and Solflare. On a phone, open tracced inside the wallet's own app: the Connect button
+takes you there.
 
 ## Lists and saved analyses
 
-In a result, point at a wallet's row: a star (☆) shows up by its address. One click puts the wallet in your
+In a result, point just before a wallet's address: a star (☆) lights up there. One click puts the wallet in your
 *Watchlist* and fills the star (★). A filled star, in the row or in the wallet's card, opens the menu of your lists: it
 shows which lists hold the wallet, and a click adds or removes it, or makes a new list. **★ My lists** among the filters
 keeps only the wallets you have saved. **Save analysis** keeps the whole result under *My analyses* at `/me`; the
@@ -64,7 +65,8 @@ one. Transfers, incoming SOL, airdrops and token-for-token swaps stay silent, an
   send /stop there first.
 - **Choose**: buys, sells, and the smallest trade in dollars, the same for every list with the bell on. Up to
   {{ s.alerts_max_wallets }} wallets per account: the newest ones on lists with the bell, the older ones stay silent and
-  the lists page says so. Up to {{ s.alerts_per_hour }} alerts an hour.
+  the lists page says so. Up to {{ s.alerts_per_hour }} alerts an hour and {{ s.alerts_per_day }} a day (UTC); past either,
+  one message says so and the rest of that hour or day is skipped.
 - **Stop**: *Disconnect* on the lists page, or /stop in the bot.
 
 An alert reads like a trades channel, three lines:

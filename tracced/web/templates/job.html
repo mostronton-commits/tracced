@@ -376,51 +376,70 @@
         verdictNote = on ? n + ' of the top ' + top.length + ' by PnL (' + pct + '%) are fresh or bundled: ' + nb + ' in bundles, ' + nf + ' fresh'
           + (dev ? ', and the creator bought in the range' : '') + '. One hand ran this launch; little here is organic buying' : '';
       }
-      // What tracced found that a terminal does not show: short marks above the chart, at most three, each only when it
-      // matters, each a click into exactly those wallets; the sentence is in the tooltip. Bundles, fresh wallets and
-      // funders come after the page, so this runs again as they do
-      const FIND_MAX = 3, IC = EarlyTags.ICON; let findActs = [];
+      // Insights (trader, 01.10: «conclusions about the token, in percent, not bare numbers»): at most four, each only when
+      // it says something, each a click into exactly those wallets where there is a filter for them; the counts are in the
+      // tooltip. Bundles, fresh wallets and funders come after the page, so this runs again as they do. The home page's
+      // line under each token comes from the same rules on the server (tracced/web/insights.py)
+      const FIND_MAX = 4, IC = EarlyTags.ICON; let findActs = [];
+      const pc = (a, b) => { if (!b) return 0; const p = Math.round(100 * a / b); return a < b && p >= 100 ? 99 : p; };   // 299 of 300 is 99%, not 100%
       function findings() {
         const el = document.getElementById('finds'); if (!el) return;
-        const inv = o => +o.inv || 0, tot = all.reduce((s, o) => s + inv(o), 0) || 1, out = [];
+        const inv = o => +o.inv || 0, tot = all.reduce((s, o) => s + inv(o), 0) || 1, n = all.length, out = [];
+        const dev = all.find(o => o.tags.includes('dev'));
+        if (dev) out.push({ k: 'dev', sev: 'warn', act: ['only', 'dev'], ic: IC.dev, h: 'Creator bought',
+          tip: "The token's creator bought here: " + money(dev.inv) + ' in' + (dev.got ? ', ' + money(dev.got) + ' out' : ', nothing sold yet') });
         const bw = all.filter(o => bundle[o.w]);                                  // wallets that share a funder here
         if (bw.length) {
-          const ops = new Set(bw.map(o => funders[o.w] || bundle[o.w].funder)).size, sh = Math.round(100 * bw.reduce((s, o) => s + inv(o), 0) / tot);
-          if (sh >= 10) out.push({ k: 'bundle', sev: 'warn', act: ['only', 'bundle'], ic: IC.bundle, why: 'wallets in bundles',
-            h: '<b>' + ops + '</b> operator' + (ops === 1 ? '' : 's') + ' · ' + sh + '%',
-            tip: ops + ' operator' + (ops === 1 ? '' : 's') + ' bought ' + sh + '% of the range through ' + bw.length + ' wallets that share a funder' });
+          const ops = new Set(bw.map(o => funders[o.w] || bundle[o.w].funder)).size, sh = pc(bw.reduce((s, o) => s + inv(o), 0), tot);
+          if (sh >= 10) out.push({ k: 'bundle', sev: 'warn', act: ['only', 'bundle'], ic: IC.bundle, h: '<b>' + sh + '%</b> bought through bundles',
+            tip: plural(ops, 'operator') + ' bought ' + sh + '% of the range through ' + plural(bw.length, 'wallet') + ' that share a funder' });
         }
-        const dev = all.find(o => o.tags.includes('dev'));
-        if (dev) out.push({ k: 'dev', sev: 'warn', act: ['only', 'dev'], ic: IC.dev, why: "the token's creator", h: 'Creator bought',
-          tip: "The token's creator bought here: " + money(dev.inv) + ' in' + (dev.got ? ', ' + money(dev.got) + ' out' : ', nothing sold yet') });
-        const fr = all.filter(o => o.tags.includes('fresh')).length, checked = Math.min(all.length, VERDICT_TOP || all.length) || 1;
-        if (fr >= 10 && fr / checked >= 0.1) out.push({ k: 'fresh', sev: 'warn', act: ['only', 'fresh'], ic: IC.fresh, why: 'fresh wallets',
-          h: '<b>' + fr + '</b> fresh', tip: fr + ' wallets were under a day old when they bought' });
-        const ex = {}; all.forEach(o => { const x = funders[o.w]; if (x && EXCH[x]) ex[EXCH[x][0]] = (ex[EXCH[x][0]] || 0) + 1; });
-        const exN = Object.values(ex).reduce((a, b) => a + b, 0), funded = all.filter(o => funders[o.w]).length;
-        if (exN >= 10 && funded && exN / funded >= 0.05) out.push({ k: 'cex', sev: 'info', act: ['only', 'cex'], ic: IC.exchange, why: 'wallets funded from exchanges',
-          h: '<b>' + exN + '</b> from exchanges',
-          tip: 'Funded straight from exchanges: ' + Object.entries(ex).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([n, c]) => n + ' ' + c).join(', ') });
-        const rep = all.filter(o => crossings[o.w]).length;
-        if (rep >= 3) out.push({ k: 'repeat', sev: 'good', act: ['repeat'], ic: IC['seen-before'], why: 'wallets early in your other pumps',
-          h: '<b>' + rep + '</b> in your other pumps', tip: rep + ' wallets were early in your other saved pumps too' });
+        // fresh among the wallets whose age is known: an older result checked all of them, not only the first VERDICT_TOP
+        const fr = all.filter(o => o.tags.includes('fresh')).length, checked = Math.max(Object.keys(ages).length || Math.min(n, VERDICT_TOP || n), fr) || 1;
+        if (fr >= 10 && fr / checked >= 0.1) out.push({ k: 'fresh', sev: 'warn', act: ['only', 'fresh'], ic: IC.fresh,
+          h: '<b>' + pc(fr, checked) + '%</b> fresh wallets', tip: fr + ' of the ' + checked + ' wallets checked were under a day old when they bought' });
         const prof = all.map(o => +o.real || 0).filter(v => v > 0).sort((a, b) => b - a), ptot = prof.reduce((a, b) => a + b, 0);
         if (prof.length >= 20 && ptot > 0) {
-          const s10 = Math.round(100 * prof.slice(0, 10).reduce((a, b) => a + b, 0) / ptot);
-          if (s10 >= 40) out.push({ k: 'top', sev: 'info', act: ['sort', 'real'], ic: '', why: 'the wallets by PnL',
-            h: 'Top 10 · <b>' + s10 + '%</b> of profit', tip: 'The 10 most profitable wallets took ' + s10 + '% of all the profit' });
+          const s10 = pc(prof.slice(0, 10).reduce((a, b) => a + b, 0), ptot);
+          if (s10 >= 40) out.push({ k: 'top', sev: 'info', act: ['sort', 'real'], ic: '', h: 'Top 10 took <b>' + s10 + '%</b> of the profit',
+            tip: 'The 10 most profitable wallets took ' + s10 + '% of all the profit made here' });
+        }
+        const rep = all.filter(o => crossings[o.w]).length;
+        if (rep >= 3) out.push({ k: 'repeat', sev: 'good', act: ['repeat'], ic: IC['seen-before'], h: '<b>' + rep + '</b> early in your other pumps',
+          tip: rep + ' wallets were early in your other saved pumps too' });
+        if (n >= 20) {
+          const so = pc(all.filter(o => (+o.sold || 0) >= 99).length, n), hold = pc(all.filter(o => (+o.sold || 0) < 50).length, n);
+          if (so >= 60) out.push({ k: 'sold', sev: 'info', act: ['sold'], ic: '', h: '<b>' + so + '%</b> already sold out',
+            tip: so + '% of the wallets sold 99% or more of what they bought' });
+          else if (hold >= 40) out.push({ k: 'hold', sev: 'info', act: null, ic: '', h: '<b>' + hold + '%</b> still holding',
+            tip: hold + '% of the wallets sold less than half of what they bought' });
+        }
+        const ex = {}; all.forEach(o => { const x = funders[o.w]; if (x && EXCH[x]) ex[EXCH[x][0]] = (ex[EXCH[x][0]] || 0) + 1; });
+        const exN = Object.values(ex).reduce((a, b) => a + b, 0), funded = all.filter(o => funders[o.w]).length;
+        if (exN >= 10 && funded && exN / funded >= 0.05) out.push({ k: 'cex', sev: 'info', act: ['only', 'cex'], ic: IC.exchange,
+          h: '<b>' + pc(exN, funded) + '%</b> funded from exchanges',
+          tip: exN + ' of ' + funded + ' wallets got their first SOL straight from an exchange: ' + Object.entries(ex).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([nm, c]) => nm + ' ' + c).join(', ') });
+        if (n >= 20) {
+          const won = pc(all.filter(o => (+o.real || 0) > 0).length, n);
+          out.push({ k: 'won', sev: 'info', act: ['profit'], ic: '', h: '<b>' + won + '%</b> took a profit', tip: won + '% of the wallets have a realized profit here' });
         }
         findActs = out.slice(0, FIND_MAX);
-        const html = (verdictNote ? '<span class="fpill bad tipt" title="' + esc(verdictNote) + '">' + verdictWord + '</span>' : '')
-          + findActs.map((x, i) => '<button type="button" class="fpill ' + x.sev + '" data-i="' + i + '" title="' + esc(x.tip) + ' · click to show them">' + x.ic + '<span>' + x.h + '</span></button>').join('');
+        const pill = (x, i) => x.act ? '<button type="button" class="fpill ' + x.sev + '" data-i="' + i + '" title="' + esc(x.tip) + ' · click to show them">' + x.ic + '<span>' + x.h + '</span></button>'
+          : '<span class="fpill ' + x.sev + ' tipt" title="' + esc(x.tip) + '">' + x.ic + '<span>' + x.h + '</span></span>';
+        const any = verdictNote || findActs.length;
+        const html = (any ? '<span class="flabel">Insights</span>' : '')
+          + (verdictNote ? '<span class="fpill bad tipt" title="' + esc(verdictNote) + '">' + verdictWord + '</span>' : '')
+          + findActs.map(pill).join('');
         if (el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; }
-        el.hidden = !verdictNote && !findActs.length;
+        el.hidden = !any;
       }
       document.getElementById('finds').addEventListener('click', e => {
         const b = e.target.closest('.fpill[data-i]'), x = b && findActs[+b.dataset.i]; if (!x) return;
         Object.assign(f, FDEF, { hide: [] });                               // exactly its wallets: other filters would hide some of them
         if (x.act[0] === 'only') f.only = x.act[1];
         if (x.act[0] === 'repeat') f.repeat = true;
+        if (x.act[0] === 'sold') f.sold = 99;
+        if (x.act[0] === 'profit') f.profit = true;
         saveF(); syncInputs(); limit = LIMIT;
         if (x.act[0] === 'sort') sortBy('real', -1); else apply();
         EarlyUI.use('finding', { k: x.k });
@@ -431,12 +450,14 @@
       const ONLY = { bundle: 'Only bundles', dev: 'Only the creator', fresh: 'Only fresh wallets', cex: 'Only funded from exchanges' };
       function activeNote() {
         const el = document.getElementById('factive'); if (!el) return;
-        const n = f.only ? ONLY[f.only] : f.repeat ? 'Only early in your other pumps' : f.funder ? 'Funded by ' + fundLabel(f.funder) : '';
+        const n = f.only ? ONLY[f.only] : f.repeat ? 'Only early in your other pumps' : f.funder ? 'Funded by ' + fundLabel(f.funder)
+          : f.profit ? 'Only wallets in profit' : f.sold >= 99 ? 'Only sold out' : '';
         el.hidden = !n; el.innerHTML = n ? esc(n) + ' <button type="button" class="ghost" aria-label="Clear">×</button>' : '';
       }
       document.getElementById('factive').addEventListener('click', e => {
         if (!e.target.closest('button')) return;
-        f.only = ''; f.repeat = false; f.funder = ''; saveF(); limit = LIMIT; apply();
+        f.only = ''; f.repeat = false; f.funder = ''; f.profit = false; if (f.sold >= 99) f.sold = 0;
+        saveF(); syncInputs(); limit = LIMIT; apply();
       });
       function apply() {
         pass = order.filter(okRow);
@@ -555,6 +576,7 @@
         sjob.title = saved ? 'In My analyses · click to remove' : 'Keep this analysis under My analyses';
         const any = !!(me && me.wallets && Object.keys(me.wallets).length);
         document.getElementById('fmine').hidden = !any && !f.mine;   // the chip appears with the first saved wallet
+        try { myChip(); } catch (e) {}                               // the agent's question about them, once the account is known
         if (f.mine) apply();                                     // «My lists» needs the account to know which rows stay
       }
       async function loadMe() {
@@ -995,6 +1017,16 @@
       const ASSIST_ON = {{ 'true' if assistant_on else 'false' }}, aipop = document.getElementById('aipop'), aiwrap = document.getElementById('aiwrap');
       const ALANG = navigator.language || 'en', SUMQ = 'Summary of this pump';
       const QUICK = [...apanel.querySelectorAll('.aqbtn[data-q]')].map(b => b.dataset.q);
+      // the agent knows your lists (custdev 01.10): when some of your saved wallets bought here, asking about them is one click
+      const MYQ = 'Which of my saved wallets are here?';
+      function myChip() {
+        if (QUICK.includes(MYQ) || !all.some(o => inList(o.w))) return;
+        QUICK.unshift(MYQ);
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'aqbtn'; b.dataset.q = MYQ;
+        b.innerHTML = aEsc(MYQ) + '<span aria-hidden="true">→</span>';
+        apanel.querySelector('.aquick').prepend(b);
+        aState();
+      }
       let aBusy = false, aSummed = false;
       const aEsc = t => esc(String(t == null ? '' : t));
       const aWallet = w => '<div class="awr"><button type="button" class="awallet mono" data-w="' + aEsc(w.wallet) + '" title="Open this wallet\'s card">' + aEsc(w.short) + '</button>'

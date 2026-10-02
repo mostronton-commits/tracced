@@ -18,6 +18,27 @@ Tokens created in the last {{ s.fresh_hours|int }} hours that reached a real mar
 Clones with huge caps and no trading, and charts bought by one bot, are filtered out. Biggest peak first; the list
 is refreshed at most every {{ s.fresh_refresh_min|int }} minutes. A click opens the chart, where you mark the range.
 
+## Insights
+
+Above the chart, up to four short conclusions about the buyers, in percent. Each one appears only when it says
+something. Where a filter exists for it, a click shows exactly those wallets.
+
+- **Creator bought**: the token's creator bought in the range.
+- **N% bought through bundles**: wallets that share a funder made that share of the range's buying (shown from 10%).
+- **N% fresh wallets**: of the wallets checked for age, the share under a day old when they bought (shown from 10
+  wallets and 10%).
+- **Top 10 took N% of the profit**: the ten most profitable wallets' share of all the profit made (shown from 20
+  wallets in profit and 40%).
+- **N early in your other pumps**: with a wallet connected, wallets that were early in your other saved analyses
+  too (shown from 3).
+- **N% already sold out**: wallets that sold 99% or more (shown from 60%). Otherwise **N% still holding**: wallets
+  that sold less than half (shown from 40%).
+- **N% funded from exchanges**: of the wallets whose first funder is known, the share funded straight from an
+  exchange (shown from 10 wallets and 5%).
+- **N% took a profit**: wallets with a realized profit (shown from 20 wallets).
+
+On the home page, every token shows the two strongest conclusions of its latest analysis under its name.
+
 ## Where the numbers come from
 
 Every row is a swap recorded on chain. Market cap is the swap price times the token supply, so an entry cap is the
@@ -151,6 +172,11 @@ method written under the card. A wallet it names opens its card.
 It reads only what the site computed from the table and does not compute a number of its own. Before an answer
 reaches the page, every number and wallet in it is checked against the analysis, and a line that fails is dropped.
 It never tells you to buy or sell, never predicts a price and never calls a wallet good or a token safe.
+
+It knows your lists too: when you ask, it sees which of your saved wallets bought in this range, the lists that hold
+them and your own tags for them, so "which of my wallets are here?" or "what did my insiders do?" has an answer. When
+some of them did buy here, the panel offers that question as a button. It sees only your own lists, and only when you
+ask.
 
 It answers only about the analysis it is on. Anything else, including a request to change how it works, gets one
 fixed reply. The agent needs a connected wallet; cards someone has already opened are kept, so opening them again is

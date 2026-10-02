@@ -176,12 +176,11 @@ th.sortable::after { content: " ⇅"; font-size: 9px; color: #CBD5E1; }
 th.sortable:hover::after { color: var(--muted); }
 th.sortable.asc::after { content: " ↑"; color: var(--ink); font-size: 10px; }
 th.sortable.desc::after { content: " ↓"; color: var(--ink); font-size: 10px; }
-/* the star by a wallet (owner, 02.10): it shows where it lives when the pointer comes into the row, lights up under the
-   pointer, and one click puts the wallet in the Watchlist; a filled one stays, in amber, and opens its lists */
+/* the star by a wallet (owner, 02.10): invisible until the pointer reaches its own place before the address, then it
+   lights up; one click puts the wallet in the Watchlist. A filled one stays, in amber, and opens its lists */
 .star { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-right: 2px; padding: 0;
   border: 0; border-radius: 6px; background: transparent; color: #94A3B8; font: 15px/1 var(--sans); vertical-align: -1px; cursor: pointer;
   opacity: 0; transition: opacity .12s ease, color .12s ease, background .12s ease; }
-.facts tbody tr:hover .star { opacity: .55; }
 .facts tbody tr .star:hover, .star:focus-visible { opacity: 1; color: #B45309; background: #FEF3C7; }
 .star.on, .facts tbody tr .star.on { opacity: 1; color: #D97706; }
 .star.on:hover { background: #FEF3C7; }
@@ -382,6 +381,8 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .rrow { display: grid; grid-template-columns: 90px 1fr 110px 110px 80px 70px; gap: 12px; align-items: center; padding: 9px 6px; border: 0; border-top: 1px solid var(--line); font-size: 13px; }
 .rrow:first-child { border-top: 0; } .rrow:hover { background: #F8FAFC; }
 .rrow .sym { font-weight: 600; } .rrow .n { text-align: right; } .rrow .open { text-align: right; color: var(--muted); }
+#recent .rrow .win { display: flex; flex-direction: column; gap: 2px; min-width: 0; }   /* the home list only: Lists has its own .win */
+#recent .rrow .win .ins { color: var(--ink); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 720px) { .rrow { grid-template-columns: 80px 1fr 60px auto; } .rrow .n:nth-child(4), .rrow .chip { display: none; } }
 
 .foot { border-top: 1px solid var(--line); font-size: 13px; }
@@ -1274,7 +1275,10 @@ header.top { position: relative; z-index: 45; }
 .wrow .del { margin-left: auto; }
 
 /* знахідки — короткі позначки над графіком (іконка, число, два слова); речення — у підказці. Колір — лише сенс */
-.fpills { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 10px; }
+.fpills { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0 10px; }
+.fpills .flabel { font: 600 10.5px/1 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
+span.fpill { cursor: help; }                    /* a fact with no filter behind it: it explains, it does not filter */
+.fpill b { font: 600 12.5px var(--mono); }
 .fpill { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 999px; cursor: pointer;
   border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: 500 12.5px/1 var(--sans); white-space: nowrap;
   transition: border-color .15s ease, background .15s ease; }

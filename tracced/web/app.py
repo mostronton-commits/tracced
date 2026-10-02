@@ -39,6 +39,7 @@ from . import accounts as acct_mod
 from . import activity as activity_mod
 from . import alerts as alerts_mod
 from . import fresh as fresh_mod
+from . import insights as insights_mod
 from . import docs as docs_mod
 from . import chart
 from . import demo as demo_mod
@@ -445,6 +446,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["runs_daily"] = DailyCount(daily_dir / "runs.json")       # живі прогони на весь сайт за добу (будь-який ключ підписує безкоштовно)
     app["usage_daily"] = DailyCount(daily_dir / "usage.json")     # рядків журналу (перегляди, кліки) на гаманець і на сайт за добу
     app["alerts_st_daily"] = DailyCount(daily_dir / "alerts_st.json")   # запити Solana Tracker від сповіщень за добу
+    app["alerts_day"] = DailyCount(daily_dir / "alerts_day.json")   # надіслані сповіщення на акаунт за добу (і чи вже попередили)
     app["feedback"] = FeedbackStore(Path(out_dir).parent / "feedback" / "feedback.jsonl")   # «Contact»: листи власнику
     app["feedback_throttle"] = Throttle(max_fails=5, window_s=3600, block_s=3600)       # п'ять листів на годину з однієї адреси
     app["usage_cache"], app["view_last"] = {}, {}                 # порахований дашборд на хвилину; останній перегляд сторінки
@@ -1685,6 +1687,21 @@ def _hour_rec(app, chat):
     return rec
 
 
+def _day_budget(app, pk):
+    """Не більше alerts_per_day надісланих повідомлень на акаунт за добу UTC (власник, 02.10: 200). None — можна (і місце
+    вже зайняте); 'day' — ліміт вичерпано, одне попередження на добу; False — мовчимо до 00:00 UTC. Рахуються лише ті, що
+    підуть: пропущене годинною стелею місця в добовій не займає (див. _day_undo)."""
+    cap, dc = int(app["s"].get("alerts_per_day", 200)), app["alerts_day"]
+    if dc.take("a:" + pk, cap):
+        return None
+    return "day" if dc.take("w:" + pk, 1) else False
+
+
+def _day_undo(app, pk):
+    """Місце, яке зайняв _day_budget, звільняється: повідомлення не піде (годинна стеля)."""
+    app["alerts_day"].add("a:" + pk, -1)
+
+
 def _hour_budget(app, chat):
     """Не більше alerts_per_hour повідомлень на чат за годину. None — можна; 'first' — щойно вичерпано (одне
     попередження); False — мовчимо до наступної години."""
@@ -1809,7 +1826,11 @@ async def _alert_tx_work(app, http, wallet, sig, via, bt, key):
         subs = []
         for x in app["alerts_wm"].get(wallet) or []:
             if alerts_mod.wants(ev, x["prefs"]):
-                b = _hour_budget(app, x["chat"])
+                b = _day_budget(app, x["pk"])             # спершу доба на акаунт, потім година на чат
+                if b is None:
+                    b = _hour_budget(app, x["chat"])
+                    if b is not None:
+                        _day_undo(app, x["pk"])
                 if b is not False:
                     subs.append((x, b))
         if not subs:
@@ -1837,6 +1858,9 @@ async def _alert_tx_work(app, http, wallet, sig, via, bt, key):
             if b == "first":
                 app["events"].add(sub["pk"], "alert_cap", bg=True)
                 text = "⏸ More than " + str(s.get("alerts_per_hour", 30)) + " alerts this hour: the rest are skipped until the next hour."
+            elif b == "day":
+                app["events"].add(sub["pk"], "alert_cap", what="day", bg=True)
+                text = "⏸ " + str(s.get("alerts_per_day", 200)) + " alerts today: the rest are skipped until 00:00 UTC."
             else:
                 first = ev["mint"] not in seen_ca
                 if len(seen_ca) > 2000:
@@ -3166,11 +3190,30 @@ def _demo(app):
     return app["demo"]
 
 
-def _by_token(jobs, example_id=None):
+_HEADLINES = {}          # (аналіз, коли закінчено, стан перевірок) → рядок висновків; головна не перераховує тисячі рядків щоразу
+
+
+def _headline(j, checked):
+    """Висновки останнього готового аналізу для рядка на головній (insights.headline); з пам'яті, поки результат той самий.
+    Перевірки віку й спонсорів дописують теги вже після прогону, тож ключ знає і про них."""
+    en = (j.result or {}).get("enrich") or {}
+    key = (j.id, j.finished_ms, en.get("done"), en.get("funders_done"), len((j.result or {}).get("rows") or []))
+    hit = _HEADLINES.get(j.id)
+    if hit and hit[0] == key:
+        return hit[1]
+    if len(_HEADLINES) > 500:
+        _HEADLINES.clear()
+    line = insights_mod.headline(j.result, checked)
+    _HEADLINES[j.id] = (key, line)
+    return line
+
+
+def _by_token(jobs, example_id=None, checked=None):
     """Один запис на токен: скільки діапазонів по ньому проаналізовано і що з них вийшло.
 
     На головній цікавий токен, а не окремий прогін: рядок веде на сторінку токена, де діапазони видно
-    на графіку і кожен відкривається своїм результатом.
+    на графіку і кожен відкривається своїм результатом. Під назвою — висновки останнього готового аналізу (кастдев
+    01.10: «підтягувати висновки, які підштовхують натиснути»).
     """
     groups = {}
     for j in jobs:
@@ -3179,7 +3222,9 @@ def _by_token(jobs, example_id=None):
     for mint, js in groups.items():
         done = [j for j in js if j.status == "done" and j.result]
         best = max(((j.result.get("summary") or {}).get("best_multiple") or 0 for j in done), default=0)
+        last = max(done, key=lambda j: j.finished_ms or j.created_ms or 0) if done else None
         out.append({
+            "insight": _headline(last, checked) if last else "",
             "mint": mint,
             "symbol": next((j.symbol for j in js if j.symbol), mint[:6]),
             "ranges": len(js),
@@ -3215,7 +3260,7 @@ async def index(request):
     if s.get("fresh_on") and f["ok_at"] and now_ms - f["ok_at"] < float(s.get("fresh_stale_hours", 3)) * 3_600_000:
         # вік рахується зараз, а не в момент оновлення; список, старший за кілька годин, не показується зовсім (рев'ю 30.09)
         fresh = [dict(r, age_h=max(0.0, (now_ms - r["created_ms"]) / 3_600_000) if r.get("created_ms") else None) for r in f["rows"]]
-    return render("index.html", request, tokens=_by_token(jobs, example.id if example else None),
+    return render("index.html", request, tokens=_by_token(jobs, example.id if example else None, s.get("age_lookups_max")),
                   totals=totals, sample=sample, bg_lines=lines, my_n=my_n,
                   fresh=fresh, fresh_min=int((now_ms - f["ok_at"]) / 60_000) if f["ok_at"] else None)
 
@@ -4028,8 +4073,13 @@ async def job_agent_ask(request):
     refuse, give_back = _agent_take(app, pk, "ask", _ip_key(_client_ip(request)))
     if refuse:
         return refuse
+    # свої списки людини: які з її збережених гаманців купували тут, у яких списках, з якими її тегами (кастдев 01.10)
+    acc = app["accounts"].load(pk) if pk else {}
+    names = {k: v.get("name") or k for k, v in (acc.get("lists") or {}).items()}
+    mine = {w: {"lists": [names.get(x, x) for x in (m.get("lists") or [])], "tags": list(m.get("my_tags") or [])}
+            for w, m in (acc.get("wallets") or {}).items()} if pk else None
     try:
-        out, dropped, usage = await asyncio.to_thread(app["agent"].ask, job.result, cfg, q, lang, history, focus)
+        out, dropped, usage = await asyncio.to_thread(app["agent"].ask, job.result, cfg, q, lang, history, focus, mine)
     except assistant_mod.AssistantError as e:
         give_back(e.usage)
         app["agent_store"].log({"pk": pk, "job": jid, "kind": "ask", "q": q, "chip": chip, "error": str(e), "usage": e.usage})
