@@ -550,6 +550,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_post("/me/wallets", me_add_wallets)
     app.router.add_post("/me/wallets/remove", me_remove_wallet)
     app.router.add_post("/me/wallets/tags", me_tags)
+    app.router.add_post("/me/wallets/alert", me_wallet_alert)
     app.router.add_post("/me/lists", me_lists)
     app.router.add_post("/me/lists/{action}", me_lists)
     app.router.add_post("/me/analyses", me_add_analysis)
@@ -952,6 +953,13 @@ class DailyCount:
             rec[1] = max(0, rec[1] + int(n))
             self.n[key] = rec
             self._flush()
+
+    def count(self, key, now=None):
+        """Скільки ключ набрав сьогодні."""
+        day = int((time.time() if now is None else now) // 86400)
+        with self._lock:
+            rec = self.n.get(key)
+            return rec[1] if rec and rec[0] == day else 0
 
     def left(self, key, cap, now=None):
         day = int((time.time() if now is None else now) // 86400)
@@ -1819,7 +1827,7 @@ async def _alert_tx_work(app, http, wallet, sig, via, bt, key):
     st["events"] += 1
     if app["activity"].done(wallet, sig):            # оброблене переживає перезапуск; повтор після невдалої відправки не рахується
         for ev in evs:                               # активність гаманця для Lists: кожна угода, хоч би що обрали підписники
-            app["activity"].bump(wallet, ev["side"], int(ev.get("ts") or 0) * 1000 or None)
+            app["activity"].bump(wallet, ev["side"], int(ev.get("ts") or 0) * 1000 or None, ev.get("usd"))
     for ev in evs:
         # місце в годинній стелі кожного чату — ДО платних запитів і одразу: двадцять транзакцій водночас інакше всі
         # пройшли б перевірку і всі заплатили б (рев'ю 30.09, 01.10). Не надіслане все одно займає місце — це стеля
@@ -1874,6 +1882,7 @@ async def _alert_tx_work(app, http, wallet, sig, via, bt, key):
                 seen_ca.discard(ev["mint"])              # не дійшло: адреса піде в наступному
             if sent and b is None:
                 st["sent"] += 1
+                app["alerts_day"].add("s:" + sub["pk"] + ":" + wallet, 1)    # скільки цей гаманець надіслав людині сьогодні (картка в Lists)
                 st["last_ms"] = int(time.time() * 1000)
                 # не дія людини (bg): сповіщення не робить підписника «активним» у дашборді (рев'ю 30.09)
                 app["events"].add(sub["pk"], "alert", side=ev["side"], usd=round(ev["usd"]), mint=ev["mint"], bg=True,
@@ -2307,10 +2316,12 @@ async def me_lists(request, pk):
             ws = [w for w in ws[: acct_mod.MAX_WALLETS] if acct_mod.valid_pubkey(w)]
             src = str(body["from"]) if body.get("from") else None
             out = {"wallets": acc.place_wallets(pk, ws, str(body.get("to") or ""), src), "moved": bool(src)}
-        elif action == "alerts":
+        elif action == "alerts":                                # усі гаманці списку разом (до стелі); з 02.10 дзвіночок — на гаманці
             if not _alerts_allowed(request.app, pk):
                 return _jerr("Alerts are in a closed test for now.", 403)
-            out = {"alerts": acc.set_list_alerts(pk, str(body.get("id") or ""), bool(body.get("on")))}
+            on = bool(body.get("on"))
+            out = {"alerts": on, "changed": acc.set_list_alerts(pk, str(body.get("id") or ""), on,
+                                                                   int(request.app["s"].get("alerts_max_wallets", 10)))}
         else:
             return _jerr("Unknown action.", 404)
     except acct_mod.AccountError as e:
@@ -2320,6 +2331,25 @@ async def me_lists(request, pk):
     if action != "move" or out["wallets"]:                    # нічого не змінилось — нічого в журнал
         request.app["events"].add(pk, "list_" + action, **extra)
     return web.json_response(dict(out, ok=True, lists=acc.load(pk)["lists"]))
+
+
+@_acct_route
+async def me_wallet_alert(request, pk):
+    """Дзвіночок на одному гаманці (власник, 02.10): {wallet, on} → {on, n, cap}. Понад стелю — 400 з поясненням,
+    що спершу треба вимкнути інший."""
+    app = request.app
+    if not _alerts_allowed(app, pk):
+        return _jerr("Alerts are in a closed test for now.", 403)
+    body = await _json_body(request)
+    if body is None:
+        return _jerr("Bad request body.")
+    cap = int(app["s"].get("alerts_max_wallets", 10))
+    try:
+        on, n = app["accounts"].set_wallet_alert(pk, str(body.get("wallet") or ""), bool(body.get("on")), cap)
+    except acct_mod.AccountError as e:
+        return _jerr(str(e))
+    app["events"].add(pk, "wallet_alert", on=int(on))
+    return web.json_response({"ok": True, "on": on, "n": n, "cap": cap})
 
 
 @_acct_route
@@ -2430,15 +2460,16 @@ async def me_page(request):
     cap = int(s.get("alerts_max_wallets", 10))
     watched = alerts_mod.watch_map([a], request.app["admins"], bool(s.get("alerts_open")), cap,
                                    s.get("alerts_min_usd")) if alerts_ok else {}
-    # скільки гаманців стоїть під дзвіночками: більше за стелю — сторінка каже, що старші мовчать (власник, 02.10: стеля 10)
-    bells = {k for k, v in a["lists"].items() if isinstance(v, dict) and v.get("alerts")}
-    bell_n = sum(1 for w in wallets if bells & set(w.get("lists") or []))
+    # дзвіночки на гаманцях і скільки алертів уже пішло сьогодні: лічильник угорі і рядок у картці (власник, 02.10)
+    alert_n = sum(1 for w in wallets if w.get("alert"))
+    day_cap, dc = int(s.get("alerts_per_day", 200)), request.app["alerts_day"]
     act = request.app["activity"].of(watched)
-    wmeta = {w["wallet"]: dict({k: w.get(k) for k in ("my_tags", "lists", "added_ms")}, act=act.get(w["wallet"])) for w in wallets}   # what the card shows, by wallet
+    wmeta = {w["wallet"]: dict({k: w.get(k) for k in ("my_tags", "lists", "added_ms")}, act=act.get(w["wallet"]), alert=bool(w.get("alert")),
+                               sent_today=dc.count("s:" + pk + ":" + w["wallet"]) or None) for w in wallets}   # what the card shows, by wallet
     return render("me.html", request, wallets=wallets, analyses=analyses, max_my_tags=acct_mod.MAX_MY_TAGS, wmeta=wmeta, act=act,
                   demo_mint=(demo or {}).get("mint"), lists=lists, max_lists=acct_mod.MAX_LISTS,
                   alerts_ok=alerts_ok,   # без бота картка не обіцяє того, чого нема
-                  bell_n=bell_n, watch_cap=cap,
+                  alert_n=alert_n, watch_cap=cap, day_cap=day_cap, day_used=dc.count("a:" + pk),
                   tg={"linked": bool(tg.get("chat")), "user": tg.get("user") or ""},
                   prefs=alerts_mod.prefs_of(a.get("alerts"), request.app["s"].get("alerts_min_usd")))
 

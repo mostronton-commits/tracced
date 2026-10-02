@@ -25,10 +25,11 @@ A row in a list is the wallet and your tags for it: **+** adds one right there. 
 about the wallet itself: who it is if anyone knows, its age and first funder, the other analyses you saved it in, and its
 last 7 or 30 days on every token. Nothing about the token you found it on: that stays on the result.
 
-In a list with alerts on, a row also shows the wallet's buys (↑) and sells (↓) that the alerts saw in the last 7 days
-and how long ago it last traded; its card says the same. Every trade counts, whatever your alert settings (except the
-skipped part of a bot's minute), from the moment the alerts started watching the wallet. When no list with alerts holds it any more, its counts are dropped,
-and they start again the next time. Counts are kept for 8 days.
+A wallet with its bell on also shows, in its row, the buys (↑) and sells (↓) the alerts saw in the last 7 days and how
+long ago it last traded. Its card adds its biggest buy in those days and how many alerts it has sent you today. Every
+trade counts, whatever your alert settings (except the skipped part of a bot's minute), from the moment the alerts
+started watching the wallet. When its bell goes off, its counts are dropped, and they start again the next time.
+Counts are kept for 8 days.
 
 ## Your own tags
 
@@ -53,8 +54,8 @@ The chip above the table filters the list down to those wallets.
 
 ## Telegram alerts
 
-Open a list and switch its alerts on: the buys and sells of its wallets come to Telegram, a few seconds after they
-happen. If the live stream misses a trade, a check that runs every minute finds the trades of the last 10 minutes; an
+Click the bell by a wallet, in its row or in its card: its buys and sells come to Telegram, a few seconds after they
+happen. The bell is per wallet, so you choose exactly whose trades you hear about. If the live stream misses a trade, a check that runs every minute finds the trades of the last 10 minutes; an
 alert that comes a minute or more late says how long ago the trade was. A wallet that trades more than 30 times a
 minute is taken for a bot: the rest of that minute is skipped.
 Only trades count: a wallet has to sign the transaction itself and pay SOL or a stablecoin for a token, or get them for
@@ -63,10 +64,11 @@ one. Transfers, incoming SOL, airdrops and token-for-token swaps stay silent, an
 - **Connect**: on your lists page, press *Connect Telegram*, then *Start* in the bot. The link works once, for ten
   minutes, and only from the wallet you are signed in with. A chat already connected to another wallet stays with it:
   send /stop there first.
-- **Choose**: buys, sells, and the smallest trade in dollars, the same for every list with the bell on. Up to
-  {{ s.alerts_max_wallets }} wallets per account: the newest ones on lists with the bell, the older ones stay silent and
-  the lists page says so. Up to {{ s.alerts_per_hour }} alerts an hour and {{ s.alerts_per_day }} a day (UTC); past either,
-  one message says so and the rest of that hour or day is skipped.
+- **Choose**: buys, sells, and the smallest trade in dollars, the same for every wallet with its bell on. Up to
+  {{ s.alerts_max_wallets }} wallets per account: with all of them on, turn one off before you turn another on. Up to
+  {{ s.alerts_per_hour }} alerts an hour and {{ s.alerts_per_day }} a day (UTC); past either, one message says so and the
+  rest of that hour or day is skipped. The lists page counts both: how many wallets have their bell on, and how many
+  alerts went out today.
 - **Stop**: *Disconnect* on the lists page, or /stop in the bot.
 
 An alert reads like a trades channel, three lines:

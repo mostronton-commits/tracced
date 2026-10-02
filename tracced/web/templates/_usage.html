@@ -88,7 +88,7 @@
   <div class="khead"><h3>Alerts and fresh pumps</h3><span class="muted small">Telegram, and the way back to the site</span></div>
   <div class="kgrid">
     <div class="kcard" title="Wallets with Telegram connected now · lists with alerts switched on · Connect presses in this period and how many reached Start">
-      <span class="klabel">Telegram connected</span><b class="knum">{{ al.linked }}</b><span class="kfoot">{{ al.bells }} list{{ '' if al.bells == 1 else 's' }} with alerts on · {{ al.linked_new }} of {{ al.started }} pressed Start</span></div>
+      <span class="klabel">Telegram connected</span><b class="knum">{{ al.linked }}</b><span class="kfoot">{{ al.bells }} wallet{{ '' if al.bells == 1 else 's' }} with alerts on · {{ al.linked_new }} of {{ al.started }} pressed Start</span></div>
     <div class="kcard" title="Alerts sent in this period, to how many wallets, and the typical delay from the trade on chain to the message">
       <span class="klabel">Alerts sent</span><b class="knum">{{ al.sent }}</b><span class="kfoot">to {{ al.to }} · {{ al.buys }} buys{% if al.lag_s is not none %} · {{ al.lag_s|round(1) }} s after the trade{% endif %}</span></div>
     <div class="kcard" title="Visits that came from a link in an alert, guests included, per alert sent">

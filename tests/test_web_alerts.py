@@ -77,8 +77,8 @@ if AioHTTPTestCase:
             r = await self.client.post("/me/alerts", json={"buys": True, "sells": False, "min_usd": 250}, headers=self.origin)
             self.assertEqual((await r.json())["prefs"], {"buys": True, "sells": False, "min_usd": 250.0})
             r = await self.client.post("/me/lists/alerts", json={"id": "main", "on": True}, headers=self.origin)
-            self.assertIs((await r.json())["alerts"], True)
-            self.assertTrue(self.app["accounts"].load(TEST_PK)["lists"]["main"]["alerts"])
+            d = await r.json()
+            self.assertEqual((d["alerts"], d["changed"]), (True, 0))                      # the whole list at once; empty here
             self.assertIn('id="tgbar"', await (await self.client.get("/me")).text())
             self.client.session.headers["Cookie"] = wallet_cookie(W1)                      # anyone else, in the closed test
             self.assertEqual((await self.client.post("/me/telegram/link", json={}, headers=self.origin)).status, 403)
@@ -138,7 +138,8 @@ if AioHTTPTestCase:
             act.data[W1]["last"] = 0
             self.assertIn("no trades yet", await (await self.client.get("/me")).text())       # watched, nothing traded
 
-        async def test_the_cap_says_which_wallets_stay_silent(self):
+        async def test_the_bell_is_per_wallet_and_capped(self):
+            # owner, 02.10: the bell on each wallet, at most alerts_max_wallets (10) on; the page counts them and today's alerts
             seed_demo(self.tmp.name, self.app)
             self.assertEqual(settings.load()["alerts_max_wallets"], 10)                     # owner, 02.10: 50 → 10 per account
             from tracced.web import accounts as acct_mod
@@ -146,15 +147,25 @@ if AioHTTPTestCase:
             r = await self.client.post("/me/wallets", json={"job": DEMO_JID, "wallets": [W1]}, headers=self.origin)
             self.assertEqual(r.status, 200, await r.text())
             self.app["accounts"].add_wallets(TEST_PK, [{"wallet": w2}])
-            def later(a): a["wallets"][w2]["added_ms"] = a["wallets"][W1]["added_ms"] + 1000   # saved after W1, whatever the clock
-            self.app["accounts"]._update(TEST_PK, later)
             self.app["accounts"].set_telegram(TEST_PK, 4242, "@owner")
-            self.assertEqual((await self.client.post("/me/lists/alerts", json={"id": "main", "on": True}, headers=self.origin)).status, 200)
-            self.assertNotIn("stays silent", await (await self.client.get("/me")).text())     # 2 of 10: all watched
+            bell = lambda w, on: self.client.post("/me/wallets/alert", json={"wallet": w, "on": on}, headers=self.origin)
+            d = await (await bell(W1, True)).json()
+            self.assertEqual((d["on"], d["n"], d["cap"]), (True, 1, 10))
+            self.assertEqual(list(app_mod._watch_now(self.app)), [W1])                       # only the wallet with its bell on
             self.app["s"]["alerts_max_wallets"] = 1
+            r = await bell(w2, True)
+            self.assertEqual(r.status, 400)
+            self.assertIn("Turn one off first", (await r.json())["error"])
             html = await (await self.client.get("/me")).text()
-            self.assertIn("Alerts follow your 1 newest wallet on lists with the bell: 1 older one stays silent.", html)
-            self.assertEqual(list(app_mod._watch_now(self.app)), [w2])                       # the newest one, as the page says
+            self.assertIn('data-cap="1">1</b> of 1 wallets', html)                          # the counters by the switch
+            self.assertIn("<b>0</b> of 200 alerts today", html)
+            self.assertIn('class="ghost bell on" data-bell', html)
+            self.assertEqual((await (await bell(W1, False)).json())["n"], 0)
+            self.assertEqual((await (await bell(w2, True)).json())["n"], 1)
+            self.assertEqual(list(app_mod._watch_now(self.app)), [w2])
+            self.assertEqual((await bell("Q" * 44, True)).status, 400)                       # not in the lists
+            self.client.session.headers["Cookie"] = wallet_cookie(W1)                        # anyone else, in the closed test
+            self.assertEqual((await bell(w2, True)).status, 403)
 
         async def test_the_poll_catches_what_the_stream_missed(self):
             now = int(time.time())
@@ -487,6 +498,7 @@ if AioHTTPTestCase:
                 for i in range(4):
                     await app_mod._alert_tx_safe(self.app, None, "WAL", f"d{i}")
             self.assertEqual(len(texts), 5)                                                # one more alert, then the day's line, then silence
+            self.assertEqual(self.app["alerts_day"].count("s:" + TEST_PK + ":WAL"), 3)      # what the wallet's card says it sent today
             self.assertIn("alerts today", texts[-1])
             self.assertIn("00:00 UTC", texts[-1])
 

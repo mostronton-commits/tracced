@@ -1318,7 +1318,14 @@ span.fpill { cursor: help; }                    /* a fact with no filter behind 
 .tgbtn:hover { background: #229ED9; border-color: #1E8EC4; }
 .tghint { grid-column: 1; margin: 12px 0 0; color: var(--muted); font-size: 13px; } .tghint .lbell { color: #15803D; margin: 0 2px; }
 .tghint .lbell svg { display: inline-block; vertical-align: -3px; }
-.tghint.over { color: #92400E; }
+.tgstat { display: block; margin-top: 4px; font: 12px var(--mono); color: var(--muted); } .tgstat b { color: var(--ink); font-weight: 600; }
+/* the bell on a wallet (owner, 02.10): grey when off, green when its trades come to Telegram */
+.mewl td.rm .bell, .wcard .dh-act .bell { width: 30px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; color: #94A3B8; }
+.wcard .dh-act .bell { width: 36px; height: 36px; }
+.mewl td.rm .bell svg, .wcard .dh-act .bell svg { width: 16px; height: 16px; }
+.mewl td.rm .bell.on, .wcard .dh-act .bell.on { color: #15803D; background: #F0FDF4; }
+.mewl td.rm .bell:hover, .wcard .dh-act .bell:hover { color: var(--ink); }
+.mewl td.rm .bell.on:hover, .wcard .dh-act .bell.on:hover { color: #166534; background: #DCFCE7; }
 /* Lists: your tags right in the row, added there */
 .mewl .wadr { flex: none; }
 .mewl .mytags { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }

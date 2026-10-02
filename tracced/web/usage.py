@@ -23,7 +23,7 @@ UI = {
     "show-more": ("all",), "find-pump": (), "range-preset": ("p",), "finding": ("k",), "limit-window": ("kind",),
     "range-set": ("end",), "range-add": (), "range-reset": (), "tf": ("tf",), "chart-nav": ("to",),
     "list-tab": (), "copy": ("what",), "ext": ("to",), "cur": ("to",), "tz": ("to",), "leave": ("secs",),
-    "egg": ("what",), "star": ("on",), "list-move": ("how",),
+    "egg": ("what",), "star": ("on",), "list-move": ("how",), "wallet-bell": ("on",),
 }
 # короткий рядок: адреса гаманця (32-44 символи) чи набраний людиною текст сюди не пролазять фізично
 VAL = re.compile(r"^[A-Za-z0-9_.:-]{1,24}$")
@@ -157,12 +157,13 @@ CLICKS = {"card-open": "Opened a wallet card", "card-close": "Closed a wallet ca
           "range-add": "Added a range", "range-reset": "Reset the ranges", "tf": "Changed the timeframe", "chart-nav": "Jumped on the chart",
           "list-tab": "Switched a list", "copy": "Copied an address", "ext": "Followed a link out", "cur": "Switched USD/SOL",
           "tz": "Switched UTC/local", "leave": "Left a page", "egg": "Found an easter egg",
-          "star": "Starred a wallet into the Watchlist", "list-move": "Moved or copied a wallet to another list"}
+          "star": "Starred a wallet into the Watchlist", "list-move": "Moved or copied a wallet to another list",
+          "wallet-bell": "Switched a wallet's alerts"}
 # що на сайті можна натиснути зараз: з цього списку — «ніхто не користувався» (прибрані кнопки сюди не входять,
 # інакше вони висіли б у списку вічно)
 UI_FEATURES = ("card-open", "card-period", "pin", "sort", "filter", "hide", "filters-toggle", "filters-reset", "funder", "finding",
                "star", "export", "show-more", "agent-open", "range-set", "range-add", "range-reset", "tf",
-               "chart-nav", "list-tab", "list-move", "copy", "ext", "cur", "tz")
+               "chart-nav", "list-tab", "list-move", "wallet-bell", "copy", "ext", "cur", "tz")
 PAGE_NAMES = {"job": "On a result", "token": "On a token's chart", "me": "In Lists", "home": "On the home page", "docs": "In the docs"}
 FUNNEL = (("result", "Opened a result"), ("card", "Opened a wallet card"), ("run", "Ran an analysis"),
           ("keep", "Saved or exported"), ("agent", "Asked the agent"))
@@ -618,7 +619,7 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
         if e.get("event") == "telegram" and not e.get("on") and person(e.get("pubkey")):
             unlinks[e.get("via") or "site"] = unlinks.get(e.get("via") or "site", 0) + 1
     alerts = {"linked": sum(1 for a in accts if (a.get("telegram") or {}).get("chat")),
-              "bells": sum(1 for a in accts for l in (a.get("lists") or {}).values() if isinstance(l, dict) and l.get("alerts")),
+              "bells": sum(1 for a in accts for m in (a.get("wallets") or {}).values() if isinstance(m, dict) and m.get("alert")),
               "started": sum(1 for e in evp if e.get("event") == "tg_link" and person(e.get("pubkey"))),
               "linked_new": sum(1 for e in evp if e.get("event") == "telegram" and e.get("on") and person(e.get("pubkey"))),
               "sent": len(sent), "buys": sum(1 for e in sent if e.get("side") == "buy"),
@@ -671,6 +672,8 @@ def label(e):
         return {"text": "ran an analysis:", **link}
     if ev == "delete_analysis":
         return {"text": f"deleted the analysis {g('symbol') or job or ''}".rstrip()}
+    if ev == "wallet_alert":
+        return {"text": f"turned alerts {'on' if g('on') else 'off'} for a wallet"}
     if ev == "list_move":
         return {"text": f"{'moved' if g('how') == 'move' else 'copied'} {_plural(int(g('n') or 1), 'wallet')} to another list"}
     if ev in ("list_create", "list_rename", "list_remove"):

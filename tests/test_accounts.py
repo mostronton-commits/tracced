@@ -204,6 +204,27 @@ class TestStore(unittest.TestCase):
         with self.assertRaises(A.AccountError):
             self.st.place_wallets(self.pk, [w1], lid, "gone")
 
+    def test_a_list_bell_becomes_bells_on_its_newest_wallets(self):
+        # before 02.10 the bell was on a list; once, its newest wallets (up to the cap) get their own and the list loses it
+        import json
+        ws = {addr(60 + i): {"lists": ["main"], "added_ms": 1000 + i} for i in range(12)}
+        ws[addr(80)] = {"lists": ["quiet"], "added_ms": 5000}
+        raw = {"pubkey": self.pk, "wallets": ws, "analyses": {},
+               "lists": {"main": {"name": "Watchlist", "alerts": True}, "quiet": {"name": "Quiet"}}}
+        with open(self.st.path(self.pk), "w") as f:
+            json.dump(raw, f)
+        a = self.st.load(self.pk)
+        on = sorted(w for w, m in a["wallets"].items() if m.get("alert"))
+        self.assertEqual(on, sorted(addr(60 + i) for i in range(2, 12)))               # the 10 newest of the bell's list
+        self.assertNotIn("alerts", a["lists"]["main"])
+        self.assertEqual(A.migrate_alerts(a), a)                                         # once only
+        self.assertEqual(self.st.set_wallet_alert(self.pk, addr(80), False, 10), (False, 10))
+        with self.assertRaises(A.AccountError):
+            self.st.set_wallet_alert(self.pk, addr(80), True, 10)                         # 10 of 10: turn one off first
+        self.assertEqual(self.st.set_wallet_alert(self.pk, addr(60), True, 11), (True, 11))
+        self.assertEqual(self.st.set_list_alerts(self.pk, "main", False, 11), 11)       # the whole list off at once
+        self.assertEqual(self.st.set_list_alerts(self.pk, "main", True, 3), 3)          # on, up to the cap, newest first
+
     def test_removing_many_wallets_is_one_write(self):
         # вибір з сотні гаманців прибирається одним записом файлу, а промах не пише нічого
         from unittest import mock

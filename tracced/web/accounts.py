@@ -223,6 +223,29 @@ def _now_ms():
     return int(time.time() * 1000)
 
 
+ALERT_WALLETS = 10      # стеля дзвіночків на акаунт за замовчуванням (налаштування alerts_max_wallets); і для переносу
+
+
+def migrate_alerts(a, cap=ALERT_WALLETS):
+    """З 02.10 дзвіночок — на гаманці, а не на списку (власник: «як людина обере, від яких гаманців алерти»). Один раз:
+    гаманці списків, де дзвіночок був увімкнений, отримують свій — найновіші cap, як і стежив потік до того. Дзвіночок
+    списку після цього зникає. Повторно нічого не робить (alerts_v)."""
+    if a.get("alerts_v") == 2:
+        return a
+    lists, ws = a.get("lists") or {}, a.get("wallets") or {}
+    bells = {lid for lid, l in lists.items() if isinstance(l, dict) and l.get("alerts")}
+    if bells and not any(isinstance(m, dict) and m.get("alert") for m in ws.values()):
+        cands = sorted((w for w, m in ws.items() if isinstance(m, dict) and bells & set(m.get("lists") or [])),
+                       key=lambda w: -(ws[w].get("added_ms") or 0))
+        for w in cands[:cap]:
+            ws[w]["alert"] = True
+    for l in lists.values():
+        if isinstance(l, dict):
+            l.pop("alerts", None)
+    a["alerts_v"] = 2
+    return a
+
+
 def _empty(pubkey):
     return {"pubkey": pubkey, "created_ms": _now_ms(), "last_seen_ms": _now_ms(), "wallets": {}, "analyses": {},
             "lists": {MAIN_LIST: {"name": "Watchlist", "created_ms": _now_ms()}}}
@@ -263,7 +286,7 @@ class AccountStore:
         for w in a["wallets"].values():
             ls = [x for x in (w.get("lists") or []) if x in lists]
             w["lists"] = ls or [MAIN_LIST]
-        return a
+        return migrate_alerts(a)
 
     def save(self, a):
         path = self.path(a["pubkey"])
@@ -446,13 +469,35 @@ class AccountStore:
             return a["alerts"]
         return self._update(pubkey, fn)
 
-    def set_list_alerts(self, pubkey, list_id, on):
-        """Дзвіночок на списку: гаманці цього списку шлють купівлі й продажі в Telegram."""
+    def set_wallet_alert(self, pubkey, wallet, on, cap=ALERT_WALLETS):
+        """Дзвіночок на одному гаманці → (увімкнено, скільки дзвіночків тепер). Понад cap — AccountError з поясненням."""
+        def fn(a):
+            m = a["wallets"].get(wallet)
+            if m is None:
+                raise AccountError("That wallet is not in your lists.")
+            n = sum(1 for x in a["wallets"].values() if x.get("alert"))
+            if on and not m.get("alert") and n >= cap:
+                raise AccountError(f"Alerts are on for {cap} of {cap} wallets. Turn one off first.")
+            if bool(m.get("alert")) != bool(on):
+                n += 1 if on else -1
+            m["alert"] = bool(on)
+            return bool(on), n
+        return self._update(pubkey, fn)
+
+    def set_list_alerts(self, pubkey, list_id, on, cap=ALERT_WALLETS):
+        """Усі гаманці списку разом: увімкнути — найновішим, поки є місце до cap; вимкнути — усім → скільки змінилось."""
         def fn(a):
             if list_id not in a["lists"]:
                 raise AccountError("No such list.")
-            a["lists"][list_id]["alerts"] = bool(on)
-            return bool(on)
+            ws = sorted(((w, m) for w, m in a["wallets"].items() if list_id in (m.get("lists") or [])),
+                        key=lambda kv: -(kv[1].get("added_ms") or 0))
+            n, changed = sum(1 for x in a["wallets"].values() if x.get("alert")), 0
+            for _, m in ws:
+                if on and not m.get("alert") and n < cap:
+                    m["alert"], n, changed = True, n + 1, changed + 1
+                elif not on and m.get("alert"):
+                    m["alert"], n, changed = False, n - 1, changed + 1
+            return changed
         return self._update(pubkey, fn)
 
     def delete_list(self, pubkey, list_id):
@@ -528,7 +573,7 @@ class AccountStore:
 
 # дії, які власник читає рядком у «Recent actions»; решта журналу (перегляди, кліки, прогони, витрати, ліміти) —
 # сировина для підрахунків дашборда, і в стрічці дій вона б утопила все інше
-ACTIONS = frozenset({"signin", "signout", "save_wallets", "remove_wallet", "list_create", "list_rename", "list_remove", "list_move",
+ACTIONS = frozenset({"signin", "signout", "save_wallets", "remove_wallet", "list_create", "list_rename", "list_remove", "list_move", "wallet_alert",
                      "save_analysis", "remove_analysis", "set_demo", "agent_method", "analyze", "delete_analysis",
                      "agent", "tags", "export", "feedback", "assistant", "waitlist"})   # assistant, waitlist — лише в старому файлі
 MONTH_FILE = re.compile(r"^\d{4}-\d{2}\.jsonl$")

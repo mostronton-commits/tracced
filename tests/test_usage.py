@@ -172,7 +172,8 @@ class TestSummary(unittest.TestCase):
         self.assertEqual(self.summ(period="today")["pulse"]["dau"], 1)
 
     def test_alerts_count_but_never_as_the_subscribers_activity(self):
-        acc = [{"pubkey": A, "created_ms": NOW - 3 * D, "telegram": {"chat": 1}, "lists": {"main": {"name": "Main", "alerts": True}}}]
+        acc = [{"pubkey": A, "created_ms": NOW - 3 * D, "telegram": {"chat": 1}, "lists": {"main": {"name": "Main"}},
+                "wallets": {"W" * 44: {"lists": ["main"], "alert": True}, "V" * 44: {"lists": ["main"]}}}]   # bells are on wallets now
         evs = [ev(NOW - 3 * H, A, "tg_link"), ev(NOW - 3 * H, A, "telegram", on=1),
                ev(NOW - 2 * H, A, "alert", side="buy", usd=500, mint="M", lag_ms=4000, bg=True),
                ev(NOW - 2 * H, A, "alert", side="sell", usd=300, mint="M", lag_ms=6000),        # an old row without bg

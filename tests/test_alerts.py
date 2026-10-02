@@ -100,7 +100,8 @@ class TestPrefsAndWatch(unittest.TestCase):
         self.assertEqual([(s["chat"], s["lists"], s["prefs"]["min_usd"]) for s in wm[W]], [(1, ["Main"], 500.0)])
         wm = A.watch_map(acc, admins={admin}, open_to_all=True, default_min=100)
         self.assertEqual(sorted(s["chat"] for s in wm[W]), [1, 2])                  # no Telegram, no alerts
-        acc[0]["lists"]["x"]["alerts"] = True
+        self.assertNotIn("alerts", acc[0]["lists"]["main"])                         # the list's bell became its wallets' bells
+        acc[0]["wallets"][OTHER]["alert"] = True                                   # since 02.10 the bell is on a wallet
         self.assertEqual(list(A.watch_map(acc, admins={admin}, max_wallets=1)), [OTHER])   # the newest first, up to the cap
 
 
