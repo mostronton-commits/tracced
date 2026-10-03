@@ -30,14 +30,14 @@
     <button type="button" class="link" id="tgunlink"{% if not tg.linked %} hidden{% endif %}>Disconnect</button>
   </div>
   {# the bell is on each wallet (owner, 02.10): how many are on and how many alerts went out today, right where the switch is #}
-  <p class="tghint" id="tghint"{% if not tg.linked %} hidden{% endif %}>Click the bell <i class="lbell"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2V7.4a4 4 0 0 1 8 0v3.8l1.2 1.4H2.8z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/></svg></i> by a wallet: its buys and sells come to this chat.
+  <p class="tghint" id="tghint"{% if not tg.linked %} hidden{% endif %}>Click the bell <i class="lbell">{{ icon('bell') }}</i> by a wallet: its buys and sells come to this chat.
     <span class="tgstat" id="tgstat" title="At most {{ s.alerts_per_wallet_day }} a day from any one wallet"><b id="tgn" data-cap="{{ watch_cap }}">{{ alert_n }}</b> of {{ watch_cap }} wallets · <b>{{ day_used }}</b> of {{ day_cap }} alerts today</span></p>
 </section>
 {% endif %}
 <section class="card me" id="list">
   <div class="row mehead">
     <h2>Lists</h2><span class="muted small" id="wcount">{{ wallets|length }} wallet{{ '' if wallets|length == 1 else 's' }}</span>
-    {% if wallets %}<div class="menu right"><button type="button" class="ghost xbtn" data-menu title="Export the list on screen: CSV or TXT" aria-label="Export"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v8M4.6 7.2 8 10.6l3.4-3.4M3 13.5h10"/></svg></button>
+    {% if wallets %}<div class="menu right"><button type="button" class="ghost xbtn" data-menu title="Export the list on screen: CSV or TXT" aria-label="Export">{{ icon('download') }}</button>
       <div class="menu-panel r" hidden><a href="/me/wallets.csv" id="xcsv">CSV <small>all columns</small></a><button type="button" id="xtxt">TXT <small>addresses only</small></button></div></div>{% endif %}
   </div>
   <div class="ltabs" role="tablist" id="ltabs">
@@ -55,14 +55,14 @@
   </tr></thead><tbody>
   {% for w in wallets %}
     <tr data-w="{{ w.wallet }}" data-lists="{{ (w.lists or ['main'])|join(' ') }}" tabindex="0">
-      <td><span class="wlrow"><span class="wadr mono" title="Open the wallet's card">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</span><span class="mytags">{% for t in w.my_tags or [] %}<span class="tag mine" title="Your tag"><span>{{ t }}</span><button type="button" class="tagx" data-tag="{{ t }}" title="Remove this tag" aria-label="Remove the tag {{ t }}">×</button></span>{% endfor %}<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd" title="Add your own tag: it names the wallet here and in the alerts" aria-label="Add your own tag"{% if (w.my_tags or [])|length >= max_my_tags %} hidden{% endif %}><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg></button></span>{% set ac = (act or {}).get(w.wallet) %}{% if ac %}{% set busy = ac.buys or ac.sells %}{% set ago = ac.last|ago %}{% set when = 'just now' if ago == 'now' else ago ~ ' ago' %}{% set sago = ac.since|ago %}{% set swhen = 'just now' if sago == 'now' else sago ~ ' ago' %}<span class="wact{{ '' if busy else ' quiet' }}" title="{% if busy %}Trades the alerts saw in the last 7 days: {{ ac.buys }} buy{{ '' if ac.buys == 1 else 's' }}, {{ ac.sells }} sell{{ '' if ac.sells == 1 else 's' }}. Last trade {{ when }}.{% elif ac.last %}No trades in the last 7 days. Last trade {{ when }}.{% else %}No trades since the alerts started watching it {{ swhen }}.{% endif %}">{% if busy %}<b class="up">↑{{ ac.buys }}</b><b class="dn">↓{{ ac.sells }}</b><span>· {{ when }}</span>{% elif ac.last %}<span>last trade {{ when }}</span>{% else %}<span>no trades yet</span>{% endif %}</span>{% endif %}</span></td>
-      <td class="rm">{% if alerts_ok %}<button type="button" class="ghost bell{{ ' on' if w.alert }}" data-bell aria-pressed="{{ 'true' if w.alert else 'false' }}" title="{{ 'Alerts on · click to turn off' if w.alert else 'Get its buys and sells in Telegram' }}" aria-label="Alerts for this wallet"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2V7.4a4 4 0 0 1 8 0v3.8l1.2 1.4H2.8z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/></svg></button>{% endif %}<button type="button" class="ghost x" data-rm-wallet title="Remove from this list" aria-label="Remove from this list">×</button></td>
+      <td><span class="wlrow"><span class="wadr mono" title="Open the wallet's card">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</span><span class="mytags">{% for t in w.my_tags or [] %}<span class="tag mine" title="Your tag"><span>{{ t }}</span><button type="button" class="tagx" data-tag="{{ t }}" title="Remove this tag" aria-label="Remove the tag {{ t }}">×</button></span>{% endfor %}<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd" title="Add your own tag: it names the wallet here and in the alerts" aria-label="Add your own tag"{% if (w.my_tags or [])|length >= max_my_tags %} hidden{% endif %}>{{ icon('add') }}</button></span>{% set ac = (act or {}).get(w.wallet) %}{% if ac %}{% set busy = ac.buys or ac.sells %}{% set ago = ac.last|ago %}{% set when = 'just now' if ago == 'now' else ago ~ ' ago' %}{% set sago = ac.since|ago %}{% set swhen = 'just now' if sago == 'now' else sago ~ ' ago' %}<span class="wact{{ '' if busy else ' quiet' }}" title="{% if busy %}Trades the alerts saw in the last 7 days: {{ ac.buys }} buy{{ '' if ac.buys == 1 else 's' }}, {{ ac.sells }} sell{{ '' if ac.sells == 1 else 's' }}. Last trade {{ when }}.{% elif ac.last %}No trades in the last 7 days. Last trade {{ when }}.{% else %}No trades since the alerts started watching it {{ swhen }}.{% endif %}">{% if busy %}<b class="up">↑{{ ac.buys }}</b><b class="dn">↓{{ ac.sells }}</b><span>· {{ when }}</span>{% elif ac.last %}<span>last trade {{ when }}</span>{% else %}<span>no trades yet</span>{% endif %}</span>{% endif %}</span></td>
+      <td class="rm">{% if alerts_ok %}<button type="button" class="ghost bell{{ ' on' if w.alert }}" data-bell aria-pressed="{{ 'true' if w.alert else 'false' }}" title="{{ 'Alerts on · click to turn off' if w.alert else 'Get its buys and sells in Telegram' }}" aria-label="Alerts for this wallet">{{ icon('bell') }}</button>{% endif %}<button type="button" class="ghost x" data-rm-wallet title="Remove from this list" aria-label="Remove from this list">×</button></td>
     </tr>
   {% endfor %}
   </tbody></table></div>
-  <p class="muted" id="lempty" hidden>This list is empty. On a result, click the <b>☆</b> by a wallet, or add one from another list in its card.</p>
+  <p class="muted" id="lempty" hidden>This list is empty. On a result, click the {{ icon('star', 'inl') }} by a wallet, or add one from another list in its card.</p>
   {% else %}
-  <p class="muted">Nothing here yet. On a result, click the <b>☆</b> by a wallet: it lands in your Watchlist.{% if demo_mint %} <a href="/token?mint={{ demo_mint }}">Try it on the demo</a>.{% endif %}</p>
+  <p class="muted">Nothing here yet. On a result, click the {{ icon('star', 'inl') }} by a wallet: it lands in your Watchlist.{% if demo_mint %} <a href="/token?mint={{ demo_mint }}">Try it on the demo</a>.{% endif %}</p>
   {% endif %}
 </section>
 
@@ -75,10 +75,10 @@
         <span class="wav" id="dav" aria-hidden="true"></span>
         <div class="dh-names">
           <div class="dh-top"><b id="dname">Wallet</b><span class="ids" id="dids"></span></div>
-          <div class="dh-addr"><span class="mono" id="dw"></span><button type="button" class="ghost wcopy" id="dcopy" data-copy="" title="Copy the address" aria-label="Copy the address"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.8"/><path d="M10.5 5.5V4.3A1.8 1.8 0 0 0 8.7 2.5H4.3a1.8 1.8 0 0 0-1.8 1.8v4.4a1.8 1.8 0 0 0 1.8 1.8h1.2"/></svg></button><a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan" aria-label="This wallet on Solscan">↗</a><span class="dchips" id="dchips"></span></div>
+          <div class="dh-addr"><span class="mono" id="dw"></span><button type="button" class="ghost wcopy" id="dcopy" data-copy="" title="Copy the address" aria-label="Copy the address">{{ icon('copy') }}</button><a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan" aria-label="This wallet on Solscan">{{ icon('launch') }}</a><span class="dchips" id="dchips"></span></div>
         </div>
       </div>
-      <div class="dh-act">{% if alerts_ok %}<button type="button" class="ghost bell" id="dbell" aria-pressed="false" aria-label="Alerts for this wallet"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2V7.4a4 4 0 0 1 8 0v3.8l1.2 1.4H2.8z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/></svg></button>{% endif %}<button type="button" class="ghost x" id="dclose" title="Close" aria-label="Close">×</button></div>
+      <div class="dh-act">{% if alerts_ok %}<button type="button" class="ghost bell" id="dbell" aria-pressed="false" aria-label="Alerts for this wallet">{{ icon('bell') }}</button>{% endif %}<button type="button" class="ghost x" id="dclose" title="Close" aria-label="Close">×</button></div>
     </div>
     <div class="dtags" id="dtags"></div>
     <section class="dsec dsrc" id="dsrc"></section>
@@ -134,7 +134,7 @@
   // ── the wallet card: who it is to you, where you found it, your tags, its last days on every token ──
   const drawer = document.getElementById('drawer'), META = drawer ? JSON.parse(document.getElementById('mewmeta').textContent) : {};
   const MAX_TAGS = {{ max_my_tags }}, esc = EarlyTags.esc, short = w => w.slice(0, 6) + '…' + w.slice(-4);
-  const PLUS = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg>';
+  const PLUS = EarlyIcon('add');
   // your tag goes only by its own × (owner, 02.10: a tap on the word dropped it by accident)
   const MINE = t => '<span class="tag mine" title="Your tag"><span>' + esc(t) + '</span><button type="button" class="tagx" data-tag="' + esc(t)
     + '" title="Remove this tag" aria-label="Remove the tag ' + esc(t) + '">×</button></span>';
@@ -158,7 +158,7 @@
   // the card is about the wallet itself (owner, 30.09 and 01.10): who it is, its age and funder, where else you met it,
   // its 30 days on every token; nothing about the token it was saved from
   const cards = new Map();
-  const CHAIN = '<svg class="lnk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" aria-hidden="true"><g transform="rotate(-45 12 12)"><rect x="1.2" y="7.4" width="12.4" height="9.2" rx="4.6"/><rect x="10.4" y="7.4" width="12.4" height="9.2" rx="4.6"/></g></svg>';
+  const CHAIN = EarlyIcon('link', 'lnk');
   const fm = v => EarlyUI.fmtShort(v), money = v => (v == null || isNaN(v) ? '—' : (v < 0 ? '-$' : '$') + fm(Math.abs(v)));
   const nf = v => (+v || 0).toLocaleString('en-US');
   const ageText = ms => { const d = (Date.now() - ms) / 86400000;

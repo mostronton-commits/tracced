@@ -4,7 +4,7 @@
    carrying a label. */
 (function () {
   const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const PLUS = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg>';
+  const PLUS = EarlyIcon('add');
   function draw(el) {
     const ls = JSON.parse(el.dataset.labels || '[]');
     el.innerHTML = ls.map(l => '<span class="tag mine"><span>' + esc(l) + '</span><button type="button" class="tagx" data-tag="' + esc(l) + '" title="Remove this label" aria-label="Remove the label ' + esc(l) + '">×</button></span>').join('')

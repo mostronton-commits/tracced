@@ -103,4 +103,5 @@ Updates on X: [@tracced_xyz](https://x.com/tracced_xyz). A bug, an idea, a quest
 
 ## License
 
-MIT
+MIT. Bundled with it: the Geist fonts (SIL Open Font License, `tracced/web/static/fonts/LICENSE-Geist.txt`) and IBM
+Carbon icons (Apache License 2.0, `tracced/web/static/LICENSE-Carbon-icons.txt`).

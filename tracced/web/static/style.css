@@ -18,6 +18,9 @@ body { margin: 0; color: var(--ink); background: var(--bg); font: 14px/1.45 var(
 a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); }
 a:hover { border-color: var(--ink); }
 .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12.5px; }
+/* icons: IBM Carbon from one sprite (static/icons.svg), filled shapes on a 32-unit artboard, sharp at 16 and 20 px */
+svg.ci { width: 16px; height: 16px; flex: none; display: inline-block; vertical-align: middle; fill: currentColor; }
+svg.ci.inl { vertical-align: -3px; }
 .muted { color: var(--muted); } .small { font-size: 12px; } .err { color: var(--red); } .neg { color: var(--red); }
 .num { text-align: right; }
 
@@ -188,7 +191,7 @@ th.sortable.desc::after { content: " ↓"; color: var(--ink); font-size: 10px; }
 #facts th.desc .hl::before { content: "↓"; color: var(--ink); font-size: 11px; }
 #facts th .hfil, #facts th .hcur { display: inline-flex; align-items: center; justify-content: center; height: 20px; min-width: 20px; padding: 0 3px;
   margin: 0 0 0 3px; border: 0; border-radius: 5px; background: transparent; color: #94A3B8; cursor: pointer; }
-#facts th .hfil svg { width: 12px; height: 12px; }
+#facts th .hfil svg { width: 16px; height: 16px; }
 #facts th .hfil:hover, #facts th .hcur:hover { color: var(--ink); background: #F1F5F9; }
 #facts th .hfil.on { color: #047857; background: var(--sage); }
 #facts th .hcur { height: 18px; margin: 0 4px 0 0; font: 600 11px/1 var(--mono); color: var(--muted); border: 1px solid var(--line); text-transform: none; letter-spacing: 0; }
@@ -205,7 +208,7 @@ th.sortable.desc::after { content: " ↓"; color: var(--ink); font-size: 10px; }
 .fpop input[type=number]::-webkit-inner-spin-button, .fpop input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .fpop .fcks { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
 .fpop .fck { display: inline-flex; align-items: center; gap: 6px; font: 12px var(--mono); color: var(--ink); cursor: pointer; min-height: 26px; }
-.fpop .fck svg { width: 13px; height: 13px; flex: none; color: var(--muted); }
+.fpop .fck svg { width: 16px; height: 16px; flex: none; color: var(--muted); }
 .fpop .fck input { accent-color: #10b981; margin: 0; }
 .fpop .fpf { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
 .fpop .fpf .primary { height: 32px; padding: 0 16px; }
@@ -253,7 +256,7 @@ td.mytags { white-space: normal; min-width: 170px; }
 input.tagin { width: 108px; min-width: 0; flex: none; height: 22px; padding: 0 9px; font: 11px/1 var(--sans); border: 1px solid #A5B4FC; border-radius: 999px; background: var(--surface); }   /* глобальне input[type=text] має min-width 320px — воно б'є будь-яку width */
 input.tagin:focus { box-shadow: 0 0 0 3px #EEF2FF; }
 .tagadd { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0; border: 1px dashed #C7D2FE; border-radius: 999px; background: transparent; color: #6366F1; cursor: pointer; vertical-align: -5px; }
-.tagadd svg { width: 10px; height: 10px; }
+.tagadd svg { width: 16px; height: 16px; }
 .tagadd:hover { border-style: solid; background: #EEF2FF; }
 td.bar { background-image: linear-gradient(to right, var(--sage) var(--w, 0%), transparent var(--w, 0%)); background-size: 100% 100%; background-repeat: no-repeat; background-position: left center; background-origin: padding-box; }
 td.bar.neg { background-image: linear-gradient(to right, #FEE2E2 var(--w, 0%), transparent var(--w, 0%)); }
@@ -274,8 +277,8 @@ td.wcell .wid { white-space: nowrap; }       /* сам гаманець ніко
 .tag.t-seen-before { color: #5B21B6; border-color: #C4B5FD; background: #F5F3FF; cursor: pointer; font: inherit; font-size: 11px; height: auto; padding: 1px 7px; }
 .tag.t-seen-before:hover { background: #EDE9FE; border-color: #A78BFA; }
 .tag.t-seen-before.seen { display: inline-flex; align-items: center; padding: 2px 5px; }   /* сам значок: рядок таблиці не місце для пояснень */
-.tag.t-seen-before.seen .lnk { display: block; width: 12px; height: 12px; }
-#dcross .lnk { width: 13px; height: 13px; vertical-align: -2px; }
+.tag.t-seen-before.seen .lnk { display: block; width: 16px; height: 16px; }
+#dcross .lnk { width: 16px; height: 16px; vertical-align: -3px; }
 .tagchip.t-seen-before { border-color: #C4B5FD; color: #5B21B6; }
 .tag.t-transfer-in { color: #9A3412; border-color: #FDBA74; background: #FFF7ED; }
 .tagchip.t-transfer-in { border-color: #FDBA74; }
@@ -374,7 +377,7 @@ td.wcell .wid { white-space: nowrap; }       /* сам гаманець ніко
 /* wallet markers on the chart */
 .mk { display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 6px; background: transparent; color: #64748B;
   height: 22px; width: 22px; padding: 0; margin-right: 4px; vertical-align: -6px; cursor: pointer; }
-.mk svg { width: 14px; height: 14px; }
+.mk svg { width: 16px; height: 16px; }
 .mk:hover { color: var(--ink); background: #F1F5F9; }
 tr.onchart .mk { color: var(--ink); background: var(--c, #A7F3D0); }      /* the wallet's own colour on the chart */
 tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
@@ -509,9 +512,11 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 #facts tbody tr:hover .wname .mono, .wname:focus-visible .mono { border-bottom: 1px solid var(--ink); }
 @media (hover: hover) and (min-width: 961px) { #facts tbody tr:hover td { background-color: #F8FAFC; } }
 .ext { border: 0; color: #CBD5E1; margin-left: 5px; font-size: 12px; } .ext:hover { color: var(--ink); }
+a.ext:has(svg.ci) { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-left: 2px; border-radius: 6px;
+  color: #94A3B8; vertical-align: middle; } a.ext:has(svg.ci):hover { background: #F1F5F9; color: var(--ink); }
 .xbtn { display: inline-flex; align-items: center; justify-content: center; width: 34px; padding: 0; }
 button.ghost.xbtn { padding: 0; color: #475569; }
-.xbtn svg { width: 17px; height: 17px; }
+.xbtn svg { width: 16px; height: 16px; }
 .menu.right { margin-left: auto; }
 .menu-panel.r { left: auto; right: 0; }
 .soonwrap { position: relative; }
@@ -786,6 +791,7 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
 .dh-id .ext { font-size: 12px; margin-left: 4px; white-space: nowrap; color: var(--muted); border-bottom: 1px solid var(--line); } .dh-id .ext:hover { color: var(--ink); }
 .dh-act { display: flex; align-items: center; gap: 2px; flex: none; }
 .wcard .dstar, .wcard .x { width: 36px; height: 36px; padding: 0; font-size: 17px; line-height: 1; }
+.wcard .dstar svg.ci { width: 20px; height: 20px; }
 .wcard .dstar.on { color: #D97706; }
 .dtags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 10px 16px 0; }
 .dtags:empty { display: none; }
@@ -871,24 +877,24 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
   #facts tr.onchart td:first-child { box-shadow: none; } #facts tr.onchart { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 }
 /* ── category markers as pictures (rules of ours, identity from Solana Tracker), one bar metric, copy in rows ── */
-.tag.ico { display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-width: 20px; height: 20px; padding: 0 3px;
+.tag.ico { display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-width: 22px; height: 22px; padding: 0 2px;
            margin-left: 3px; border-radius: 6px; vertical-align: -5px; font: 600 10px/1 var(--mono); }
-.tag.ico svg { width: 13px; height: 13px; flex: none; }
+.tag.ico svg { width: 16px; height: 16px; flex: none; }
 .tag.ico small { font: 600 10px/1 var(--mono); }
 .tag.ico.txt { padding: 0 7px 0 5px; border-radius: 999px; }
 .tag.ico.txt b { font: 500 11px/1 var(--mono); }
-.tag.t-seen-before.ico .lnk { width: 12px; height: 12px; }
+.tag.t-seen-before.ico .lnk { width: 16px; height: 16px; }
 .tagchip { display: inline-flex; align-items: center; gap: 5px; }
-.tagchip svg { width: 13px; height: 13px; }
+.tagchip svg { width: 16px; height: 16px; }
 td.wcell .tags { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; vertical-align: middle; }
 td.wcell .tags .tag { margin-left: 0; }
 .facts small.bs .up { color: #059669; } .facts small.bs .dn { color: var(--red); }   /* buys and sells: ↑ and ↓, as in Lists */
 .ids { display: inline-flex; align-items: center; gap: 3px; }
-.idm { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 6px; border: 1px solid var(--line);
+.idm { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--line);
        background: var(--surface); cursor: help; vertical-align: middle; }
 .idm img { width: 14px; height: 14px; border-radius: 3px; display: block; flex: none; }
 .idm svg, .tag.ico svg, .evdot img { flex: none; }
-.idm svg { width: 12px; height: 12px; }
+.idm svg { width: 16px; height: 16px; }
 .idm.kol { color: #B45309; border-color: #FCD34D; background: #FFFBEB; }
 .idm.xacc { color: #0F172A; cursor: pointer; border-bottom: 1px solid var(--line); }
 .idm.xacc:hover { background: #F1F5F9; border-color: #CBD5E1; }
@@ -896,7 +902,7 @@ td.wcell .tags .tag { margin-left: 0; }
 .idm.role.r-hacker { color: #B91C1C; border-color: #FCA5A5; background: #FEF2F2; }
 .idm.role.r-exchange { color: #0369A1; border-color: #BAE6FD; background: #F0F9FF; }
 .wcopy { width: 24px; height: 24px; padding: 0; border: 0; color: #64748B; background: transparent; vertical-align: -6px; margin-left: 2px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; }
-.wcopy svg { width: 15px; height: 15px; flex: none; }
+.wcopy svg { width: 16px; height: 16px; flex: none; }
 .wcopy:hover { color: var(--ink); background: #F1F5F9; }
 .evdot { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; font: 700 10.5px/1 var(--sans); }
 .evdot.mig { background: #7C3AED; color: #F5F3FF; }
@@ -1391,7 +1397,7 @@ header.top { position: relative; z-index: 45; }
 .mewl .mytags { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
 .mewl .mytags .tag.mine { margin: 0; }
 .mewl .mytags .tagin { width: 120px; height: 24px; min-width: 0; padding: 0 7px; font-size: 12px; }
-.lbell svg { width: 15px; height: 15px; display: block; }
+.lbell svg { width: 16px; height: 16px; display: block; }
 .ltab .lbell { display: inline-block; margin-left: 5px; vertical-align: -2px; color: #15803D; }
 /* the open list's bar and its alerts switch */
 .lbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; margin: 0 0 12px; padding: 8px 12px; border: 1px solid var(--line);

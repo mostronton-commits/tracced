@@ -99,6 +99,9 @@ def _rows_rev():
 
 ROWS_REV = _rows_rev()
 env.globals["v"] = _asset_version()
+# IBM Carbon icons from one sprite (owner, 02.10: not the Lucide look of AI-made sites); ui.js has the same for scripts
+env.globals["icon"] = lambda name, cls="": Markup(f'<svg class="ci{" " + cls if cls else ""}" aria-hidden="true">'
+                                                 f'<use href="/static/icons.svg?v={env.globals["v"]}#i-{name}"/></svg>')
 from .. import __version__                                   # noqa: E402 — product version for the footer
 env.globals["version"] = ".".join(__version__.split(".")[:2])
 env.filters["dt"] = chart.fmt_dt

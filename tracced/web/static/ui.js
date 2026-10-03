@@ -180,26 +180,22 @@ document.addEventListener('click', e => {
   EarlyUI.use('ext', { to: /solscan/.test(h) ? 'solscan' : (h === 'x.com' || h === 'twitter.com') ? 'x' : /dexscreener/.test(h) ? 'dexscreener' : /github/.test(h) ? 'github' : 'other' });
 });
 
+/* IBM Carbon icons, from one sprite (owner, 02.10: not the Lucide look of AI-made sites); templates use icon() */
+window.EarlyIcon = (function () {
+  const s = document.currentScript; let v = '';
+  try { v = new URL(s.src, location.href).searchParams.get('v') || ''; } catch (e) {}
+  return (name, cls) => '<svg class="ci' + (cls ? ' ' + cls : '') + '" aria-hidden="true"><use href="/static/icons.svg?v=' + v + '#i-' + name + '"/></svg>';
+})();
 /* Markers that say what kind of wallet a row is, the way terminals do: a small picture per category, the rule or
    the source in the tooltip, the words in the card and in the filter legend. Our tags are rules computed from the
    chain; KOL, the X account and the trading platform are the wallet's public identity labels. */
 window.EarlyTags = (function () {
-  const S = d => '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
+  const I = window.EarlyIcon;
   const ICON = {
-    dev: S('<path d="M4.6 9.6C2.9 9.3 1.8 8 2.1 6.5c.3-1.4 1.7-2.3 3.1-2A3.3 3.3 0 0 1 8 2.6a3.3 3.3 0 0 1 2.8 1.9c1.4-.3 2.8.6 3.1 2 .3 1.5-.8 2.8-2.5 3.1V13.4H4.6z"/><path d="M4.6 11.2h6.8"/>'),
-    sniper: S('<circle cx="8" cy="8" r="5"/><path d="M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3"/><circle cx="8" cy="8" r=".6" fill="currentColor"/>'),
-    fresh: S('<path d="M8 14V8.2"/><path d="M8 9.2C8 6.4 6.2 4.8 3 4.8c0 3 1.9 4.4 5 4.4z"/><path d="M8 8.2c0-2.6 1.7-4.2 4.8-4.2 0 2.9-1.8 4.2-4.8 4.2z"/>'),
-    bundle: S('<path d="M2.5 5 8 2.4 13.5 5v6.1L8 13.6 2.5 11.1z"/><path d="M2.5 5 8 7.6 13.5 5M8 7.6v6"/>'),
-    'bot-like': S('<rect x="3" y="5.5" width="10" height="7.5" rx="2"/><path d="M8 5.5V3.4"/><circle cx="8" cy="2.6" r=".8"/><circle cx="6" cy="9.2" r=".7" fill="currentColor"/><circle cx="10" cy="9.2" r=".7" fill="currentColor"/>'),
-    'pre-range': S('<path d="M2.9 8.6A5.2 5.2 0 1 0 4.4 4.3"/><path d="M2.6 2.4v2.9h2.9"/><path d="M8 5.4V8l1.9 1.2"/>'),
-    're-bought': S('<path d="M3 7.4a4.6 4.6 0 0 1 8.2-2.6M13 8.6a4.6 4.6 0 0 1-8.2 2.6"/><path d="M11.6 1.9v2.9H8.7M4.4 14.1v-2.9h2.9"/>'),
-    'transfer-in': S('<path d="M8 2v6.6M5.4 6 8 8.6 10.6 6"/><path d="M2.4 10.2h3.1l.9 1.6h3.2l.9-1.6h3.1V13.6H2.4z"/>'),
-    'no-exits': S('<circle cx="8" cy="8" r="5.6" stroke-dasharray="2 1.7"/><path d="M6.5 6.6a1.6 1.6 0 1 1 2.3 1.4c-.5.3-.8.6-.8 1.3"/><circle cx="8" cy="11.2" r=".55" fill="currentColor"/>'),
-    'seen-before': '<svg class="lnk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" aria-hidden="true"><g transform="rotate(-45 12 12)"><rect x="1.2" y="7.4" width="12.4" height="9.2" rx="4.6"/><rect x="10.4" y="7.4" width="12.4" height="9.2" rx="4.6"/></g></svg>',
-    kol: '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1.6l1.95 3.95 4.35.63-3.15 3.07.74 4.33L8 11.53l-3.89 2.05.74-4.33L1.7 6.18l4.35-.63z"/></svg>',
+    dev: I('dev'), sniper: I('sniper'), fresh: I('fresh'), bundle: I('bundle'), 'bot-like': I('bot'),
+    'pre-range': I('time'), 're-bought': I('renew'), 'transfer-in': I('transfer'), 'no-exits': I('noexits'),
+    'seen-before': I('link', 'lnk'), kol: I('kol'), exchange: I('exchange'), hacker: I('hacker'),
     x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>',
-    exchange: S('<path d="M2 6.4 8 3l6 3.4M3.6 7.2v4.8M6.5 7.2v4.8M9.5 7.2v4.8M12.4 7.2v4.8M2 13.2h12"/>'),
-    hacker: S('<path d="M8 2.4a4.6 4.6 0 0 0-4.6 4.6c0 1.7.9 2.9 2.1 3.5v2.3h5v-2.3c1.2-.6 2.1-1.8 2.1-3.5A4.6 4.6 0 0 0 8 2.4z"/><circle cx="6.2" cy="7.2" r=".9" fill="currentColor"/><circle cx="9.8" cy="7.2" r=".9" fill="currentColor"/><path d="M7 12.8v-1.3M9 12.8v-1.3"/>'),
   };
   // trading platforms a wallet is labelled with, and the file of each one's own icon in /static/brands
   const BRANDS = { axiom: ['axiom', 'Axiom'], 'axiom-flash': ['axiom', 'Axiom'], gmgn: ['gmgn', 'GMGN'], fomo: ['fomo', 'Fomo'],

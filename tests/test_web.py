@@ -1101,7 +1101,8 @@ if AioHTTPTestCase:
             self.assertIn("lightweight-charts", html)
             self.assertIn("static/chart.js", html)
             self.assertIn("<b>Analyze</b>", html)
-            self.assertNotIn("<svg", html.split("<footer")[0])         # the page body draws with the chart library, not inline SVG
+            self.assertNotRegex(html.split("<footer")[0], r'<svg(?! class="ci)')   # the chart library draws the page; inline SVG only for icons
+            self.assertIn("/static/icons.svg?v=", html)                  # the icons come from the Carbon sprite
 
         async def test_token_page_preset_from_result(self):
             r = await self.client.get(f"/token?mint={MINT}&from=2001-09-09T01:46&to=2001-09-09T02:06&exit=2001-09-09T02:46")

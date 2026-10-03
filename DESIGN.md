@@ -287,8 +287,12 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
 - **Radii:** 8 px (`md`) for controls, 10 px (`lg`) for cards and popovers, 6 px (`sm`) for icon buttons and menu items,
   and full pills for chips, tags and tabs.
 - **One radius per kind of object.** A card is always 10 px and a button is always 8 px.
-- **Icons are 1.5–1.7 px line drawings** on a 16 px grid in `currentColor`, with round caps. No emoji in controls or
-  tables. A docs callout title may carry one, and so may the alerts in Telegram.
+- **Icons are IBM Carbon** (Apache-2.0; owner, 02.10: the Lucide manner of the old ones read as AI-made). They come
+  from one sprite, `static/icons.svg`: `icon('name')` in a template, `EarlyIcon('name')` in a script. Filled shapes
+  on a 32-unit artboard in `currentColor`, drawn at 16 px (20 px for the card's star), where they stay sharp. A new
+  one is taken from the same commit of the Carbon repo and added to the sprite, never drawn by hand. The brand marks
+  (X, Telegram, the trading apps) stay their own. No emoji in controls or tables. A docs callout title may carry one,
+  and so may the alerts in Telegram.
 
 ## Components
 

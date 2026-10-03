@@ -8,12 +8,12 @@
   <div class="tokenhead">
     <div>
       <h1 class="h-title">{{ job.symbol }}</h1>
-      <div class="h-addr mono"><span title="{{ job.mint }}">{{ job.mint[:6] }}…{{ job.mint[-5:] }}</span><button type="button" class="ghost copy" data-copy="{{ job.mint }}" title="Copy the token address">⧉</button><a class="ext" href="https://solscan.io/token/{{ job.mint }}" target="_blank" rel="noopener" title="Token on Solscan">↗</a></div>
+      <div class="h-addr mono"><span title="{{ job.mint }}">{{ job.mint[:6] }}…{{ job.mint[-5:] }}</span><button type="button" class="ghost copy" data-copy="{{ job.mint }}" title="Copy the token address" aria-label="Copy the token address">{{ icon('copy') }}</button><a class="ext" href="https://solscan.io/token/{{ job.mint }}" target="_blank" rel="noopener" title="Token on Solscan" aria-label="Token on Solscan">{{ icon('launch') }}</a></div>
       <div class="h-sub mono muted">Range <span class="dtc" data-ms="{{ job.t_from }}">{{ job.t_from|dt }}</span> → <span class="dtc" data-ms="{{ job.t_to }}">{{ job.t_to|dt }}</span>{% if result %} · Trades up to <span class="dtc" data-ms="{{ result.window.end or job.t_exit or now }}">{{ (result.window.end or job.t_exit or now)|dt }}</span>{% endif %}</div>
     </div>
     <div class="h-right">
       {% if jstatus != 'done' or not result %}<span class="chip st-{{ jstatus }}">{{ {'queued':'Queued','running':'Running','done':'Done','error':'Error'}[jstatus] }}</span>{% endif %}
-      {% if jstatus == 'done' and result %}<button type="button" class="ghost savejob" id="savejob" title="Keep this analysis under My analyses">☆ Save analysis</button>{% endif %}
+      {% if jstatus == 'done' and result %}<button type="button" class="ghost savejob" id="savejob" title="Keep this analysis under My analyses">{{ icon('star') }}<span>Save analysis</span></button>{% endif %}
       {% if is_admin and jstatus == 'done' and result and not is_demo %}<button type="button" class="ghost" id="mkdemo" data-job="{{ job.id }}" title="Replace the demo token with this analysis (owner only)">Make it the demo</button>{% endif %}
       <a class="button" href="{{ back }}" title="The token's chart: this range stays as it is, a new one is marked beside it"><span class="long">← Back to the chart</span><span class="short">← Chart</span></a>
     </div>
@@ -76,7 +76,7 @@
         </div>
       </div>
       <div class="menu">
-        <button type="button" class="ghost xbtn" data-menu title="Export the wallets shown: CSV, TXT or JSON" aria-label="Export"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v8M4.6 7.2 8 10.6l3.4-3.4M3 13.5h10"/></svg></button>
+        <button type="button" class="ghost xbtn" data-menu title="Export the wallets shown: CSV, TXT or JSON" aria-label="Export">{{ icon('download') }}</button>
         <div class="menu-panel r" id="xpanel" hidden>
           <button type="button" data-x="csv">CSV <small id="xcsv"></small></button>
           <button type="button" data-x="txt">TXT <small id="xtxt"></small></button>
@@ -91,11 +91,11 @@
       <tr>
         {# a funnel by each number: «from … to …» in one small window, the money unit by Bought; one line each (owner, 02.10) #}
         <th class="wh">Wallet</th>
-        <th class="num sortable" data-key="inv" title="How much it bought inside the range · the market cap of its first buy there"><span class="thc"><button type="button" class="hcur" title="Amounts in dollars or in SOL · click to switch" aria-label="Money unit">$</button><span class="hl">Bought</span><button type="button" class="hfil" data-fil="inv" title="Filter by what it bought" aria-label="Filter Bought"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11l-4.2 5v4l-2.6 1.2V8.5z"/></svg></button></span></th>
-        <th class="num sortable" data-key="got" title="What it received from selling · its average exit market cap and the share of its tokens sold"><span class="thc"><span class="hl">Sold</span><button type="button" class="hfil" data-fil="sold" title="Filter by the share sold" aria-label="Filter Sold"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11l-4.2 5v4l-2.6 1.2V8.5z"/></svg></button></span></th>
-        <th class="num sortable desc" data-key="real" title="Profit on what it sold: received minus what those tokens cost · below it, the paper result on what is left"><span class="thc"><span class="hl">PnL</span><button type="button" class="hfil" data-fil="real" title="Filter by PnL" aria-label="Filter PnL"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11l-4.2 5v4l-2.6 1.2V8.5z"/></svg></button></span></th>
-        <th class="num sortable" data-key="mult" title="How many times over it sold: average exit cap ÷ average entry cap, buys before the range included. 2× = +100%"><span class="thc"><span class="hl">ROI</span><button type="button" class="hfil" data-fil="mult" title="Filter by ROI" aria-label="Filter ROI"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11l-4.2 5v4l-2.6 1.2V8.5z"/></svg></button></span></th>
-        <th class="num sortable" data-key="hold" title="From its entry to its first sale · its buys ↑ and sells ↓"><span class="thc"><span class="hl">Held</span><button type="button" class="hfil" data-fil="hold" title="Filter by hold time and buys" aria-label="Filter Held"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11l-4.2 5v4l-2.6 1.2V8.5z"/></svg></button></span></th>
+        <th class="num sortable" data-key="inv" title="How much it bought inside the range · the market cap of its first buy there"><span class="thc"><button type="button" class="hcur" title="Amounts in dollars or in SOL · click to switch" aria-label="Money unit">$</button><span class="hl">Bought</span><button type="button" class="hfil" data-fil="inv" title="Filter by what it bought" aria-label="Filter Bought">{{ icon('filter') }}</button></span></th>
+        <th class="num sortable" data-key="got" title="What it received from selling · its average exit market cap and the share of its tokens sold"><span class="thc"><span class="hl">Sold</span><button type="button" class="hfil" data-fil="sold" title="Filter by the share sold" aria-label="Filter Sold">{{ icon('filter') }}</button></span></th>
+        <th class="num sortable desc" data-key="real" title="Profit on what it sold: received minus what those tokens cost · below it, the paper result on what is left"><span class="thc"><span class="hl">PnL</span><button type="button" class="hfil" data-fil="real" title="Filter by PnL" aria-label="Filter PnL">{{ icon('filter') }}</button></span></th>
+        <th class="num sortable" data-key="mult" title="How many times over it sold: average exit cap ÷ average entry cap, buys before the range included. 2× = +100%"><span class="thc"><span class="hl">ROI</span><button type="button" class="hfil" data-fil="mult" title="Filter by ROI" aria-label="Filter ROI">{{ icon('filter') }}</button></span></th>
+        <th class="num sortable" data-key="hold" title="From its entry to its first sale · its buys ↑ and sells ↓"><span class="thc"><span class="hl">Held</span><button type="button" class="hfil" data-fil="hold" title="Filter by hold time and buys" aria-label="Filter Held">{{ icon('filter') }}</button></span></th>
       </tr></thead>
       <tbody></tbody>
     </table>
@@ -133,11 +133,11 @@
             <span class="wav" id="dav" aria-hidden="true"></span>
             <div class="dh-names">
               <div class="dh-top"><b id="dname">Wallet</b><span class="ids" id="dids"></span></div>
-              <div class="dh-addr"><span class="mono" id="dw"></span><button type="button" class="ghost wcopy" id="dcopy" data-copy="" title="Copy the address" aria-label="Copy the address"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.8"/><path d="M10.5 5.5V4.3A1.8 1.8 0 0 0 8.7 2.5H4.3a1.8 1.8 0 0 0-1.8 1.8v4.4a1.8 1.8 0 0 0 1.8 1.8h1.2"/></svg></button><a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan" aria-label="This wallet on Solscan">↗</a><span class="dchips" id="dchips"></span></div>
+              <div class="dh-addr"><span class="mono" id="dw"></span><button type="button" class="ghost wcopy" id="dcopy" data-copy="" title="Copy the address" aria-label="Copy the address">{{ icon('copy') }}</button><a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan" aria-label="This wallet on Solscan">{{ icon('launch') }}</a><span class="dchips" id="dchips"></span></div>
             </div>
           </div>
           <div class="dh-act">
-            <button type="button" class="ghost dstar" id="dstar" title="Add to one of your lists" aria-label="Add to one of your lists">☆</button>
+            <button type="button" class="ghost dstar" id="dstar" title="Add to one of your lists" aria-label="Add to one of your lists">{{ icon('star') }}</button>
             <button type="button" class="ghost x" id="dclose" title="Close" aria-label="Close">×</button>
           </div>
         </div>
@@ -240,7 +240,7 @@
       // no violet: on this page it means a repeat; orange first, the bundle tag's own colour
       const BUNDLE_PAL = ['#FDBA74', '#7DD3FC', '#F9A8D4', '#FCD34D', '#5EEAD4', '#BEF264', '#93C5FD', '#FDA4AF'];
       const BUNDLE_MIN = {{ bundle_min }}, BURST_MS = {{ burst_ms }}, TAGDEF = {{ TAGS|tojson }};
-      const CHAIN = '<svg class="lnk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" aria-hidden="true"><g transform="rotate(-45 12 12)"><rect x="1.2" y="7.4" width="12.4" height="9.2" rx="4.6"/><rect x="10.4" y="7.4" width="12.4" height="9.2" rx="4.6"/></g></svg>';   // two links: the repeat marker in the row and the heading of its block in the card
+      const CHAIN = EarlyIcon('link', 'lnk');   // two links: the repeat marker in the row and the heading of its block in the card
       const short = w => w.slice(0, 6) + '…' + w.slice(-4), esc = EarlyTags.esc, fm = EarlyUI.fmtShort;
       const money = v => (v == null || isNaN(v) ? '—' : (v < 0 ? '-$' : '$') + fm(Math.abs(v)));
       const holdText = m => m == null ? '—' : m < 60 ? Math.round(m) + ' min' : m < 1440 ? (m / 60).toFixed(m < 600 ? 1 : 0) + ' h' : Math.round(m / 1440) + ' d';
@@ -305,8 +305,8 @@
       const cells = new Map();                                   // wallet → the tags markup last drawn for it
       const cardW = () => { const d = document.getElementById('drawer'); return d && !d.hidden ? d.dataset.w : ''; };   // the wallet whose card is open
       const STAR = w => { const on = inList(w); return '<button type="button" class="star' + (on ? ' on' : '') + '" aria-pressed="' + on + '" title="'
-        + (on ? 'In your lists · click to change' : 'Add to your Watchlist') + '" aria-label="' + (on ? 'In your lists' : 'Add to your Watchlist') + '">' + (on ? '★' : '☆') + '</button>'; };
-      const CHARTIC = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13.5h12M3 10.5l3.2-3.6 2.6 2.2L13 4"/></svg>';
+        + (on ? 'In your lists · click to change' : 'Add to your Watchlist') + '" aria-label="' + (on ? 'In your lists' : 'Add to your Watchlist') + '">' + EarlyIcon(on ? 'star-on' : 'star') + '</button>'; };
+      const CHARTIC = EarlyIcon('chart');
       function rowHtml(o, n, i) {
         const oc = onChart.find(x => x.wallet === o.w), tg = tagsHtml(o);
         cells.set(o.w, { tg });
@@ -541,7 +541,7 @@
       // numbers keep their funnels in the head, and are listed here too for a phone, where the head is hidden
       function drawMenu() {
         fmenu.innerHTML = '<input type="text" class="fq" maxlength="44" placeholder="Find a wallet: address or name" value="' + esc(f.q) + '" aria-label="Find a wallet">'
-          + (hasLists || f.mine ? '<label class="fck"><input type="checkbox" data-mine' + (f.mine ? ' checked' : '') + '>★ Only my lists</label>' : '')
+          + (hasLists || f.mine ? '<label class="fck"><input type="checkbox" data-mine' + (f.mine ? ' checked' : '') + '>' + EarlyIcon('star-on') + 'Only my lists</label>' : '')
           + '<div class="fph sub">Hide wallets tagged</div><div class="fcks">' + HIDE_TAGS.map(x => '<label class="fck" title="' + esc(TAGDEF[x] || '') + '"><input type="checkbox" data-hide="' + x + '"'
           + (f.hide.includes(x) ? ' checked' : '') + '>' + (EarlyTags.ICON[x] || '') + x + '</label>').join('') + '</div>'
           + '<div class="fph sub">Numbers</div>' + Object.keys(MLABEL).map(k => '<button type="button" class="fmi' + (valText(k) !== 'any' ? ' on' : '') + '" data-fil="' + k + '"><span>' + MLABEL[k] + '</span><small>' + esc(valText(k)) + '</small></button>').join('');
@@ -642,13 +642,13 @@
         for (const r of tbody.rows) {
           const st = r.querySelector('.star'); if (!st) continue;
           const on = inList(r.dataset.w);
-          st.classList.toggle('on', on); st.textContent = on ? '★' : '☆'; st.setAttribute('aria-pressed', String(on));
+          st.classList.toggle('on', on); st.innerHTML = EarlyIcon(on ? 'star-on' : 'star'); st.setAttribute('aria-pressed', String(on));
           st.title = on ? 'In your lists · click to change' : 'Add to your Watchlist'; st.setAttribute('aria-label', on ? 'In your lists' : 'Add to your Watchlist');
         }
         const card = document.getElementById('drawer');
         if (card && !card.hidden && card.dataset.w && typeof syncStar === 'function') syncStar(card.dataset.w);
         const saved = !!(me && me.analyses && me.analyses[jobId]);
-        sjob.textContent = saved ? '★ Saved' : '☆ Save analysis'; sjob.classList.toggle('on', saved);
+        sjob.innerHTML = EarlyIcon(saved ? 'star-on' : 'star') + '<span>' + (saved ? 'Saved' : 'Save analysis') + '</span>'; sjob.classList.toggle('on', saved);
         sjob.title = saved ? 'In My analyses · click to remove' : 'Keep this analysis under My analyses';
         hasLists = !!(me && me.wallets && Object.keys(me.wallets).length);   // «★ Only my lists» appears with the first saved wallet
         try { myChip(); } catch (e) {}                               // the agent's question about them, once the account is known
@@ -834,7 +834,7 @@
       // the wallet card: what this wallet did on this token, who it is if anyone knows, how it trades overall, where its SOL came from
       const rowOf = w => byW.get(w);
       const MAX_TAGS = {{ max_my_tags }};
-      const PLUS = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg>';
+      const PLUS = EarlyIcon('add');
       const dtags = document.getElementById('dtags'), dstar = document.getElementById('dstar'), dprof = document.getElementById('dprof');
       const profiles = new Map();
       const myTags = w => (me && me.wallets && me.wallets[w] && me.wallets[w].my_tags) || [];
@@ -851,7 +851,7 @@
       }
       function syncStar(w) {
         const on = inList(w);
-        dstar.textContent = on ? '★' : '☆'; dstar.classList.toggle('on', on);
+        dstar.innerHTML = EarlyIcon(on ? 'star-on' : 'star'); dstar.classList.toggle('on', on);
         dstar.title = on ? 'In ' + plural(listsOfWallet(w).length, 'list') + ' · click to change' : 'Add to your Watchlist'; dstar.setAttribute('aria-label', dstar.title);
       }
       // your tag goes only by its own × (owner, 02.10: a click on the word dropped it by accident)
