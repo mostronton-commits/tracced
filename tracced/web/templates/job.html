@@ -50,8 +50,8 @@
     <div class="tally" id="tally">
       <span class="tc" title="Wallets that bought inside the range: the list below"><b data-count="{{ sm.n }}" data-fmt="int">0</b><i>bought <span class="kinfo tipt{{ ' warn' if partial }}" tabindex="0" title="{{ c.n_wallets|num }} traded in the range · {{ c.dust|num }} below ${{ s.min_invested_usd }} · {{ ((c.pre_range_only or 0) + (c.before_range_only or 0))|num }} sold only · {{ c.n_trades|num }} trades{% if cov_text %} · {{ cov_text }}{% endif %}" aria-label="{{ 'Exits are not known for every wallet' if partial else 'How these numbers were counted' }}">{{ '!' if partial else 'i' }}</span></i></span>
       <span class="tc" title="What these wallets spent inside the range"><b class="amt" data-usd="{{ (sm.invested_range or 0)|round(0)|int }}"{% if sm.invested_range_sol is not none %} data-sol="{{ sm.invested_range_sol|round(2) }}"{% endif %} data-count="{{ (sm.invested_range or 0)|round(0)|int }}" data-fmt="usd">0</b><i>spent</i></span>
-      <button type="button" class="tc" data-act="sold" title="{{ (sm.exited or 0)|num }} of {{ n0|num }} sold 99% or more · click to show them"><b data-count="{{ pso }}" data-fmt="pct">0</b><i>sold out</i></button>
-      <button type="button" class="tc" data-act="holding" title="{{ (sm.holding or 0)|num }} of {{ n0|num }} sold less than half · click to show them"><b data-count="{{ phd }}" data-fmt="pct">0</b><i>holding</i></button>
+      <button type="button" class="tc" data-act="sold" title="{{ (sm.exited or 0)|num }} of {{ n0|num }} sold 99% or more · click to show them"><b data-count="{{ pso }}" data-fmt="pct">0</b><i>sold out</i><span class="tm" style="--p:{{ pso }}%"></span></button>
+      <button type="button" class="tc" data-act="holding" title="{{ (sm.holding or 0)|num }} of {{ n0|num }} sold less than half · click to show them"><b data-count="{{ phd }}" data-fmt="pct">0</b><i>holding</i><span class="tm" style="--p:{{ phd }}%"></span></button>
       <button type="button" class="tc" data-act="best" title="Highest average exit cap ÷ average entry cap, buys before the range included · click to sort by ROI"><b data-count="{{ sm.best_multiple or 0 }}" data-fmt="mult">0</b><i>best ROI</i></button>
       <span class="tfinds" id="finds"></span>
     </div>
@@ -288,6 +288,9 @@
         return '<b class="mono insol ' + cls + '">' + EarlyCur.sol(sol) + '</b>';
       }
       const QUIET = new Set(['seen-before', 'pre-range', 're-bought']);   // kept in the data, not shown: seen-before has its own mark
+      // your own tags for a saved wallet, in the table as in the watchlist (owner, 04.10); a declaration, so the first
+      // draw may call it before the account arrives
+      function userTags(w) { return (me && me.wallets && me.wallets[w] && me.wallets[w].my_tags) || []; }
       function tagsHtml(o) {
         // a repeat, who the wallet is, then our rules as pictures with the rule in the tooltip
         const cx = crossings[o.w], idn = idents[o.w], b = bundle[o.w];
@@ -299,6 +302,7 @@
           if (QUIET.has(t)) return;
           h += t === 'bundle' && b ? bundChip(o.w, b) : EarlyTags.chip(t, TAGDEF[t]);
         });
+        userTags(o.w).forEach(x => { h += '<span class="tag own" title="Your tag">' + esc(x) + '</span>'; });
         return h;
       }
       // the Funded by column is gone (owner, 02.10): a bundle's colour tells its wallets apart, a click shows that bundle alone
@@ -344,7 +348,8 @@
       const inRange = o => Object.keys(f.r).every(k => { const v = f.r[k], x = RANGES[k].get(o);
         return (v[0] == null || (x != null && x >= v[0])) && (v[1] == null || (x != null && x <= v[1])); });
       const qOk = o => { if (!f.q) return true; const q = f.q.toLowerCase();
-        return o.w.toLowerCase().includes(q) || (EarlyTags.displayName(idents[o.w]) || '').toLowerCase().includes(q); };
+        return o.w.toLowerCase().includes(q) || (EarlyTags.displayName(idents[o.w]) || '').toLowerCase().includes(q)
+          || userTags(o.w).some(x => x.toLowerCase().includes(q)); };
       const okRow = o => inRange(o) && qOk(o) && (!f.profit || o.real > 0) &&
         (!f.exits || o.exit) && (!f.mine || inList(o.w)) &&
         (!f.funder || fundKey(o.w) === f.funder) && (!f.bundle || (!!bundle[o.w] && bundle[o.w].funder === f.bundle)) && (!f.repeat || !!crossings[o.w]) && !f.hide.some(t => o.tags.includes(t)) &&
@@ -407,17 +412,21 @@
         const bw = all.filter(o => bundle[o.w]);                                  // wallets that share a funder here
         if (bw.length) {
           const ops = new Set(bw.map(o => funders[o.w] || bundle[o.w].funder)).size, sh = pc(bw.reduce((s, o) => s + inv(o), 0), tot);
-          if (sh >= 10) out.push({ k: 'bundle', sev: 'warn', act: ['only', 'bundle'], v: sh + '%', l: 'bundled',
+          if (sh >= 10) out.push({ k: 'bundle', sev: 'warn', act: ['only', 'bundle'], v: sh + '%', p: sh, l: 'bundled',
             tip: plural(ops, 'operator') + ' bought ' + sh + '% of the range through ' + plural(bw.length, 'wallet') + ' that share a funder' });
+          // «bundle out» (bbb.community): nearly every wallet of the bundles has sold out
+          const outN = bw.filter(o => (+o.sold || 0) >= 99).length, po = pc(outN, bw.length);
+          if (bw.length >= 3 && po >= 90) out.push({ k: 'bout', sev: 'warn', act: ['only', 'bundle'], v: po + '%', p: po, l: 'bundles out',
+            tip: outN + ' of the ' + bw.length + ' bundled wallets sold 99% or more' });
         }
         // fresh among the wallets whose age is known: an older result checked all of them, not only the first VERDICT_TOP
         const fr = all.filter(o => o.tags.includes('fresh')).length, checked = Math.max(Object.keys(ages).length || Math.min(n, VERDICT_TOP || n), fr) || 1;
-        if (fr >= 10 && fr / checked >= 0.1) out.push({ k: 'fresh', sev: 'warn', act: ['only', 'fresh'], v: pc(fr, checked) + '%', l: 'fresh',
+        if (fr >= 10 && fr / checked >= 0.1) out.push({ k: 'fresh', sev: 'warn', act: ['only', 'fresh'], v: pc(fr, checked) + '%', p: pc(fr, checked), l: 'fresh',
           tip: fr + ' of the ' + checked + ' wallets checked were under a day old when they bought' });
         const prof = all.map(o => +o.real || 0).filter(v => v > 0).sort((a, b) => b - a), ptot = prof.reduce((a, b) => a + b, 0);
         if (prof.length >= 20 && ptot > 0) {
           const s10 = pc(prof.slice(0, 10).reduce((a, b) => a + b, 0), ptot);
-          if (s10 >= 40) out.push({ k: 'top', sev: 'info', act: ['sort', 'real'], v: s10 + '%', l: 'to top 10',
+          if (s10 >= 40) out.push({ k: 'top', sev: 'info', act: ['sort', 'real'], v: s10 + '%', p: s10, l: 'to top 10',
             tip: 'The 10 most profitable wallets took ' + s10 + '% of all the profit made here' });
         }
         const rep = all.filter(o => crossings[o.w]).length;
@@ -425,15 +434,15 @@
           tip: rep + ' wallets were early in your other saved pumps too' });
         const ex = {}; all.forEach(o => { const x = funders[o.w]; if (x && EXCH[x]) ex[EXCH[x][0]] = (ex[EXCH[x][0]] || 0) + 1; });
         const exN = Object.values(ex).reduce((a, b) => a + b, 0), funded = all.filter(o => funders[o.w]).length;
-        if (exN >= 10 && funded && exN / funded >= 0.05) out.push({ k: 'cex', sev: 'info', act: ['only', 'cex'], v: pc(exN, funded) + '%', l: 'from exchanges',
+        if (exN >= 10 && funded && exN / funded >= 0.05) out.push({ k: 'cex', sev: 'info', act: ['only', 'cex'], v: pc(exN, funded) + '%', p: pc(exN, funded), l: 'from exchanges',
           tip: exN + ' of ' + funded + ' wallets got their first SOL straight from an exchange: ' + Object.entries(ex).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([nm, c]) => nm + ' ' + c).join(', ') });
         if (n >= 20) {
           const won = pc(all.filter(o => (+o.real || 0) > 0).length, n);
-          out.push({ k: 'won', sev: 'info', act: ['profit'], v: won + '%', l: 'in profit', tip: won + '% of the wallets have a realized profit here' });
+          out.push({ k: 'won', sev: 'good', act: ['profit'], v: won + '%', p: won, l: 'in profit', tip: won + '% of the wallets have a realized profit here' });
         }
         findActs = out.slice(0, FIND_MAX);
         const cell = (x, i) => (x.act ? '<button type="button" class="tc ' + x.sev + '" data-i="' + i + '" title="' + esc(x.tip) + ' · click to show them">'
-          : '<span class="tc ' + x.sev + '" title="' + esc(x.tip) + '">') + '<b>' + x.v + '</b><i>' + x.l + '</i>' + (x.act ? '</button>' : '</span>');
+          : '<span class="tc ' + x.sev + '" title="' + esc(x.tip) + '">') + '<b>' + x.v + '</b><i>' + x.l + '</i>' + (x.p != null ? '<span class="tm" style="--p:' + x.p + '%"></span>' : '') + (x.act ? '</button>' : '</span>');
         const html = (verdictNote ? '<span class="tc bad tipt" tabindex="0" title="' + esc(verdictNote) + '"><b>' + verdictWord + '</b><i>launch</i></span>' : '')
           + findActs.map(cell).join('');
         if (el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; }
@@ -665,7 +674,7 @@
         sjob.innerHTML = EarlyIcon(saved ? 'star-on' : 'star') + '<span>' + (saved ? 'Saved' : 'Save analysis') + '</span>'; sjob.classList.toggle('on', saved);
         sjob.title = saved ? 'In My analyses · click to remove' : 'Keep this analysis under My analyses';
         hasLists = !!(me && me.wallets && Object.keys(me.wallets).length);   // «Only my watchlist» appears with the first saved wallet
-        fillPanel();
+        fillPanel(); refreshRows();                                // your tags reach the rows with the account
         try { myChip(); } catch (e) {}                               // the agent's question about them, once the account is known
         if (f.mine) apply();                                     // «My lists» needs the account to know which rows stay
       }
@@ -781,6 +790,17 @@
       });
 
       syncHeads(); apply();
+      // the buying in the range as small bars under «bought»: when the wallets came in, in 24 steps
+      (function buyBars() {
+        const c = document.querySelector('#tally .tc'), ch0 = document.getElementById('chart'); if (!c || !ch0) return;
+        const a = +ch0.dataset.from, b = +ch0.dataset.to; if (!(b > a)) return;
+        const N = 24, n = new Array(N).fill(0);
+        all.forEach(o => { const x = +o.etime; if (x >= a && x <= b) n[Math.min(N - 1, Math.floor((x - a) / (b - a) * N))]++; });
+        const mx = Math.max(...n); if (!mx) return;
+        c.insertAdjacentHTML('beforeend', '<svg class="tsp" viewBox="0 0 ' + (N * 4) + ' 14" preserveAspectRatio="none" aria-hidden="true">'
+          + n.map((v, i) => '<rect x="' + (i * 4) + '" y="' + (14 - Math.max(1, Math.round(v / mx * 14))) + '" width="3" height="' + Math.max(1, Math.round(v / mx * 14)) + '"/>').join('') + '</svg>');
+        c.title += ' · the bars: when they bought, across the range';
+      })();
       // a pointer comes to the first address and clicks it, the address rings, a label says what it does: once the first
       // row is on screen (the table sits under the chart), until the person has opened a card, at most on three visits;
       // gone at the first click or after a few seconds
@@ -1024,6 +1044,7 @@
           blank(); me.wallets[w] = me.wallets[w] || {}; me.wallets[w].my_tags = d.tags || [];
         } catch (e) { EarlyUI.toast(e.message); ok = false; }
         if (drawer.dataset.w === w) renderTags(w);
+        refreshRows();
         return ok;
       }
       async function dropTag(w, tag) {                            // and one Undo brings it back

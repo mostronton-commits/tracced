@@ -103,5 +103,6 @@ Updates on X: [@tracced_xyz](https://x.com/tracced_xyz). A bug, an idea, a quest
 
 ## License
 
-MIT. Bundled with it: the Geist fonts (SIL Open Font License, `tracced/web/static/fonts/LICENSE-Geist.txt`) and IBM
-Carbon icons (Apache License 2.0, `tracced/web/static/LICENSE-Carbon-icons.txt`).
+MIT. Bundled with it: the IBM Plex fonts (SIL Open Font License, `tracced/web/static/fonts/LICENSE-IBM-Plex.txt`), the
+Geist fonts kept as the way back (SIL Open Font License, `tracced/web/static/fonts/LICENSE-Geist.txt`) and IBM Carbon
+icons (Apache License 2.0, `tracced/web/static/LICENSE-Carbon-icons.txt`).

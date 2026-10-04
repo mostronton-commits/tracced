@@ -2346,8 +2346,9 @@ async def me_lists(request, pk):
             if not _alerts_allowed(request.app, pk):
                 return _jerr("Alerts are in a closed test for now.", 403)
             on = bool(body.get("on"))
-            out = {"alerts": on, "changed": acc.set_list_alerts(pk, str(body.get("id") or ""), on,
-                                                                   int(request.app["s"].get("alerts_max_wallets", 10)))}
+            cap = int(request.app["s"].get("alerts_max_wallets", 10))
+            out = {"alerts": on, "changed": acc.set_list_alerts(pk, str(body.get("id") or ""), on, cap), "cap": cap}
+            out["bells"] = [w for w, m in acc.load(pk)["wallets"].items() if m.get("alert")]   # the page shows every bell as it is now
         else:
             return _jerr("Unknown action.", 404)
     except acct_mod.AccountError as e:
@@ -2482,7 +2483,11 @@ async def me_page(request):
     tg = a.get("telegram") or {}
     # угоди за 7 днів, які бачив потік сповіщень (власник, 01.10) — лише для гаманців, за якими він стежить зараз: інакше
     # «0 угод» означало б «не стежили», а не «не торгував» (рев'ю 01.10)
-    s, alerts_ok = request.app["s"], _alerts_allowed(request.app, pk) and _alerts_live(request.app)
+    # the draft site (dev) runs no bot, since Telegram gives a bot's updates to one listener only: there the alerts show as
+    # a preview (owner, 04.10: «why are there no alerts?»), the bells and switches save and nothing is sent
+    live = _alerts_live(request.app)
+    preview = not live and _private_host(request)
+    s, alerts_ok = request.app["s"], _alerts_allowed(request.app, pk) and (live or preview)
     cap = int(s.get("alerts_max_wallets", 10))
     watched = alerts_mod.watch_map([a], request.app["admins"], bool(s.get("alerts_open")), cap,
                                    s.get("alerts_min_usd")) if alerts_ok else {}
@@ -2494,7 +2499,7 @@ async def me_page(request):
                                sent_today=dc.count("s:" + pk + ":" + w["wallet"]) or None) for w in wallets}   # what the card shows, by wallet
     return render("me.html", request, wallets=wallets, analyses=analyses, max_my_tags=acct_mod.MAX_MY_TAGS, wmeta=wmeta, act=act,
                   demo_mint=(demo or {}).get("mint"), lists=lists, max_lists=acct_mod.MAX_LISTS,
-                  alerts_ok=alerts_ok,   # без бота картка не обіцяє того, чого нема
+                  alerts_ok=alerts_ok, alerts_preview=preview,   # без бота картка не обіцяє того, чого нема
                   alert_n=alert_n, watch_cap=cap, day_cap=day_cap, day_used=dc.count("a:" + pk),
                   tg={"linked": bool(tg.get("chat")), "user": tg.get("user") or ""},
                   prefs=alerts_mod.prefs_of(a.get("alerts"), request.app["s"].get("alerts_min_usd")))
@@ -4094,7 +4099,8 @@ async def job_agent_ask(request):
         return _jerr(f"Keep the question under {agent_mod.MAX_QUESTION} characters.")
     pk, cfg, t0, jid = request.get("acct"), app["agent_store"].config(), time.monotonic(), job.canon or job.id
     chip = bool(body.get("chip"))
-    lang = agent_mod.lang_name(body.get("lang")) if chip else "the language of the user's question"
+    # своє питання — його мовою, впізнаною кодом (власник, 04.10: на «чий це гаманець» прийшла англійська)
+    lang = agent_mod.lang_name(body.get("lang")) if chip else agent_mod.question_lang(q, agent_mod.lang_name(body.get("lang")))
     # кнопка-підказка — текстом (його написав власник, це не слова людини); інакше лише «своє питання»
     said = (q[:80] if q in cfg["chips"] else 1) if chip else None
     # розмова (три останні питання з відповідями, як їх показує сторінка) і гаманці, вибрані на сторінці: без них
@@ -4114,8 +4120,35 @@ async def job_agent_ask(request):
     names = {k: v.get("name") or k for k, v in (acc.get("lists") or {}).items()}
     mine = {w: {"lists": [names.get(x, x) for x in (m.get("lists") or [])], "tags": list(m.get("my_tags") or [])}
             for w, m in (acc.get("wallets") or {}).items()} if pk else None
+    # хто той гаманець, про який питають, поза таблицею (власник, 04.10): його 30 днів на всіх токенах — з кешу картки
+    # або зараз (1-5 запитів, добу в кеші, платить денний бюджет графіків)
+    rows = job.result.get("rows") or []
+    inhere = {x["wallet"] for x in rows}
+    dossier = {}
+    for w in [x for x in dict.fromkeys(agent_mod.mentioned(q, rows) + focus) if x in inhere][:2]:
+        prof = app["profile_cache"].get(f"v{profile.VERSION}:{w}")
+        if prof is None and pk and hasattr(app["st"], "wallet_swaps"):
+            try:
+                settle = _browse_budget(request, 3)
+            except WebError:
+                settle = None                            # день вичерпано: агент скаже, що знає
+            if settle:
+                def work(w=w, settle=settle):
+                    with app["st"].meter():
+                        req0 = app["st"].requests_here()
+                        try:
+                            return _profile_now(app, w)
+                        finally:
+                            n = app["st"].requests_here() - req0
+                            settle(n)
+                            _spend(app, pk, "card-profile", st=n, job=jid)
+                try:
+                    prof = await asyncio.to_thread(work)
+                except Exception:  # noqa: BLE001 — без 30 днів відповідь усе одно буде
+                    prof = None
+        dossier[w] = {"profile": prof}
     try:
-        out, dropped, usage = await asyncio.to_thread(app["agent"].ask, job.result, cfg, q, lang, history, focus, mine)
+        out, dropped, usage = await asyncio.to_thread(app["agent"].ask, job.result, cfg, q, lang, history, focus, mine, dossier)
     except assistant_mod.AssistantError as e:
         give_back(e.usage)
         app["agent_store"].log({"pk": pk, "job": jid, "kind": "ask", "q": q, "chip": chip, "error": str(e), "usage": e.usage})

@@ -56,7 +56,9 @@ The chip above the table filters the list down to those wallets.
 ## Telegram alerts
 
 Click the bell by a wallet, in its row or in its card: its buys and sells come to Telegram, a few seconds after they
-happen. The bell is per wallet, so you choose exactly whose trades you hear about. If the live stream misses a trade, a check that runs every minute finds the trades of the last 10 minutes; an
+happen. The bell is per wallet, so you choose exactly whose trades you hear about. To hear a whole list, open it and
+switch on *Alerts for this list* in its bar: every wallet in it gets its bell, the newest first while there is room
+under the cap, and switching it off silences them all. If the live stream misses a trade, a check that runs every minute finds the trades of the last 10 minutes; an
 alert that comes a minute or more late says how long ago the trade was. A wallet that trades more than 30 times a
 minute is taken for a bot: the rest of that minute is skipped.
 Only trades count: a wallet has to sign the transaction itself and pay SOL or a stablecoin for a token, or get them for

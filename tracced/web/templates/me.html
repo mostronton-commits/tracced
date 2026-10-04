@@ -21,16 +21,17 @@
       <b>Telegram alerts</b>
       <span id="tgtext">{% if tg.linked %}<i class="tgdot"></i>Connected as <b>{{ tg.user or 'your Telegram' }}</b>{% else %}The buys and sells of your wallets, seconds after they happen{% endif %}</span>
     </div>
-    <div class="tgprefs" id="tgprefs"{% if not tg.linked %} hidden{% endif %}>
+    <div class="tgprefs" id="tgprefs"{% if not tg.linked and not alerts_preview %} hidden{% endif %}>
       <button type="button" class="tgt{{ ' on' if prefs.buys }}" id="tgbuys" aria-pressed="{{ 'true' if prefs.buys else 'false' }}">Buys</button>
       <button type="button" class="tgt{{ ' on' if prefs.sells }}" id="tgsells" aria-pressed="{{ 'true' if prefs.sells else 'false' }}">Sells</button>
       <label class="tgmin">from $<input type="number" id="tgmin" min="0" step="10" value="{{ prefs.min_usd|round|int }}" aria-label="Smallest trade to alert on, in dollars"></label>
     </div>
-    <button type="button" class="primary tgbtn" id="tgconnect"{% if tg.linked %} hidden{% endif %}>Connect Telegram</button>
+    {% if alerts_preview %}<span class="tgprev">Preview on the draft: the bells save, nothing is sent. Alerts go out from tracced.xyz.</span>
+    {% else %}<button type="button" class="primary tgbtn" id="tgconnect"{% if tg.linked %} hidden{% endif %}>Connect Telegram</button>{% endif %}
     <button type="button" class="link" id="tgunlink"{% if not tg.linked %} hidden{% endif %}>Disconnect</button>
   </div>
   {# the bell is on each wallet (owner, 02.10): how many are on and how many alerts went out today, right where the switch is #}
-  <p class="tghint" id="tghint"{% if not tg.linked %} hidden{% endif %}>Click the bell <i class="lbell">{{ icon('bell') }}</i> by a wallet: its buys and sells come to this chat.
+  <p class="tghint" id="tghint"{% if not tg.linked and not alerts_preview %} hidden{% endif %}>Click the bell <i class="lbell">{{ icon('bell') }}</i> by a wallet, or switch a whole list on in its bar: their buys and sells come to this chat.
     <span class="tgstat" id="tgstat" title="At most {{ s.alerts_per_wallet_day }} a day from any one wallet"><b id="tgn" data-cap="{{ watch_cap }}">{{ alert_n }}</b> of {{ watch_cap }} wallets · <b>{{ day_used }}</b> of {{ day_cap }} alerts today</span></p>
 </section>
 {% endif %}
@@ -47,7 +48,9 @@
   </div>
   {# the open list's own bar: its alerts switch where the eye lands, not a link at the end of the tabs (owner, 30.09) #}
   <div class="lbar" id="lacts" hidden>
-    <span class="lmore"><button type="button" class="link" id="lrename">Rename</button> · <button type="button" class="link" id="ldelete">Delete this list</button></span></div>
+    {% if alerts_ok %}{# the bell of a whole list again (owner, 04.10): every wallet in it at once, the newest first while there is room #}
+    <button type="button" class="lalert" id="lalert" aria-pressed="false"><span class="sw"></span>{{ icon('bell') }}<span>Alerts for this list</span><small id="lalertn"></small></button>{% endif %}
+    <span class="lmore"><button type="button" class="link" id="lrename">Rename</button><span id="ldel"> · <button type="button" class="link" id="ldelete">Delete this list</button></span></span></div>
   {% if wallets %}
   {# a list is for watching: the wallet and your tags for it, added right in the row; its numbers open in the card (owner, 30.09) #}
   <div class="tablewrap"><table class="facts melist mewl"><thead><tr>
@@ -340,7 +343,8 @@
     let n = 0;
     document.querySelectorAll('tr[data-w]').forEach(tr => { const on = !current || tr.dataset.lists.split(' ').includes(current); tr.hidden = !on; n += on; });
     document.querySelectorAll('#ltabs .ltab').forEach(b => b.classList.toggle('on', b.dataset.list === current));
-    const acts = document.getElementById('lacts'); if (acts) { acts.hidden = !current; document.getElementById('ldelete').hidden = current === 'main'; }
+    const acts = document.getElementById('lacts'); if (acts) { acts.hidden = !current; document.getElementById('ldel').hidden = current === 'main'; }   // the first list stays: no «·» left hanging either
+    if (typeof syncListBell === 'function') syncListBell();
     const csv = document.getElementById('xcsv'); if (csv) csv.href = '/me/wallets.csv' + (current ? '?list=' + encodeURIComponent(current) : '');
     const em = document.getElementById('lempty'); if (em) em.hidden = n > 0;
     try { localStorage.setItem('early:list', current); } catch (e) {}
@@ -387,13 +391,15 @@
   });
   // ── Telegram alerts: connect with a one-time link, the bell on a list, buys / sells / from $ for all of them ──
   const tgbar = document.getElementById('tgbar');
+  const PREVIEW = {{ 'true' if alerts_preview else 'false' }};           // the draft: nothing is sent, so nothing to connect first
   let tgLinked = !!(tgbar && tgbar.classList.contains('on'));
   const tabOf = id => document.querySelector('#ltabs .ltab[data-list="' + id + '"]');
   function tgShow(d) {
     tgLinked = !!d.linked; tgbar.classList.toggle('on', tgLinked);
     document.getElementById('tgtext').innerHTML = tgLinked ? '<i class="tgdot"></i>Connected as <b>' + EarlyTags.esc(d.user || 'your Telegram') + '</b>' : 'The buys and sells of your wallets, seconds after they happen';
-    document.getElementById('tgprefs').hidden = !tgLinked; document.getElementById('tghint').hidden = !tgLinked;
-    document.getElementById('tgconnect').hidden = tgLinked; document.getElementById('tgunlink').hidden = !tgLinked;
+    document.getElementById('tgprefs').hidden = !tgLinked && !PREVIEW; document.getElementById('tghint').hidden = !tgLinked && !PREVIEW;
+    const tc = document.getElementById('tgconnect'); if (tc) tc.hidden = tgLinked;
+    document.getElementById('tgunlink').hidden = !tgLinked;
   }
   let tgPolling = false;
   async function tgConnect() {
@@ -417,7 +423,7 @@
     } finally { tgPolling = false; }
   }
   if (tgbar) {
-    document.getElementById('tgconnect').addEventListener('click', tgConnect);
+    const tc = document.getElementById('tgconnect'); if (tc) tc.addEventListener('click', tgConnect);
     document.getElementById('tgunlink').addEventListener('click', async () => {
       if (!confirm('Stop alerts in Telegram for this wallet?')) return;
       try { await post('/me/telegram/unlink', {}); tgShow({ linked: false }); } catch (x) { oops(x); }
@@ -444,13 +450,39 @@
   }
   async function toggleBell(w) {
     const on = !(META[w] || {}).alert;
-    if (on && !tgLinked) { EarlyUI.toast('Connect Telegram first: the alerts go there.'); tgConnect(); return; }
+    if (on && !tgLinked && !PREVIEW) { EarlyUI.toast('Connect Telegram first: the alerts go there.'); tgConnect(); return; }
     let d; try { d = await post('/me/wallets/alert', { wallet: w, on }); } catch (x) { oops(x); return; }
     (META[w] = META[w] || {}).alert = d.on; syncBell(w);
     if (tgn) tgn.textContent = d.n;
     EarlyUI.use('wallet-bell', { on: d.on });
     EarlyUI.toast((d.on ? 'Alerts on for ' : 'Alerts off for ') + short(w) + ' · ' + d.n + ' of ' + d.cap + ' wallets');
+    syncListBell();
   }
+  // a whole list at once: on — the bells of its wallets, the newest first while the cap leaves room; off — all of them
+  const lalert = document.getElementById('lalert');
+  function syncListBell() {
+    if (!lalert) return;
+    const rows = [...document.querySelectorAll('tr[data-w]')].filter(tr => current && tr.dataset.lists.split(' ').includes(current));
+    const on = rows.filter(tr => (META[tr.dataset.w] || {}).alert).length, all = !!rows.length && on === rows.length;
+    lalert.hidden = !current || !rows.length;
+    lalert.classList.toggle('on', all); lalert.setAttribute('aria-pressed', String(all));
+    document.getElementById('lalertn').textContent = on + ' of ' + rows.length + ' on';
+  }
+  if (lalert) lalert.addEventListener('click', async () => {
+    const turnOn = lalert.getAttribute('aria-pressed') !== 'true';
+    if (turnOn && !tgLinked && !PREVIEW) { EarlyUI.toast('Connect Telegram first: the alerts go there.'); tgConnect(); return; }
+    let d; try { d = await post('/me/lists/alerts', { id: current, on: turnOn }); } catch (x) { oops(x); return; }
+    const bells = new Set(d.bells || []);
+    Object.keys(META).forEach(w => { META[w].alert = bells.has(w); syncBell(w); });
+    if (tgn) tgn.textContent = bells.size;
+    syncListBell();
+    EarlyUI.use('wallet-bell', { on: turnOn });
+    const left = [...document.querySelectorAll('tr[data-w]')].filter(tr => tr.dataset.lists.split(' ').includes(current) && !bells.has(tr.dataset.w)).length;
+    EarlyUI.toast(!turnOn ? 'Alerts off for this list'
+      : !left ? 'Alerts on for the whole list · ' + bells.size + ' of ' + d.cap + ' wallets'
+      : !d.changed ? 'No room: all ' + d.cap + ' bells are on. Turn some off first.'
+      : 'Alerts on for ' + d.changed + ' more · ' + left + ' wait for room: ' + d.cap + ' wallets is the cap');
+  });
   document.addEventListener('click', e => {
     const b = e.target.closest('[data-bell]'); if (b) { toggleBell(b.closest('tr').dataset.w); return; }
     if (dbell && e.target.closest('#dbell')) toggleBell(drawer.dataset.w);

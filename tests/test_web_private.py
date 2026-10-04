@@ -85,6 +85,22 @@ if AioHTTPTestCase:
             self.assertEqual((await self.client.get("/", headers={"Host": "dev.example."})).status, 403)
             self.assertEqual((await self.client.get("/", headers={"Host": "dev.example.:443"})).status, 403)
 
+        async def test_the_draft_shows_the_alerts_as_a_preview(self):
+            # owner, 04.10: «why are there no alerts?» The draft runs no bot (Telegram gives a bot's updates to one listener
+            # only), so there the bells and the list switch save and the card says that nothing is sent
+            self.app["accounts"].add_wallets(TEST_PK, [{"wallet": STRANGER}])
+            me = dict(DEV, Cookie=wallet_cookie(TEST_PK))
+            r = await self.client.get("/me", headers=me)
+            html = await r.text()
+            self.assertEqual(r.status, 200)
+            for bit in ('id="tgbar"', "Preview on the draft", 'id="lalert"', "data-bell", "const PREVIEW = true"):
+                self.assertIn(bit, html)
+            self.assertNotIn('id="tgconnect"', html)                                        # nothing to connect: no bot here
+            r = await self.client.post("/me/wallets/alert", json={"wallet": STRANGER, "on": True}, headers=dict(me, Origin="http://dev.example"))
+            self.assertEqual((r.status, (await r.json())["on"]), (200, True))               # the bell saves
+            pub = await (await self.client.get("/me", headers={"Cookie": wallet_cookie(TEST_PK)})).text()
+            self.assertNotIn('id="tgbar"', pub)                                              # the public site without a bot: no card
+
         async def test_the_public_site_is_untouched(self):
             r = await self.client.get("/")
             self.assertEqual(r.status, 200)

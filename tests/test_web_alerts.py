@@ -167,6 +167,28 @@ if AioHTTPTestCase:
             self.client.session.headers["Cookie"] = wallet_cookie(W1)                        # anyone else, in the closed test
             self.assertEqual((await bell(w2, True)).status, 403)
 
+        async def test_a_whole_list_switches_on_and_the_page_gets_every_bell(self):
+            # owner, 04.10: «alerts by lists» again. The list's switch rings every wallet in it, the newest first while there
+            # is room, and the answer carries every bell so the page shows them all at once
+            from tracced.web import accounts as acct_mod
+            w2, w3 = acct_mod.b58encode(b"\x02" * 32), acct_mod.b58encode(b"\x03" * 32)
+            acc = self.app["accounts"]
+            acc.add_wallets(TEST_PK, [{"wallet": W1}, {"wallet": w2}])
+            lid, _ = acc.create_list(TEST_PK, "Second")
+            acc.add_wallets(TEST_PK, [{"wallet": w3}], lid)
+            the_list = lambda i, on: self.client.post("/me/lists/alerts", json={"id": i, "on": on}, headers=self.origin)
+            d = await (await the_list("main", True)).json()
+            self.assertEqual((d["changed"], sorted(d["bells"]), d["cap"]), (2, sorted([W1, w2]), 10))
+            self.app["s"]["alerts_max_wallets"] = 3
+            d = await (await the_list(lid, True)).json()
+            self.assertEqual((d["changed"], len(d["bells"])), (1, 3))
+            d = await (await the_list("main", False)).json()
+            self.assertEqual((d["changed"], d["bells"]), (2, [w3]))                          # the other list keeps its bell
+            html = await (await self.client.get("/me")).text()
+            self.assertIn('id="lalert"', html)
+            self.assertIn('id="tgconnect"', html)                                             # the real site: connect, no preview
+            self.assertNotIn("Preview on the draft", html)
+
         async def test_the_poll_catches_what_the_stream_missed(self):
             now = int(time.time())
             self.app["alerts_wm"] = {"WAL": [{"pk": TEST_PK, "chat": 7, "prefs": {}, "tags": []}]}

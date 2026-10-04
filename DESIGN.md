@@ -44,74 +44,74 @@ colors:
   transfer-line: "#FDBA74"
 typography:
   display-hero:
-    fontFamily: Geist
+    fontFamily: IBM Plex Sans
     fontSize: 64px
     fontWeight: 700
     lineHeight: 1
     letterSpacing: -0.02em
   headline-lg:
-    fontFamily: Geist
+    fontFamily: IBM Plex Sans
     fontSize: 20px
     fontWeight: 600
     lineHeight: 1.2
     letterSpacing: -0.01em
   headline-md:
-    fontFamily: Geist
+    fontFamily: IBM Plex Sans
     fontSize: 15px
     fontWeight: 600
     lineHeight: 1.3
   body-md:
-    fontFamily: Geist
+    fontFamily: IBM Plex Sans
     fontSize: 14px
     fontWeight: 400
     lineHeight: 1.45
   body-sm:
-    fontFamily: Geist
+    fontFamily: IBM Plex Sans
     fontSize: 13px
     fontWeight: 400
     lineHeight: 1.45
   label-md:
-    fontFamily: Geist
+    fontFamily: IBM Plex Sans
     fontSize: 12.5px
     fontWeight: 500
     lineHeight: 1.3
   label-sm:
-    fontFamily: Geist
+    fontFamily: IBM Plex Sans
     fontSize: 12px
     fontWeight: 500
     lineHeight: 1.3
   caption:
-    fontFamily: Geist
+    fontFamily: IBM Plex Sans
     fontSize: 11px
     fontWeight: 400
     lineHeight: 1.3
   table-head:
-    fontFamily: Geist
+    fontFamily: IBM Plex Sans
     fontSize: 11.5px
     fontWeight: 500
     lineHeight: 1.2
     letterSpacing: 0.05em
   data-md:
-    fontFamily: Geist Mono
+    fontFamily: IBM Plex Mono
     fontSize: 12.5px
     fontWeight: 400
     lineHeight: 1.3
     fontFeature: '"tnum" 1'
   data-strong:
-    fontFamily: Geist Mono
+    fontFamily: IBM Plex Mono
     fontSize: 13.5px
     fontWeight: 600
     lineHeight: 1.2
     fontFeature: '"tnum" 1'
   data-hero:
-    fontFamily: Geist Mono
+    fontFamily: IBM Plex Mono
     fontSize: 24px
     fontWeight: 700
     lineHeight: 1.1
     letterSpacing: -0.02em
     fontFeature: '"tnum" 1'
   tag:
-    fontFamily: Geist Mono
+    fontFamily: IBM Plex Mono
     fontSize: 10.5px
     fontWeight: 500
     lineHeight: 1.5
@@ -241,7 +241,8 @@ chart sit on dark navy. The working surfaces are light: a pale page, white cards
 
 ## Typography
 
-There are two faces, both self-hosted: **Geist** for words and **Geist Mono** for anything that is data.
+There are two faces, both self-hosted: **IBM Plex Sans** for words and **IBM Plex Mono** for anything that is data (on trial
+from 04.10, owner; they pair with the Carbon icons. Geist stays in `static/fonts/` as the way back).
 
 - **Numbers are mono with tabular figures** (`.mono`, `font-variant-numeric: tabular-nums`) and right-aligned in
   tables, so digits line up in columns.
@@ -302,7 +303,7 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   - ghost: transparent with muted text, for secondary and icon actions.
   
   Pressing changes the fill; nothing scales and nothing rises on hover. No arrows inside buttons: the label says it.
-  The hero's Analyze is the plain primary key in Geist 600 (owner, 02.10: the mono capitals went back).
+  The hero's Analyze is the plain primary key in Plex Sans 600 (owner, 02.10: the mono capitals went back).
 - **Icon-only buttons** (export, close, copy, bell) always carry an `aria-label` and a `title`, centre their glyph
   and are at least 30 px, 36 px on a phone.
 - **Chips and tags** are pills set in mono at 10.5–11 px. A bundle's tag in the table takes its group's colour (one
@@ -328,6 +329,10 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   It shows on at most three visits, stops for good once a card is opened, and is gone at the first click.
 - **Watchlist** is the name of everything a person keeps (owner, 04.10): the one link at the top, the page, the star's
   words. A list is one part of it; the first one is *Main*.
+- **Alerts** (owner, 04.10): the bell sits on each wallet, in its row and in its card, green when on. A list's own bar
+  holds a switch, "Alerts for this list", with "k of N on" beside it: on rings every wallet in the list, the newest
+  first while the cap leaves room; off silences them all. On the draft site no bot runs, so the alerts are a preview:
+  the bells and the switch save, and the Telegram card says that nothing is sent.
 - **The wallet card** is a right-hand sheet, 420–440 px wide and full width on a phone, with a sticky head: identity,
   then the Performance block (7D/30D, 30D by default), always there, then the trades with a switch, "<symbol> token"
   (its numbers here as a small tally, then its trades) and "All tokens" (its recent tokens); the last choice stays for
@@ -349,7 +354,7 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   Undo.
 - **Menus and popovers** are white with a 1 px border. Menus have an 8 px radius, popovers 10 px. Escape or a click
   outside closes them.
-- **The chart** sits on navy with Geist Mono axes. Trades show as markers; a wallet put on the chart gets its own
+- **The chart** sits on navy with Plex Mono axes. Trades show as markers; a wallet put on the chart gets its own
   colour, and the same colour fills that row's chart icon.
 
 ## Motion
@@ -365,7 +370,7 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
 ## Do's and Don'ts
 
 - Do use mint on one thing per view. Don't introduce a new accent colour or a new meaning for an existing one.
-- Do set every number in Geist Mono with tabular figures. Don't mix proportional digits into tables.
+- Do set every number in Plex Mono with tabular figures. Don't mix proportional digits into tables.
 - Do give every hover-only control a touch fallback under `@media (hover: none)`. Don't hide the only way to do
   something behind hover.
 - Do keep touch targets at least 36 px on a phone (40–44 px for the main action).

@@ -51,7 +51,7 @@
       autoSize: true,
       layout: { background: (LW.ColorType && LW.ColorType.VerticalGradient) ? { type: LW.ColorType.VerticalGradient, topColor: '#0B1220', bottomColor: '#090D16' } : { type: 'solid', color: '#090D16' },
                 textColor: '#94A3B8', fontSize: 11,
-                fontFamily: '"Geist Mono", "JetBrains Mono", ui-monospace, Menlo, monospace', attributionLogo: false },
+                fontFamily: '"IBM Plex Mono", ui-monospace, Menlo, monospace', attributionLogo: false },
       grid: { vertLines: { color: '#10172A' }, horzLines: { color: '#182236' } },
       rightPriceScale: { borderColor: '#1E293B', scaleMargins: { top: 0.08, bottom: 0.08 } },
       // minBarSpacing 2: the renderer draws a candle body only when it is wider than its two borders, so bars packed
@@ -74,7 +74,7 @@
     if (vol) chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 }, visible: false });
     if (LW.createTextWatermark && opts.symbol) {
       try { LW.createTextWatermark(chart.panes()[0], { horzAlign: 'center', vertAlign: 'center',
-        lines: [{ text: opts.symbol, color: 'rgba(148, 163, 184, 0.09)', fontSize: 72, fontFamily: '"Geist", -apple-system, sans-serif', fontStyle: '600' }] }); } catch (e) {}
+        lines: [{ text: opts.symbol, color: 'rgba(148, 163, 184, 0.09)', fontSize: 72, fontFamily: '"IBM Plex Sans", -apple-system, sans-serif', fontStyle: '600' }] }); } catch (e) {}
     }
     const empty = document.createElement('div'); empty.className = 'chart-empty'; empty.hidden = true;
     empty.textContent = 'No candles here yet'; el.appendChild(empty);

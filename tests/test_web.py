@@ -1476,7 +1476,7 @@ if AioHTTPTestCase:
             class Flaky:
                 model = "fake"
 
-                def ask(self, result, cfg, q, lang, history=None, focus=None, mine=None):
+                def ask(self, result, cfg, q, lang, history=None, focus=None, mine=None, dossier=None):
                     if q == "down":
                         raise AssistantError("The agent's model is busy right now. Try again in a minute.")
                     return {"on_topic": False, "answer": ["I only answer questions about this analysis."], "wallets": [], "model": "fake"}, [], {}
@@ -2422,7 +2422,7 @@ if AioHTTPTestCase:
                     calls.append(("cards", lang, cfg["v"]))
                     return {"story": ["1 wallet bought."], "risks": [], "watch": [], "method": "m", "model": "fake"}, [], {"cost": 0.001}
 
-                def ask(self, result, cfg, q, lang, history=None, focus=None, mine=None):
+                def ask(self, result, cfg, q, lang, history=None, focus=None, mine=None, dossier=None):
                     calls.append(("ask", q, lang))
                     seen.append((history, focus))
                     mines.append(mine)
@@ -2446,7 +2446,7 @@ if AioHTTPTestCase:
                 self.assertEqual(((await r.json())["left"], calls[-1]), (9, ("ask", "Who took 3x?", "English")))
                 r = await self.client.post(f"/job/{DEMO_JID}/agent/ask", json={"q": "Хто тримає?", "focus": [pk, "not-a-key"],
                                            "history": [{"q": "Who took 3x?", "a": "1 wallet bought."}, "junk", {"q": " "}]}, headers=h)
-                self.assertEqual(calls[-1][2], "the language of the user's question")   # своє питання — його мовою
+                self.assertEqual(calls[-1][2], "Ukrainian")                     # своє питання — його мовою, впізнаною кодом
                 self.assertEqual(seen[-1], ([{"q": "Who took 3x?", "a": "1 wallet bought."}], [pk]))   # розмова і вибрані гаманці — до агента
                 self.assertEqual(mines[-1], {})                                 # signed in, nothing saved yet
                 self.assertEqual((await self.client.post("/me/wallets", json={"job": DEMO_JID, "wallets": [W1]}, headers=h)).status, 200)
