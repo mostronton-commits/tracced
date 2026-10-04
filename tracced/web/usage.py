@@ -23,7 +23,8 @@ UI = {
     "show-more": ("all",), "find-pump": (), "range-preset": ("p",), "finding": ("k",), "limit-window": ("kind",),
     "range-set": ("end",), "range-add": (), "range-reset": (), "tf": ("tf",), "chart-nav": ("to",),
     "list-tab": (), "copy": ("what",), "ext": ("to",), "cur": ("to",), "tz": ("to",), "leave": ("secs",),
-    "egg": ("what",),
+    "egg": ("what",), "star": ("on",), "list-move": ("how",), "wallet-bell": ("on",), "card-view": ("v",),
+    "card-token-chart": (), "list-bell": ("on",),
 }
 # короткий рядок: адреса гаманця (32-44 символи) чи набраний людиною текст сюди не пролазять фізично
 VAL = re.compile(r"^[A-Za-z0-9_.:-]{1,24}$")
@@ -145,7 +146,8 @@ FEATURES = {"run": "Analyses", "names": "Wallet names", "enrich": "Wallet age an
             "card-trades": "Card: trades on the token", "card-age": "Card: age and funder", "demo": "Demo capture",
             "credits": "Balance checks", "onchain": "This dashboard: on-chain facts", "agent": "AI agent",
             "api-check": "Partner API: token checks", "alerts": "Telegram alerts: token names and positions",
-            "fresh": "Home: fresh pumps"}
+            "fresh": "Home: fresh pumps", "after-profile": "After the alerts: wallets' 30 days",
+            "after-chart": "After the alerts: token candles"}
 WHO = {"wallets": "Wallet users", "team": "You and test wallets", "guests": "Guests", "partners": "API partners", "system": "The server"}
 # кліки людською мовою: таблиця «що клікають» і хронологія гаманця
 CLICKS = {"card-open": "Opened a wallet card", "card-close": "Closed a wallet card", "card-period": "Switched 7D/30D in a card",
@@ -153,16 +155,20 @@ CLICKS = {"card-open": "Opened a wallet card", "card-close": "Closed a wallet ca
           "filters-toggle": "Opened or closed the filters", "funder": "Filtered by a funder", "sort": "Sorted the table",
           "select": "Ticked wallets", "select-all": "Ticked all", "select-clear": "Cleared the selection", "export": "Exported",
           "agent-open": "Opened the agent", "agent-close": "Closed the agent", "show-more": "Showed more rows",
-          "find-pump": "Pressed Find the pump (Before the pump)", "range-preset": "Picked a quick range (First / Last hour)", "finding": "Opened a finding above the table", "limit-window": "Saw the daily limit window", "range-set": "Marked a range on the chart",
+          "find-pump": "Pressed Find the pump (Before the pump)", "range-preset": "Picked a quick range (First / Last hour)", "finding": "Clicked a number under the chart", "limit-window": "Saw the daily limit window", "range-set": "Marked a range on the chart",
           "range-add": "Added a range", "range-reset": "Reset the ranges", "tf": "Changed the timeframe", "chart-nav": "Jumped on the chart",
           "list-tab": "Switched a list", "copy": "Copied an address", "ext": "Followed a link out", "cur": "Switched USD/SOL",
-          "tz": "Switched UTC/local", "leave": "Left a page", "egg": "Found an easter egg"}
+          "tz": "Switched UTC/local", "leave": "Left a page", "egg": "Found an easter egg",
+          "star": "Starred a wallet into the watchlist", "list-move": "Changed a wallet's lists in its card",
+          "wallet-bell": "Switched a wallet's alerts", "card-view": "Switched a card between this token and all tokens",
+          "card-token-chart": "Opened another token's chart in a card", "list-bell": "Switched a whole list's alerts"}
 # що на сайті можна натиснути зараз: з цього списку — «ніхто не користувався» (прибрані кнопки сюди не входять,
 # інакше вони висіли б у списку вічно)
 UI_FEATURES = ("card-open", "card-period", "pin", "sort", "filter", "hide", "filters-toggle", "filters-reset", "funder", "finding",
-               "select", "select-all", "export", "show-more", "agent-open", "range-set", "range-add", "range-reset", "tf",
-               "chart-nav", "list-tab", "copy", "ext", "cur", "tz")
-PAGE_NAMES = {"job": "On a result", "token": "On a token's chart", "me": "In Lists", "home": "On the home page", "docs": "In the docs"}
+               "star", "export", "show-more", "agent-open", "range-set", "range-add", "range-reset", "tf",
+               "chart-nav", "list-tab", "list-move", "wallet-bell", "card-view", "copy", "ext", "cur", "tz",
+               "card-token-chart", "list-bell")
+PAGE_NAMES = {"job": "On a result", "token": "On a token's chart", "me": "In the watchlist", "home": "On the home page", "docs": "In the docs"}
 FUNNEL = (("result", "Opened a result"), ("card", "Opened a wallet card"), ("run", "Ran an analysis"),
           ("keep", "Saved or exported"), ("agent", "Asked the agent"))
 LIMITS = {"run": "Live analyses", "browse": "Charts of new tokens", "age-card": "Age checks from cards",
@@ -617,7 +623,7 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
         if e.get("event") == "telegram" and not e.get("on") and person(e.get("pubkey")):
             unlinks[e.get("via") or "site"] = unlinks.get(e.get("via") or "site", 0) + 1
     alerts = {"linked": sum(1 for a in accts if (a.get("telegram") or {}).get("chat")),
-              "bells": sum(1 for a in accts for l in (a.get("lists") or {}).values() if isinstance(l, dict) and l.get("alerts")),
+              "bells": sum(1 for a in accts for m in (a.get("wallets") or {}).values() if isinstance(m, dict) and m.get("alert")),
               "started": sum(1 for e in evp if e.get("event") == "tg_link" and person(e.get("pubkey"))),
               "linked_new": sum(1 for e in evp if e.get("event") == "telegram" and e.get("on") and person(e.get("pubkey"))),
               "sent": len(sent), "buys": sum(1 for e in sent if e.get("side") == "buy"),
@@ -670,6 +676,10 @@ def label(e):
         return {"text": "ran an analysis:", **link}
     if ev == "delete_analysis":
         return {"text": f"deleted the analysis {g('symbol') or job or ''}".rstrip()}
+    if ev == "wallet_alert":
+        return {"text": f"turned alerts {'on' if g('on') else 'off'} for a wallet"}
+    if ev == "list_move":
+        return {"text": f"{'moved' if g('how') == 'move' else 'copied'} {_plural(int(g('n') or 1), 'wallet')} to another list"}
     if ev in ("list_create", "list_rename", "list_remove"):
         return {"text": {"list_create": "made", "list_rename": "renamed", "list_remove": "deleted"}[ev] + " a list"}
     if ev == "tags":

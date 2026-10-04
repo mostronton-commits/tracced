@@ -70,7 +70,8 @@ class TestScope(unittest.TestCase):
         rows, _ = scope.rows_for(r, "all")
         self.assertEqual(rows[0]["source"], "entry-only")
         self.assertIsNone(rows[0]["realized_usd"])
-        self.assertIn("no-exits", rows[0]["tag_list"])
+        self.assertNotIn("no-exits", rows[0]["tag_list"])                           # the tag is gone (owner, 04.10)
+        self.assertNotIn("never-sold", rows[0]["tag_list"])                         # sells unread: not «never sold»
 
     def test_old_result_without_trades(self):
         self.assertIsNone(scope.rows_for({"rows": [{"wallet": "W"}], "window": {}}, "all"))

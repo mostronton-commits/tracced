@@ -3,32 +3,39 @@
 A Solana wallet signs a one-time message. That signature is the account: no password, no e-mail, no transaction,
 no fee.
 
-Works with Phantom. On a phone, open tracced inside the Phantom app: the Connect button takes you there.
+Works with Phantom, Backpack and Solflare. On a phone, open tracced inside the wallet's own app: the Connect button
+takes you there.
 
-## Lists and saved analyses
+## Your watchlist and saved analyses
 
-Tick wallets in a result and press **+ Add to list**, then pick a list or name a new one. The star in a wallet's
-card opens the same menu for that one wallet: it shows which lists hold it, and a click adds or removes it.
-**Save analysis** keeps the whole result under *My analyses* at `/me`.
+The wallets you keep are your watchlist. In a result, point at a wallet's row: a star (☆) comes out before its address.
+One click puts the wallet in your watchlist and fills the star (★). A filled star, in the row or in the wallet's card,
+opens the menu of your lists: it shows which lists hold the wallet, and a click adds or removes it, or makes a new
+list. **★ Only my watchlist**, in the Filters panel, keeps only the wallets you have saved. **Save analysis** keeps the
+whole result under *My analyses* at `/me`; the *Watchlist* link at the top of every page leads there.
 
-You start with one list, *Watchlist*, and can keep up to twenty: one per strategy, per token family, per person you
-follow. A wallet can sit in several. At `/me` every list has its own tab with its count, where you rename or delete
-it (the first one stays). **Export** there gives the list on screen, or all of them, as CSV or TXT, and the CSV
-says which lists hold each wallet.
+Your watchlist starts with one list, *Main*, and can hold up to twenty: one per strategy, per token family, per person you
+follow. A wallet can sit in several. At `/me` every list has its own tab with its count, where you rename it right in the tab
+or delete it (the first one stays). A wallet's card there shows the lists that hold it: a click adds it to a list or
+takes it out. It stays in at least one; × in its row drops the wallet.
+**Export** there gives the list on screen, or all of them, as CSV or TXT. The CSV is about each wallet itself: its
+name and X account when known, its first funder and the exchange behind it, its first transaction, your tags, the
+lists that hold it, and the token you found it on.
 
 A row in a list is the wallet and your tags for it: **+** adds one right there. Click the row for the wallet's card,
 about the wallet itself: who it is if anyone knows, its age and first funder, the other analyses you saved it in, and its
 last 7 or 30 days on every token. Nothing about the token you found it on: that stays on the result.
 
-In a list with alerts on, a row also shows the wallet's buys (↑) and sells (↓) that the alerts saw in the last 7 days
-and how long ago it last traded; its card says the same. Every trade counts, whatever your alert settings (except the
-skipped part of a bot's minute), from the moment the alerts started watching the wallet. When no list with alerts holds it any more, its counts are dropped,
-and they start again the next time. Counts are kept for 8 days.
+A wallet with its bell on also shows, in its row, the buys (↑) and sells (↓) the alerts saw in the last 7 days and how
+long ago it last traded. Its card adds its biggest buy in those days and how many alerts it has sent you today. Every
+trade counts, whatever your alert settings (except the skipped part of a bot's minute), from the moment the alerts
+started watching the wallet. When its bell goes off, its counts are dropped, and they start again the next time.
+Counts are kept for 8 days.
 
 ## Your own tags
 
-Each saved wallet takes tags you write yourself: in your lists, right in its row, or in the wallet's card. Type a
-short word, press Enter. Click a tag to remove it. Tagging a wallet in its card on a result adds it to your *Watchlist*,
+Each saved wallet takes tags you write yourself: in your watchlist, right in its row, or in the wallet's card. Type a
+short word, press Enter. A tag goes only by its own ×, and Undo in the message that follows brings it back. Tagging a wallet in its card on a result adds it to your *Watchlist*,
 because a tag is a reason to watch it. A tag is the wallet's name for you: your lists and your Telegram alerts show
 it instead of the address.
 
@@ -48,19 +55,25 @@ The chip above the table filters the list down to those wallets.
 
 ## Telegram alerts
 
-Open a list and switch its alerts on: the buys and sells of its wallets come to Telegram, a few seconds after they
-happen. If the live stream misses a trade, a check that runs every minute finds the trades of the last 10 minutes; an
+Click the bell by a wallet, in its row or in its card: its buys and sells come to Telegram, a few seconds after they
+happen. The bell is per wallet, so you choose exactly whose trades you hear about. To hear a whole list, open it and
+switch on *Alerts for this list* in its bar: every wallet in it gets its bell, the newest first while there is room
+under the cap, and switching it off silences them all. If the live stream misses a trade, a check that runs every minute finds the trades of the last 10 minutes; an
 alert that comes a minute or more late says how long ago the trade was. A wallet that trades more than 30 times a
 minute is taken for a bot: the rest of that minute is skipped.
 Only trades count: a wallet has to sign the transaction itself and pay SOL or a stablecoin for a token, or get them for
 one. Transfers, incoming SOL, airdrops and token-for-token swaps stay silent, and so does anything under your minimum.
 
-- **Connect**: on your lists page, press *Connect Telegram*, then *Start* in the bot. The link works once, for ten
+- **Connect**: on your watchlist page, press *Connect Telegram*, then *Start* in the bot. The link works once, for ten
   minutes, and only from the wallet you are signed in with. A chat already connected to another wallet stays with it:
   send /stop there first.
-- **Choose**: buys, sells, and the smallest trade in dollars, the same for every list with the bell on. Up to
-  {{ s.alerts_max_wallets }} wallets per account, and up to {{ s.alerts_per_hour }} alerts an hour.
-- **Stop**: *Disconnect* on the lists page, or /stop in the bot.
+- **Choose**: buys, sells, and the smallest trade in dollars, the same for every wallet with its bell on. Up to
+  {{ s.alerts_max_wallets }} wallets per account: with all of them on, turn one off before you turn another on. Up to
+  {{ s.alerts_per_hour }} alerts an hour and {{ s.alerts_per_day }} a day (UTC), and {{ s.alerts_per_wallet_day }} a day from
+  any one wallet, so a bot trading every minute does not use up the rest; past any of them, one message says so and
+  the rest of that hour or day is skipped (for that wallet alone, when it is the wallet's cap). The watchlist page counts both: how many wallets have their bell on, and how many
+  alerts went out today.
+- **Stop**: *Disconnect* on the watchlist page, or /stop in the bot.
 
 An alert reads like a trades channel, three lines:
 
@@ -74,8 +87,14 @@ An alert reads like a trades channel, three lines:
 A trade made through an app that pays the network fee for its users (FOMO and the like) counts the same: the wallet
 still signs it.
 
+The token's name, its market cap and the share sold come from our data provider, and alerts have a daily share of it:
+{{ '{:,}'.format(s.alerts_st_per_day) }} requests for everyone together. On a day that uses it up, alerts keep coming
+until 00:00 UTC, with the token's short address in place of its name (unless it came up in the last ten minutes), and
+without the cap and the sold share.
+
 We keep the Telegram chat the alerts go to and your Telegram username; nothing else from Telegram. Alerts are in a
 closed test for now.
+
 
 ## What other people see
 

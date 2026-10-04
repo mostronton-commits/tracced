@@ -147,7 +147,8 @@ class TestPipeline(unittest.TestCase):
             self.assertIsNone(a["realized_usd"])
             self.assertAlmostEqual(a["invested_in_range_usd"], 100)
             self.assertEqual(res["counts"]["entry_only"], 1)
-            self.assertIn("the rest tagged no-exits", report.coverage_text(res["coverage"]))
+            self.assertIn("the rest show their entry only", report.coverage_text(res["coverage"]))
+            self.assertNotIn("never-sold", a["tag_list"])                                # its sells were not read: no claim either way
 
     def test_full_range_beats_many_lookups(self):
         # 6 ранніх гаманців, решта діапазону ≈1 сторінка → повний діапазон дешевший за 6 запитів

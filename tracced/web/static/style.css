@@ -1,12 +1,43 @@
 /* Early Wallets — design system: restrained engineering, status-driven color, thin borders, no shadows. */
-@font-face { font-family: "Geist"; src: url("fonts/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
-@font-face { font-family: "Geist Mono"; src: url("fonts/GeistMono-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+/* IBM Plex Sans and Mono on trial (owner, 04.10), self-hosted from @ibm/plex-sans@1.1.0 and @ibm/plex-mono@2.5.0 (SIL OFL,
+   fonts/LICENSE-IBM-Plex.txt). Latin first; Cyrillic (the agent's Ukrainian) and arrows load only when a page uses them.
+   Geist stays in fonts/ for a quick way back */
+@font-face { font-family: "IBM Plex Sans"; src: url("fonts/IBMPlexSans-Regular-Latin1.woff2") format("woff2"); font-weight: 400; font-display: swap;
+  unicode-range: U+0000, U+000D, U+0020-007E, U+00A0-00A3, U+00A4-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, U+2018-201A, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2044, U+2074, U+20AC, U+2122, U+2212, U+FB01-FB02; }
+@font-face { font-family: "IBM Plex Sans"; src: url("fonts/IBMPlexSans-Medium-Latin1.woff2") format("woff2"); font-weight: 500; font-display: swap;
+  unicode-range: U+0000, U+000D, U+0020-007E, U+00A0-00A3, U+00A4-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, U+2018-201A, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2044, U+2074, U+20AC, U+2122, U+2212, U+FB01-FB02; }
+@font-face { font-family: "IBM Plex Sans"; src: url("fonts/IBMPlexSans-SemiBold-Latin1.woff2") format("woff2"); font-weight: 600; font-display: swap;
+  unicode-range: U+0000, U+000D, U+0020-007E, U+00A0-00A3, U+00A4-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, U+2018-201A, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2044, U+2074, U+20AC, U+2122, U+2212, U+FB01-FB02; }
+@font-face { font-family: "IBM Plex Sans"; src: url("fonts/IBMPlexSans-Bold-Latin1.woff2") format("woff2"); font-weight: 700; font-display: swap;
+  unicode-range: U+0000, U+000D, U+0020-007E, U+00A0-00A3, U+00A4-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, U+2018-201A, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2044, U+2074, U+20AC, U+2122, U+2212, U+FB01-FB02; }
+@font-face { font-family: "IBM Plex Sans"; src: url("fonts/IBMPlexSans-Regular-Cyrillic.woff2") format("woff2"); font-weight: 400; font-display: swap;
+  unicode-range: U+0400-045F, U+0472-0473, U+0490-049D, U+04A0-04A5, U+04AA-04AB, U+04AE-04B3, U+04B6-04BB, U+04C0-04C2, U+04CF-04D9, U+04DC-04DF, U+04E2-04E9, U+04EE-04F5, U+04F8-04F9; }
+@font-face { font-family: "IBM Plex Sans"; src: url("fonts/IBMPlexSans-Medium-Cyrillic.woff2") format("woff2"); font-weight: 500; font-display: swap;
+  unicode-range: U+0400-045F, U+0472-0473, U+0490-049D, U+04A0-04A5, U+04AA-04AB, U+04AE-04B3, U+04B6-04BB, U+04C0-04C2, U+04CF-04D9, U+04DC-04DF, U+04E2-04E9, U+04EE-04F5, U+04F8-04F9; }
+@font-face { font-family: "IBM Plex Sans"; src: url("fonts/IBMPlexSans-SemiBold-Cyrillic.woff2") format("woff2"); font-weight: 600; font-display: swap;
+  unicode-range: U+0400-045F, U+0472-0473, U+0490-049D, U+04A0-04A5, U+04AA-04AB, U+04AE-04B3, U+04B6-04BB, U+04C0-04C2, U+04CF-04D9, U+04DC-04DF, U+04E2-04E9, U+04EE-04F5, U+04F8-04F9; }
+@font-face { font-family: "IBM Plex Sans"; src: url("fonts/IBMPlexSans-Regular-Pi.woff2") format("woff2"); font-weight: 400; font-display: swap;
+  unicode-range: U+0E3F, U+2032-2033, U+2070, U+2075-2079, U+2080-2081, U+2083, U+2085-2089, U+2113, U+2116, U+2126, U+212E, U+2150-2151, U+2153-215E, U+2190-2199, U+21A9-21AA, U+21B0-21B3, U+21B6-21B7, U+21BA-21BB, U+21C4, U+21C6, U+2202, U+2206, U+220F, U+2211, U+221A, U+221E, U+222B, U+2248, U+2260, U+2264-2265, U+25CA, U+2713, U+274C, U+2B0E-2B11, U+EBE1-EBE7, U+ECE0, U+EFCC; }
+@font-face { font-family: "IBM Plex Sans"; src: url("fonts/IBMPlexSans-Medium-Pi.woff2") format("woff2"); font-weight: 500; font-display: swap;
+  unicode-range: U+0E3F, U+2032-2033, U+2070, U+2075-2079, U+2080-2081, U+2083, U+2085-2089, U+2113, U+2116, U+2126, U+212E, U+2150-2151, U+2153-215E, U+2190-2199, U+21A9-21AA, U+21B0-21B3, U+21B6-21B7, U+21BA-21BB, U+21C4, U+21C6, U+2202, U+2206, U+220F, U+2211, U+221A, U+221E, U+222B, U+2248, U+2260, U+2264-2265, U+25CA, U+2713, U+274C, U+2B0E-2B11, U+EBE1-EBE7, U+ECE0, U+EFCC; }
+@font-face { font-family: "IBM Plex Mono"; src: url("fonts/IBMPlexMono-Regular-Latin1.woff2") format("woff2"); font-weight: 400; font-display: swap;
+  unicode-range: U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, U+2018-201A, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2044, U+20AC, U+2122, U+2212, U+FB01-FB02; }
+@font-face { font-family: "IBM Plex Mono"; src: url("fonts/IBMPlexMono-Medium-Latin1.woff2") format("woff2"); font-weight: 500; font-display: swap;
+  unicode-range: U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, U+2018-201A, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2044, U+20AC, U+2122, U+2212, U+FB01-FB02; }
+@font-face { font-family: "IBM Plex Mono"; src: url("fonts/IBMPlexMono-SemiBold-Latin1.woff2") format("woff2"); font-weight: 600; font-display: swap;
+  unicode-range: U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, U+2018-201A, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2044, U+20AC, U+2122, U+2212, U+FB01-FB02; }
+@font-face { font-family: "IBM Plex Mono"; src: url("fonts/IBMPlexMono-Bold-Latin1.woff2") format("woff2"); font-weight: 700; font-display: swap;
+  unicode-range: U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, U+2018-201A, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2044, U+20AC, U+2122, U+2212, U+FB01-FB02; }
+@font-face { font-family: "IBM Plex Mono"; src: url("fonts/IBMPlexMono-Regular-Pi.woff2") format("woff2"); font-weight: 400; font-display: swap;
+  unicode-range: U+03C0, U+0E3F, U+2000-200D, U+2010-2012, U+2015, U+2028-2029, U+202F, U+2032-2033, U+203E, U+205F, U+2070, U+2074-2079, U+2080-2089, U+2113, U+2116, U+2126, U+212E, U+2150-2151, U+2153-215E, U+2190-2199, U+21A9-21AA, U+21B0-21B3, U+21B6-21B7, U+21BA-21BB, U+21C4, U+21C6, U+2202, U+2206, U+220F, U+2211, U+2215, U+2219-221A, U+221E, U+222B, U+2236, U+2248, U+2260, U+2264-2265, U+2400-2421, U+2500-259F, U+25CA, U+2713, U+274C, U+2B0E-2B11, U+3000, U+FEFF, U+FFFD; }
+@font-face { font-family: "IBM Plex Mono"; src: url("fonts/IBMPlexMono-SemiBold-Pi.woff2") format("woff2"); font-weight: 600; font-display: swap;
+  unicode-range: U+03C0, U+0E3F, U+2000-200D, U+2010-2012, U+2015, U+2028-2029, U+202F, U+2032-2033, U+203E, U+205F, U+2070, U+2074-2079, U+2080-2089, U+2113, U+2116, U+2126, U+212E, U+2150-2151, U+2153-215E, U+2190-2199, U+21A9-21AA, U+21B0-21B3, U+21B6-21B7, U+21BA-21BB, U+21C4, U+21C6, U+2202, U+2206, U+220F, U+2211, U+2215, U+2219-221A, U+221E, U+222B, U+2236, U+2248, U+2260, U+2264-2265, U+2400-2421, U+2500-259F, U+25CA, U+2713, U+274C, U+2B0E-2B11, U+3000, U+FEFF, U+FFFD; }
 
 :root {
   --bg: #F8FAFC; --surface: #FFFFFF; --ink: #0F172A; --muted: #64748B; --line: #E2E8F0;
   --mint: #A7F3D0; --sage: #D1FAE5; --navy: #090D16; --red: #DC2626;
-  --sans: "Geist", -apple-system, "Inter", "Segoe UI", sans-serif;
-  --mono: "Geist Mono", "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --sans: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
   --r: 8px;
   --page: 1280px;                 /* ширина вмісту; сторінка результату ширша — див. body:has(main.wide) */
 }
@@ -18,6 +49,9 @@ body { margin: 0; color: var(--ink); background: var(--bg); font: 14px/1.45 var(
 a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); }
 a:hover { border-color: var(--ink); }
 .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12.5px; }
+/* icons: IBM Carbon from one sprite (static/icons.svg), filled shapes on a 32-unit artboard, sharp at 16 and 20 px */
+svg.ci { width: 16px; height: 16px; flex: none; display: inline-block; vertical-align: middle; fill: currentColor; }
+svg.ci.inl { vertical-align: -3px; }
 .muted { color: var(--muted); } .small { font-size: 12px; } .err { color: var(--red); } .neg { color: var(--red); }
 .num { text-align: right; }
 
@@ -75,9 +109,9 @@ h2.sec .muted { font-weight: 400; margin-left: 8px; }
 .chartbox .lw { position: absolute; inset: 0 0 34px 0; border-radius: var(--r) var(--r) 0 0; overflow: hidden; }
 .chartbox.loading .lw { opacity: .6; }
 .chartbox .overlay { position: absolute; inset: 0 0 34px 0; pointer-events: none; overflow: hidden; z-index: 5; }
-.chartbox .overlay .win { position: absolute; top: 0; bottom: 26px; background: rgba(167, 243, 208, .14); border-left: 1px solid #34D399; border-right: 1px solid #34D399; }
-.chartbox .overlay .win.sel { background: rgba(167, 243, 208, .26); }
-.chartbox .overlay .win .lbl { position: absolute; top: 6px; left: 4px; font: 10px/1 var(--mono); color: var(--mint); background: #0F172A; border: 1px solid #1E293B; border-radius: 4px; padding: 3px 5px; pointer-events: auto; cursor: pointer; }
+.chartbox .overlay .win { --wc: 52, 211, 153; position: absolute; top: 0; bottom: 26px; background: rgba(var(--wc), .10); border-left: 1px solid rgba(var(--wc), .9); border-right: 1px solid rgba(var(--wc), .9); }
+.chartbox .overlay .win.sel { background: rgba(var(--wc), .22); }
+.chartbox .overlay .win .lbl { position: absolute; top: 6px; left: 4px; font: 10px/1 var(--mono); color: rgb(var(--wc)); background: #0F172A; border: 1px solid rgba(var(--wc), .35); border-radius: 4px; padding: 3px 5px; pointer-events: auto; cursor: pointer; }
 .chartbox .overlay .exitline { position: absolute; top: 0; bottom: 26px; width: 0; border-left: 1px dashed #CBD5E1; }
 .chartbox .overlay .marker { position: absolute; top: 0; bottom: 26px; width: 0; border-left: 1px solid var(--mint); }
 /* Підказка просто на графіку: текст збоку від нього на кастдеві не прочитали жодного разу. */
@@ -106,7 +140,8 @@ h2.sec .muted { font-weight: 400; margin-left: 8px; }
 .wrow.sel { border-color: #6ee7b7; background: #F6FEF9; }
 .wrow.locked input { background: var(--bg); color: var(--muted); cursor: default; }   /* an analyzed range: a record, not a field */
 .wrow.locked .label { cursor: default; } .wrow.locked .label:hover { border-color: transparent; background: none; }
-.wrow .n { font-family: var(--mono); color: var(--muted); font-size: 12px; align-self: center; }
+.wrow .n { font-family: var(--mono); color: var(--muted); font-size: 12px; align-self: center; display: inline-flex; align-items: center; gap: 5px; }
+.wrow .n::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: rgb(var(--wc, 52, 211, 153)); flex: none; }
 .wrow .label { font-size: 12.5px; color: var(--ink); align-self: center; font-family: var(--mono); padding: 4px 6px; border-radius: 6px; border: 1px dashed transparent; cursor: text; }
 .wrow .label:hover, .wrow .label:focus { border-color: var(--line); outline: none; background: #F8FAFC; }
 .wrow label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--muted); }
@@ -175,8 +210,74 @@ th.sortable::after { content: " ⇅"; font-size: 9px; color: #CBD5E1; }
 th.sortable:hover::after { color: var(--muted); }
 th.sortable.asc::after { content: " ↑"; color: var(--ink); font-size: 10px; }
 th.sortable.desc::after { content: " ↓"; color: var(--ink); font-size: 10px; }
-td .pick { accent-color: #10b981; }
-tr.picked td { background: #F6FEF9; }
+/* the result table's head carries its filters (owner, 02.10): the sort mark left of the name, the funnel right of it,
+   one line */
+#facts th { white-space: nowrap; }
+#facts th .thc, #facts th .hl { display: inline-flex; align-items: center; vertical-align: middle; }   /* $, mark, name, funnel on one line */
+#facts th.sortable::after { content: none; }
+#facts th.sortable .hl::before { content: "⇅"; display: inline-block; width: 15px; margin-right: 2px; border-radius: 4px; text-align: center;
+  font-size: 10px; line-height: 18px; color: #94A3B8; transition: color .12s ease, background .12s ease; }
+#facts th.sortable:hover .hl::before { color: var(--ink); background: #F1F5F9; }
+#facts th.asc .hl::before { content: "↑"; color: var(--ink); font-size: 11px; }
+#facts th.desc .hl::before { content: "↓"; color: var(--ink); font-size: 11px; }
+#facts th .hfil, #facts th .hcur { display: inline-flex; align-items: center; justify-content: center; height: 20px; min-width: 20px; padding: 0 3px;
+  margin: 0 0 0 3px; border: 0; border-radius: 5px; background: transparent; color: #94A3B8; cursor: pointer; }
+#facts th .hfil svg { width: 16px; height: 16px; }
+#facts th .hfil:hover, #facts th .hcur:hover { color: var(--ink); background: #F1F5F9; }
+#facts th .hfil.on { color: #047857; background: var(--sage); }
+#facts th .hcur { height: 18px; margin: 0 4px 0 0; font: 600 11px/1 var(--mono); color: var(--muted); border: 1px solid var(--line); text-transform: none; letter-spacing: 0; }
+#facts th .hcur .insol::before { margin: 0; }
+/* the window behind a funnel: «from … to …», Reset and Apply; the same window opens from the Filters list on a phone */
+.fpop { position: absolute; z-index: 85; width: 290px; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 12px 32px -12px rgba(15, 23, 42, .35); display: grid; gap: 8px; }
+.fpop .fph { font: 600 12.5px var(--sans); color: var(--ink); display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.fpop .fph small { font-weight: 400; color: var(--muted); font-size: 11.5px; }
+.fpop .fph.sub { margin-top: 4px; font-weight: 500; color: var(--muted); }
+.fpop .fprow { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
+.fpop .fprow span { font-size: 12px; color: var(--muted); }
+.fpop input[type=number], .fpop input.fq { width: 100%; min-width: 0; height: 34px; font: 13px var(--mono); -moz-appearance: textfield; }
+.fpop input[type=number]::-webkit-inner-spin-button, .fpop input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.fpop .fcks { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
+.fpop .fck { display: inline-flex; align-items: center; gap: 6px; font: 12px var(--mono); color: var(--ink); cursor: pointer; min-height: 26px; }
+.fpop .fck svg { width: 16px; height: 16px; flex: none; color: var(--muted); }
+.fpop .fck input { accent-color: #10b981; margin: 0; }
+.fpop .fpf { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+.fpop .fpf .primary { height: 32px; padding: 0 16px; }
+/* the filters as a panel over the table, its full width (owner, 04.10: as it was before, not a pop-up): find a wallet and
+   your watchlist, then every number from and to, then the tags to hide; all of it applies as you type */
+.fpanel { display: grid; gap: 12px; margin: 0 0 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.fpanel .fp-top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+.fpanel .fq { flex: 0 1 360px; min-width: 0; height: 34px; font: 13px var(--mono); }
+.fpanel .fp-nums { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px 20px; }
+.fpanel .fnum { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.fpanel .fnum span { white-space: nowrap; } .fpanel .fnum i { font-style: normal; }
+.fpanel .fnum input { width: 100%; min-width: 0; height: 32px; padding: 0 8px; font: 13px var(--mono); -moz-appearance: textfield; }
+.fpanel .fnum input::-webkit-inner-spin-button, .fpanel .fnum input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.fpanel .fp-hide { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.fpanel .fph { margin-right: 4px; font: 600 10.5px/1 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.fpanel .fck { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink); cursor: pointer; }
+.fpanel .fck input { margin: 0; accent-color: #10b981; } .fpanel .fck svg.ci { color: #D97706; }
+.fpanel .tagchip { height: 28px; padding: 0 10px; gap: 6px; cursor: pointer; }
+#ftoggle[aria-expanded="true"] { border-color: #94A3B8; }
+/* the money unit lives in the table's head; the toolbar keeps its switch only where the head is hidden */
+@media (min-width: 961px) { .toolbar #cur { display: none; } }
+/* the star by a wallet (owner, 02.10): invisible until the pointer reaches its own place before the address, then it
+   lights up; one click puts the wallet in the Watchlist. A filled one stays, in amber, and opens its lists */
+.star { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-right: 2px; padding: 0;
+  border: 0; border-radius: 6px; background: transparent; color: #94A3B8; font: 15px/1 var(--sans); vertical-align: -1px; cursor: pointer;
+  opacity: 0; transition: opacity .12s ease, color .12s ease, background .12s ease; }
+.facts tbody tr .star:hover, .star:focus-visible { opacity: 1; color: #B45309; background: #FEF3C7; }
+.star.on, .facts tbody tr .star.on { opacity: 1; color: #D97706; }
+.star.on:hover { background: #FEF3C7; }
+@media (hover: none) { .star { opacity: .5; } }        /* a phone has no pointer to bring it out */
+/* owner, 04.10: the star and the chart mark come out together, with the row under the pointer, and are gone without it;
+   a saved star and the mark of a wallet on the chart stay */
+.facts tbody tr:hover .star, .facts tbody tr:hover .mk, .facts .mk:focus-visible { opacity: 1; }
+.facts tbody tr:not(.onchart) .mk { opacity: 0; transition: opacity .12s ease, color .12s ease, background .12s ease; }
+.facts tbody tr:not(.onchart):hover .mk, .facts tbody tr:not(.onchart) .mk:focus-visible { opacity: 1; }
+@media (hover: none) { .facts tbody tr:not(.onchart) .mk { opacity: .5; } }
+/* a wallet kept on the chart though the filters would hide it */
+tr.outside > td:not(.wcell) { opacity: .55; }
 
 /* top bar: search + time zone */
 .topsearch { flex: 0 1 420px; }
@@ -190,21 +291,21 @@ thead tr:not(.grp) th { top: 22px; }
 td.notes { font-size: 11.5px; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
 /* your own labels on a watchlist wallet */
 td.mytags { white-space: normal; min-width: 170px; }
-.tag.mine { border-color: #C7D2FE; background: #EEF2FF; color: #3730A3; cursor: pointer; font: inherit; font-size: 11px; height: auto; padding: 1px 7px; margin: 1px 3px 1px 0; }
-.tag.mine:hover { border-color: #A5B4FC; background: #E0E7FF; }
+/* your tag goes only by its own × (owner, 02.10: a click on the word dropped it by accident) */
+.tag.mine { display: inline-flex; align-items: center; gap: 1px; border-color: #C7D2FE; background: #EEF2FF; color: #3730A3; cursor: default; font: inherit;
+  font-size: 11px; height: auto; padding: 1px 2px 1px 7px; margin: 1px 3px 1px 0; }
+.tag.mine .tagx { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; padding: 0; border: 0; border-radius: 999px;
+  background: transparent; color: #818CF8; font: 13px/1 var(--sans); cursor: pointer; }
+.tag.mine .tagx:hover { background: #C7D2FE; color: #312E81; }
+@media (pointer: coarse) { .tag.mine .tagx { width: 22px; height: 22px; } }
 input.tagin { width: 108px; min-width: 0; flex: none; height: 22px; padding: 0 9px; font: 11px/1 var(--sans); border: 1px solid #A5B4FC; border-radius: 999px; background: var(--surface); }   /* глобальне input[type=text] має min-width 320px — воно б'є будь-яку width */
 input.tagin:focus { box-shadow: 0 0 0 3px #EEF2FF; }
 .tagadd { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0; border: 1px dashed #C7D2FE; border-radius: 999px; background: transparent; color: #6366F1; cursor: pointer; vertical-align: -5px; }
-.tagadd svg { width: 10px; height: 10px; }
+.tagadd svg { width: 16px; height: 16px; }
 .tagadd:hover { border-style: solid; background: #EEF2FF; }
 td.bar { background-image: linear-gradient(to right, var(--sage) var(--w, 0%), transparent var(--w, 0%)); background-size: 100% 100%; background-repeat: no-repeat; background-position: left center; background-origin: padding-box; }
 td.bar.neg { background-image: linear-gradient(to right, #FEE2E2 var(--w, 0%), transparent var(--w, 0%)); }
 /* who funded the wallet: filled in after the background check, click filters to that group */
-td.fund { white-space: nowrap; font-size: 12px; }
-td.fund .fundb { padding: 0; height: auto; font-size: 12px; }
-td.fund .fundb.svc { color: var(--muted); }              /* an exchange or an app: a fact, not a bundle */
-td.fund .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); display: inline-block; margin-right: 4px; vertical-align: 0; }
-th.fundh { font-weight: 500; }
 .pos { color: #059669; }
 
 /* result v5: compact two-line cells, tags, export menu, collapsible filters */
@@ -212,17 +313,17 @@ td.two { line-height: 1.2; }
 td.two b { display: block; font-weight: 500; }
 td.two small { display: block; color: var(--muted); font-size: 11px; font-family: var(--mono); min-height: 13px; }
 td.wcell { white-space: normal; }            /* теги переносяться, коли колонці тісно — так таблиця влазить у вужчі вікна */
-td.wcell .wid { white-space: nowrap; }       /* сам гаманець ніколи не розривається */
+td.wcell .wid { white-space: nowrap; display: inline-flex; align-items: center; vertical-align: middle; }   /* сам гаманець ніколи не розривається; зірка, графік і адреса — на одній лінії (власник, 04.10) */
+td.wcell .wid .star, td.wcell .wid .mk { vertical-align: middle; }
 .tag { display: inline-block; margin-left: 5px; padding: 1px 6px; border-radius: 999px; font: 10.5px/1.5 var(--mono); color: var(--muted); border: 1px solid var(--line); background: var(--surface); cursor: help; vertical-align: 1px; }
 .tag.t-sniper, .tag.t-bot-like, .tag.t-fresh { color: #92400E; border-color: #FDE68A; background: #FFFBEB; }
-.tag.t-no-exits { color: var(--muted); border-style: dashed; }
 .tag.t-dev { color: #7F1D1D; border-color: #FCA5A5; background: #FEF2F2; font-weight: 600; }
 /* seen-before: early in another analysis of YOURS — ours, verifiable, not a bought label */
 .tag.t-seen-before { color: #5B21B6; border-color: #C4B5FD; background: #F5F3FF; cursor: pointer; font: inherit; font-size: 11px; height: auto; padding: 1px 7px; }
 .tag.t-seen-before:hover { background: #EDE9FE; border-color: #A78BFA; }
 .tag.t-seen-before.seen { display: inline-flex; align-items: center; padding: 2px 5px; }   /* сам значок: рядок таблиці не місце для пояснень */
-.tag.t-seen-before.seen .lnk { display: block; width: 12px; height: 12px; }
-#dcross .lnk { width: 13px; height: 13px; vertical-align: -2px; }
+.tag.t-seen-before.seen .lnk { display: block; width: 16px; height: 16px; }
+#dcross .lnk { width: 16px; height: 16px; vertical-align: -3px; }
 .tagchip.t-seen-before { border-color: #C4B5FD; color: #5B21B6; }
 .tag.t-transfer-in { color: #9A3412; border-color: #FDBA74; background: #FFF7ED; }
 .tagchip.t-transfer-in { border-color: #FDBA74; }
@@ -307,6 +408,7 @@ td.wcell .wid { white-space: nowrap; }       /* сам гаманець ніко
 .menu-panel button small { color: var(--muted); font-weight: 400; }
 .menu-panel button:hover { background: #F1F5F9; }
 #ftoggle.on { background: var(--sage); border-color: #A7F3D0; }
+#freset { margin-left: -4px; color: #475569; }      /* beside Filters while anything differs from how the table came */
 .filters { border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; margin: 0 0 10px; gap: 10px 22px; }
 .filters .f { display: flex; flex-direction: column; gap: 2px; }
 .filters .f small { color: var(--muted); font-size: 11px; }
@@ -318,9 +420,11 @@ td.wcell .wid { white-space: nowrap; }       /* сам гаманець ніко
 [hidden] { display: none !important; }
 
 /* wallet markers on the chart */
-.mk { border: 0; background: transparent; color: #CBD5E1; font-size: 13px; height: 22px; width: 22px; padding: 0; margin-right: 4px; vertical-align: -1px; cursor: pointer; }
-.mk:hover { color: var(--ink); }
-tr.onchart .mk { color: var(--c, #A7F3D0); text-shadow: 0 0 0 var(--c); }
+.mk { display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 6px; background: transparent; color: #64748B;
+  height: 22px; width: 22px; padding: 0; margin-right: 4px; vertical-align: -6px; cursor: pointer; }
+.mk svg { width: 16px; height: 16px; }
+.mk:hover { color: var(--ink); background: #F1F5F9; }
+tr.onchart .mk { color: var(--ink); background: var(--c, #A7F3D0); }      /* the wallet's own colour on the chart */
 tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .onchart-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 0; }
 .chipw { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 4px 2px 8px; font-size: 12px; background: var(--surface); }
@@ -353,8 +457,10 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .herof input:focus { border-color: #34D399; box-shadow: 0 0 0 3px rgba(167, 243, 208, .18); }
 .herof button.primary { height: 40px; }
 .try { margin: 12px 0 0; font-size: 13px; } .try a { color: var(--mint); border-bottom-color: rgba(167, 243, 208, .4); } .try .muted { color: #64748B; margin-left: 6px; }
-.counters { display: flex; gap: 36px; margin-top: 40px; flex-wrap: wrap; }
-.counters b { display: block; font: 600 26px/1.1 var(--mono); color: #F8FAFC; } .counters span { font-size: 12px; color: #94A3B8; }
+/* the counters are background, not a second headline (designer, 01.10: one colour, one size — the hierarchy blurred):
+   smaller, dimmer, under a hairline, with air above them */
+.counters { display: flex; gap: 36px; margin-top: 44px; padding-top: 18px; border-top: 1px solid #1E293B; max-width: 720px; flex-wrap: wrap; }
+.counters b { display: block; font: 600 19px/1.1 var(--mono); color: #CBD5E1; } .counters span { font-size: 11.5px; color: #64748B; }
 @media (prefers-reduced-motion: reduce) { .hero-bg span, .cursor { animation: none; } }
 @media (max-width: 720px) { .hero-dark h1 { font-size: 32px; } .hero-in { padding: 40px 20px 36px; } }
 
@@ -433,15 +539,29 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .filters.compact label { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
 .filters.compact input[type=number] { width: 72px; height: 28px; padding: 3px 6px; font-size: 12px; }
 .filters.compact .sep { width: 1px; height: 22px; background: var(--line); }
+.filters.compact label.rng input[type=number] { width: 64px; }
+.filters.compact label.rng i { font-style: normal; color: #CBD5E1; margin: 0 -2px; }
+.tagchip.mine { color: #92400E; border-color: #FDE68A; font-family: var(--sans); }
+.tagchip.mine.on { background: #FEF3C7; border-color: #F59E0B; color: #78350F; }
+.tablecap { margin: 0 0 8px; }
 .tagchip { height: 24px; padding: 0 9px; border-radius: 999px; font: 11px var(--mono); color: var(--ink); background: var(--surface); border: 1px solid var(--line); }
 .tagchip.off { text-decoration: line-through; color: #CBD5E1; background: #F8FAFC; }
 .tagchip.t-dev { border-color: #FCA5A5; }
 .tagchip.t-sniper, .tagchip.t-bot-like, .tagchip.t-fresh { border-color: #FDE68A; }
 .tagchip.t-sniper.off, .tagchip.t-bot-like.off, .tagchip.t-fresh.off { border-color: var(--line); }
-.wname { border: 0; background: transparent; padding: 0; font-size: 12.5px; color: var(--ink); cursor: pointer; border-bottom: 1px dotted var(--line); }
-.wname:hover { border-bottom-color: var(--ink); background: transparent; }
+/* the address opens the card (owner, 02.10): it is underlined like a link, and the whole row answers too */
+.wname { border: 0; background: transparent; padding: 0; font-size: 12.5px; color: var(--ink); cursor: pointer; }
+.wname .mono { border-bottom: 1px dotted #94A3B8; }
+.wname:hover { background: transparent; }
+#facts tbody tr { cursor: pointer; }
+#facts tbody tr:hover .wname .mono, .wname:focus-visible .mono { border-bottom: 1px solid var(--ink); }
+@media (hover: hover) and (min-width: 961px) { #facts tbody tr:hover td { background-color: #F8FAFC; } }
 .ext { border: 0; color: #CBD5E1; margin-left: 5px; font-size: 12px; } .ext:hover { color: var(--ink); }
-.xbtn { font-size: 12.5px; }
+a.ext:has(svg.ci) { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-left: 2px; border-radius: 6px;
+  color: #94A3B8; vertical-align: middle; } a.ext:has(svg.ci):hover { background: #F1F5F9; color: var(--ink); }
+.xbtn { display: inline-flex; align-items: center; justify-content: center; width: 34px; padding: 0; }
+button.ghost.xbtn { padding: 0; color: #475569; }
+.xbtn svg { width: 16px; height: 16px; }
 .menu.right { margin-left: auto; }
 .menu-panel.r { left: auto; right: 0; }
 .soonwrap { position: relative; }
@@ -458,13 +578,9 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .button.holo::after { content: ""; position: absolute; inset: 0; border-radius: 10px; pointer-events: none;
   background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.75) 50%, transparent 70%); background-size: 250% 100%; animation: holo-sheen 3.2s linear 4; mix-blend-mode: soft-light; }
 .button.holo:hover, .button.holo:hover::after, .button.holo:focus-visible, .button.holo:focus-visible::after { animation-iteration-count: infinite; }
-.button.holo:hover { transform: translateY(-1px); box-shadow: 0 0 0 1px rgba(15, 23, 42, .1), 0 10px 22px -8px rgba(196, 181, 253, .9); }
-.button.holo:active { transform: translateY(0); }
+.button.holo:hover { box-shadow: 0 0 0 1px rgba(15, 23, 42, .1), 0 10px 22px -8px rgba(196, 181, 253, .9); }
 @keyframes holo-shift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
 @keyframes holo-sheen { from { background-position: 200% 0; } to { background-position: -50% 0; } }
-/* «+ Watchlist» — звичайна кнопка з лічильником: дія часта, підсвічувати її нема чого */
-.button.wl { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
-.button.wl .wl-n { font: 600 11px/1 var(--mono); padding: 3px 7px; border-radius: 999px; background: var(--navy); color: var(--mint); }
 @media (prefers-reduced-motion: reduce) { .button.holo, .button.holo::after { animation: none; } }
 .mhint { margin: 4px 0 0; }
 .chartbox .tf.back { margin-left: 6px; color: var(--mint); border-color: #1E293B; }
@@ -484,7 +600,7 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 
 /* ── iteration 8: result header, tiles with hints, top bar/footer, home steps + roadmap, example row ── */
 .h-title { font-size: 24px; margin: 0; letter-spacing: -.02em; }
-.h-addr { display: flex; align-items: center; gap: 2px; color: var(--muted); margin-top: 2px; }
+.h-addr { display: flex; align-items: center; gap: 6px; color: var(--muted); margin-top: 2px; }
 .h-addr .copy { height: 22px; width: 22px; padding: 0; font-size: 13px; color: #94A3B8; } .h-addr .copy:hover { color: var(--ink); }
 .h-sub { font-size: 12.5px; margin-top: 6px; }
 .h-right { display: flex; align-items: center; gap: 12px; }
@@ -562,11 +678,13 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .wrow label.fld span { text-transform: none; }
 .wrow .result.ghost { color: var(--muted); }
 .soonwrap.right { margin-left: auto; }
-.soonwrap.right .soon-pop, #watch .soon-pop { left: auto; right: 0; }
+.soonwrap.right .soon-pop { left: auto; right: 0; }
 
 /* ── iteration 11: hero arrow, step bars, micro-animations, responsive ── */
-.herof button.primary { gap: 8px; } .herof .arr { display: block; transition: transform .15s ease; } .herof button.primary:hover .arr { transform: translateX(2px); }
-.hero-dark .lead { font-size: 17px; }
+/* the hero's one action: the primary key in the site's own type, without the arrow and the lift (owner, 02.10) */
+/* three levels, not two of the same (designer, 01.10; owner, 02.10): the wordmark, the line in bright mono, then the
+   explanation small and quiet */
+.hero-dark .lead { font-size: 14px; line-height: 1.55; color: #94A3B8; max-width: 660px; margin: 0 0 22px; }
 .stepbar { display: flex; align-items: center; gap: 12px; margin: 14px 0 10px; }
 .stepbar .stepn { font: 600 12px var(--mono); color: var(--navy); background: var(--mint); border-radius: 6px; padding: 5px 7px; }
 .stepbar .stepx b { display: block; font-size: 15px; } .stepbar .stepx span { color: var(--muted); font-size: 13px; }
@@ -583,8 +701,8 @@ tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 .chartbox.loading .lw { opacity: 1; }
 .steps3 > div, .stats div, .rrow { transition: transform .15s ease, border-color .15s ease, background .15s ease; }
 .steps3 > div:hover, .stats div:hover { transform: translateY(-1px); border-color: #CBD5E1; }
-button.primary { transition: background .12s ease, border-color .12s ease, transform .12s ease; } button.primary:hover { transform: translateY(-1px); }
-@media (prefers-reduced-motion: reduce) { .facts tbody tr[style*="--i"], .tag, .wrow, .chartbox.loading::before, .herof .arr { animation: none; transition: none; } }
+button.primary { transition: background .12s ease, border-color .12s ease; }   /* no hover lift: it reads as a template (owner, 02.10) */
+@media (prefers-reduced-motion: reduce) { .facts tbody tr[style*="--i"], .tag, .wrow, .chartbox.loading::before { animation: none; transition: none; } }
 /* responsive */
 @media (max-width: 1000px) {
   .tokenhead { flex-direction: column; } .h-right { width: 100%; justify-content: flex-start; }
@@ -598,7 +716,7 @@ button.primary { transition: background .12s ease, border-color .12s ease, trans
 @media (max-width: 640px) {
   .top-in { padding: 10px 14px; gap: 10px; } .topsearch { flex: 1 1 auto; }
   main { padding: 14px 12px 40px; } .card { padding: 14px; }
-  .hero-in { padding: 36px 16px 32px; } .hero-dark h1 { font-size: 30px; } .counters { gap: 18px; }
+  .hero-in { padding: 36px 16px 32px; } .hero-dark h1 { font-size: 30px; } .counters { gap: 18px; margin-top: 30px; }
   .herof input[type=text] { min-width: 0; }
   .chartbox { height: 280px; } .chartbox .tfs { gap: 3px; } .chartbox .tf { padding: 0 7px; }
   .chartbox .tf.back { margin-left: 3px; } .chartbox .tf .wide { display: none; } .chartbox .tf .narrow { display: inline; }
@@ -623,9 +741,9 @@ button.tzseg { background: transparent; padding: 0; height: auto; font: inherit;
 
 /* ── hero: brand line + tagline ── */
 .hero-dark h1.brandline { font-size: 64px; letter-spacing: -.02em; font-weight: 700; margin: 0 0 6px; color: #F8FAFC; }
-.hero-dark .tagline { font-size: 20px; letter-spacing: .02em; color: #CBD5E1; margin: 0 0 18px; }
+.hero-dark .tagline { font-size: 26px; letter-spacing: .01em; color: #F8FAFC; margin: 0 0 14px; }
 .hero-dark .tagline em { font-style: normal; color: var(--mint); }
-@media (max-width: 640px) { .hero-dark h1.brandline { font-size: 40px; } .hero-dark .tagline { font-size: 16px; } }
+@media (max-width: 640px) { .hero-dark h1.brandline { font-size: 40px; } .hero-dark .tagline { font-size: 18px; } .hero-dark .lead { font-size: 13.5px; } }
 
 /* ── demo token note ── */
 .demo-note { margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; background: var(--sage, #D1FAE5); color: #0F172A; font-size: 14px; line-height: 1.45; }
@@ -655,6 +773,10 @@ button.tzseg { background: transparent; padding: 0; height: auto; font: inherit;
 .acct-pill:hover { background: #111C2E; border-color: #334155; }
 .acct-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--mint); display: inline-block; box-shadow: 0 0 0 3px rgba(167, 243, 208, .18); }
 .acct-pill .mono { font-size: 12px; }
+.toplinks { display: inline-flex; align-items: center; gap: 2px; margin-right: 10px; }
+.toplinks a { border: 0; padding: 5px 9px; border-radius: 8px; font-size: 13px; color: #CBD5E1; }
+.toplinks a:hover { color: #F8FAFC; background: #0F172A; border: 0; }
+@media (max-width: 640px) { .toplinks { display: none; } }      /* the phone keeps them in the wallet menu */
 .menu.acct .menu-panel { min-width: 180px; color: var(--ink); }
 .menu-panel a { display: flex; align-items: center; height: 34px; padding: 6px 10px; border: 0; border-radius: 6px; font-weight: 500; }
 .menu-panel a:hover { background: #F1F5F9; }
@@ -680,8 +802,6 @@ button.tzseg { background: transparent; padding: 0; height: auto; font: inherit;
 /* a guest's wallet card: the connect step is a real button that says what it unlocks */
 .dconnect { display: grid; justify-items: start; gap: 6px; padding: 10px 12px; margin: 4px 0; border: 1px dashed #86EFAC; border-radius: var(--r);
   background: #F0FDF4; }
-.saved { color: #B45309; margin-left: 5px; font-size: 12px; cursor: default; }
-button.saved { border: 0; background: transparent; padding: 0 2px; height: auto; cursor: pointer; } button.saved:hover { color: var(--red); background: transparent; }
 .savejob.on { color: #B45309; } .savejob:disabled { cursor: default; opacity: 1; }
 .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 70; background: var(--surface); color: var(--ink); border: 1px solid var(--line); padding: 10px 16px; border-radius: 10px; font-size: 13px; white-space: normal; max-width: calc(100vw - 32px); text-align: center; box-shadow: 0 16px 40px -12px rgba(9, 13, 22, .45), 0 0 0 1px rgba(9, 13, 22, .04); animation: toast-in .2s ease; }
 .toast a { color: #047857; border-bottom-color: #A7F3D0; }
@@ -716,6 +836,7 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
 .dh-id .ext { font-size: 12px; margin-left: 4px; white-space: nowrap; color: var(--muted); border-bottom: 1px solid var(--line); } .dh-id .ext:hover { color: var(--ink); }
 .dh-act { display: flex; align-items: center; gap: 2px; flex: none; }
 .wcard .dstar, .wcard .x { width: 36px; height: 36px; padding: 0; font-size: 17px; line-height: 1; }
+.wcard .dstar svg.ci { width: 20px; height: 20px; }
 .wcard .dstar.on { color: #D97706; }
 .dtags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 10px 16px 0; }
 .dtags:empty { display: none; }
@@ -741,14 +862,13 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
 }
 .chart-empty { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); z-index: 5; color: #94A3B8; font: 13px var(--sans); pointer-events: none; }
 /* ── phone: the result table becomes one card per wallet, fewer controls, bigger touch targets ── */
-.msort, .colhelp, .button .short { display: none; }
+.msort, .button .short { display: none; }
 @media (max-width: 640px) {
   .button .long { display: none; } .button .short { display: inline; }
   .h-right { flex-wrap: wrap; gap: 8px; }
   .toolbar { row-gap: 8px; }
   .msort { display: inline-flex; align-items: center; gap: 6px; }
   .msort select { height: 34px; font-size: 13px; padding: 0 6px; }
-  .colhelp { display: block; margin: 6px 0 8px; }
   .tablewrap { overflow: visible; border: 0; border-radius: 0; background: none; }
   table.facts, .facts tbody { display: block; width: 100%; }
   .facts thead { display: none; }
@@ -758,22 +878,17 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
   .facts td { border: 0; padding: 0; white-space: normal; text-align: left; min-width: 0; }
   .facts td.bar, .facts td.bar.neg { background-image: none; }
   .facts td[data-h]::before { content: attr(data-h); display: block; margin-bottom: 2px; font: 600 9.5px/1.3 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
-  .facts td.n { display: none; }
-  .facts td.pk { position: absolute; top: 6px; right: 6px; }
-  .facts td.pk .pick { width: 22px; height: 22px; margin: 7px; }
-  .facts td.wcell { grid-column: 1 / -1; order: 0; padding-right: 40px; }
+  .facts td.wcell { grid-column: 1 / -1; order: 0; }
   .facts td.wcell .tags { display: block; margin-top: 4px; }
   .facts td.wcell .tag:first-child { margin-left: 0; }
   .facts td.c-inv { order: 1; } .facts td.c-sold { order: 2; } .facts td.c-pnl { order: 3; }
-  .facts td.c-held { order: 4; } .facts td.fund { order: 5; grid-column: span 4; }
+  .facts td.c-held { order: 4; }
   .facts td.c-inv, .facts td.c-pnl, .facts td.c-sold, .facts td.c-held { grid-column: span 2; }
-  .facts td.fund:empty { display: none; }
   .facts td.two b, .facts td.num b { font-size: 13.5px; }
-  tr.picked { background: #F6FEF9; } tr.picked td { background: transparent; }
   tr.onchart td:first-child { box-shadow: none; } tr.onchart { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
   /* touch targets: 36 px where a finger has to land */
-  .facts .mk, .facts .wname { min-height: 36px; }
-  .facts .mk { min-width: 36px; }
+  .facts .mk, .facts .wname, .facts .star { min-height: 36px; }
+  .facts .mk, .facts .star { min-width: 36px; }
   .copy, .tf, .chipw .x, .tzseg b { min-height: 34px; }
   .chartbox .tf { min-width: 36px; }
   .tzseg b { display: inline-flex; align-items: center; padding: 0 10px; }
@@ -795,7 +910,6 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
 /* ── tablet: the eight result columns need about 810 px, and below that an inner scroll hid Funded by, the column that
    shows bundles. Between a phone and a laptop each wallet is the phone's card: the wallet on top, five facts under it ── */
 @media (min-width: 641px) and (max-width: 960px) {
-  .colhelp { display: block; margin: 6px 0 8px; }
   .tablewrap:has(> #facts) { overflow: visible; border: 0; border-radius: 0; background: none; }
   #facts, #facts tbody { display: block; width: 100%; }
   #facts thead { display: none; }
@@ -804,30 +918,28 @@ table.melist thead tr th { top: 0; }          /* one header row here, no group r
   #facts td { border: 0; padding: 0; white-space: normal; text-align: left; min-width: 0; }
   #facts td.bar, #facts td.bar.neg { background-image: none; }
   #facts td[data-h]::before { content: attr(data-h); display: block; margin-bottom: 2px; font: 600 9.5px/1.3 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
-  #facts td.n, #facts td.fund:empty { display: none; }
-  #facts td.pk { position: absolute; top: 8px; right: 8px; }
-  #facts td.wcell { grid-column: 1 / -1; padding-right: 36px; }
-  #facts tr.picked { background: #F6FEF9; } #facts tr.picked td { background: transparent; }
+  #facts td.wcell { grid-column: 1 / -1; }
   #facts tr.onchart td:first-child { box-shadow: none; } #facts tr.onchart { box-shadow: inset 3px 0 0 var(--c, #A7F3D0); }
 }
 /* ── category markers as pictures (rules of ours, identity from Solana Tracker), one bar metric, copy in rows ── */
-.tag.ico { display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-width: 20px; height: 20px; padding: 0 3px;
+.tag.ico { display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-width: 22px; height: 22px; padding: 0 2px;
            margin-left: 3px; border-radius: 6px; vertical-align: -5px; font: 600 10px/1 var(--mono); }
-.tag.ico svg { width: 13px; height: 13px; flex: none; }
+.tag.ico svg { width: 16px; height: 16px; flex: none; }
 .tag.ico small { font: 600 10px/1 var(--mono); }
 .tag.ico.txt { padding: 0 7px 0 5px; border-radius: 999px; }
 .tag.ico.txt b { font: 500 11px/1 var(--mono); }
-.tag.t-seen-before.ico .lnk { width: 12px; height: 12px; }
+.tag.t-seen-before.ico .lnk { width: 16px; height: 16px; }
 .tagchip { display: inline-flex; align-items: center; gap: 5px; }
-.tagchip svg { width: 13px; height: 13px; }
-td.wcell .tags { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; vertical-align: middle; }
+.tagchip svg { width: 16px; height: 16px; }
+td.wcell .tags { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-left: 8px; vertical-align: middle; }   /* a little air after the address (owner, 04.10) */
 td.wcell .tags .tag { margin-left: 0; }
+.facts small.bs .up { color: #059669; } .facts small.bs .dn { color: var(--red); }   /* buys and sells: ↑ and ↓, as in Lists */
 .ids { display: inline-flex; align-items: center; gap: 3px; }
-.idm { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 6px; border: 1px solid var(--line);
+.idm { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--line);
        background: var(--surface); cursor: help; vertical-align: middle; }
 .idm img { width: 14px; height: 14px; border-radius: 3px; display: block; flex: none; }
 .idm svg, .tag.ico svg, .evdot img { flex: none; }
-.idm svg { width: 12px; height: 12px; }
+.idm svg { width: 16px; height: 16px; }
 .idm.kol { color: #B45309; border-color: #FCD34D; background: #FFFBEB; }
 .idm.xacc { color: #0F172A; cursor: pointer; border-bottom: 1px solid var(--line); }
 .idm.xacc:hover { background: #F1F5F9; border-color: #CBD5E1; }
@@ -835,7 +947,7 @@ td.wcell .tags .tag { margin-left: 0; }
 .idm.role.r-hacker { color: #B91C1C; border-color: #FCA5A5; background: #FEF2F2; }
 .idm.role.r-exchange { color: #0369A1; border-color: #BAE6FD; background: #F0F9FF; }
 .wcopy { width: 24px; height: 24px; padding: 0; border: 0; color: #64748B; background: transparent; vertical-align: -6px; margin-left: 2px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; }
-.wcopy svg { width: 15px; height: 15px; flex: none; }
+.wcopy svg { width: 16px; height: 16px; flex: none; }
 .wcopy:hover { color: var(--ink); background: #F1F5F9; }
 .evdot { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; font: 700 10.5px/1 var(--sans); }
 .evdot.mig { background: #7C3AED; color: #F5F3FF; }
@@ -872,6 +984,11 @@ td.wcell .tags .tag { margin-left: 0; }
 .dspark .l { fill: none; stroke: #10B981; stroke-width: 2; vector-effect: non-scaling-stroke; } .dspark.down .l { stroke: #EF4444; }
 .dspark .z { stroke: #CBD5E1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
 .dspark-x { display: flex; justify-content: space-between; font: 10.5px var(--mono); color: var(--muted); margin: 2px 0 10px; }
+.dsparkw { position: relative; touch-action: pan-y; cursor: crosshair; }
+.dsp-dot { position: absolute; width: 9px; height: 9px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--surface); border: 2px solid var(--ink); pointer-events: none; }
+.dsp-tip { position: absolute; top: -6px; transform: translate(-50%, -100%); display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 8px;
+  border-radius: 6px; background: var(--navy); color: #F8FAFC; font: 11.5px var(--mono); white-space: nowrap; pointer-events: none; z-index: 3; }
+.dsp-tip .pos { color: #6EE7B7; } .dsp-tip .neg { color: #FCA5A5; } .dsp-tip small { color: #94A3B8; font-size: 10.5px; }
 .dgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 12px; margin: 4px 0 6px; }
 .dgrid > div { display: grid; gap: 1px; min-width: 0; align-content: start; }
 .dgrid span { font-size: 11px; color: var(--muted); }
@@ -957,9 +1074,12 @@ td.c-inv small, td.c-sold small { white-space: nowrap; }
 button.dchip { cursor: pointer; } button.dchip:hover { color: var(--ink); }
 a.dchip.fund { color: var(--ink); border-bottom: 1px solid var(--line); cursor: pointer; } a.dchip.fund:hover { border-color: #94A3B8; }
 .dchip small { font: 600 10px/1 var(--mono); color: var(--muted); }
-.dinfo { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; margin-left: 4px; border: 1px solid var(--line);
+.dchip .dl { font: 500 10.5px/1 var(--sans); color: var(--muted); margin-right: 2px; }
+.dinfo, .kinfo { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; margin-left: 4px; border: 1px solid var(--line);
          border-radius: 50%; font: 600 9.5px/1 var(--sans); font-style: normal; color: var(--muted); text-transform: none; letter-spacing: 0; cursor: help; vertical-align: 1px; }
 .dinfo.warn { border-color: #FCD34D; color: #B45309; background: #FFFBEB; }
+.kinfo { width: 16px; height: 16px; margin-left: -10px; align-self: center; cursor: help; }
+.kinfo:hover, .kinfo:focus-visible { color: var(--ink); border-color: #94A3B8; }
 .wcard h5 .muted { font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: 4px; }
 .wcard h4 .muted { font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: 4px; }
 /* ROI in the table: the multiple, the percent in the tooltip */
@@ -967,7 +1087,6 @@ td.c-roi b { font-size: 13px; }
 @media (max-width: 640px) {
   .facts td.c-roi { order: 4; grid-column: span 2; }
   .facts td.c-held { order: 5; }
-  .facts td.fund { order: 6; grid-column: span 2; white-space: normal; }
 }
 
 /* ── the agent: the owner's method at /admin ── */
@@ -981,7 +1100,7 @@ td.c-roi b { font-size: 13px; }
 
 /* sorting: the column headers do it on a wide screen; on a phone the table is cards without headers, so the list stays */
 .sortby { display: none; }
-@media (max-width: 640px) { .sortby { display: inline-flex; } }
+@media (max-width: 960px) { .sortby { display: inline-flex; } }   /* wherever the table has no head: a tablet too, not only a phone */
 /* ── the owner's dashboard (/admin): period links, day bars, the funnel, small flags ── */
 .unav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 2px 0 10px; }
 .unav .seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
@@ -1201,8 +1320,6 @@ td.c-roi b { font-size: 13px; }
 header.top { position: relative; z-index: 45; }
 
 /* спонсор — відома біржа: назва замість адреси; «Organised launch» — угорі результату, коли майже весь топ свіжий чи в бандлах */
-.fundb.cex { font: 500 12px var(--sans); padding: 2px 8px; border-radius: 999px; background: #EEF2F6; color: var(--ink); border: 1px solid var(--line); text-decoration: none; }
-.fundb.cex:hover { border-color: #CBD5E1; }
 .dchip.fund.cex { font-family: var(--sans); }
 
 /* 30.09: the range is set on the chart or by a quick range; the time fields wait behind ✎, since the first traders typed
@@ -1253,25 +1370,66 @@ header.top { position: relative; z-index: 45; }
 .wrow .editt { padding: 4px 8px; line-height: 1; }
 .wrow .del { margin-left: auto; }
 
-/* знахідки — короткі позначки над графіком (іконка, число, два слова); речення — у підказці. Колір — лише сенс */
-.fpills { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 10px; }
-.fpill { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 999px; cursor: pointer;
-  border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: 500 12.5px/1 var(--sans); white-space: nowrap;
-  transition: border-color .15s ease, background .15s ease; }
-.fpill svg { width: 14px; height: 14px; flex: none; }
-.fpill b { font: 600 12.5px var(--mono); }
-.fpill:hover { border-color: #CBD5E1; }
-.fpill.warn { background: #FFFBEB; border-color: #FDE68A; color: #92400E; }
-.fpill.info { background: #F1F5F9; border-color: #E2E8F0; color: #334155; }
-.fpill.good { background: #F0FDF4; border-color: #BBF7D0; color: #166534; }
-.fpill.bad { background: #FEF2F2; border-color: #FECACA; color: #991B1B; font-weight: 600; cursor: help; }
+/* what tracced counted and found, one strip under the chart: a number over a word, the way the table's own head reads
+   (owner, 02.10: no pills, no sentence of counts). Colour only for meaning: amber a warning, red the creator or a staged
+   launch, violet repeats. A cell with a filter behind it is a button */
+.tally { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); margin: 12px 0 14px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface); overflow: hidden; }   /* a short last row keeps its cells' width: no lonely cell across the page */
+.tally .tfinds { display: contents; }
+.tally .tc { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 4px; min-width: 0; height: auto; margin: 0;
+  padding: 10px 16px; border: 0; border-radius: 0; box-shadow: 1px 0 0 var(--line), 0 1px 0 var(--line);   /* the outer ones are clipped */
+  background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: default; }
+.tally button.tc { cursor: pointer; transition: background .12s ease; }
+.tally button.tc:hover { background: #F8FAFC; }
+.tally .tc b { font: 600 18px/1.1 var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tally .tc i { display: inline-flex; align-items: center; gap: 6px; font: 600 10.5px/1.2 var(--sans); font-style: normal; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.tally .tc i .kinfo { margin: 0; text-transform: none; letter-spacing: 0; }
+.tally .tc.warn b { color: #B45309; } .tally .tc.bad b { color: #B91C1C; } .tally .tc.rep b { color: #6D28D9; }
+.tally .tc.bad.tipt { cursor: help; }
+.tally .tc b.pos { color: #059669; } .tally .tc b.neg { color: var(--red); }
+@media (max-width: 640px) { .tally .tc { padding: 9px 12px; } .tally .tc b { font-size: 16px; } }
+@media (max-width: 960px) { .toolbar #enrich { display: none; } }   /* with Sort in the toolbar there, the age-check note would wrap Export away */
+/* the card: this token or every token, two tabs under the tags (owner, 02.10) */
+.dview { display: flex; margin: 0 0 12px; border-bottom: 1px solid var(--line); }
+.dview button { height: 34px; margin-bottom: -1px; padding: 0 12px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent;
+  color: var(--muted); font-weight: 500; }
+.dview button:hover { background: transparent; color: var(--ink); }
+.dview button.on { color: var(--ink); border-bottom-color: var(--ink); }
+.wcard .dtally { margin: 0 0 12px; }
+.wcard .dtally { grid-template-columns: repeat(auto-fit, minmax(76px, 1fr)); }
+.wcard .dtally .tc { padding: 8px 12px; }
+.wcard .dtally .tc b { font-size: 15px; }
+.wcard .dtrades .dth { margin: 0 0 6px; }
+/* the card's address copies itself (owner, 04.10): no copy mark beside it, a copy cursor and a dotted line instead */
+.dwc { height: auto; padding: 0; border: 0; border-bottom: 1px dotted #94A3B8; border-radius: 0; background: transparent; font-size: 12.5px;
+  color: var(--muted); cursor: copy; }
+.dwc:hover { background: transparent; color: var(--ink); border-bottom-color: var(--ink); }
+/* the first visits: a pointer comes to the first address and clicks, the address rings, a label says what it does (owner,
+   04.10, like the chart's two clicks); gone at the first click */
+.wname { position: relative; }
+.wname.hinted .mono { border-radius: 3px; animation: chint-ring 2.4s ease-out .3s 2; }
+.chint { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
+.chint-cur { position: absolute; left: 45%; top: 55%; width: 16px; height: 22px; fill: #fff; stroke: #0F172A; stroke-width: 1.3; stroke-linejoin: round;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .35)); transform-origin: 2px 2px; opacity: 0; animation: chint-cur 2.4s ease-in-out .3s 2; }
+.chint-tip { position: absolute; left: calc(100% + 14px); top: 50%; padding: 7px 12px; border-radius: 999px; white-space: nowrap;
+  font: 500 12.5px/1 var(--sans); color: var(--navy); background: var(--mint); box-shadow: 0 6px 18px -8px rgba(15, 23, 42, .6);
+  transform: translateY(-50%); animation: chint-tip .3s ease-out .2s both; }
+@keyframes chint-cur { 0% { opacity: 0; transform: translate(46px, 26px); } 15% { opacity: 1; } 45% { transform: translate(0, 0) scale(1); }
+  52% { transform: translate(0, 0) scale(.78); } 60% { transform: translate(0, 0) scale(1); } 85% { opacity: 1; } 100% { opacity: 0; transform: translate(0, 0); } }
+@keyframes chint-ring { 0%, 50% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } 54% { box-shadow: 0 0 0 0 rgba(16, 185, 129, .55); }
+  100% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); } }
+@keyframes chint-tip { from { opacity: 0; transform: translate(-4px, -50%); } to { opacity: 1; transform: translate(0, -50%); } }
+@media (max-width: 960px) { .chint-tip { left: 0; top: calc(100% + 10px); transform: none; animation-name: chint-tip-m; } }
+@keyframes chint-tip-m { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .chint-cur { display: none; } .wname.hinted .mono { animation: none; box-shadow: 0 0 0 3px rgba(16, 185, 129, .35); }
+  .chint-tip { animation: none; } }
+/* a bundle in its group's colour: the Funded by column is gone (owner, 02.10), so the colour tells the groups apart */
+.tag.t-bundle.bundb { background: var(--c, #FFF7ED); border-color: transparent; color: #1E293B; cursor: pointer; }
+.tag.t-bundle.bundb:hover { box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .4); }
 .factive { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 2px 4px 2px 10px; border-radius: 999px;
   background: #F1F5F9; border: 1px solid var(--line); font-size: 12px; color: var(--ink); }
 .factive button { padding: 0 6px; line-height: 1; min-width: 32px; }
-.kline.counts { margin: 2px 2px 8px; }
-/* one zone above the chart: the counts, then the findings on the same line while they fit */
-.sumzone { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; margin: 2px 0 12px; }
-.sumzone .kline.counts { margin: 0 2px; } .sumzone .fpills { margin: 0; }
 
 /* сповіщення в Telegram: окрема картка над списками (власник, 30.09: смужка всередині списків виглядала слабко) —
    що це, перемикач, налаштування і зразок повідомлення праворуч; дзвіночок на вкладці списку */
@@ -1294,12 +1452,20 @@ header.top { position: relative; z-index: 45; }
 .tgbtn:hover { background: #229ED9; border-color: #1E8EC4; }
 .tghint { grid-column: 1; margin: 12px 0 0; color: var(--muted); font-size: 13px; } .tghint .lbell { color: #15803D; margin: 0 2px; }
 .tghint .lbell svg { display: inline-block; vertical-align: -3px; }
+.tgstat { display: block; margin-top: 4px; font: 12px var(--mono); color: var(--muted); } .tgstat b { color: var(--ink); font-weight: 600; }
+/* the bell on a wallet (owner, 02.10): grey when off, green when its trades come to Telegram */
+.mewl td.rm .bell, .wcard .dh-act .bell { width: 30px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; color: #94A3B8; }
+.wcard .dh-act .bell { width: 36px; height: 36px; }
+.mewl td.rm .bell svg, .wcard .dh-act .bell svg { width: 16px; height: 16px; }
+.mewl td.rm .bell.on, .wcard .dh-act .bell.on { color: #15803D; background: #F0FDF4; }
+.mewl td.rm .bell:hover, .wcard .dh-act .bell:hover { color: var(--ink); }
+.mewl td.rm .bell.on:hover, .wcard .dh-act .bell.on:hover { color: #166534; background: #DCFCE7; }
 /* Lists: your tags right in the row, added there */
-.mewl .wadr { flex: none; }
+.mewl .wadr { flex: none; display: inline-flex; align-items: center; gap: 5px; }
 .mewl .mytags { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
 .mewl .mytags .tag.mine { margin: 0; }
 .mewl .mytags .tagin { width: 120px; height: 24px; min-width: 0; padding: 0 7px; font-size: 12px; }
-.lbell svg { width: 15px; height: 15px; display: block; }
+.lbell svg { width: 16px; height: 16px; display: block; }
 .ltab .lbell { display: inline-block; margin-left: 5px; vertical-align: -2px; color: #15803D; }
 /* the open list's bar and its alerts switch */
 .lbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; margin: 0 0 12px; padding: 8px 12px; border: 1px solid var(--line);
@@ -1328,6 +1494,14 @@ header.top { position: relative; z-index: 45; }
 .mewl .wact.quiet { opacity: .75; }
 .mewl td.rm { width: 1%; text-align: right; }
 .mewl td.rm .x { width: 30px; height: 30px; padding: 0; font-size: 16px; }
+.mewl td.rm { white-space: nowrap; }
+/* a wallet's lists in its card, as switches; on is the lists' amber (owner, 02.10: instead of a folder button in each row) */
+.wcard .dlists { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0 6px; }
+.wcard .dlists .dl { font: 600 10.5px/1 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
+.lchip { height: 28px; padding: 0 11px; border-radius: 999px; font-size: 12.5px; color: #475569; }
+.lchip.on { background: #FEF3C7; border-color: #FDE68A; color: #92400E; }
+.lchip.on:hover { background: #FDE68A; border-color: #F59E0B; }
+input.ltabedit { flex: none; width: 150px; min-width: 0; height: 30px; padding: 0 12px; border-radius: 999px; font: 13px var(--sans); border-color: #6EE7B7; }
 .wcard .dsrc { padding-top: 10px; padding-bottom: 10px; } .wcard .dsrc .dline { margin: 0; padding: 2px 0; border: 0; }
 @media (max-width: 720px) {
   /* Lists on a phone: one line a wallet — the address with its tags, × — not the result table's card grid */
@@ -1354,7 +1528,7 @@ header.top { position: relative; z-index: 45; }
 .ftk { display: inline-flex; align-items: center; gap: 9px; margin-right: 10px; padding: 6px 14px 6px 6px; border: 1px solid rgba(167, 243, 208, .16);
   border-radius: 999px; background: rgba(15, 23, 42, .78); color: #E2E8F0; font-size: 13px; white-space: nowrap;
   transition: border-color .15s ease, background .15s ease, transform .15s ease; }
-.ftk:hover { border-color: rgba(167, 243, 208, .6); background: rgba(6, 78, 59, .45); transform: translateY(-1px); }
+.ftk:hover { border-color: rgba(167, 243, 208, .6); background: rgba(6, 78, 59, .45); }
 .fimg { position: relative; flex: none; width: 26px; height: 26px; border-radius: 50%; overflow: hidden; background: #1E293B;
   display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px; color: #94A3B8; }
 .fimg::before { content: attr(data-l); }
@@ -1389,3 +1563,67 @@ header.top { position: relative; z-index: 45; }
   table.facts.melist:not(.mewl) td, table.facts.melist:not(.mewl) th { padding: 6px 8px; white-space: nowrap; border-bottom: 1px solid var(--line); }
 }
 @media (hover: none) { .tipt { cursor: pointer; } }   /* iOS delivers a tap on a plain span to the page only when it looks clickable */
+
+/* ── 04.10, owner (second look): one colour made them all alike, so each kind of wallet has its own quiet colour, by
+   what it means. One recipe for all: a pale fill, a light border and the picture in a deeper shade of the same hue, so
+   neighbours stay apart and none shouts. A bundle keeps its group's colour as a dot in its corner; your own tags are
+   words, in the watchlist's indigo ── */
+.tag.ico { --tg: #475569; --tf: #F8FAFC; --tl: #E2E8F0; color: var(--tg); border-color: var(--tl); background: var(--tf); font-weight: 500; }
+.tag.ico.t-dev { --tg: #B91C1C; --tf: #FEF2F2; --tl: #FECACA; }          /* the creator: red */
+.tag.ico.t-sniper { --tg: #B45309; --tf: #FFFBEB; --tl: #FDE68A; }       /* in within a minute: amber */
+.tag.ico.t-bundle { --tg: #C2410C; --tf: #FFF7ED; --tl: #FED7AA; }       /* one funder behind many: orange */
+.tag.ico.t-bot-like { --tg: #475569; --tf: #F8FAFC; --tl: #E2E8F0; }     /* a machine: slate */
+.tag.ico.t-fresh { --tg: #4D7C0F; --tf: #F7FEE7; --tl: #D9F99D; }        /* a new wallet: lime */
+.tag.ico.t-dormant { --tg: #A21CAF; --tf: #FDF4FF; --tl: #F5D0FE; }      /* woke up for this: fuchsia */
+.tag.ico.t-transfer-in { --tg: #0E7490; --tf: #ECFEFF; --tl: #A5F3FC; }  /* tokens that came by transfer: cyan */
+.tag.ico.t-pre-range { --tg: #57534E; --tf: #FAFAF9; --tl: #E7E5E4; }    /* bought before the range: stone */
+.tag.ico.t-re-bought { --tg: #15803D; --tf: #F0FDF4; --tl: #BBF7D0; }    /* bought again: green, as buys are */
+.tag.ico.t-never-sold { --tg: #0369A1; --tf: #F0F9FF; --tl: #BAE6FD; }   /* still holds: sky */
+.idm.kol, .idm.role { --tg: #475569; --tf: #F8FAFC; --tl: #E2E8F0; color: var(--tg); border-color: var(--tl); background: var(--tf); font-weight: 500; }
+.idm.kol, .idm.role.r-exchange { --tg: #1D4ED8; --tf: #EFF6FF; --tl: #BFDBFE; }   /* known by name: identity blue */
+.idm.role.r-hacker { --tg: #B91C1C; --tf: #FEF2F2; --tl: #FECACA; }
+.tag.ico:hover, .idm.kol:hover, .idm.role:hover { border-color: var(--tg); }
+.tag.t-bundle.bundb { position: relative; color: var(--tg); background: var(--tf); border-color: var(--tl); }
+.tag.t-bundle.bundb::after { content: ""; position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--c, #FDBA74); box-shadow: 0 0 0 1.5px var(--surface); }
+/* the filter legend: white chips, each picture in its own colour */
+.tagchip { --tg: var(--muted); } .tagchip svg { color: var(--tg); }
+.tagchip.t-dev { --tg: #B91C1C; } .tagchip.t-sniper { --tg: #B45309; } .tagchip.t-bundle { --tg: #C2410C; } .tagchip.t-bot-like { --tg: #475569; }
+.tagchip.t-fresh { --tg: #4D7C0F; } .tagchip.t-dormant { --tg: #A21CAF; } .tagchip.t-transfer-in { --tg: #0E7490; } .tagchip.t-never-sold { --tg: #0369A1; }
+.tagchip.t-dev, .tagchip.t-sniper, .tagchip.t-bot-like, .tagchip.t-fresh, .tagchip.t-transfer-in { border-color: var(--line); }
+.tagchip.off svg { color: #CBD5E1; }
+.tag.own { display: inline-flex; align-items: center; height: 22px; margin: 0; padding: 0 8px; border-radius: 999px; border: 1px solid #C7D2FE;
+  background: #EEF2FF; color: #3730A3; font: 500 11px/1 var(--sans); cursor: default; }
+/* the Filters panel holds no numbers where the table's head has funnels for them (owner, 04.10: no doubles) */
+@media (min-width: 961px) { .fpanel .fp-nums { display: none; } }
+/* the tally: a thin meter under each share, coloured by what it means; small bars under «bought» for when they came in */
+.tally .tc .tm { display: block; width: 100%; height: 3px; margin-top: 5px; border-radius: 2px; background: #EEF2F6; overflow: hidden; }
+.tally .tc .tm::before { content: ""; display: block; width: var(--p, 0%); height: 100%; border-radius: 2px; background: #94A3B8;
+  transform-origin: left center; animation: tm-in .6s ease-out .15s both; }
+.tally .tc.warn .tm::before { background: #F59E0B; } .tally .tc.bad .tm::before { background: #EF4444; }
+.tally .tc.rep .tm::before { background: #8B5CF6; } .tally .tc.good .tm::before { background: #10B981; }
+.tally .tc .tsp { display: block; width: 100%; height: 14px; margin-top: 5px; fill: #CBD5E1; }
+@keyframes tm-in { from { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) { .tally .tc .tm::before { animation: none; } }
+/* the draft site's alerts are a preview: the switches save, nothing is sent (owner, 04.10) */
+.tgprev { font-size: 12.5px; color: var(--muted); max-width: 300px; }
+.lbar .lalert[hidden] { display: none; }
+/* the card says how long a sleeper slept, in the dormant tag's colour (owner, 04.10) */
+.dchip.dorm { color: #A21CAF; border-color: #F5D0FE; background: #FDF4FF; }
+/* the card's recent tokens: a row opens that token's chart under it, with this wallet's trades (owner, 04.10) */
+.drecent tr.rt { cursor: pointer; } .drecent tr.rt:hover td, .drecent tr.rt.open td { background: var(--hover); }
+.drecent tr.rt:focus-visible { outline: 2px solid var(--primary-strong, #34D399); outline-offset: -2px; }
+.drecent .rts { font-weight: 600; border-bottom: 1px dotted var(--line-strong, #CBD5E1); }
+.drecent tr.rtc td { padding: 6px 0 10px; background: var(--surface); }
+.chartbox.mini { height: 240px; margin: 0 0 6px; padding-bottom: 34px; }
+.chartbox.mini .tf.back, .chartbox.mini .charthint { display: none; }
+.drecent .rtfoot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 12px; font: 12px var(--mono); color: var(--muted); }
+.drecent .rtfoot a { font-family: var(--sans); }
+/* after the alerts (owner, 04.10): the multiples read like the table's ROI, a small line under for when */
+.aftr .mehead .kinfo { margin-left: 2px; }
+.aftr .tally { margin: 4px 0 12px; }
+.aft td.num small { display: block; color: var(--muted); font-size: 10.5px; }
+.aft td.num.pos { color: var(--gain, #059669); } .aft td.num.neg { color: var(--loss, #DC2626); }
+.aft td:first-child { white-space: nowrap; }
+/* a two-word label wraps instead of being cut at the cell's edge ("FROM EXCHANGES" at 1440, 04.10) */
+.tally .tc i { white-space: normal; max-width: 100%; }

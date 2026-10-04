@@ -3,8 +3,8 @@
 A tag is a rule, not an opinion. Each one is computed from the table or the chain, each shows its definition on
 hover, and each can be argued with.
 
-In the table a tag is a small picture, so a long list stays readable. Hover it for the rule; the filter chips above
-the table and the wallet's card name every one of them in words.
+In the table a tag is a small picture, so a long list stays readable. Hover it for the rule; the Filters menu and the
+wallet's card name every one of them in words.
 
 | Tag | The rule |
 |---|---|
@@ -13,10 +13,15 @@ the table and the wallet's card name every one of them in words.
 This table is generated from the definitions in the code — the same ones the tooltips show, so they cannot drift
 apart.
 
-## Three worth reading twice
+## Worth reading twice
 
-`no-exits` is the honest one. It does not mean the wallet lost, or still holds. It means we did not buy that data.
-Those wallets are counted separately in the summary and never folded into winners or losers.
+`never-sold` means its trades on this token hold no sale. It still holds, or it moved the tokens to another wallet
+without selling: we see swaps, not transfers. A wallet beyond the cap of exact exits never gets it; its Sold and PnL
+show `—`, because we did not read its sells.
+
+`dormant` means nothing touched the wallet for 7 days or more before its first buy here. Any transaction counts, even a
+stranger's dust, so a sleeping wallet can be missed but is never called asleep by mistake. An old wallet that wakes up
+for one launch is worth a second look.
 
 `transfer-in` means the tokens arrived without a purchase. We see swaps, not transfers, so a wallet that sold more
 than it ever bought got them some other way — almost always sent from another wallet.

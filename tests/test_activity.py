@@ -28,12 +28,16 @@ class TestActivity(unittest.TestCase):
         a.bump("W", "buy", NOW - 6 * DAY)                    # inside the week
         a.bump("W", "buy", NOW - 7 * DAY - 2 * HOUR_MS)      # just outside it
         a.bump("W", "swap", NOW)                             # not a trade side
-        self.assertEqual(a.of(["W"], NOW)["W"], {"buys": 2, "sells": 1, "last": NOW - 500, "since": NOW - 8 * DAY})
+        self.assertEqual(a.of(["W"], NOW)["W"], {"buys": 2, "sells": 1, "last": NOW - 500, "since": NOW - 8 * DAY, "big": None})
         self.assertEqual(a.of(["Q"], NOW)["Q"]["buys"], 0)   # watched, quiet
         a.watch({"Q"}, NOW)                                  # W is no longer watched: forgotten
         self.assertNotIn("W", a.of(["W", "Q"], NOW))
         a.watch({"W", "Q"}, NOW)                             # back: counting starts again
-        self.assertEqual(a.of(["W"], NOW)["W"], {"buys": 0, "sells": 0, "last": 0, "since": NOW})
+        self.assertEqual(a.of(["W"], NOW)["W"], {"buys": 0, "sells": 0, "last": 0, "since": NOW, "big": None})
+        a.bump("W", "buy", NOW - 2000, usd=1234.6)          # the card shows its biggest buy of the week
+        a.bump("W", "buy", NOW - 1000, usd=300)
+        a.bump("W", "sell", NOW - 900, usd=99_999)          # a sale is not a buy
+        self.assertEqual(a.of(["W"], NOW)["W"]["big"], 1235)
 
     def test_save_keeps_eight_days_and_the_bookmark(self):
         a = Activity(self.path)

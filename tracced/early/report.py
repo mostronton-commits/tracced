@@ -72,7 +72,7 @@ def coverage_text(cov):
         return f"Exits known for all {n:,} wallets · full trade history" + ("" if cov.get("cost_full") else " · from cache")
     if k >= n:
         return f"Exits known for all {n:,} wallets · each wallet's trades fetched"
-    return (f"Exits known for {k:,} of {n:,} wallets · the rest tagged no-exits "
+    return (f"Exits known for {k:,} of {n:,} wallets · the rest show their entry only "
             f"(cap {int(cov.get('lookup_cap') or 0):,} wallets per analysis)")
 
 

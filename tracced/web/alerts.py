@@ -12,6 +12,8 @@ import secrets
 import threading
 import time
 
+from . import accounts as acct_mod
+
 WSOL = "So11111111111111111111111111111111111111112"
 STABLES = {"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",      # USDC
            "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",      # USDT
@@ -103,26 +105,26 @@ def wants(ev, prefs):
     return bool(prefs["buys" if ev["side"] == "buy" else "sells"]) and ev["usd"] >= prefs["min_usd"]
 
 
-def watch_map(accounts, admins=(), open_to_all=False, max_wallets=50, default_min=None):
-    """{гаманець: [{pk, chat, lists, prefs}]} — хто і в яких списках стежить за гаманцем.
+def watch_map(accounts, admins=(), open_to_all=False, max_wallets=10, default_min=None):
+    """{гаманець: [{pk, chat, lists, prefs}]} — хто стежить за гаманцем і в яких списках він у людини.
 
-    Рахується акаунт, у якого прив'язано Telegram і ввімкнено дзвіночок хоча б на одному списку. Поки сповіщення в
-    закритому тесті (open_to_all=False), лише гаманці власника. На акаунт — не більше max_wallets гаманців."""
+    Рахується акаунт, у якого прив'язано Telegram і ввімкнено дзвіночок хоча б на одному гаманці (з 02.10 дзвіночок на
+    гаманці, див. accounts.migrate_alerts). Поки сповіщення в закритому тесті (open_to_all=False), лише гаманці
+    власника. На акаунт — не більше max_wallets гаманців, найновіші."""
     out = {}
     admins = set(admins)
     for a in accounts:
         tg = a.get("telegram") or {}
         if not tg.get("chat") or (not open_to_all and a.get("pubkey") not in admins):
             continue
+        acct_mod.migrate_alerts(a, max_wallets)               # запис з часів дзвіночка на списку
         lists = a.get("lists") or {}
-        on = {lid for lid, l in lists.items() if isinstance(l, dict) and l.get("alerts")}
-        if not on:
+        bells = [(w, m) for w, m in (a.get("wallets") or {}).items() if isinstance(m, dict) and m.get("alert")]
+        if not bells:
             continue
         prefs, n = prefs_of(a.get("alerts"), default_min), 0
-        for w, meta in sorted((a.get("wallets") or {}).items(), key=lambda kv: -(kv[1].get("added_ms") or 0)):
-            ls = [lists[x]["name"] for x in (meta.get("lists") or []) if x in on]
-            if not ls:
-                continue
+        for w, meta in sorted(bells, key=lambda kv: -(kv[1].get("added_ms") or 0)):
+            ls = [lists[x]["name"] for x in (meta.get("lists") or []) if isinstance(lists.get(x), dict)]
             if n >= max_wallets:
                 break
             # звідки гаманець (памп, з якого його зберегли) і власні мітки людини — щоб з повідомлення було видно, чий він

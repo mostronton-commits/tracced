@@ -32,10 +32,10 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
 from ..cache import JsonCache
-from ..early import agent as agent_mod, assistant as assistant_mod, exchanges as exch_mod, ledger, pipeline, profile, report, scope, tags, wallet_age as wallet_age_mod, window
+from ..early import agent as agent_mod, assistant as assistant_mod, exchanges as exch_mod, labels as labels_mod, ledger, pipeline, profile, report, scope, tags, wallet_age as wallet_age_mod, window
 from ..early.store import TradeStore
 from ..providers import dexscreener
-from . import accounts as acct_mod
+from . import accounts as acct_mod, after as after_mod
 from . import activity as activity_mod
 from . import alerts as alerts_mod
 from . import fresh as fresh_mod
@@ -99,6 +99,9 @@ def _rows_rev():
 
 ROWS_REV = _rows_rev()
 env.globals["v"] = _asset_version()
+# IBM Carbon icons from one sprite (owner, 02.10: not the Lucide look of AI-made sites); ui.js has the same for scripts
+env.globals["icon"] = lambda name, cls="": Markup(f'<svg class="ci{" " + cls if cls else ""}" aria-hidden="true">'
+                                                 f'<use href="/static/icons.svg?v={env.globals["v"]}#i-{name}"/></svg>')
 from .. import __version__                                   # noqa: E402 — product version for the footer
 env.globals["version"] = ".".join(__version__.split(".")[:2])
 env.filters["dt"] = chart.fmt_dt
@@ -188,11 +191,11 @@ def enrich_target(r, s):
     return min(len(rows), cap)
 
 
-def make_enricher(ages, s, spend=None):
+def make_enricher(ages, s, spend=None, labels=None):
     """Після аналізу, у фоні: вік кожного гаманця з RPC → тег `fresh` і перший спонсор → `bundle`; прогрес у
     result["enrich"]. Кредити ноди йдуть у журнал (`spend`) на кожному збереженні: деплой dev перезапускає сервер
     посеред збагачення, і витрачене до рестарту інакше загубилось би."""
-    body = _enrich_body(ages, s)
+    body = _enrich_body(ages, s, labels)
 
     def enrich(job, save):
         with wallet_age_mod.rpc_meter() as m:
@@ -213,7 +216,7 @@ def make_enricher(ages, s, spend=None):
     return enrich
 
 
-def _enrich_body(ages, s):
+def _enrich_body(ages, s, labels=None):
     """Сам прохід збагачення; що він коштував, рахує make_enricher.
 
     Перші full_top за PnL — повна перевірка: точний вік і зайнятого гаманця (10 кредитів), спонсор і в гаманця
@@ -227,6 +230,8 @@ def _enrich_body(ages, s):
         n, top = enrich_target(r, s), full_top(r, s)
         e = r.setdefault("enrich", {"done": 0, "total": n, "fresh": 0, "failed": 0})
         e["total"] = n
+        if not e.get("done") and r.get("dormant_at") is None:
+            r["dormant_run"] = True                        # this pass reads «dormant» with each age
         if e.get("failed"):
             e.update(done=0, failed=0, fresh=0)            # був збій ноди — перевіряємо заново (кеш лишається)
         e.pop("paused", None)
@@ -265,6 +270,7 @@ def _enrich_body(ages, s):
                 age = None
             if age and age.get("oldest_ms"):                # картка показує перший підпис гаманця
                 r.setdefault("ages", {})[row["wallet"]] = {"ms": age["oldest_ms"], "exact": bool(age.get("exact")), "n": age.get("n")}
+            _dormant(r, row, age, ages, is_paused())
             if age and tags.is_fresh(row.get("first_buy_ms"), age) and "fresh" not in (row.get("tag_list") or []):
                 row["tag_list"] = tags.with_tag(row.get("tag_list"), "fresh")
                 row["tags"] = "|".join(row["tag_list"])
@@ -277,6 +283,16 @@ def _enrich_body(ages, s):
                 if save(job) is False:
                     return                                 # аналіз видалили: кредити RPC на нього більше не йдуть
                 ages.flush()
+        if r.get("dormant_at") is None:
+            # a result checked before «dormant» existed (owner, 04.10): its first full_top get it once, from the age in the
+            # cache and one signature each (1 credit); a new run has just done it in the pass above
+            if e.get("done", 0) >= n and n and not r.get("dormant_run"):
+                kept = r.get("ages") or {}                 # the cache keeps an age a week; the result keeps it for good
+                for row in rows[:min(n, top or n)]:
+                    a = kept.get(row["wallet"])
+                    age = cached(row["wallet"]) or ({"oldest_ms": a["ms"], "exact": bool(a.get("exact"))} if a and a.get("ms") else None)
+                    _dormant(r, row, age, ages, is_paused())
+            r["dormant_at"] = int(time.time() * 1000)
         def services():
             """Біржі й застосунки серед спонсорів бандлів: одна сторінка підписів на спонсора, решта з кешу."""
             try:
@@ -324,12 +340,56 @@ def _enrich_body(ages, s):
                 ages.flush()
         r["funder_checked"] = sorted(checked)
         e["funders_done"] = n
+        _label_funders(r, labels, s, job)
         services()
         _bundles(r, rows)
         r["bundle_rev"] = tags.BUNDLE_REV                   # бандли пораховані чинним правилом
         save(job)
         ages.flush()
     return enrich
+
+
+def _label_funders(r, labels, s, job=None):
+    """Мітки InsightX (власник, 04.10: «подивимось, як це працює і що дає додатково») для спонсорів, яких не знає наш
+    список бірж: спершу тих, хто дав SOL кільком гаманцям (там мітка вирішує, бандл це чи біржа), далі решти. Не більше
+    insightx_calls_per_run запитів по 100 адрес; результат пам'ятає, коли його питали, щоб не питати знову."""
+    if labels is None:
+        return
+    from collections import Counter
+    known = r.get("labels") or {}
+    cnt = Counter((r.get("funders") or {}).values())
+    want = [f for f, _ in cnt.most_common() if f not in exch_mod.KNOWN and f not in known]
+    before = labels.requests
+    found = labels.lookup(want, max_calls=int(s.get("insightx_calls_per_run", 3))) if want else {}
+    if found:
+        r["labels"] = dict(known, **{a: [x["name"], x["label"], x.get("kind") or ""] for a, x in found.items()})
+    r["labels_at"] = int(time.time() * 1000)
+    used = labels.requests - before
+    if used and job is not None:
+        ex = sum(1 for x in found.values() if x.get("kind") == "exchange")
+        job.log.append(f"InsightX named {len(found)} funders ({ex} exchanges) in {used} request{'' if used == 1 else 's'}")
+    labels.flush()
+
+
+def _dormant(r, row, age, ages, paused=False):
+    """`dormant` (owner, 04.10): the transaction right before its first buy in the range is a week old or older. The age
+    check has just read that page, so this is mostly a cache hit; a fresh wallet cannot be asleep. A failure leaves the
+    tag off: missing a sleeper is the safe side."""
+    at, sig = row.get("first_range_buy_ms") or row.get("first_buy_ms"), row.get("entry_tx")
+    prev_tx = getattr(ages, "prev_tx", None)
+    if not (prev_tx and age and at and sig) or tags.is_fresh(row.get("first_buy_ms"), age):
+        return
+    try:
+        prev = prev_tx(row["wallet"], sig, cached_only=paused)
+    except Exception:  # noqa: BLE001
+        return
+    days = tags.dormant_days(at, prev)
+    if not days:
+        return
+    r.setdefault("dormant", {})[row["wallet"]] = days
+    if "dormant" not in (row.get("tag_list") or []):
+        row["tag_list"] = tags.with_tag(row.get("tag_list"), "dormant")
+        row["tags"] = "|".join(row["tag_list"])
 
 
 def _after_buy(age, row):
@@ -393,6 +453,7 @@ def _check_services(r, ages):
     services = set(r.get("services") or [])
     # відома біржа (список Dune у early/data) — сервіс без жодного запиту: і кредит не йде, і бандла від неї не буде
     services |= {f for f in set((r.get("funders") or {}).values()) if exch_mod.name_of(f)}
+    services |= {a for a, v in (r.get("labels") or {}).items() if len(v) > 2 and v[2] in labels_mod.SERVICE_KINDS}
     if check is not None and not (getattr(ages, "paused", None) or (lambda: False))():
         from collections import Counter
         for f, n in Counter((r.get("funders") or {}).values()).items():
@@ -401,7 +462,8 @@ def _check_services(r, ages):
     r["services"] = sorted(services)
 
 
-def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/early", ages=None, assistant=None, background=False):
+def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/early", ages=None, assistant=None, background=False,
+               labels=None):
     app = web.Application(middlewares=[errors_mw, auth_mw, private_mw])
     app.on_response_prepare.append(_security_headers)
     app["bg"] = {}                                                 # фонові задачі сервера (лише з background=True, не в тестах)
@@ -444,8 +506,11 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["browse_daily"] = DailyCount(daily_dir / "browse.json")   # запити на графіки живих токенів: на адресу, на гаманець, на сайт
     app["runs_daily"] = DailyCount(daily_dir / "runs.json")       # живі прогони на весь сайт за добу (будь-який ключ підписує безкоштовно)
     app["usage_daily"] = DailyCount(daily_dir / "usage.json")     # рядків журналу (перегляди, кліки) на гаманець і на сайт за добу
+    app["alerts_st_daily"] = DailyCount(daily_dir / "alerts_st.json")   # запити Solana Tracker від сповіщень за добу
+    app["alerts_day"] = DailyCount(daily_dir / "alerts_day.json")   # надіслані сповіщення на акаунт за добу (і чи вже попередили)
     app["feedback"] = FeedbackStore(Path(out_dir).parent / "feedback" / "feedback.jsonl")   # «Contact»: листи власнику
     app["feedback_throttle"] = Throttle(max_fails=5, window_s=3600, block_s=3600)       # п'ять листів на годину з однієї адреси
+    app["after_memo"] = {}                                        # «після алертів», порахований на 15 хвилин, на людину
     app["usage_cache"], app["view_last"] = {}, {}                 # порахований дашборд на хвилину; останній перегляд сторінки
     app["credits"] = {"left": None, "at": 0}                     # залишок кредитів Data API: питаємо не частіше ніж раз на 10 хв
     app["ai_balance"] = {"v": None, "at": 0}                     # залишок на відповіді агента (OpenRouter): так само раз на 10 хв
@@ -466,9 +531,11 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["alerts_pace"], app["alerts_flood"] = _Pace(s.get("alerts_rps", 12)), {}    # темп запитів до ноди; угоди гаманця за хвилину
     app["alerts_conn_at"] = 0.0                                                     # коли підключився нинішній потік
     app["alerts_poll_wake"], app["alerts_chat_locks"] = asyncio.Event(), {}         # розбудити страховку; черга відправки на чат
+    app["alerts_inflight"] = set()                                                  # угоди, які саме розбираються
     for key in app["activity"].recent_done():                                       # оброблене до перезапуску: не вдруге
         app["alerts_seen"][key] = time.time()   # спроб з невірним ключем з однієї мережі за хвилину
     app["ages"] = ages
+    app["labels"] = labels                                      # InsightX: мітки спонсорів; None — без ключа (і в тестах)
     _share_st(st, app["st_slots"])
 
     def runner(job):
@@ -512,7 +579,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
 
     identify = ((lambda ws: st.identities(ws, strict=True))               # відмова джерела ≠ «імен нема»
                 if (hasattr(st, "identities") and s.get("st_identity", True)) else None)
-    app["jobs"] = JobQueue(runner, out_dir, enricher=make_enricher(ages, s, spend) if ages else None, on_error=on_error,
+    app["jobs"] = JobQueue(runner, out_dir, enricher=make_enricher(ages, s, spend, labels) if ages else None, on_error=on_error,
                            enrich_upto=(lambda r: enrich_target(r, s)) if ages else 0,
                            namer=make_namer(identify, st, spend) if identify else None, on_finish=on_finish)
     app.router.add_get("/", index)
@@ -546,6 +613,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_post("/me/wallets", me_add_wallets)
     app.router.add_post("/me/wallets/remove", me_remove_wallet)
     app.router.add_post("/me/wallets/tags", me_tags)
+    app.router.add_post("/me/wallets/alert", me_wallet_alert)
     app.router.add_post("/me/lists", me_lists)
     app.router.add_post("/me/lists/{action}", me_lists)
     app.router.add_post("/me/analyses", me_add_analysis)
@@ -555,6 +623,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_post("/me/telegram/unlink", me_tg_unlink)
     app.router.add_get("/me/telegram.json", me_tg_status)
     app.router.add_get("/me/wallet.json", me_wallet_json)
+    app.router.add_get("/me/after.json", me_after_json)
     app.router.add_post("/me/alerts", me_alerts)
     app.router.add_get("/admin", admin_page)
     app.router.add_get("/admin/w/{pk}", admin_wallet_page)
@@ -948,6 +1017,13 @@ class DailyCount:
             rec[1] = max(0, rec[1] + int(n))
             self.n[key] = rec
             self._flush()
+
+    def count(self, key, now=None):
+        """Скільки ключ набрав сьогодні."""
+        day = int((time.time() if now is None else now) // 86400)
+        with self._lock:
+            rec = self.n.get(key)
+            return rec[1] if rec and rec[0] == day else 0
 
     def left(self, key, cap, now=None):
         day = int((time.time() if now is None else now) // 86400)
@@ -1356,7 +1432,7 @@ async def me_wallet_json(request, pk):
     acct = app["accounts"].load(pk)
     meta = (acct.get("wallets") or {}).get(w)
     if not meta:
-        raise web.HTTPNotFound(text="That wallet is not in your lists.")
+        raise web.HTTPNotFound(text="That wallet is not in your watchlist.")
 
     def build():
         jobs = app["jobs"]
@@ -1385,6 +1461,106 @@ async def me_wallet_json(request, pk):
     return web.json_response(await asyncio.to_thread(build), headers={"Cache-Control": "no-store"})
 
 
+AFTER_TTL = 900
+
+
+def _after_on(request):
+    """«After the alerts» лишається на закритій копії, поки власник його допрацьовує (04.10: «це ще допрацюю потім»).
+    after_alerts: draft (так за замовчуванням) — лише на private_hosts; on — усюди; off — ніде."""
+    v = str(request.app["s"].get("after_alerts", "draft"))
+    return v == "on" or (v == "draft" and _private_host(request))
+
+
+@_acct_route
+async def me_after_json(request, pk):
+    """«Що було після алерту» (власник, 04.10): перші покупки токенів гаманцями з дзвіночком за останні дні і що токен
+    зробив далі, від ціни покупки (after.py). Нема жодного дзвіночка — найновіші гаманці зі списку. 30 днів гаманця — з
+    кешу картки або 1-5 запитів, доба свічок після покупки — 1-2 запити; усе під денним бюджетом графіків людини
+    (власник поза ним). Порахована відповідь живе AFTER_TTL секунд."""
+    app, s = request.app, request.app["s"]
+    if not _after_on(request):
+        return _jerr("Not here yet.", 404)
+    hit = app["after_memo"].get(pk)
+    if hit and time.time() - hit[0] < AFTER_TTL:
+        return web.json_response(hit[1], headers={"Cache-Control": "no-store"})
+    ws = app["accounts"].load(pk).get("wallets") or {}
+    pick = [w for w, m in ws.items() if (m or {}).get("alert")]
+    basis = "bells" if pick else "newest"
+    if not pick:
+        pick = [w for w, _ in sorted(ws.items(), key=lambda kv: -((kv[1] or {}).get("added_ms") or 0))]
+    pick = pick[:int(s.get("after_wallets", 10))]
+    now, st, stop = int(time.time() * 1000), app["st"], []
+
+    def budget(est):
+        """Денний бюджет графіків людини: вичерпано — рахуємо те, що вже є, і кажемо про це."""
+        try:
+            return _browse_budget(request, est)
+        except WebError as e:
+            stop.append(str(e))
+            return None
+
+    def paid(what, fn, est, mint=None):
+        settle = budget(est)
+        if settle is None:
+            return None
+        with st.meter():
+            req0 = st.requests_here()
+            try:
+                return fn()
+            except Exception as e:  # noqa: BLE001 — один токен чи гаманець не валить решту
+                log.warning("after %s: %s", what, e)
+                return None
+            finally:
+                n = st.requests_here() - req0
+                settle(n)
+                _spend(app, pk, what, st=n, mint=mint)
+
+    def cards():
+        out = {}
+        for w in pick:
+            c = app["profile_cache"].get(f"v{profile.VERSION}:{w}")
+            if c is None and not stop and hasattr(st, "wallet_swaps"):
+                c = paid("after-profile", lambda w=w: _profile_now(app, w), 3)
+            if c is not None:
+                out[w] = c
+        return out
+    got = await asyncio.to_thread(cards)
+    ms = sorted((m for w, c in got.items() for m in after_mod.moments(c, w, now)), key=lambda m: -m["t"])[:int(s.get("after_rows", 40))]
+    infos = {m["mint"]: hit[1] for m in ms if (hit := app["overview_cache"].get(m["mint"])) and hit[1] is not None}
+
+    def candles():
+        out = {}
+        for m in ms:
+            key = (m["mint"], m["t"])
+            if stop or key in out:
+                continue
+            a, b = m["t"] - after_mod.STEP, min(now, m["t"] + after_mod.HOURS * HOUR)
+
+            def load(m=m, a=a, b=b):
+                info = infos.get(m["mint"])
+                if info is None:                       # міграція з кривої: без неї свічки до переїзду пропали б
+                    try:
+                        info = infos[m["mint"]] = pipeline.token(st, m["mint"])
+                    except Exception:  # noqa: BLE001
+                        info = None
+                return pipeline._chart(st, m["mint"], "5m", a, b, info)
+            out[key] = paid("after-chart", load, 2, m["mint"])
+        return out
+    cs = await asyncio.to_thread(candles)
+    rows = []
+    for m in ms:
+        trades = next((t.get("trades") or [] for t in got[m["wallet"]].get("recent") or [] if t.get("mint") == m["mint"]), [])
+        o = after_mod.outcome(m, cs.get((m["mint"], m["t"])), trades, now) if cs.get((m["mint"], m["t"])) is not None else {}
+        rows.append(dict(m, **o, tags=((ws.get(m["wallet"]) or {}).get("my_tags") or [])[:2]))
+    out = {"rows": rows, "summary": after_mod.summary(rows), "basis": basis, "wallets": len(pick), "days": after_mod.DAYS,
+           "hours": after_mod.HOURS, "partial": stop[0] if stop else None, "at": now}
+    if not stop:
+        app["after_memo"][pk] = (time.time(), out)
+        if len(app["after_memo"]) > 500:
+            app["after_memo"].clear()
+    return web.json_response(out, headers={"Cache-Control": "no-store"})
+
+
 @_acct_route
 async def me_tg_status(request, pk):
     """Чи прив'язано Telegram (сторінка питає, поки людина тисне Start у боті) і налаштування; власнику — ще й стан потоку."""
@@ -1393,7 +1569,8 @@ async def me_tg_status(request, pk):
     tg = a.get("telegram") or {}
     out = {"linked": bool(tg.get("chat")), "user": tg.get("user") or "", "prefs": alerts_mod.prefs_of(a.get("alerts"), app["s"].get("alerts_min_usd"))}
     if pk in app["admins"]:
-        out["state"] = app["alerts_state"]
+        out["state"] = dict(app["alerts_state"], st_today=int(app["s"].get("alerts_st_per_day", 3000)) - _alerts_st_left(app),
+                            st_per_day=int(app["s"].get("alerts_st_per_day", 3000)))
     return web.json_response(out, headers={"Cache-Control": "no-store"})
 
 
@@ -1573,7 +1750,7 @@ def _alert_fail(app, pk, why):
 def _watch_now(app):
     s = app["s"]
     return alerts_mod.watch_map(app["accounts"].all(), app["admins"], bool(s.get("alerts_open")),
-                                int(s.get("alerts_max_wallets", 50)), s.get("alerts_min_usd"))
+                                int(s.get("alerts_max_wallets", 10)), s.get("alerts_min_usd"))
 
 
 async def _rpc(http, url, method, params):
@@ -1599,6 +1776,12 @@ async def _sol_price(app, http):
     except Exception as e:  # noqa: BLE001
         log.warning("sol price: %s", e)
     return px
+
+
+def _token_cached(app, mint):
+    """Назва й капа з пам'яті (10 хв), без запиту: для повідомлення, якому платити вже не можна."""
+    hit = app["alerts_tok"].get(mint)
+    return hit[1] if hit and time.time() - hit[0] < 600 else {}
 
 
 async def _token_facts(app, mint):
@@ -1630,7 +1813,7 @@ async def _token_facts_fetch(app, mint):
             except Exception:  # noqa: BLE001 — без назви повідомлення все одно йде: з адресою
                 return {}
             finally:
-                _spend(app, "system", "alerts", st=st.requests_here() - n0, mint=mint)
+                _alerts_spent(app, st.requests_here() - n0, mint)
     facts = await asyncio.to_thread(work)
     if len(app["alerts_tok"]) > 2000:
         app["alerts_tok"].clear()
@@ -1651,9 +1834,21 @@ async def _sold_share(app, wallet, ev):
             except Exception:  # noqa: BLE001
                 return None
             finally:
-                _spend(app, "system", "alerts", st=st.requests_here() - n0, mint=ev["mint"])
+                _alerts_spent(app, st.requests_here() - n0, ev["mint"])
     trades = await asyncio.to_thread(work)
     return alerts_mod.sold_share(trades, ev) if trades else None
+
+
+def _alerts_spent(app, n, mint):
+    """Запити Solana Tracker, які щойно пішли на сповіщення: у журнал витрат і в добовий лічильник сповіщень."""
+    _spend(app, "system", "alerts", st=n, mint=mint)
+    if n:
+        app["alerts_st_daily"].add("all", n)
+
+
+def _alerts_st_left(app):
+    """Скільки запитів Solana Tracker сповіщенням лишилось на сьогодні (UTC)."""
+    return app["alerts_st_daily"].left("all", int(app["s"].get("alerts_st_per_day", 3000)))
 
 
 def _hour_rec(app, chat):
@@ -1662,6 +1857,36 @@ def _hour_rec(app, chat):
     if not rec or rec[0] != hour:
         rec = app["alerts_hour"][chat] = [hour, 0]
     return rec
+
+
+def _day_budget(app, pk):
+    """Не більше alerts_per_day надісланих повідомлень на акаунт за добу UTC (власник, 02.10: 200). None — можна (і місце
+    вже зайняте); 'day' — ліміт вичерпано, одне попередження на добу; False — мовчимо до 00:00 UTC. Рахуються лише ті, що
+    підуть: пропущене годинною стелею місця в добовій не займає (див. _day_undo)."""
+    cap, dc = int(app["s"].get("alerts_per_day", 200)), app["alerts_day"]
+    if dc.take("a:" + pk, cap):
+        return None
+    return "day" if dc.take("w:" + pk, 1) else False
+
+
+def _day_undo(app, pk):
+    """Місце, яке зайняв _day_budget, звільняється: повідомлення не піде (годинна стеля)."""
+    app["alerts_day"].add("a:" + pk, -1)
+
+
+def _wallet_budget(app, pk, wallet):
+    """Не більше alerts_per_wallet_day повідомлень від одного гаманця на акаунт за добу UTC (власник, 02.10: 50): бот, що
+    торгує щохвилини, не з'їдає добову стелю всіх інших. None — можна (місце зайняте); 'wallet' — щойно вичерпано, одне
+    попередження про цей гаманець; False — він мовчить до 00:00 UTC."""
+    cap, dc = int(app["s"].get("alerts_per_wallet_day", 50)), app["alerts_day"]
+    if dc.take("c:" + pk + ":" + wallet, cap):
+        return None
+    return "wallet" if dc.take("cw:" + pk + ":" + wallet, 1) else False
+
+
+def _wallet_undo(app, pk, wallet):
+    """Місце, яке зайняв _wallet_budget, звільняється: повідомлення не піде (стеля доби чи години)."""
+    app["alerts_day"].add("c:" + pk + ":" + wallet, -1)
 
 
 def _hour_budget(app, chat):
@@ -1726,10 +1951,21 @@ async def _alert_tx(app, http, wallet, sig, via="stream", bt=None):
     if not app["alerts_wm"].get(wallet):              # за гаманцем уже ніхто не стежить (відв'язав Telegram, вимкнув дзвіночок)
         return True
     key = sig + ":" + wallet
-    seen = app["alerts_seen"]
+    seen, inflight = app["alerts_seen"], app["alerts_inflight"]
     if key in seen:
-        return True
+        # ще в роботі в іншої задачі (потік читає, страховка дійшла): «не оброблено», щоб страховка не перескочила її
+        # закладкою — якщо та спроба провалиться, наступне опитування візьме угоду знову (рев'ю 01.10)
+        return key not in inflight
     seen[key] = time.time()
+    inflight.add(key)
+    try:
+        return await _alert_tx_work(app, http, wallet, sig, via, bt, key)
+    finally:
+        inflight.discard(key)
+
+
+async def _alert_tx_work(app, http, wallet, sig, via, bt, key):
+    seen = app["alerts_seen"]
     st, s = app["alerts_state"], app["s"]
     if via == "poll":                                # потік цієї угоди не приніс за alerts_poll_grace_s: страховка спрацювала
         st["poll_caught"] = st.get("poll_caught", 0) + 1
@@ -1770,19 +2006,29 @@ async def _alert_tx(app, http, wallet, sig, via="stream", bt=None):
     st["events"] += 1
     if app["activity"].done(wallet, sig):            # оброблене переживає перезапуск; повтор після невдалої відправки не рахується
         for ev in evs:                               # активність гаманця для Lists: кожна угода, хоч би що обрали підписники
-            app["activity"].bump(wallet, ev["side"], int(ev.get("ts") or 0) * 1000 or None)
+            app["activity"].bump(wallet, ev["side"], int(ev.get("ts") or 0) * 1000 or None, ev.get("usd"))
     for ev in evs:
         # місце в годинній стелі кожного чату — ДО платних запитів і одразу: двадцять транзакцій водночас інакше всі
         # пройшли б перевірку і всі заплатили б (рев'ю 30.09, 01.10). Не надіслане все одно займає місце — це стеля
         subs = []
         for x in app["alerts_wm"].get(wallet) or []:
             if alerts_mod.wants(ev, x["prefs"]):
-                b = _hour_budget(app, x["chat"])
+                b = _wallet_budget(app, x["pk"], wallet)  # спершу цей гаманець за добу, потім доба на акаунт, потім година на чат
+                if b is None:
+                    b = _day_budget(app, x["pk"])
+                    if b is None:
+                        b = _hour_budget(app, x["chat"])
+                        if b is not None:
+                            _day_undo(app, x["pk"])
+                    if b is not None:
+                        _wallet_undo(app, x["pk"], wallet)
                 if b is not False:
                     subs.append((x, b))
         if not subs:
             continue
-        paid = any(b is None for _, b in subs) and _st_open_now(app)
+        # платне — лише поки є і місячний запас Solana Tracker, і добова частка сповіщень; інакше повідомлення йде без назви,
+        # капи й частки проданого, але йде (план 0.8, п. 17)
+        paid = any(b is None for _, b in subs) and _st_open_now(app) and _alerts_st_left(app) > 0
         # назва й капа токена і частка проданого — паралельно і не довше alerts_enrich_s: повідомлення не чекає повільне
         # джерело (власник, 01.10: «є транзакція — відправляється алерт»); те, що не встигло, допрацює в кеш на наступний
         # раз, а частка проданого, що запізнилась, просто не потрапляє в це повідомлення
@@ -1792,7 +2038,7 @@ async def _alert_tx(app, http, wallet, sig, via="stream", bt=None):
         if waits:
             await asyncio.wait(waits, timeout=float(s.get("alerts_enrich_s", 2.5)))
         ok = lambda x: x is not None and x.done() and not x.cancelled() and x.exception() is None
-        token = (t_tok.result() or {}) if ok(t_tok) else {}
+        token = (t_tok.result() or {}) if ok(t_tok) else ({} if paid else _token_cached(app, ev["mint"]))   # без оплати — те, що вже в пам'яті
         share = t_share.result() if ok(t_share) else None
         if share:
             ev["total"], ev["step"] = share
@@ -1803,6 +2049,14 @@ async def _alert_tx(app, http, wallet, sig, via="stream", bt=None):
             if b == "first":
                 app["events"].add(sub["pk"], "alert_cap", bg=True)
                 text = "⏸ More than " + str(s.get("alerts_per_hour", 30)) + " alerts this hour: the rest are skipped until the next hour."
+            elif b == "day":
+                app["events"].add(sub["pk"], "alert_cap", what="day", bg=True)
+                text = "⏸ " + str(s.get("alerts_per_day", 200)) + " alerts today: the rest are skipped until 00:00 UTC."
+            elif b == "wallet":                          # одна людина бачить його своїм тегом, як в алертах
+                app["events"].add(sub["pk"], "alert_cap", what="wallet", bg=True)
+                who = (sub.get("tags") or [None])[0] or (wallet[:4] + "…" + wallet[-4:])
+                text = ("⏸ " + str(s.get("alerts_per_wallet_day", 50)) + " alerts from " + who
+                        + " today: its trades are skipped until 00:00 UTC. Your other wallets keep coming.")
             else:
                 first = ev["mint"] not in seen_ca
                 if len(seen_ca) > 2000:
@@ -1816,6 +2070,7 @@ async def _alert_tx(app, http, wallet, sig, via="stream", bt=None):
                 seen_ca.discard(ev["mint"])              # не дійшло: адреса піде в наступному
             if sent and b is None:
                 st["sent"] += 1
+                app["alerts_day"].add("s:" + sub["pk"] + ":" + wallet, 1)    # скільки цей гаманець надіслав людині сьогодні (картка в Lists)
                 st["last_ms"] = int(time.time() * 1000)
                 # не дія людини (bg): сповіщення не робить підписника «активним» у дашборді (рев'ю 30.09)
                 app["events"].add(sub["pk"], "alert", side=ev["side"], usd=round(ev["usd"]), mint=ev["mint"], bg=True,
@@ -2227,7 +2482,8 @@ async def me_remove_wallet(request, pk):
 
 @_acct_route
 async def me_lists(request, pk):
-    """Списки спостереження: створити ({name}), перейменувати ({id, name}) чи прибрати ({id}) — за адресою."""
+    """Списки спостереження: створити ({name}), перейменувати ({id, name}), прибрати ({id}) — за адресою; перенести чи
+    скопіювати збережені гаманці в інший список ({wallets, to, from?}: з from — перенесення, без — копія)."""
     body = await _json_body(request)
     if body is None:
         return _jerr("Bad request body.")
@@ -2241,16 +2497,48 @@ async def me_lists(request, pk):
             out = {}
         elif action == "remove":
             out = {"removed_wallets": acc.delete_list(pk, str(body.get("id") or ""))}
-        elif action == "alerts":
+        elif action == "move":
+            ws = body.get("wallets")
+            if not isinstance(ws, list) or not ws:
+                return _jerr("Pick at least one wallet.")
+            ws = [w for w in ws[: acct_mod.MAX_WALLETS] if acct_mod.valid_pubkey(w)]
+            src = str(body["from"]) if body.get("from") else None
+            out = {"wallets": acc.place_wallets(pk, ws, str(body.get("to") or ""), src), "moved": bool(src)}
+        elif action == "alerts":                                # усі гаманці списку разом (до стелі); з 02.10 дзвіночок — на гаманці
             if not _alerts_allowed(request.app, pk):
                 return _jerr("Alerts are in a closed test for now.", 403)
-            out = {"alerts": acc.set_list_alerts(pk, str(body.get("id") or ""), bool(body.get("on")))}
+            on = bool(body.get("on"))
+            cap = int(request.app["s"].get("alerts_max_wallets", 10))
+            out = {"alerts": on, "changed": acc.set_list_alerts(pk, str(body.get("id") or ""), on, cap), "cap": cap}
+            out["bells"] = [w for w, m in acc.load(pk)["wallets"].items() if m.get("alert")]   # the page shows every bell as it is now
         else:
             return _jerr("Unknown action.", 404)
     except acct_mod.AccountError as e:
         return _jerr(str(e))
-    request.app["events"].add(pk, "list_" + action, **({"on": int(bool(out.get("alerts")))} if action == "alerts" else {}))
+    extra = ({"on": int(bool(out.get("alerts")))} if action == "alerts" else
+             {"n": len(out["wallets"]), "how": "move" if out["moved"] else "copy"} if action == "move" else {})
+    if action != "move" or out["wallets"]:                    # нічого не змінилось — нічого в журнал
+        request.app["events"].add(pk, "list_" + action, **extra)
     return web.json_response(dict(out, ok=True, lists=acc.load(pk)["lists"]))
+
+
+@_acct_route
+async def me_wallet_alert(request, pk):
+    """Дзвіночок на одному гаманці (власник, 02.10): {wallet, on} → {on, n, cap}. Понад стелю — 400 з поясненням,
+    що спершу треба вимкнути інший."""
+    app = request.app
+    if not _alerts_allowed(app, pk):
+        return _jerr("Alerts are in a closed test for now.", 403)
+    body = await _json_body(request)
+    if body is None:
+        return _jerr("Bad request body.")
+    cap = int(app["s"].get("alerts_max_wallets", 10))
+    try:
+        on, n = app["accounts"].set_wallet_alert(pk, str(body.get("wallet") or ""), bool(body.get("on")), cap)
+    except acct_mod.AccountError as e:
+        return _jerr(str(e))
+    app["events"].add(pk, "wallet_alert", on=int(on))
+    return web.json_response({"ok": True, "on": on, "n": n, "cap": cap})
 
 
 @_acct_route
@@ -2357,14 +2645,25 @@ async def me_page(request):
     tg = a.get("telegram") or {}
     # угоди за 7 днів, які бачив потік сповіщень (власник, 01.10) — лише для гаманців, за якими він стежить зараз: інакше
     # «0 угод» означало б «не стежили», а не «не торгував» (рев'ю 01.10)
-    s, alerts_ok = request.app["s"], _alerts_allowed(request.app, pk) and _alerts_live(request.app)
-    watched = alerts_mod.watch_map([a], request.app["admins"], bool(s.get("alerts_open")), int(s.get("alerts_max_wallets", 50)),
+    # the draft site (dev) runs no bot, since Telegram gives a bot's updates to one listener only: there the alerts show as
+    # a preview (owner, 04.10: «why are there no alerts?»), the bells and switches save and nothing is sent
+    live = _alerts_live(request.app)
+    preview = not live and _private_host(request)
+    s, alerts_ok = request.app["s"], _alerts_allowed(request.app, pk) and (live or preview)
+    cap = int(s.get("alerts_max_wallets", 10))
+    watched = alerts_mod.watch_map([a], request.app["admins"], bool(s.get("alerts_open")), cap,
                                    s.get("alerts_min_usd")) if alerts_ok else {}
+    # дзвіночки на гаманцях і скільки алертів уже пішло сьогодні: лічильник угорі і рядок у картці (власник, 02.10)
+    alert_n = sum(1 for w in wallets if w.get("alert"))
+    day_cap, dc = int(s.get("alerts_per_day", 200)), request.app["alerts_day"]
     act = request.app["activity"].of(watched)
-    wmeta = {w["wallet"]: dict({k: w.get(k) for k in ("my_tags", "lists", "added_ms")}, act=act.get(w["wallet"])) for w in wallets}   # what the card shows, by wallet
+    wmeta = {w["wallet"]: dict({k: w.get(k) for k in ("my_tags", "lists", "added_ms")}, act=act.get(w["wallet"]), alert=bool(w.get("alert")),
+                               sent_today=dc.count("s:" + pk + ":" + w["wallet"]) or None) for w in wallets}   # what the card shows, by wallet
     return render("me.html", request, wallets=wallets, analyses=analyses, max_my_tags=acct_mod.MAX_MY_TAGS, wmeta=wmeta, act=act,
                   demo_mint=(demo or {}).get("mint"), lists=lists, max_lists=acct_mod.MAX_LISTS,
-                  alerts_ok=alerts_ok,   # без бота картка не обіцяє того, чого нема
+                  alerts_ok=alerts_ok, alerts_preview=preview,   # без бота картка не обіцяє того, чого нема
+                  after_on=_after_on(request),
+                  alert_n=alert_n, watch_cap=cap, day_cap=day_cap, day_used=dc.count("a:" + pk),
                   tg={"linked": bool(tg.get("chat")), "user": tg.get("user") or ""},
                   prefs=alerts_mod.prefs_of(a.get("alerts"), request.app["s"].get("alerts_min_usd")))
 
@@ -2633,7 +2932,8 @@ async def _budget(app):
             "credits_month": int(s.get("credits_month", 0) or 0), "reserve": _credits_reserve(s),
             "renew_day": int(s.get("credits_renew_day") or 0), "ai": await _ai_balance(app),
             "runs_today": gcap - app["runs_daily"].left("global", gcap),
-            "rpc": ages.budget.state() if ages is not None and getattr(ages, "budget", None) else None}
+            "rpc": ages.budget.state() if ages is not None and getattr(ages, "budget", None) else None,
+            "insightx": app["labels"].budget.state() if app.get("labels") is not None and app["labels"].budget else None}
 
 
 async def _usage_summary(app, period, include_team, budget):
@@ -2916,7 +3216,36 @@ async def admin_labels(request):
     return web.json_response({"ok": True, "wallet": wallet, "labels": clean})
 
 
-ME_COLUMNS = ["wallet", "symbol", "mint", "from_job", "entry_mcap", "invested_usd", "multiple", "tags", "my_tags", "lists", "added_utc"]
+# експорт списків — про сам гаманець (кастдев 01.10): хто це, звідки перші SOL, скільки йому; цифри токена, з аналізу якого
+# його зберегли, лишаються в тому аналізі. Де знайшли — останні три колонки
+ME_COLUMNS = ["wallet", "name", "x_handle", "funder", "funder_exchange", "wallet_first_tx_utc", "my_tags", "lists", "added_utc",
+              "symbol", "mint", "from_job"]
+
+
+def _x_handle(idn):
+    """Як EarlyTags.handle на сторінці: лише літери, цифри й підкреслення."""
+    return re.sub(r"[^A-Za-z0-9_]", "", re.sub(r"^@", "", str((idn or {}).get("twitter") or "")))
+
+
+def _display_name(idn):
+    """Як EarlyTags.displayName: відомий трейдер — під іменем, решта — під X-ніком, яким їх кличуть застосунки."""
+    if not idn:
+        return ""
+    h = _x_handle(idn)
+    if idn.get("type") == "kol" or "kol" in (idn.get("tags") or []):
+        return idn.get("name") or h
+    return h or idn.get("name") or ""
+
+
+def _wallet_who(app, w, from_job):
+    """Ім'я, X, спонсор, біржа і перша транзакція гаманця — з уже збереженого результату, жодного запиту назовні."""
+    job = app["jobs"].get(from_job or "")
+    r = job.result if job is not None and job.status == "done" and job.result else {}
+    idn, fnd, age = (r.get("identities") or {}).get(w), (r.get("funders") or {}).get(w), (r.get("ages") or {}).get(w) or {}
+    h = _x_handle(idn)
+    return {"name": _display_name(idn), "x_handle": h, "funder": fnd or "",   # без @: таблиці читають @ як формулу
+            "funder_exchange": exch_mod.name_of(fnd) or "" if fnd else "",
+            "wallet_first_tx_utc": chart.fmt_dt(age["ms"], year=True, utc=True) if age.get("exact") and age.get("ms") else ""}
 
 
 @_acct_route
@@ -2932,8 +3261,8 @@ async def me_wallets_csv(request, pk):
     def cell(v):                                                        # таблиці виконують клітинки з = + - @ як формули
         return "'" + v if isinstance(v, str) and v[:1] in "=+-@\t\r" else ("" if v is None else v)
     for r in wallets:
-        w.writerow({**{k: cell(r.get(k)) for k in ME_COLUMNS},
-                    "tags": "|".join(r.get("tags") or []), "my_tags": "|".join(r.get("my_tags") or []),
+        w.writerow({**{k: cell(r.get(k)) for k in ME_COLUMNS}, **{k: cell(v) for k, v in _wallet_who(request.app, r["wallet"], r.get("from_job")).items()},
+                    "my_tags": cell("|".join(r.get("my_tags") or [])),
                     "lists": cell("|".join(names.get(x, x) for x in r.get("lists") or [])),
                     "added_utc": chart.fmt_dt(r.get("added_ms") or 0, year=True, utc=True)})
     request.app["events"].add(pk, "export", format="csv", what="list" if only else "lists")
@@ -3635,17 +3964,60 @@ async def job_page(request):
         result = None
     is_demo = job.id in _demo_job_ids(app) or (job.canon or "") in _demo_job_ids(app)
     _view(request, "job", job.canon or job.id, state={"done": "done", "error": "err"}.get(status, "run"), demo=1 if is_demo else None)
+    jr = job.result if result else {}
+    # a result checked before the labels or «dormant» (owner, 04.10): once, in the background; what is checked is
+    # skipped. Only when the owner opens it, or on the draft: on the public site guests and crawlers would queue every
+    # old result, and a new analysis would wait behind them for its ages and bundles (release check, 04.10)
+    if result and not job.replay and (jr.get("enrich") or {}).get("funders_done") and (
+            request.get("acct") in app["admins"] or _private_host(request)) and (
+            (app.get("labels") is not None and jr.get("funders") and jr.get("labels_at") is None)
+            or (app.get("ages") is not None and jr.get("dormant_at") is None)):
+        app["jobs"].resume_enrich(job)
+    exch, flab = _labels_for_page(job.result if result else None, _ix_names(request))
     return render("job.html", request, job=job, save_id=job.canon or job.id, jstatus=status, result=result, s=app["s"], back=_back_link(job),
                   rows_json=_json_script(_table(result["rows"])) if result else "", bundle_min=tags.BUNDLE_MIN, burst_ms=tags.BURST_MS,
                   max_my_tags=acct_mod.MAX_MY_TAGS, is_admin=bool(request.get("acct")) and request.get("acct") in app["admins"],
                   age_read=wallet_age_mod.MAX_PAGES * wallet_age_mod.LIMIT,   # скільки транзакцій гаманця читає перевірка віку
                   is_demo=is_demo, agent_chips=app["agent_store"].config()["chips"][:3],   # the agent's quick questions, drawn before any call
                   sm=sm, TAGS=tags.DEFS, created=created or (job.t_from - 24 * HOUR), now=int(time.time() * 1000),
-                  cov_text=report.coverage_text((result or {}).get("coverage")), exchanges=exch_mod.KNOWN,
+                  cov_text=report.coverage_text((result or {}).get("coverage")), exchanges=exch, flabels=flab,
                  
                   assistant_on=app.get("assistant") is not None,
                   scope=sc, scopes=scope.scopes_for(app["s"]), has_scopes=bool((result or {}).get("wallet_trades")),
                   scope_end=(scope.end_for(sc, job.t_to, (result or {}).get("window", {}).get("end", 0)) if result else None))
+
+
+def _ix_names(request):
+    """Чи показувати назви з міток InsightX. Їхні умови (API Usage) дозволяють похідні висновки, але не їхні дані «в
+    сирому чи суттєво схожому вигляді»: на відкритому сайті спонсор — «an exchange», «an app», без назви; назви — на
+    закритій копії, щоб власник їх оцінив (04.10). insightx_names: draft | on | off."""
+    v = str(request.app["s"].get("insightx_names", "draft"))
+    return v == "on" or (v == "draft" and _private_host(request))
+
+
+def _shown_labels(r, names=True):
+    """Мітки InsightX такими, якими їх можна показати: [назва, повна мітка, тип] або без назви — [«an exchange», "", тип]."""
+    out = {}
+    for a, v in ((r or {}).get("labels") or {}).items():
+        if len(v) < 2:
+            continue
+        kind = v[2] if len(v) > 2 else ""
+        out[a] = [v[0], v[1] + " · label: InsightX", kind] if names else [labels_mod.SHORT.get(kind, "a known service"), "", kind]
+    return out
+
+
+def _labels_for_page(r, names=True):
+    """Назви спонсорів для сторінки: наш список бірж + біржі з міток InsightX і, окремо, інші сервіси (застосунки,
+    казино): ті лише в картці, а не у фільтрі «з бірж». Без назв запис біржі має третім елементом 1."""
+    exch, flab = dict(exch_mod.KNOWN), {}
+    for a, v in _shown_labels(r, names).items():
+        if a in exch:
+            continue
+        if v[2] == "exchange":
+            exch[a] = [v[0], v[1]] if v[1] else [v[0], "", 1]
+        else:
+            flab[a] = [v[0], v[1], labels_mod.kind_text(v[2])]
+    return exch, flab
 
 
 # поля рядка таблиці результату в тому порядку, в якому їх віддає _table
@@ -3707,6 +4079,8 @@ def _stored_rows(result):
     rows = result.get("rows") or []
     for r in rows:                                          # результати до появи тегів
         r.setdefault("tag_list", (r.get("tags") or "").split("|") if r.get("tags") else [])
+        if "no-exits" in r["tag_list"]:                     # тег прибрано 04.10 (власник): у таблиці «—» замість нього
+            r["tag_list"] = [t for t in r["tag_list"] if t != "no-exits"]
     return rows, {**report.summary(rows), **(result.get("summary") or {})}
 
 
@@ -3748,7 +4122,7 @@ async def _rows_async(app, result, sc):
         return _stored_rows(result)
     memo = app["rows_memo"]
     key = (id(result), sc, len(result.get("fresh_wallets") or []), len(result.get("bundle") or {}),
-           len(result.get("funders") or {}))
+           len(result.get("funders") or {}), len(result.get("dormant") or {}))
     hit = memo.get(key)
     if hit and hit[0] is result:
         return hit[1]
@@ -3934,7 +4308,8 @@ async def job_agent_ask(request):
         return _jerr(f"Keep the question under {agent_mod.MAX_QUESTION} characters.")
     pk, cfg, t0, jid = request.get("acct"), app["agent_store"].config(), time.monotonic(), job.canon or job.id
     chip = bool(body.get("chip"))
-    lang = agent_mod.lang_name(body.get("lang")) if chip else "the language of the user's question"
+    # своє питання — його мовою, впізнаною кодом (власник, 04.10: на «чий це гаманець» прийшла англійська)
+    lang = agent_mod.lang_name(body.get("lang")) if chip else agent_mod.question_lang(q, agent_mod.lang_name(body.get("lang")))
     # кнопка-підказка — текстом (його написав власник, це не слова людини); інакше лише «своє питання»
     said = (q[:80] if q in cfg["chips"] else 1) if chip else None
     # розмова (три останні питання з відповідями, як їх показує сторінка) і гаманці, вибрані на сторінці: без них
@@ -3949,8 +4324,40 @@ async def job_agent_ask(request):
     refuse, give_back = _agent_take(app, pk, "ask", _ip_key(_client_ip(request)))
     if refuse:
         return refuse
+    # свої списки людини: які з її збережених гаманців купували тут, у яких списках, з якими її тегами (кастдев 01.10)
+    acc = app["accounts"].load(pk) if pk else {}
+    names = {k: v.get("name") or k for k, v in (acc.get("lists") or {}).items()}
+    mine = {w: {"lists": [names.get(x, x) for x in (m.get("lists") or [])], "tags": list(m.get("my_tags") or [])}
+            for w, m in (acc.get("wallets") or {}).items()} if pk else None
+    # хто той гаманець, про який питають, поза таблицею (власник, 04.10): його 30 днів на всіх токенах — з кешу картки
+    # або зараз (1-5 запитів, добу в кеші, платить денний бюджет графіків)
+    rows = job.result.get("rows") or []
+    inhere = {x["wallet"] for x in rows}
+    dossier = {}
+    for w in [x for x in dict.fromkeys(agent_mod.mentioned(q, rows) + focus) if x in inhere][:2]:
+        prof = app["profile_cache"].get(f"v{profile.VERSION}:{w}")
+        if prof is None and pk and hasattr(app["st"], "wallet_swaps"):
+            try:
+                settle = _browse_budget(request, 3)
+            except WebError:
+                settle = None                            # день вичерпано: агент скаже, що знає
+            if settle:
+                def work(w=w, settle=settle):
+                    with app["st"].meter():
+                        req0 = app["st"].requests_here()
+                        try:
+                            return _profile_now(app, w)
+                        finally:
+                            n = app["st"].requests_here() - req0
+                            settle(n)
+                            _spend(app, pk, "card-profile", st=n, job=jid)
+                try:
+                    prof = await asyncio.to_thread(work)
+                except Exception:  # noqa: BLE001 — без 30 днів відповідь усе одно буде
+                    prof = None
+        dossier[w] = {"profile": prof}
     try:
-        out, dropped, usage = await asyncio.to_thread(app["agent"].ask, job.result, cfg, q, lang, history, focus)
+        out, dropped, usage = await asyncio.to_thread(app["agent"].ask, job.result, cfg, q, lang, history, focus, mine, dossier)
     except assistant_mod.AssistantError as e:
         give_back(e.usage)
         app["agent_store"].log({"pk": pk, "job": jid, "kind": "ask", "q": q, "chip": chip, "error": str(e), "usage": e.usage})
@@ -4028,6 +4435,7 @@ async def job_enrich_json(request):
     out = {"done": e.get("done", 0), "total": e.get("total", 0), "fresh": fresh,
            "funders_done": e.get("funders_done", 0), "paused": paused,
            "funders": funders, "n_funders": n_funders, "ages": ages, "n_ages": n_ages, "services": r.get("services") or [],
+           "dormant": r.get("dormant") or {}, "labels": _shown_labels(r, _ix_names(request)),
            "identities_done": bool(r.get("identities_done")) or snapshot or app["jobs"].namer is None}
     if request.query.get("i") != "1":
         out["identities"] = r.get("identities") or {}
@@ -4056,7 +4464,7 @@ async def wallet_profile_json(request):
     elif not request.get("acct"):
         raise ConnectRequired(message="Connect a wallet to load this wallet's last 30 days.")
     elif wallet not in (app["accounts"].load(request["acct"]).get("wallets") or {}):
-        raise web.HTTPNotFound(text="That wallet is not in your lists.")
+        raise web.HTTPNotFound(text="That wallet is not in your watchlist.")
     cache, key = app["profile_cache"], f"v{profile.VERSION}:{wallet}"
     hit = cache.get(key)
     if hit is not None:

@@ -63,6 +63,7 @@ def rows_for(result, scope, s=None):
     t_end = end_for(scope, w["to"], w["end"])
     price = price_at_end(result, t_end) or 0
     fresh = set(result.get("fresh_wallets") or [])
+    dormant = result.get("dormant") or {}                  # тиша перед покупкою, з перевірки віку (збагачення)
     bundle = result.get("bundle") or {}
     info_ = result.get("info") or {}
     dev = (info_.get("creator") or info_.get("deployer") or "").strip()   # творець токена серед покупців — окремий факт
@@ -79,6 +80,8 @@ def rows_for(result, scope, s=None):
         f["tags"] = tags.compute(f, created_ms=created, buy_times=l.buy_times, sell_times=l.sell_times)
         if wallet in fresh:
             f["tags"] = tags.with_tag(f["tags"], "fresh")
+        if wallet in dormant:
+            f["tags"] = tags.with_tag(f["tags"], "dormant")
         if wallet in bundle:
             f["tags"] = tags.with_tag(f["tags"], "bundle")
         if dev and wallet == dev:

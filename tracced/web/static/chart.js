@@ -40,6 +40,8 @@
   }
   const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 
+  // each range its own shade of the same mint, so two neighbours are told apart without a rainbow (owner, 02.10)
+  const SHADES = ['52, 211, 153', '45, 212, 191', '134, 239, 172', '34, 211, 238', '110, 231, 183'];
   window.EarlyChart = function (el, opts) {
     const created = opts.created / 1000, now = opts.now / 1000;
     const box = document.createElement('div'); box.className = 'lw'; el.appendChild(box);
@@ -49,7 +51,7 @@
       autoSize: true,
       layout: { background: (LW.ColorType && LW.ColorType.VerticalGradient) ? { type: LW.ColorType.VerticalGradient, topColor: '#0B1220', bottomColor: '#090D16' } : { type: 'solid', color: '#090D16' },
                 textColor: '#94A3B8', fontSize: 11,
-                fontFamily: '"Geist Mono", "JetBrains Mono", ui-monospace, Menlo, monospace', attributionLogo: false },
+                fontFamily: '"IBM Plex Mono", ui-monospace, Menlo, monospace', attributionLogo: false },
       grid: { vertLines: { color: '#10172A' }, horzLines: { color: '#182236' } },
       rightPriceScale: { borderColor: '#1E293B', scaleMargins: { top: 0.08, bottom: 0.08 } },
       // minBarSpacing 2: the renderer draws a candle body only when it is wider than its two borders, so bars packed
@@ -72,7 +74,7 @@
     if (vol) chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 }, visible: false });
     if (LW.createTextWatermark && opts.symbol) {
       try { LW.createTextWatermark(chart.panes()[0], { horzAlign: 'center', vertAlign: 'center',
-        lines: [{ text: opts.symbol, color: 'rgba(148, 163, 184, 0.09)', fontSize: 72, fontFamily: '"Geist", -apple-system, sans-serif', fontStyle: '600' }] }); } catch (e) {}
+        lines: [{ text: opts.symbol, color: 'rgba(148, 163, 184, 0.09)', fontSize: 72, fontFamily: '"IBM Plex Sans", -apple-system, sans-serif', fontStyle: '600' }] }); } catch (e) {}
     }
     const empty = document.createElement('div'); empty.className = 'chart-empty'; empty.hidden = true;
     empty.textContent = 'No candles here yet'; el.appendChild(empty);
@@ -270,6 +272,7 @@
         if (!w.from || !w.to || w.to < v.a || w.from > v.b) return;
         const x1 = xOf(w.from), x2 = xOf(w.to); if (x1 == null || x2 == null) return;
         const d = document.createElement('div'); d.className = 'win' + (i === selected ? ' sel' : '');
+        d.style.setProperty('--wc', SHADES[i % SHADES.length]);
         d.style.left = Math.min(x1, W) + 'px'; d.style.width = Math.max(2, Math.min(x2, W) - Math.min(x1, W)) + 'px';
         const lbl = document.createElement('span'); lbl.className = 'lbl'; lbl.textContent = (w.n || (i + 1)) + (w.label && i === selected ? ' · ' + w.label : ''); lbl.title = w.label || '';
         lbl.addEventListener('click', e => { e.stopPropagation(); if (opts.onSelect) opts.onSelect(i); else focus(w.from, w.to, null); });
@@ -391,4 +394,5 @@
       candles: () => [...data.values()].sort((x, y) => x.time - y.time),   // loaded candles in market cap, oldest first
     };
   };
+  window.EarlyChart.SHADES = SHADES;
 })();

@@ -8,12 +8,12 @@
   <div class="tokenhead">
     <div>
       <h1 class="h-title">{{ job.symbol }}</h1>
-      <div class="h-addr mono"><span title="{{ job.mint }}">{{ job.mint[:6] }}…{{ job.mint[-5:] }}</span><button type="button" class="ghost copy" data-copy="{{ job.mint }}" title="Copy the token address">⧉</button><a class="ext" href="https://solscan.io/token/{{ job.mint }}" target="_blank" rel="noopener" title="Token on Solscan">↗</a></div>
+      <div class="h-addr mono"><button type="button" class="dwc mono" data-copy="{{ job.mint }}" title="Copy the token address: {{ job.mint }}" aria-label="Copy the token address">{{ job.mint[:6] }}…{{ job.mint[-5:] }}</button><a class="ext" href="https://solscan.io/token/{{ job.mint }}" target="_blank" rel="noopener" title="Token on Solscan" aria-label="Token on Solscan">{{ icon('launch') }}</a></div>
       <div class="h-sub mono muted">Range <span class="dtc" data-ms="{{ job.t_from }}">{{ job.t_from|dt }}</span> → <span class="dtc" data-ms="{{ job.t_to }}">{{ job.t_to|dt }}</span>{% if result %} · Trades up to <span class="dtc" data-ms="{{ result.window.end or job.t_exit or now }}">{{ (result.window.end or job.t_exit or now)|dt }}</span>{% endif %}</div>
     </div>
     <div class="h-right">
       {% if jstatus != 'done' or not result %}<span class="chip st-{{ jstatus }}">{{ {'queued':'Queued','running':'Running','done':'Done','error':'Error'}[jstatus] }}</span>{% endif %}
-      {% if jstatus == 'done' and result %}<button type="button" class="ghost savejob" id="savejob" title="Keep this analysis under My analyses">☆ Save analysis</button>{% endif %}
+      {% if jstatus == 'done' and result %}<button type="button" class="ghost savejob" id="savejob" title="Keep this analysis under My analyses">{{ icon('star') }}<span>Save analysis</span></button>{% endif %}
       {% if is_admin and jstatus == 'done' and result and not is_demo %}<button type="button" class="ghost" id="mkdemo" data-job="{{ job.id }}" title="Replace the demo token with this analysis (owner only)">Make it the demo</button>{% endif %}
       <a class="button" href="{{ back }}" title="The token's chart: this range stays as it is, a new one is marked beside it"><span class="long">← Back to the chart</span><span class="short">← Chart</span></a>
     </div>
@@ -37,36 +37,36 @@
     </div>
   {% else %}
     {% set r = result %}{% set c = r.counts %}
-    <div class="sumzone">      {# the counts and what tracced found, together above the chart (owner, 30.09) #}
-      <p class="kline counts">
-        <span title="Wallets that bought inside the range — the list below"><b data-count="{{ sm.n }}" data-fmt="int">0</b> bought</span>
-        <span title="Sold 99% or more of what they bought"><b data-count="{{ sm.exited }}" data-fmt="int">0</b> sold out</span>
-        <span title="Sold less than half of what they bought"><b data-count="{{ sm.holding }}" data-fmt="int">0</b> still holding</span>
-        <span title="Highest average exit cap ÷ average entry cap among these wallets, buys before the range included">best <b data-count="{{ sm.best_multiple or 0 }}" data-fmt="mult">0</b></span>
-        <span title="What these wallets spent inside the range"><b class="amt" data-usd="{{ (sm.invested_range or 0)|round(0)|int }}"{% if sm.invested_range_sol is not none %} data-sol="{{ sm.invested_range_sol|round(2) }}"{% endif %} data-count="{{ (sm.invested_range or 0)|round(0)|int }}" data-fmt="usd">0</b> spent in the range</span>
-      </p>
-      <div class="fpills" id="finds" hidden></div>
-    </div>
     <div class="chartbox" id="chart" data-mint="{{ job.mint }}" data-created="{{ created }}" data-now="{{ now }}"
          data-from="{{ job.t_from }}" data-to="{{ job.t_to }}" data-exit="{{ scope_end or 0 }}" data-symbol="{{ job.symbol }}"></div>
     <div class="onchart-bar" id="onchart" hidden></div>
     <p class="muted small mhint" id="mhint" hidden></p>
-
-    {% if cov_text %}<p class="muted small cov">{{ cov_text }}</p>{% endif %}
+    {# what tracced counted and found, one strip under the chart: a number and a word each (owner, 02.10: no pills, no
+       sentence of counts). The counts always; after them, the findings that say something (findings() fills #finds) #}
+    {% set n0 = sm.n or 0 %}
+    {% set pso = [((100 * (sm.exited or 0) / n0)|round|int), (99 if (sm.exited or 0) < n0 else 100)]|min if n0 else 0 %}
+    {% set phd = [((100 * (sm.holding or 0) / n0)|round|int), (99 if (sm.holding or 0) < n0 else 100)]|min if n0 else 0 %}
+    {% set cv = r.coverage or {} %}{% set partial = cv and cv.mode != 'trades' and (cv.exits_known or 0) < (cv.total or 0) %}
+    <div class="tally" id="tally">
+      <span class="tc" title="Wallets that bought inside the range: the list below"><b data-count="{{ sm.n }}" data-fmt="int">0</b><i>bought <span class="kinfo tipt{{ ' warn' if partial }}" tabindex="0" title="{{ c.n_wallets|num }} traded in the range · {{ c.dust|num }} below ${{ s.min_invested_usd }} · {{ ((c.pre_range_only or 0) + (c.before_range_only or 0))|num }} sold only · {{ c.n_trades|num }} trades{% if cov_text %} · {{ cov_text }}{% endif %}" aria-label="{{ 'Exits are not known for every wallet' if partial else 'How these numbers were counted' }}">{{ '!' if partial else 'i' }}</span></i></span>
+      <span class="tc" title="What these wallets spent inside the range"><b class="amt" data-usd="{{ (sm.invested_range or 0)|round(0)|int }}"{% if sm.invested_range_sol is not none %} data-sol="{{ sm.invested_range_sol|round(2) }}"{% endif %} data-count="{{ (sm.invested_range or 0)|round(0)|int }}" data-fmt="usd">0</b><i>spent</i></span>
+      <button type="button" class="tc" data-act="sold" title="{{ (sm.exited or 0)|num }} of {{ n0|num }} sold 99% or more · click to show them"><b data-count="{{ pso }}" data-fmt="pct">0</b><i>sold out</i><span class="tm" style="--p:{{ pso }}%"></span></button>
+      <button type="button" class="tc" data-act="holding" title="{{ (sm.holding or 0)|num }} of {{ n0|num }} sold less than half · click to show them"><b data-count="{{ phd }}" data-fmt="pct">0</b><i>holding</i><span class="tm" style="--p:{{ phd }}%"></span></button>
+      <button type="button" class="tc" data-act="best" title="Highest average exit cap ÷ average entry cap, buys before the range included · click to sort by ROI"><b data-count="{{ sm.best_multiple or 0 }}" data-fmt="mult">0</b><i>best ROI</i></button>
+      <span class="tfinds" id="finds"></span>
+    </div>
 
     {% if not sm.has_sol %}<p class="muted small solnote" hidden>This analysis was saved before tracced started recording SOL amounts, so its figures stay in dollars.</p>{% endif %}
-    <p class="muted small">{{ c.n_wallets|num }} traded in the range · {{ c.dust|num }} below ${{ s.min_invested_usd }} · {{ ((c.pre_range_only or 0) + (c.before_range_only or 0))|num }} sold only · {{ c.n_trades|num }} trades</p>
 
     <div class="row toolbar">
-      <button type="button" id="ftoggle" aria-expanded="true">Filters</button>
+      <button type="button" id="ftoggle" aria-expanded="false" aria-controls="fpanel">Filters</button><button type="button" class="ghost frst" id="freset" hidden title="Back to no filters and the PnL order">Reset</button>
       <span class="muted small" id="shown"></span><span class="factive" id="factive" hidden></span>
+      {% if s.age_lookups_max %}<span class="muted small tipt" id="enrich" title="{{ TAGS.fresh }}">wallet age…</span>{% endif %}
       <label class="sortby muted small">Sort <select id="msort" aria-label="Sort the wallets">
         <option value="real" selected>PnL, highest first</option><option value="inv">Bought the most</option>
         <option value="etime" data-dir="1">Bought first</option><option value="got">Sold for the most</option>
         <option value="mult">ROI, highest first</option><option value="entry" data-dir="1">Lowest entry cap</option>
         <option value="hold">Held longest</option><option value="" hidden disabled>Custom</option></select></label>
-      <label class="chk"><input type="checkbox" id="pickall"> Select all</label>
-      <span class="muted small" id="selinfo" hidden><b id="nsel">0</b> selected · <button type="button" class="link" id="clearsel">Clear</button></span>
       <button type="button" class="tzseg" id="cur" title="Show every amount in dollars or in SOL" aria-label="Money unit" onclick="EarlyCur.toggle()"><b class="on">USD</b><b>SOL</b></button>
       <div class="soonwrap right" id="aiwrap">
         <button type="button" class="button holo" id="askbtn" title="{{ 'Pick wallets to watch by your method' if assistant_on else 'Coming soon' }}"><span class="holo-in">✦ AI agent</span></button>
@@ -75,11 +75,8 @@
           <span>The agent will read this analysis and tell you what happened in the range, what to weigh and whose wallets stand out, then answer your questions about it. It is not switched on on this server yet.</span>
         </div>
       </div>
-      <div id="watch" hidden>
-        <button type="button" class="button wl" id="watchbtn" title="Add the selected wallets to one of your lists"><span id="watchtxt">+ Add to list</span><span class="wl-n" id="watchn"></span></button>
-      </div>
       <div class="menu">
-        <button type="button" class="ghost xbtn" data-menu>↓ Export</button>
+        <button type="button" class="ghost xbtn" data-menu title="Export the wallets shown: CSV, TXT or JSON" aria-label="Export">{{ icon('download') }}</button>
         <div class="menu-panel r" id="xpanel" hidden>
           <button type="button" data-x="csv">CSV <small id="xcsv"></small></button>
           <button type="button" data-x="txt">TXT <small id="xtxt"></small></button>
@@ -88,31 +85,19 @@
       </div>
     </div>
 
-    <div class="filters compact" id="filters">
-      <label title="Bought inside the range, at least this many dollars">Bought, $ <input type="number" data-f="inv" min="0" step="10" placeholder="min"></label>
-      <label title="Realized profit, at least this many dollars (a loss is a negative number)">PnL, $ <input type="number" data-f="pnl" step="10" placeholder="min"></label>
-      <label title="Sold at least this share of the tokens it bought">Sold, % <input type="number" data-f="sold" min="0" max="100" step="5" placeholder="min"></label>
-      <label title="At most this many buys on this token">Buys <input type="number" data-f="buysMax" min="1" step="1" placeholder="max"></label>
-      <label title="At least this many minutes from its entry to its first sale">Held, min <input type="number" data-f="hold" min="0" step="5" placeholder="min"></label>
-      <span class="sep"></span>
-      <span class="muted small">Hide:</span>
-      {% for k, d in TAGS.items() if k not in ('seen-before', 'pre-range', 're-bought') %}<button type="button" class="tagchip t-{{ k }}" data-hide="{{ k }}" title="Hide wallets tagged {{ k }}: {{ d }}">{{ k }}</button>{% endfor %}
-      {% if s.age_lookups_max %}<span class="muted small" id="enrich" title="{{ TAGS.fresh }}">wallet age…</span>{% endif %}
-      <button type="button" class="ghost" id="fclear">Reset</button>
-    </div>
-
-    <p class="muted small colhelp"><a href="/docs/how-it-works">What the numbers mean →</a></p>
+    {# the filters as a panel over the table, its full width (owner, 04.10: as it was, not a pop-up); filled by drawPanel() #}
+    <div class="fpanel" id="fpanel" hidden></div>
     <div class="tablewrap">
     <table class="facts" id="facts" data-id="{{ save_id }}">
       <thead>
       <tr>
-        <th></th><th>#</th><th class="sortable" data-key="w" data-type="text">Wallet</th>
-        <th class="num sortable" data-key="inv" title="How much it bought inside the range · the market cap and the time of its first buy there">Bought</th>
-        <th class="num sortable" data-key="got" title="What it received from selling · its average exit market cap and the share of its tokens sold">Sold</th>
-        <th class="num sortable desc" data-key="real" title="Profit on what it sold: received minus what those tokens cost · below it, the paper result on what it still holds">PnL</th>
-        <th class="num sortable" data-key="mult" title="How many times over it sold: average exit cap ÷ average entry cap, buys before the range included. 2× = +100%">ROI</th>
-        <th class="num sortable" data-key="hold" title="From its entry to its first sale · how many buys and sells">Held</th>
-        <th class="sortable fundh" data-key="funder" data-type="text" title="Who sent this wallet its first SOL — click a funder to see everyone it paid for">Funded by</th>
+        {# a funnel by each number: «from … to …» in one small window, the money unit by Bought; one line each (owner, 02.10) #}
+        <th class="wh">Wallet</th>
+        <th class="num sortable" data-key="inv" title="How much it bought inside the range · the market cap of its first buy there"><span class="thc"><button type="button" class="hcur" title="Amounts in dollars or in SOL · click to switch" aria-label="Money unit">$</button><span class="hl">Bought</span><button type="button" class="hfil" data-fil="inv" title="Filter by what it bought" aria-label="Filter Bought">{{ icon('filter') }}</button></span></th>
+        <th class="num sortable" data-key="got" title="What it received from selling · its average exit market cap and the share of its tokens sold"><span class="thc"><span class="hl">Sold</span><button type="button" class="hfil" data-fil="sold" title="Filter by the share sold" aria-label="Filter Sold">{{ icon('filter') }}</button></span></th>
+        <th class="num sortable desc" data-key="real" title="Profit on what it sold: received minus what those tokens cost · below it, the paper result on what is left"><span class="thc"><span class="hl">PnL</span><button type="button" class="hfil" data-fil="real" title="Filter by PnL" aria-label="Filter PnL">{{ icon('filter') }}</button></span></th>
+        <th class="num sortable" data-key="mult" title="How many times over it sold: average exit cap ÷ average entry cap, buys before the range included. 2× = +100%"><span class="thc"><span class="hl">ROI</span><button type="button" class="hfil" data-fil="mult" title="Filter by ROI" aria-label="Filter ROI">{{ icon('filter') }}</button></span></th>
+        <th class="num sortable" data-key="hold" title="From its entry to its first sale · its buys ↑ and sells ↓"><span class="thc"><span class="hl">Held</span><button type="button" class="hfil" data-fil="hold" title="Filter by hold time and buys" aria-label="Filter Held">{{ icon('filter') }}</button></span></th>
       </tr></thead>
       <tbody></tbody>
     </table>
@@ -121,7 +106,7 @@
     <div class="row more" id="more" hidden>
       <button type="button" id="more100">Show 100 more</button>
       <button type="button" class="ghost" id="moreall">Show all <span id="moren"></span></button>
-      <span class="muted small">Filters, Select all and Export work on every wallet, shown or not.</span>
+      <span class="muted small">Filters and Export work on every wallet, shown or not.</span>
     </div>
 
     <aside class="drawer apanel" id="apanel" hidden aria-label="AI agent">
@@ -150,27 +135,35 @@
             <span class="wav" id="dav" aria-hidden="true"></span>
             <div class="dh-names">
               <div class="dh-top"><b id="dname">Wallet</b><span class="ids" id="dids"></span></div>
-              <div class="dh-addr"><span class="mono" id="dw"></span><button type="button" class="ghost wcopy" id="dcopy" data-copy="" title="Copy the address" aria-label="Copy the address"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.8"/><path d="M10.5 5.5V4.3A1.8 1.8 0 0 0 8.7 2.5H4.3a1.8 1.8 0 0 0-1.8 1.8v4.4a1.8 1.8 0 0 0 1.8 1.8h1.2"/></svg></button><a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan" aria-label="This wallet on Solscan">↗</a><span class="dchips" id="dchips"></span></div>
+              <div class="dh-addr"><button type="button" class="dwc mono" id="dw" data-copy="" title="Copy the address" aria-label="Copy the address"></button><a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan" aria-label="This wallet on Solscan">{{ icon('launch') }}</a><span class="dchips" id="dchips"></span></div>
             </div>
           </div>
           <div class="dh-act">
-            <button type="button" class="ghost dstar" id="dstar" title="Add to one of your lists" aria-label="Add to one of your lists">☆</button>
+            <button type="button" class="ghost dstar" id="dstar" title="Add to your watchlist" aria-label="Add to your watchlist">{{ icon('star') }}</button>
             <button type="button" class="ghost x" id="dclose" title="Close" aria-label="Close">×</button>
           </div>
         </div>
         <div class="dtags" id="dtags"></div>
         <section class="dsec dperf">
-          <div class="dsec-h"><h4>All tokens <span class="dinfo" id="dprofi" hidden>i</span></h4>
+          <div class="dsec-h"><h4>Performance <span class="dinfo" id="dprofi" hidden>i</span></h4>
             <div class="seg" id="dper" role="tablist" aria-label="Period"><button type="button" data-p="7">7D</button><button type="button" data-p="30" class="on">30D</button></div></div>
           <div id="dprof"></div>
         </section>
         <section class="dsec" id="dwsec" hidden>
           <div class="dcross" id="dcross"></div>
         </section>
-        <section class="dsec">
-          <h4>Trades on {{ job.symbol }} <span class="muted" id="dtcount"></span></h4>
-          <table class="story"><thead><tr><th>Time</th><th></th><th class="num">Amount</th><th class="num">Tokens</th><th class="num">Cap</th></tr></thead><tbody id="dtrades"></tbody></table>
-          <p class="muted small dline" id="dnote"></p>
+        {# the trades: this token's or the recent tokens' (owner, 04.10: only these switch; the performance always shows) #}
+        <section class="dsec dtrades">
+          <div class="dview" id="dview" role="tablist" aria-label="Whose trades">
+            <button type="button" role="tab" data-v="token" aria-selected="true" class="on">{{ job.symbol }} token</button><button type="button" role="tab" data-v="all" aria-selected="false">All tokens</button>
+          </div>
+          <div id="dtok">
+            <div class="tally dtally" id="dtally"></div>
+            <h4 class="dth">Trades <span class="muted" id="dtcount"></span></h4>
+            <table class="story"><thead><tr><th>Time</th><th></th><th class="num">Amount</th><th class="num">Tokens</th><th class="num">Cap</th></tr></thead><tbody id="dtrades"></tbody></table>
+            <p class="muted small dline" id="dnote"></p>
+          </div>
+          <div id="dall" hidden><div id="drecent"></div></div>
         </section>
       </div>
     </aside>
@@ -178,7 +171,7 @@
     <script>
     (function () {
       const table = document.getElementById('facts'), tbody = table.tBodies[0], jobId = table.dataset.id;
-      const shown = document.getElementById('shown'), nsel = document.getElementById('nsel');
+      const shown = document.getElementById('shown');
       /* The rows arrive as data, not as markup: the page draws the ones on screen, a hundred at a time, and sorts,
          filters, selects and exports on the numbers. Drawn in full, 2,500 wallets were 75,000 elements, and a phone
          with little memory stalled on them. */
@@ -189,40 +182,70 @@
       document.querySelectorAll('#filters [data-hide]').forEach(b => {                         // the filter chips double as the legend
         const ic = EarlyTags.ICON[b.dataset.hide]; if (ic) b.insertAdjacentHTML('afterbegin', ic);
       });
-      const selected = new Set(), pinned = new Set();                 // pinned = wallets shown on the chart: never hidden by filters
+      const pinned = new Set();                                       // pinned = wallets shown on the chart: never hidden by filters
       const solnote = document.querySelector('.solnote');             // an older result has no SOL amounts; say so instead of showing dollars silently
       if (solnote && window.EarlyCur && EarlyCur.get() === 'sol') solnote.hidden = false;
-      const SKEY = 'early:sel:' + jobId, FKEY = 'early:filters:' + jobId;
-      try { JSON.parse(localStorage.getItem(SKEY) || '[]').forEach(w => selected.add(w)); } catch (e) {}
-      const saveSel = () => { try { localStorage.setItem(SKEY, JSON.stringify([...selected])); } catch (e) {} };
-      const FDEF = { inv: 0, pnl: null, sold: 0, buysMax: 0, hold: 0, exits: false, profit: false, hide: [], funder: '', repeat: false, only: '' };
-      const f = Object.assign({}, FDEF);
-      try { const saved = JSON.parse(localStorage.getItem(FKEY) || '{}'); Object.keys(FDEF).forEach(k => { if (k in saved) f[k] = saved[k]; }); } catch (e) {}
-      f.hide = (f.hide || []).filter(t => !['seen-before', 'pre-range', 're-bought'].includes(t));   // a saved hide these chips no longer offer could not be undone
-      f.exits = f.profit = f.repeat = false; f.only = '';             // the "Only" chips are gone and a finding's filter is for this visit: a saved one would hide rows for good
+      // no row checkboxes (owner, 02.10): a wallet goes to a list by its star, and Export takes what the filters show
+      const FKEY = 'early:filters:' + jobId;
+      try { localStorage.removeItem('early:sel:' + jobId); } catch (e) {}
+      // filters (owner, 02.10): a funnel by each column with «from … to …», the tags under the Wallet funnel.
+      // r: {column: [from, to]}, null = open on that side
+      const RANGES = {
+        inv: { t: 'Bought', u: '$', step: 10, hint: 'inside the range, in dollars', get: o => +o.inv || 0 },
+        sold: { t: 'Sold', u: '%', step: 5, hint: 'share of its tokens sold', get: o => +o.sold || 0 },
+        real: { t: 'PnL', u: '$', step: 10, hint: 'realized, in dollars; a loss is negative', get: o => +o.real || 0 },
+        mult: { t: 'ROI', u: '×', step: 0.5, hint: 'average exit ÷ average entry', get: o => +o.mult || 0 },
+        hold: { t: 'Held', u: 'min', step: 5, hint: 'from its entry to its first sale', get: o => o.hold == null ? null : +o.hold },
+        buys: { t: 'Buys', u: '', step: 1, hint: 'its buys on this token', get: o => +o.buys || 0 },
+      };
+      const HIDE_TAGS = {{ TAGS|list|tojson }}.filter(x => !['seen-before', 'pre-range', 're-bought'].includes(x));
+      const FDEF = { r: {}, q: '', hide: [], funder: '', bundle: '', repeat: false, only: '', mine: false, profit: false, exits: false };
+      const fresh0 = () => JSON.parse(JSON.stringify(FDEF));
+      const f = fresh0();
+      try {
+        const saved = JSON.parse(localStorage.getItem(FKEY) || '{}');
+        Object.keys(FDEF).forEach(k => { if (k in saved) f[k] = saved[k]; });
+        // a filter kept from before the funnels (inv, invMax, pnl, sold, buysMax, hold, holdMax) still applies
+        const num = v => (v === null || v === undefined || v === 0 || v === '') ? null : +v;
+        if (!saved.r && Object.keys(saved).length) {
+          f.r = { inv: [num(saved.inv), num(saved.invMax)], real: [saved.pnl === null || saved.pnl === undefined ? null : +saved.pnl, null],
+                  sold: [num(saved.sold), null], buys: [null, num(saved.buysMax)], hold: [num(saved.hold), num(saved.holdMax)] };
+        }
+      } catch (e) {}
+      if (!f.r || typeof f.r !== 'object') f.r = {};
+      Object.keys(f.r).forEach(k => { const v = f.r[k]; if (!RANGES[k] || !Array.isArray(v) || (v[0] == null && v[1] == null)) delete f.r[k]; });
+      f.hide = (f.hide || []).filter(x => HIDE_TAGS.includes(x));     // a saved hide these chips no longer offer could not be undone
+      f.exits = f.profit = f.repeat = f.mine = false; f.only = f.q = f.bundle = '';   // a finding's filter and a search are for this visit
       const saveF = () => { try { localStorage.setItem(FKEY, JSON.stringify(f)); } catch (e) {} };
-      const panel = document.getElementById('filters'), ftoggle = document.getElementById('ftoggle'), clearsel = document.getElementById('clearsel');
-      const watch = document.getElementById('watch');
-      function syncInputs() {
-        panel.querySelectorAll('[data-f]').forEach(i => { const k = i.dataset.f; i.value = (f[k] === null || f[k] === 0 || f[k] === undefined) ? '' : f[k]; });
-        panel.querySelectorAll('[data-t]').forEach(b => { b.classList.toggle('on', !!f[b.dataset.t]); b.setAttribute('aria-pressed', String(!!f[b.dataset.t])); });
-        panel.querySelectorAll('[data-hide]').forEach(b => b.classList.toggle('off', f.hide.includes(b.dataset.hide)));
+      const ftoggle = document.getElementById('ftoggle');
+      const isOn = k => { const v = f.r[k]; return !!v && (v[0] != null || v[1] != null); };
+      function syncHeads() {                                      // which funnels hold a filter, and the money unit's mark
+        document.querySelectorAll('#facts .hfil').forEach(b => {
+          const k = b.dataset.fil, on = k === 'hold' ? isOn('hold') || isOn('buys') : isOn(k);
+          b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
+        });
+        const u = document.querySelector('#facts .hcur');
+        if (u) u.innerHTML = (window.EarlyCur && EarlyCur.get() === 'sol') ? '<span class="insol"></span>' : '$';
+        fillPanel();
       }
-      function nActive() { return [f.inv, f.pnl !== null, f.sold, f.buysMax, f.hold, f.exits, f.profit, f.funder, f.repeat, f.only].filter(Boolean).length + f.hide.length; }
+      function nActive() { return Object.keys(f.r).filter(isOn).length + [f.q, f.exits, f.profit, f.funder, f.bundle, f.repeat, f.only, f.mine].filter(Boolean).length + f.hide.length; }
 
       // what arrives after the page: the background checks (funders, ages, names) and the account (repeats, lists)
       let funders = {}, bundle = {}, crossings = {}, idents = {}, ages = {}, ageDone = false, palette = new Map();
+      let DORM = {};                                             // wallet → days it was quiet before its first buy here
       let services = new Set();                                  // funders that are exchanges or apps: they make no bundle
       // known exchange hot wallets: the funder column names the exchange, and one click shows every
       // wallet funded from it, all its addresses together
       const EXCH = {{ exchanges|tojson }};
+      const FLAB = {{ flabels|tojson }};                         // other named funders (InsightX): apps, casinos — the card only
+      const KIND_TXT = { exchange: 'an exchange', dex: 'a trading app', gambling: 'a gambling site', bridge: 'a bridge', defi: 'a DeFi app', payments: 'a payments app', mev: 'an MEV bot' };
       const fundKey = w => { const x = funders[w]; return x && EXCH[x] ? 'x:' + EXCH[x][0] : (x || ''); };
       const fundLabel = k => k && k.startsWith('x:') ? k.slice(2) : short(k);
       const onChart = [], MAX_ON_CHART = 10, BUY_C = '#34D399', SELL_C = '#F87171';
-      const BUNDLE_PAL = ['#C4B5FD', '#FDBA74', '#7DD3FC', '#F9A8D4', '#FCD34D', '#A5B4FC', '#5EEAD4', '#FDA4AF', '#D8B4FE', '#BEF264'];
+      // no violet: on this page it means a repeat; orange first, the bundle tag's own colour
+      const BUNDLE_PAL = ['#FDBA74', '#7DD3FC', '#F9A8D4', '#FCD34D', '#5EEAD4', '#BEF264', '#93C5FD', '#FDA4AF'];
       const BUNDLE_MIN = {{ bundle_min }}, BURST_MS = {{ burst_ms }}, TAGDEF = {{ TAGS|tojson }};
-      const CHAIN = '<svg class="lnk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" aria-hidden="true"><g transform="rotate(-45 12 12)"><rect x="1.2" y="7.4" width="12.4" height="9.2" rx="4.6"/><rect x="10.4" y="7.4" width="12.4" height="9.2" rx="4.6"/></g></svg>';   // two links: the repeat marker in the row and the heading of its block in the card
-      const COPY = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.8"/><path d="M10.5 5.5V4.3A1.8 1.8 0 0 0 8.7 2.5H4.3a1.8 1.8 0 0 0-1.8 1.8v4.4a1.8 1.8 0 0 0 1.8 1.8h1.2"/></svg>';
+      const CHAIN = EarlyIcon('link', 'lnk');   // two links: the repeat marker in the row and the heading of its block in the card
       const short = w => w.slice(0, 6) + '…' + w.slice(-4), esc = EarlyTags.esc, fm = EarlyUI.fmtShort;
       const money = v => (v == null || isNaN(v) ? '—' : (v < 0 ? '-$' : '$') + fm(Math.abs(v)));
       const holdText = m => m == null ? '—' : m < 60 ? Math.round(m) + ' min' : m < 1440 ? (m / 60).toFixed(m < 600 ? 1 : 0) + ' h' : Math.round(m / 1440) + ' d';
@@ -268,6 +291,9 @@
         return '<b class="mono insol ' + cls + '">' + EarlyCur.sol(sol) + '</b>';
       }
       const QUIET = new Set(['seen-before', 'pre-range', 're-bought']);   // kept in the data, not shown: seen-before has its own mark
+      // your own tags for a saved wallet, in the table as in the watchlist (owner, 04.10); a declaration, so the first
+      // draw may call it before the account arrives
+      function userTags(w) { return (me && me.wallets && me.wallets[w] && me.wallets[w].my_tags) || []; }
       function tagsHtml(o) {
         // a repeat, who the wallet is, then our rules as pictures with the rule in the tooltip
         const cx = crossings[o.w], idn = idents[o.w], b = bundle[o.w];
@@ -277,63 +303,60 @@
         if (ids) h += '<span class="ids">' + ids + '</span>';
         o.tags.forEach(t => {
           if (QUIET.has(t)) return;
-          h += t === 'bundle' && b ? EarlyTags.chip('bundle ×' + b.n, TAGDEF.bundle + ' — funder ' + short(b.funder)) : EarlyTags.chip(t, TAGDEF[t]);
+          h += t === 'bundle' && b ? bundChip(o.w, b) : EarlyTags.chip(t, TAGDEF[t]);
         });
+        userTags(o.w).forEach(x => { h += '<span class="tag own" title="Your tag">' + esc(x) + '</span>'; });
         return h;
       }
-      function fundHtml(o) {
-        // who sent the wallet its first SOL; the full address in the tooltip, since two short ones can look alike
-        const fnd = funders[o.w]; if (!fnd) return '';
-        if (EXCH[fnd]) {
-          const [ex, lab] = EXCH[fnd], eb = bundle[o.w], ecol = bundleColor(o.w);   // born together off an exchange: still a bundle
-          return '<button type="button" class="link fundb cex" data-fund="x:' + esc(ex) + '" title="First SOL came straight from ' + esc(lab) + ' (' + fnd
-            + ') · an exchange, not one operator · click to show every wallet funded from ' + esc(ex) + '">' + (ecol ? '<i class="dot" style="--c:' + ecol + '"></i>' : '')
-            + esc(ex) + '</button>' + (eb ? '<small class="muted"> ×' + eb.n + '</small>' : '');
-        }
-        const b = bundle[o.w], col = bundleColor(o.w), svc = services.has(fnd) ? ' · an exchange or an app (1,000+ transactions a day), not one operator' : '';
-        return '<button type="button" class="link mono fundb' + (svc ? ' svc' : '') + '" data-fund="' + fnd + '" title="' + fnd + svc + ' · click to show every wallet it funded">'
-          + (col ? '<i class="dot" style="--c:' + col + '"></i>' : '') + short(fnd) + '</button>' + (b ? '<small class="muted"> ×' + b.n + '</small>' : '');
-      }
-      const cells = new Map();                                   // wallet → the tags and funder markup last drawn for it
+      // the Funded by column is gone (owner, 02.10): a bundle's colour tells its wallets apart, a click shows that bundle alone
+      const bundChip = (w, b) => '<button type="button" class="tag ico t-bundle bundb" data-bund="' + esc(b.funder) + '" style="--c:' + bundleColor(w)
+        + '" title="One funder, ' + plural(b.n, 'wallet') + ' here: likely one operator · click to show them" aria-label="Bundle of ' + b.n + '">' + EarlyTags.ICON.bundle + '</button>';
+      const cells = new Map();                                   // wallet → the tags markup last drawn for it
       const cardW = () => { const d = document.getElementById('drawer'); return d && !d.hidden ? d.dataset.w : ''; };   // the wallet whose card is open
+      const STAR = w => { const on = inList(w); return '<button type="button" class="star' + (on ? ' on' : '') + '" aria-pressed="' + on + '" title="'
+        + (on ? 'In your watchlist · click to change' : 'Add to your watchlist') + '" aria-label="' + (on ? 'In your watchlist' : 'Add to your watchlist') + '">' + EarlyIcon(on ? 'star-on' : 'star') + '</button>'; };
+      const CHARTIC = EarlyIcon('chart');
       function rowHtml(o, n, i) {
-        const sel = selected.has(o.w), oc = onChart.find(x => x.wallet === o.w), tg = tagsHtml(o), fd = fundHtml(o);
-        cells.set(o.w, { tg, fd });
+        const oc = onChart.find(x => x.wallet === o.w), tg = tagsHtml(o);
+        cells.set(o.w, { tg });
         const vs = o.mult ? Math.round((o.mult - 1) * 100) : null;
         const cls = v => v > 0 ? 'pos' : (v < 0 ? 'neg' : ''), cap = v => v ? fm(v) : '—';
         const style = (oc ? '--c:' + (oc.bundleColor || BUY_C) + ';' : '') + (i >= 0 ? '--i: ' + i : '');
         const cd = cardW() === o.w;
-        return '<tr data-w="' + o.w + '"' + (sel || oc || cd ? ' class="' + [sel && 'picked', oc && 'onchart', cd && 'carded'].filter(Boolean).join(' ') + '"' : '') + (style ? ' style="' + style + '"' : '') + '>'
-          + '<td class="pk"><input type="checkbox" class="pick" aria-label="Select this wallet"' + (sel ? ' checked' : '') + '></td>'
-          + '<td class="muted n"' + (n === '' ? ' title="On the chart; the filters would hide it"' : '') + '>' + n + '</td>'
-          + '<td class="wcell"><span class="wid"><button type="button" class="mk" title="Show on the chart">◉</button>'
-          + '<button type="button" class="wname mono" title="Open the wallet\'s card">' + short(o.w) + '</button>'
-          + '<button type="button" class="ghost wcopy" data-copy="' + o.w + '" title="Copy the address" aria-label="Copy the address">' + COPY + '</button>'
-          + (inList(o.w) ? '<button type="button" class="saved" title="In your lists · click to change">★</button>' : '')
+        const out = n === '';                                     // on the chart, though the filters would hide it
+        const cl = [oc && 'onchart', cd && 'carded', out && 'outside'].filter(Boolean).join(' ');
+        const unk = o.sells == null, UNK = 'Its sells were not read: only the largest buyers\' are';   // entry-only, beyond the cap
+        return '<tr data-w="' + o.w + '"' + (cl ? ' class="' + cl + '"' : '') + (out ? ' title="On the chart; the filters would hide it"' : '') + (style ? ' style="' + style + '"' : '') + '>'
+          + '<td class="wcell"><span class="wid">' + STAR(o.w)
+          + '<button type="button" class="mk" title="Show its buys and sells on the chart" aria-label="Show on the chart">' + CHARTIC + '</button>'
+          + '<button type="button" class="wname" title="Open the wallet\'s card: its trades here, its PnL on every token, its funder"><span class="mono">' + short(o.w) + '</span></button>'
           + '</span><span class="tags">' + tg + '</span></td>'
           + '<td class="num two c-inv" data-h="Bought" title="Bought in the range at a ' + cap(o.entry) + ' market cap'
           + (o.tot > o.inv + 0.01 ? ' · ' + money(o.tot) + ' in total on this token' : '') + '">' + amount(o.inv, o.invsol, '')
-          + '<small>' + cap(o.entry) + ' · <span class="dtc" data-ms="' + o.etime + '" data-short="1">' + (o.etime ? EarlyTZ.fmt(o.etime).replace(/^.*, /, '') : '—') + '</span></small></td>'
+          + '<small>' + cap(o.entry) + '</small></td>'
           + '<td class="num two c-sold" data-h="Sold"' + (o.exitcap ? ' title="Sold at a ' + fm(o.exitcap) + ' market cap on average'
-            + (vs != null ? ', ' + (vs > 0 ? '+' : '') + vs + '% against its average entry' : '') + ' · ' + Math.round(o.sold) + '% of its tokens sold"' : '') + '>'
-          + (o.got ? amount(o.got, o.gotsol, '') : '<b class="mono">—</b>') + '<small>' + (o.exitcap ? fm(o.exitcap) + ' · ' + Math.round(o.sold) + '%' : '') + '</small></td>'
-          + '<td class="num two bar c-pnl' + (o.real < 0 ? ' neg' : '') + '" data-h="PnL" style="--w: ' + (MAXR ? Math.round(100 * Math.abs(o.real) / MAXR) : 0) + '%">'
-          + amount(o.real, o.realsol, cls(o.real)) + '<small class="' + cls(o.unreal) + '">' + (o.unreal ? money(o.unreal) + ' still held' : '') + '</small></td>'
-          + '<td class="num c-roi" data-h="ROI"' + (o.mult ? ' title="' + roiPct(o.mult) + ' · average exit ' + cap(o.exitcap) + ' ÷ average entry ' + cap(o.eavg) + '"' : ' title="Nothing sold yet"') + '>'
+            + (vs != null ? ', ' + (vs > 0 ? '+' : '') + vs + '% against its average entry' : '') + ' · ' + soldPct(o.sold) + ' of its tokens sold"' : unk ? ' title="' + UNK + '"' : '') + '>'
+          + (o.got ? amount(o.got, o.gotsol, '') : '<b class="mono">—</b>') + '<small>' + (o.exitcap ? fm(o.exitcap) + ' · ' + soldPct(o.sold) : '') + '</small></td>'
+          + '<td class="num two bar c-pnl' + (o.real < 0 ? ' neg' : '') + '" data-h="PnL" style="--w: ' + (MAXR ? Math.round(100 * Math.abs(o.real) / MAXR) : 0) + '%"' + (unk ? ' title="' + UNK + '"' : '') + '>'
+          + (unk ? '<b class="mono">—</b>' : amount(o.real, o.realsol, cls(o.real))) + '<small class="' + cls(o.unreal) + '">' + (o.unreal ? money(o.unreal) + ' on ' + leftPct(o.sold) + ' left' : '') + '</small></td>'
+          + '<td class="num c-roi" data-h="ROI"' + (o.mult ? ' title="' + roiPct(o.mult) + ' · average exit ' + cap(o.exitcap) + ' ÷ average entry ' + cap(o.eavg) + '"' : ' title="' + (unk ? UNK : 'Nothing sold yet') + '"') + '>'
           + '<b class="mono ' + (o.mult ? (o.mult >= 1 ? 'pos' : 'neg') : '') + '">' + roiX(o.mult) + '</b></td>'
-          + '<td class="num two c-held" data-h="Held"><b class="mono">' + holdText(o.hold) + '</b><small>' + plural(o.buys, 'buy') + ' · '
-          + (o.sells == null ? '— sells' : plural(o.sells, 'sell')) + '</small></td>'
-          + '<td class="fund" data-h="Funded by">' + fd + '</td></tr>';
+          + '<td class="num two c-held" data-h="Held" title="' + plural(o.buys, 'buy') + ', ' + (o.sells == null ? 'sells unknown' : plural(o.sells, 'sell')) + '"><b class="mono">' + holdText(o.hold) + '</b>'
+          + '<small class="bs"><span class="up">↑' + o.buys + '</span> <span class="dn">↓' + (o.sells == null ? '—' : o.sells) + '</span></small></td></tr>';
       }
 
-      // the page shows a window of the rows that pass the filters (LIMIT, then "Show more"); every action — Select all,
-      // Export, the agent — works on all passing rows, shown or not
+      // the page shows a window of the rows that pass the filters (LIMIT, then "Show more"); Export and the agent work on
+      // all passing rows, shown or not
       const LIMIT = 100; let limit = LIMIT, drawn = [], first = true;
       const more = document.getElementById('more');
-      function exportSet() { return selected.size ? order.filter(o => selected.has(o.w)) : pass; }
-      const okRow = o => o.inv >= f.inv && (f.pnl === null || o.real >= f.pnl) && o.sold >= f.sold && (!f.profit || o.real > 0) &&
-        (!f.buysMax || o.buys <= f.buysMax) && (!f.hold || (o.hold || 0) >= f.hold) && (!f.exits || o.exit) &&
-        (!f.funder || fundKey(o.w) === f.funder) && (!f.repeat || !!crossings[o.w]) && !f.hide.some(t => o.tags.includes(t)) &&
+      const inRange = o => Object.keys(f.r).every(k => { const v = f.r[k], x = RANGES[k].get(o);
+        return (v[0] == null || (x != null && x >= v[0])) && (v[1] == null || (x != null && x <= v[1])); });
+      const qOk = o => { if (!f.q) return true; const q = f.q.toLowerCase();
+        return o.w.toLowerCase().includes(q) || (EarlyTags.displayName(idents[o.w]) || '').toLowerCase().includes(q)
+          || userTags(o.w).some(x => x.toLowerCase().includes(q)); };
+      const okRow = o => inRange(o) && qOk(o) && (!f.profit || o.real > 0) &&
+        (!f.exits || o.exit) && (!f.mine || inList(o.w)) &&
+        (!f.funder || fundKey(o.w) === f.funder) && (!f.bundle || (!!bundle[o.w] && bundle[o.w].funder === f.bundle)) && (!f.repeat || !!crossings[o.w]) && !f.hide.some(t => o.tags.includes(t)) &&
         (!f.only || (f.only === 'cex' ? !!(funders[o.w] && EXCH[funders[o.w]]) : o.tags.includes(f.only)));
       function draw() {
         // the first `limit` rows that pass, plus any wallet pinned to the chart further down; a pinned wallet the
@@ -350,14 +373,10 @@
       function refreshRows(nums) {
         [...tbody.rows].forEach((tr, k) => {
           const o = byW.get(tr.dataset.w); if (!o) return;
-          if (nums && tr.cells[1].textContent !== String(nums[k])) {       // a wallet pinned below the fold keeps its place in the count
-            tr.cells[1].textContent = nums[k];
-            tr.cells[1].title = nums[k] === '' ? 'On the chart; the filters would hide it' : '';
-          }
-          const c = cells.get(o.w) || {}, tg = tagsHtml(o), fd = fundHtml(o);
+          if (nums) { tr.classList.toggle('outside', nums[k] === ''); tr.title = nums[k] === '' ? 'On the chart; the filters would hide it' : ''; }
+          const c = cells.get(o.w) || {}, tg = tagsHtml(o);
           if (c.tg !== tg) tr.querySelector('.tags').innerHTML = tg;
-          if (c.fd !== fd) tr.querySelector('.fund').innerHTML = fd;
-          cells.set(o.w, { tg, fd });
+          cells.set(o.w, { tg });
           const oc = onChart.find(x => x.wallet === o.w);
           tr.classList.toggle('onchart', !!oc);
           if (oc) tr.style.setProperty('--c', oc.bundleColor || BUY_C); else tr.style.removeProperty('--c');
@@ -380,54 +399,72 @@
         verdictNote = on ? n + ' of the top ' + top.length + ' by PnL (' + pct + '%) are fresh or bundled: ' + nb + ' in bundles, ' + nf + ' fresh'
           + (dev ? ', and the creator bought in the range' : '') + '. One hand ran this launch; little here is organic buying' : '';
       }
-      // What tracced found that a terminal does not show: short marks above the chart, at most three, each only when it
-      // matters, each a click into exactly those wallets; the sentence is in the tooltip. Bundles, fresh wallets and
-      // funders come after the page, so this runs again as they do
-      const FIND_MAX = 3, IC = EarlyTags.ICON; let findActs = [];
+      // Insights (trader, 01.10: «conclusions about the token, in percent, not bare numbers»): at most four, each only when
+      // it says something, each a click into exactly those wallets where there is a filter for them; the counts are in the
+      // tooltip. Bundles, fresh wallets and funders come after the page, so this runs again as they do
+      const FIND_MAX = 4; let findActs = [];
+      // a share of tokens sold: «100%» only when all of it went, 99.7% stays 99.7% (owner, 02.10: «sold 100%, still held?»)
+      const soldPct = v => { v = +v || 0; return (v >= 99.5 && v < 100 ? v.toFixed(1) : Math.round(v)) + '%'; };
+      const leftPct = v => { const l = 100 - (+v || 0); return (l < 1 ? l.toFixed(1) : Math.round(l)) + '%'; };
+      const pc = (a, b) => { if (!b) return 0; const p = Math.round(100 * a / b); return a < b && p >= 100 ? 99 : p; };   // 299 of 300 is 99%, not 100%
       function findings() {
         const el = document.getElementById('finds'); if (!el) return;
-        const inv = o => +o.inv || 0, tot = all.reduce((s, o) => s + inv(o), 0) || 1, out = [];
+        const inv = o => +o.inv || 0, tot = all.reduce((s, o) => s + inv(o), 0) || 1, n = all.length, out = [];
+        const dev = all.find(o => o.tags.includes('dev'));
+        if (dev) out.push({ k: 'dev', sev: 'bad', act: ['only', 'dev'], v: money(dev.inv), l: 'creator bought',
+          tip: "The token's creator bought here: " + money(dev.inv) + ' in' + (dev.got ? ', ' + money(dev.got) + ' out' : ', nothing sold yet') });
         const bw = all.filter(o => bundle[o.w]);                                  // wallets that share a funder here
         if (bw.length) {
-          const ops = new Set(bw.map(o => funders[o.w] || bundle[o.w].funder)).size, sh = Math.round(100 * bw.reduce((s, o) => s + inv(o), 0) / tot);
-          if (sh >= 10) out.push({ k: 'bundle', sev: 'warn', act: ['only', 'bundle'], ic: IC.bundle, why: 'wallets in bundles',
-            h: '<b>' + ops + '</b> operator' + (ops === 1 ? '' : 's') + ' · ' + sh + '%',
-            tip: ops + ' operator' + (ops === 1 ? '' : 's') + ' bought ' + sh + '% of the range through ' + bw.length + ' wallets that share a funder' });
+          const ops = new Set(bw.map(o => funders[o.w] || bundle[o.w].funder)).size, sh = pc(bw.reduce((s, o) => s + inv(o), 0), tot);
+          if (sh >= 10) out.push({ k: 'bundle', sev: 'warn', act: ['only', 'bundle'], v: sh + '%', p: sh, l: 'bundled',
+            tip: plural(ops, 'operator') + ' bought ' + sh + '% of the range through ' + plural(bw.length, 'wallet') + ' that share a funder' });
+          // «bundle out» (bbb.community): nearly every wallet of the bundles has sold out
+          const outN = bw.filter(o => (+o.sold || 0) >= 99).length, po = pc(outN, bw.length);
+          if (bw.length >= 3 && po >= 90) out.push({ k: 'bout', sev: 'warn', act: ['only', 'bundle'], v: po + '%', p: po, l: 'bundles out',
+            tip: outN + ' of the ' + bw.length + ' bundled wallets sold 99% or more' });
         }
-        const dev = all.find(o => o.tags.includes('dev'));
-        if (dev) out.push({ k: 'dev', sev: 'warn', act: ['only', 'dev'], ic: IC.dev, why: "the token's creator", h: 'Creator bought',
-          tip: "The token's creator bought here: " + money(dev.inv) + ' in' + (dev.got ? ', ' + money(dev.got) + ' out' : ', nothing sold yet') });
-        const fr = all.filter(o => o.tags.includes('fresh')).length, checked = Math.min(all.length, VERDICT_TOP || all.length) || 1;
-        if (fr >= 10 && fr / checked >= 0.1) out.push({ k: 'fresh', sev: 'warn', act: ['only', 'fresh'], ic: IC.fresh, why: 'fresh wallets',
-          h: '<b>' + fr + '</b> fresh', tip: fr + ' wallets were under a day old when they bought' });
-        const ex = {}; all.forEach(o => { const x = funders[o.w]; if (x && EXCH[x]) ex[EXCH[x][0]] = (ex[EXCH[x][0]] || 0) + 1; });
-        const exN = Object.values(ex).reduce((a, b) => a + b, 0), funded = all.filter(o => funders[o.w]).length;
-        if (exN >= 10 && funded && exN / funded >= 0.05) out.push({ k: 'cex', sev: 'info', act: ['only', 'cex'], ic: IC.exchange, why: 'wallets funded from exchanges',
-          h: '<b>' + exN + '</b> from exchanges',
-          tip: 'Funded straight from exchanges: ' + Object.entries(ex).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([n, c]) => n + ' ' + c).join(', ') });
-        const rep = all.filter(o => crossings[o.w]).length;
-        if (rep >= 3) out.push({ k: 'repeat', sev: 'good', act: ['repeat'], ic: IC['seen-before'], why: 'wallets early in your other pumps',
-          h: '<b>' + rep + '</b> in your other pumps', tip: rep + ' wallets were early in your other saved pumps too' });
+        // fresh among the wallets whose age is known: an older result checked all of them, not only the first VERDICT_TOP
+        const fr = all.filter(o => o.tags.includes('fresh')).length, checked = Math.max(Object.keys(ages).length || Math.min(n, VERDICT_TOP || n), fr) || 1;
+        if (fr >= 10 && fr / checked >= 0.1) out.push({ k: 'fresh', sev: 'warn', act: ['only', 'fresh'], v: pc(fr, checked) + '%', p: pc(fr, checked), l: 'fresh',
+          tip: fr + ' of the ' + checked + ' wallets checked were under a day old when they bought' });
         const prof = all.map(o => +o.real || 0).filter(v => v > 0).sort((a, b) => b - a), ptot = prof.reduce((a, b) => a + b, 0);
         if (prof.length >= 20 && ptot > 0) {
-          const s10 = Math.round(100 * prof.slice(0, 10).reduce((a, b) => a + b, 0) / ptot);
-          if (s10 >= 40) out.push({ k: 'top', sev: 'info', act: ['sort', 'real'], ic: '', why: 'the wallets by PnL',
-            h: 'Top 10 · <b>' + s10 + '%</b> of profit', tip: 'The 10 most profitable wallets took ' + s10 + '% of all the profit' });
+          const s10 = pc(prof.slice(0, 10).reduce((a, b) => a + b, 0), ptot);
+          if (s10 >= 40) out.push({ k: 'top', sev: 'info', act: ['sort', 'real'], v: s10 + '%', p: s10, l: 'to top 10',
+            tip: 'The 10 most profitable wallets took ' + s10 + '% of all the profit made here' });
+        }
+        const rep = all.filter(o => crossings[o.w]).length;
+        if (rep >= 3) out.push({ k: 'repeat', sev: 'rep', act: ['repeat'], v: String(rep), l: 'seen before',
+          tip: rep + ' wallets were early in your other saved pumps too' });
+        const ex = {}; all.forEach(o => { const x = funders[o.w]; if (x && EXCH[x]) { const nm = EXCH[x][2] ? 'other exchanges' : EXCH[x][0]; ex[nm] = (ex[nm] || 0) + 1; } });
+        const exN = Object.values(ex).reduce((a, b) => a + b, 0), funded = all.filter(o => funders[o.w]).length;
+        if (exN >= 10 && funded && exN / funded >= 0.05) out.push({ k: 'cex', sev: 'info', act: ['only', 'cex'], v: pc(exN, funded) + '%', p: pc(exN, funded), l: 'from exchanges',
+          tip: exN + ' of ' + funded + ' wallets got their first SOL straight from an exchange: ' + Object.entries(ex).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([nm, c]) => nm + ' ' + c).join(', ') });
+        if (n >= 20) {
+          const won = pc(all.filter(o => (+o.real || 0) > 0).length, n);
+          out.push({ k: 'won', sev: 'good', act: ['profit'], v: won + '%', p: won, l: 'in profit', tip: won + '% of the wallets have a realized profit here' });
         }
         findActs = out.slice(0, FIND_MAX);
-        const html = (verdictNote ? '<span class="fpill bad tipt" title="' + esc(verdictNote) + '">' + verdictWord + '</span>' : '')
-          + findActs.map((x, i) => '<button type="button" class="fpill ' + x.sev + '" data-i="' + i + '" title="' + esc(x.tip) + ' · click to show them">' + x.ic + '<span>' + x.h + '</span></button>').join('');
+        const cell = (x, i) => (x.act ? '<button type="button" class="tc ' + x.sev + '" data-i="' + i + '" title="' + esc(x.tip) + ' · click to show them">'
+          : '<span class="tc ' + x.sev + '" title="' + esc(x.tip) + '">') + '<b>' + x.v + '</b><i>' + x.l + '</i>' + (x.p != null ? '<span class="tm" style="--p:' + x.p + '%"></span>' : '') + (x.act ? '</button>' : '</span>');
+        const html = (verdictNote ? '<span class="tc bad tipt" tabindex="0" title="' + esc(verdictNote) + '"><b>' + verdictWord + '</b><i>launch</i></span>' : '')
+          + findActs.map(cell).join('');
         if (el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; }
-        el.hidden = !verdictNote && !findActs.length;
       }
-      document.getElementById('finds').addEventListener('click', e => {
-        const b = e.target.closest('.fpill[data-i]'), x = b && findActs[+b.dataset.i]; if (!x) return;
-        Object.assign(f, FDEF, { hide: [] });                               // exactly its wallets: other filters would hide some of them
-        if (x.act[0] === 'only') f.only = x.act[1];
-        if (x.act[0] === 'repeat') f.repeat = true;
-        saveF(); syncInputs(); limit = LIMIT;
-        if (x.act[0] === 'sort') sortBy('real', -1); else apply();
-        EarlyUI.use('finding', { k: x.k });
+      // a count or a finding is a click into exactly its wallets, or into its order
+      document.getElementById('tally').addEventListener('click', e => {
+        const s = e.target.closest('.tc[data-act]'), b = e.target.closest('.tc[data-i]'), x = b && findActs[+b.dataset.i];
+        if (!s && !x) return;
+        const act = s ? [s.dataset.act] : x.act;
+        Object.assign(f, fresh0());                                         // exactly its wallets: other filters would hide some of them
+        if (act[0] === 'only') f.only = act[1];
+        if (act[0] === 'repeat') f.repeat = true;
+        if (act[0] === 'sold') f.r.sold = [99, null];
+        if (act[0] === 'holding') f.r.sold = [null, 49.9];
+        if (act[0] === 'profit') f.profit = true;
+        saveF(); syncHeads(); limit = LIMIT;
+        if (act[0] === 'sort') sortBy('real', -1); else if (act[0] === 'best') sortBy('mult', -1); else apply();
+        EarlyUI.use('finding', { k: s ? s.dataset.act : x.k });
         // to the toolbar, not the table: the note of what is shown and its × sit there (review 01.10)
         (document.querySelector('.row.toolbar') || document.getElementById('facts')).scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
@@ -435,12 +472,17 @@
       const ONLY = { bundle: 'Only bundles', dev: 'Only the creator', fresh: 'Only fresh wallets', cex: 'Only funded from exchanges' };
       function activeNote() {
         const el = document.getElementById('factive'); if (!el) return;
-        const n = f.only ? ONLY[f.only] : f.repeat ? 'Only early in your other pumps' : f.funder ? 'Funded by ' + fundLabel(f.funder) : '';
+        const n = f.only ? ONLY[f.only] : f.repeat ? 'Only early in your other pumps' : f.funder ? 'Funded by ' + fundLabel(f.funder)
+          : f.bundle ? 'One bundle: ' + plural(all.filter(o => bundle[o.w] && bundle[o.w].funder === f.bundle).length, 'wallet')
+          : f.profit ? 'Only wallets in profit' : (isOn('sold') && f.r.sold[0] >= 99 && f.r.sold[1] == null) ? 'Only sold out'
+          : (isOn('sold') && f.r.sold[0] == null && f.r.sold[1] < 50) ? 'Only still holding' : '';
         el.hidden = !n; el.innerHTML = n ? esc(n) + ' <button type="button" class="ghost" aria-label="Clear">×</button>' : '';
       }
       document.getElementById('factive').addEventListener('click', e => {
         if (!e.target.closest('button')) return;
-        f.only = ''; f.repeat = false; f.funder = ''; saveF(); limit = LIMIT; apply();
+        f.only = f.funder = f.bundle = ''; f.repeat = f.profit = false;
+        if (isOn('sold') && (f.r.sold[0] >= 99 || (f.r.sold[0] == null && f.r.sold[1] < 50))) delete f.r.sold;
+        saveF(); syncHeads(); limit = LIMIT; apply();
       });
       function apply() {
         pass = order.filter(okRow);
@@ -450,57 +492,124 @@
         shown.textContent = (left ? Math.min(n, limit) + ' of ' + n + ' shown' : n + ' of ' + all.length) + (na ? ' · filtered' : '');
         more.hidden = !left; document.getElementById('more100').hidden = left <= 100; document.getElementById('moren').textContent = n;
         ftoggle.textContent = na ? 'Filters · ' + na : 'Filters'; ftoggle.classList.toggle('on', !!na);
-        syncChecks();
+        const fr = document.getElementById('freset'); if (fr) fr.hidden = !na && sortKey === 'real' && sortDir === -1;
+        syncExport();
       }
       document.getElementById('more100').addEventListener('click', () => { EarlyUI.track('show-more'); limit += LIMIT; apply(); });
       document.getElementById('moreall').addEventListener('click', () => { EarlyUI.track('show-more', { all: 1 }); limit = Infinity; apply(); });
-      function syncChecks() {
-        for (const tr of tbody.rows) { const on = selected.has(tr.dataset.w); tr.querySelector('.pick').checked = on; tr.classList.toggle('picked', on); }
-        nsel.textContent = selected.size; document.getElementById('selinfo').hidden = !selected.size; watch.hidden = !selected.size;
-        document.getElementById('watchn').textContent = selected.size;
-        document.getElementById('pickall').checked = pass.length > 0 && pass.every(o => selected.has(o.w));
-        if (typeof syncWatchBtn === 'function') syncWatchBtn();
-        const xs = exportSet(), what = selected.size ? xs.length + ' selected' : (xs.length + (na() ? ' filtered' : ' wallets'));
+      function syncExport() {                                     // Export takes what the filters let through, every row of it
+        const what = pass.length + (na() ? ' filtered' : ' wallets');
         document.getElementById('xcsv').textContent = '— ' + what + ', all columns';
-        document.getElementById('xtxt').textContent = '— ' + xs.length + ' addresses';
+        document.getElementById('xtxt').textContent = '— ' + pass.length + ' addresses';
         document.getElementById('xjson').textContent = '— ' + what + ' + coverage';
       }
       const na = nActive;
-      if (window.matchMedia && matchMedia('(max-width: 640px)').matches) { panel.hidden = true; ftoggle.setAttribute('aria-expanded', 'false'); }
-      ftoggle.addEventListener('click', () => { panel.hidden = !panel.hidden; ftoggle.setAttribute('aria-expanded', String(!panel.hidden)); EarlyUI.use('filters-toggle', { on: !panel.hidden }); });
-      panel.addEventListener('input', e => {
-        const k = e.target.dataset.f; if (!k) return;
-        const v = e.target.value.trim();
-        f[k] = v === '' ? FDEF[k] : +v;                           // an empty field is no filter
-        saveF(); apply();
-      });
-      panel.addEventListener('change', e => { if (e.target.dataset.f) EarlyUI.use('filter', { k: e.target.dataset.f }); });   // once per edit, not per key
-      panel.addEventListener('click', e => {
-        const t = e.target.closest('[data-t]');
-        if (t) { f[t.dataset.t] = !f[t.dataset.t]; saveF(); syncInputs(); apply(); EarlyUI.use('filter', { k: t.dataset.t }); return; }
-        const b = e.target.closest('[data-hide]'); if (!b) return;
-        const h = b.dataset.hide; f.hide = f.hide.includes(h) ? f.hide.filter(x => x !== h) : [...f.hide, h]; saveF(); syncInputs(); apply();
-        EarlyUI.use('hide', { tag: h, on: f.hide.includes(h) });
-      });
-      document.getElementById('fclear').addEventListener('click', () => { Object.assign(f, FDEF, { hide: [] }); saveF(); syncInputs(); apply(); EarlyUI.use('filters-reset'); });
-      clearsel.addEventListener('click', () => { selected.clear(); saveSel(); syncChecks(); EarlyUI.use('select-clear'); });
-      tbody.addEventListener('change', e => { if (!e.target.classList.contains('pick')) return; const w = e.target.closest('tr').dataset.w; e.target.checked ? selected.add(w) : selected.delete(w); saveSel(); syncChecks(); EarlyUI.use('select', { count: selected.size }, 5000); });
-      document.getElementById('pickall').addEventListener('change', e => { pass.forEach(o => e.target.checked ? selected.add(o.w) : selected.delete(o.w)); saveSel(); syncChecks(); EarlyUI.use('select-all', { on: e.target.checked }); });
-
-      // the account: selected wallets go to the watchlist, the whole analysis to «My analyses»; no wallet yet → connect first, then continue.
-      // Both ways: ★ on a row removes that wallet, «★ Saved» removes the analysis, «– Watchlist» removes the selected wallets.
-      let acctOn = {{ 'true' if acct else 'false' }}, me = null;
-      const wbtn = document.getElementById('watchbtn'), sjob = document.getElementById('savejob');
-      const inList = w => !!(me && me.wallets && me.wallets[w]);
-      function syncWatchBtn() {
-        document.getElementById('watchtxt').textContent = '+ Add to list';
-        wbtn.title = 'Add the selected wallets to one of your lists';
+      // one small window per filter: «from … to …», Reset and Apply; the Wallet funnel finds a wallet and hides tags.
+      // The Filters button lists them all (the only way in on a phone, where the table has no head)
+      const fpop = document.createElement('div'); fpop.className = 'fpop'; fpop.hidden = true; fpop.setAttribute('role', 'dialog'); document.body.appendChild(fpop);
+      let fpopFor = null, hasLists = false;
+      const numIn = (k, i, v) => '<input type="number" inputmode="decimal" step="' + RANGES[k].step + '" data-k="' + k + '" data-i="' + i + '" placeholder="' + (i ? 'max' : 'min')
+        + '" value="' + (v == null ? '' : v) + '" aria-label="' + RANGES[k].t + (i ? ', at most' : ', at least') + '">';
+      const rangeRow = k => { const v = f.r[k] || [null, null];
+        return '<div class="fph">' + RANGES[k].t + (RANGES[k].u ? ', ' + RANGES[k].u : '') + '<small>' + RANGES[k].hint + '</small></div>'
+          + '<div class="fprow">' + numIn(k, 0, v[0]) + '<span>to</span>' + numIn(k, 1, v[1]) + '</div>'; };
+      function placeUnder(el, anchor, w) {                         // under its funnel: right-aligned, or from its left edge near the page's left
+        const r = anchor.getBoundingClientRect(), cw = document.documentElement.clientWidth;
+        let x = r.right - w; if (x < 8) x = r.left;
+        el.style.top = (window.scrollY + r.bottom + 6) + 'px';
+        el.style.left = (window.scrollX + Math.max(8, Math.min(x, cw - w - 8))) + 'px';
       }
+      function openFilter(key, anchor) {
+        fpopFor = key;
+        const body = key === 'hold' ? rangeRow('hold') + rangeRow('buys') : rangeRow(key);
+        fpop.innerHTML = body + '<div class="fpf"><button type="button" class="ghost" data-reset>Reset</button><button type="button" class="primary" data-apply>Apply</button></div>';
+        placeUnder(fpop, anchor, 290); fpop.hidden = false;
+        const first = fpop.querySelector('input'); if (first) first.focus();
+      }
+      const closeFilter = () => { fpop.hidden = true; fpopFor = null; };
+      function applyFilter() {
+        const key = fpopFor; if (!key) return;
+        (key === 'hold' ? ['hold', 'buys'] : [key]).forEach(k => {
+          const v = [0, 1].map(i => { const x = fpop.querySelector('input[data-k="' + k + '"][data-i="' + i + '"]').value.trim(); return x === '' || isNaN(+x) ? null : +x; });
+          if (v[0] == null && v[1] == null) delete f.r[k]; else f.r[k] = v;
+        });
+        closeFilter(); saveF(); syncHeads(); limit = LIMIT; apply(); EarlyUI.use('filter', { k: key });
+      }
+      function resetFilter() {
+        const key = fpopFor; if (!key) return;
+        (key === 'hold' ? ['hold', 'buys'] : [key]).forEach(k => { delete f.r[k]; });
+        closeFilter(); saveF(); syncHeads(); limit = LIMIT; apply();
+      }
+      fpop.addEventListener('click', e => { if (e.target.closest('[data-apply]')) applyFilter(); else if (e.target.closest('[data-reset]')) resetFilter(); });
+      fpop.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyFilter(); } else if (e.key === 'Escape') { e.stopPropagation(); closeFilter(); } });
+      document.addEventListener('click', e => {
+        if (!fpop.hidden && !e.target.closest('.fpop, .hfil, #ftoggle')) closeFilter();
+      });
+      document.addEventListener('keydown', e => { if (e.key === 'Escape') closeFilter(); });
+      // the panel: find a wallet, your watchlist, every number from and to, the tags to hide; all of it applies as you type.
+      // The funnels in the head edit the same numbers, so either one shows what the other set
+      const PANEL_NUMS = ['inv', 'sold', 'real', 'mult', 'hold', 'buys'];
+      function drawPanel() {
+        const fp = document.getElementById('fpanel');
+        fp.innerHTML = '<div class="fp-top"><input type="text" class="fq" maxlength="44" placeholder="Find a wallet: address or name" aria-label="Find a wallet">'
+          + '<label class="fck fmine" hidden><input type="checkbox" data-mine>' + EarlyIcon('star-on') + 'Only my watchlist</label></div>'
+          + '<div class="fp-nums">' + PANEL_NUMS.map(k => '<label class="fnum" title="' + esc(RANGES[k].hint) + '"><span>' + RANGES[k].t + (RANGES[k].u ? ', ' + RANGES[k].u : '')
+            + '</span>' + numIn(k, 0, null) + '<i>–</i>' + numIn(k, 1, null) + '</label>').join('') + '</div>'
+          + '<div class="fp-hide"><span class="fph">Hide</span>' + HIDE_TAGS.map(x => '<button type="button" class="tagchip t-' + x + '" data-hide="' + x + '" aria-pressed="false" title="Hide wallets tagged '
+            + x + ': ' + esc(TAGDEF[x] || '') + '">' + (EarlyTags.ICON[x] || '') + x + '</button>').join('') + '</div>';
+        fillPanel();
+      }
+      function fillPanel() {                                     // the values from the state, never under the field being typed in
+        const fp = document.getElementById('fpanel'); if (!fp || fp.hidden || !fp.firstChild) return;
+        const q = fp.querySelector('.fq'); if (q !== document.activeElement) q.value = f.q;
+        const m = fp.querySelector('.fmine'); m.hidden = !(hasLists || f.mine); m.querySelector('input').checked = !!f.mine;
+        fp.querySelectorAll('input[data-k]').forEach(x => { if (x !== document.activeElement) { const v = (f.r[x.dataset.k] || [null, null])[+x.dataset.i]; x.value = v == null ? '' : v; } });
+        fp.querySelectorAll('[data-hide]').forEach(b => { const on = f.hide.includes(b.dataset.hide); b.classList.toggle('off', on); b.setAttribute('aria-pressed', String(on)); });
+      }
+      const fpanel = document.getElementById('fpanel');
+      ftoggle.addEventListener('click', () => {
+        const open = fpanel.hidden;
+        if (open && !fpanel.firstChild) drawPanel();
+        fpanel.hidden = !open; ftoggle.setAttribute('aria-expanded', String(open));
+        if (open) { closeFilter(); fillPanel(); }
+        EarlyUI.use('filters-toggle', { on: open });
+      });
+      let qT = 0, nT = 0;
+      fpanel.addEventListener('input', e => {
+        const x = e.target;
+        if (x.classList.contains('fq')) { clearTimeout(qT); qT = setTimeout(() => { f.q = x.value.trim(); saveF(); limit = LIMIT; apply(); }, 250); return; }
+        if (!x.dataset.k) return;
+        clearTimeout(nT); nT = setTimeout(() => {
+          const k = x.dataset.k, v = [0, 1].map(i => { const y = fpanel.querySelector('input[data-k="' + k + '"][data-i="' + i + '"]').value.trim(); return y === '' || isNaN(+y) ? null : +y; });
+          if (v[0] == null && v[1] == null) delete f.r[k]; else f.r[k] = v;
+          saveF(); syncHeads(); limit = LIMIT; apply(); EarlyUI.use('filter', { k });
+        }, 400);
+      });
+      fpanel.addEventListener('change', e => {
+        if (!e.target.matches('[data-mine]')) return;
+        f.mine = e.target.checked; saveF(); limit = LIMIT; apply();
+      });
+      fpanel.addEventListener('click', e => {
+        const b = e.target.closest('[data-hide]'); if (!b) return;
+        const tg = b.dataset.hide, on = !f.hide.includes(tg);
+        f.hide = on ? f.hide.concat([tg]) : f.hide.filter(y => y !== tg);
+        saveF(); limit = LIMIT; apply(); fillPanel(); EarlyUI.use('hide', { tag: tg, on });
+      });
+      // Reset beside Filters, there whenever filters or the order differ from how the table came (owner, 02.10)
+      const freset = document.getElementById('freset');
+      function resetAll() { Object.assign(f, fresh0()); saveF(); syncHeads(); closeFilter(); sortBy('real', -1); EarlyUI.use('filters-reset'); }
+      freset.addEventListener('click', resetAll);
+
+      // the account: a wallet goes to a list by its star, the whole analysis to «My analyses»; no wallet yet → connect
+      // first, then continue. An empty star adds the wallet to the Watchlist at once; a filled one opens its lists
+      let acctOn = {{ 'true' if acct else 'false' }}, me = null;
+      const sjob = document.getElementById('savejob');
+      const inList = w => !!(me && me.wallets && me.wallets[w]);
       /* Several watchlists: the toolbar button and the card's star open the same small menu. For one wallet it shows
          which lists hold it and toggles them; for a selection it adds all of them to the list you pick. */
       const listpop = document.createElement('div');
       listpop.className = 'listpop'; listpop.hidden = true; document.body.appendChild(listpop);
-      const listsOf = () => (me && me.lists) || { main: { name: 'Watchlist' } };
+      const listsOf = () => (me && me.lists) || { main: { name: 'Main' } };
       const listsOfWallet = w => (me && me.wallets && me.wallets[w] && me.wallets[w].lists) || [];
       // every add records which list took the wallet, so the star and its menu know it before the next reload
       const noteIn = (ws, lid) => { blank(); ws.forEach(w => { const x = me.wallets[w] = me.wallets[w] || { my_tags: [] }; x.lists = x.lists || []; if (!x.lists.includes(lid)) x.lists.push(lid); }); };
@@ -519,7 +628,7 @@
       }
       function openLists(anchor, ws) {
         const single = ws.length === 1 ? ws[0] : null, L = listsOf();
-        listpop.innerHTML = '<div class="lh">' + (single ? 'Lists for this wallet' : 'Add ' + plural(ws.length, 'wallet') + ' to') + '</div>'
+        listpop.innerHTML = '<div class="lh">' + (single ? 'Saved in' : 'Add ' + plural(ws.length, 'wallet') + ' to') + '</div>'
           + Object.entries(L).map(([id, v]) => {
               const on = single && listsOfWallet(single).includes(id);
               return '<button type="button" class="li' + (on ? ' on' : '') + '" data-id="' + id + '" aria-pressed="' + !!on + '">'
@@ -537,7 +646,7 @@
             if (b.dataset.rm) { await removeWallets(ws); listpop.hidden = true; return; }
             const id = b.dataset.id, name = L[id].name;
             if (single && listsOfWallet(single).includes(id)) { await removeFromList(id, single); EarlyUI.toast('Removed from ' + esc(name)); }
-            else { const d = await addToList(id, ws); EarlyUI.toast((single ? 'Added to ' : plural(d.added, 'wallet') + ' added to ') + esc(name) + ' · <a href="/me#list">Lists →</a>'); }
+            else { const d = await addToList(id, ws); EarlyUI.toast((single ? 'Added to ' : plural(d.added, 'wallet') + ' added to ') + esc(name) + ' · <a href="/me#list">Watchlist →</a>'); }
             if (single) { openLists(anchor, ws); if (drawer.dataset.w === single) { syncStar(single); renderTags(single); } } else listpop.hidden = true;
           } catch (x) { EarlyUI.toast(x.message); }
         };
@@ -548,26 +657,30 @@
             const d = await EarlyWallet.post('/me/lists', { name });
             blank(); me.lists = d.lists;
             await addToList(d.id, ws);
-            EarlyUI.toast((single ? 'Added' : plural(ws.length, 'wallet') + ' added') + ' to the new list ' + esc(d.name) + ' · <a href="/me#list">Lists →</a>');
+            EarlyUI.toast((single ? 'Added' : plural(ws.length, 'wallet') + ' added') + ' to the new list ' + esc(d.name) + ' · <a href="/me#list">Watchlist →</a>');
             if (single) { openLists(anchor, ws); if (drawer.dataset.w === single) { syncStar(single); renderTags(single); } } else listpop.hidden = true;
           } catch (x) { EarlyUI.toast(x.message); }
         };
         if (!single) setTimeout(() => { const i = listpop.querySelector('.lnew input'); if (i && !Object.keys(L).length) i.focus(); }, 0);
       }
-      document.addEventListener('click', e => { if (!listpop.hidden && !e.target.closest('.listpop, #watchbtn, #dstar, .saved')) listpop.hidden = true; });
+      document.addEventListener('click', e => { if (!listpop.hidden && !e.target.closest('.listpop, #dstar, .star')) listpop.hidden = true; });
       document.addEventListener('keydown', e => { if (e.key === 'Escape') listpop.hidden = true; });
       function markSaved() {
         for (const r of tbody.rows) {
-          const wid = r.querySelector('.wid'), has = wid.querySelector('.saved');
-          if (inList(r.dataset.w)) { if (!has) { const s = document.createElement('button'); s.type = 'button'; s.className = 'saved'; s.title = 'In your lists · click to change'; s.textContent = '★'; wid.appendChild(s); } }
-          else if (has) has.remove();
+          const st = r.querySelector('.star'); if (!st) continue;
+          const on = inList(r.dataset.w);
+          st.classList.toggle('on', on); st.innerHTML = EarlyIcon(on ? 'star-on' : 'star'); st.setAttribute('aria-pressed', String(on));
+          st.title = on ? 'In your watchlist · click to change' : 'Add to your watchlist'; st.setAttribute('aria-label', on ? 'In your watchlist' : 'Add to your watchlist');
         }
         const card = document.getElementById('drawer');
         if (card && !card.hidden && card.dataset.w && typeof syncStar === 'function') syncStar(card.dataset.w);
         const saved = !!(me && me.analyses && me.analyses[jobId]);
-        sjob.textContent = saved ? '★ Saved' : '☆ Save analysis'; sjob.classList.toggle('on', saved);
+        sjob.innerHTML = EarlyIcon(saved ? 'star-on' : 'star') + '<span>' + (saved ? 'Saved' : 'Save analysis') + '</span>'; sjob.classList.toggle('on', saved);
         sjob.title = saved ? 'In My analyses · click to remove' : 'Keep this analysis under My analyses';
-        syncWatchBtn();
+        hasLists = !!(me && me.wallets && Object.keys(me.wallets).length);   // «Only my watchlist» appears with the first saved wallet
+        fillPanel(); refreshRows();                                // your tags reach the rows with the account
+        try { myChip(); } catch (e) {}                               // the agent's question about them, once the account is known
+        if (f.mine) apply();                                     // «My lists» needs the account to know which rows stay
       }
       async function loadMe() {
         if (!acctOn) return;
@@ -576,21 +689,21 @@
       }
       const withAcct = fn => acctOn ? fn() : EarlyWallet.open(() => { acctOn = true; loadMe().then(fn); });
       const blank = () => { me = me || { wallets: {}, analyses: {} }; };
-      async function saveWallets() {
-        const ws = [...selected]; if (!ws.length) return;
+      // one click on an empty star: the wallet is in the Watchlist, and the star is filled (owner, 02.10)
+      async function starWallet(w, star) {
+        if (inList(w)) { openLists(star, [w]); return; }
         try {
-          const d = await EarlyWallet.post('/me/wallets', { job: jobId, wallets: ws });
-          const lid = d.list || 'main', name = esc((listsOf()[lid] || {}).name || 'Watchlist');
-          noteIn(d.wallets, lid); markSaved();
-          EarlyUI.toast((d.added ? plural(d.added, 'wallet') + ' added to ' + name : 'Already in ' + name) + ' · <a href="/me#list">Lists →</a>');
-        } catch (e) { EarlyUI.toast(e.message); }
+          const d = await addToList('main', [w]);
+          EarlyUI.use('star', { on: true });
+          EarlyUI.toast((d.added ? 'Added to your watchlist' : 'Already in your watchlist') + ' · the star again picks its lists · <a href="/me#list">Watchlist →</a>');
+        } catch (x) { EarlyUI.toast(x.message); }
       }
       async function removeWallets(ws) {
         if (!ws.length) return;
         try {
           const d = await EarlyWallet.post('/me/wallets/remove', { wallets: ws });
           blank(); ws.forEach(w => { delete me.wallets[w]; }); markSaved();
-          EarlyUI.toast(d.removed ? plural(d.removed, 'wallet') + ' removed from your lists' : 'Not in your lists');
+          EarlyUI.toast(d.removed ? plural(d.removed, 'wallet') + ' removed from your watchlist' : 'Not in your watchlist');
         } catch (e) { EarlyUI.toast(e.message); }
       }
       async function saveJob() {
@@ -609,7 +722,6 @@
         } catch (e) { EarlyUI.toast(e.message); }
       }
       // the action is what the button said at click time — not what it turns into after a sign-in loads the account
-      wbtn.addEventListener('click', () => withAcct(() => openLists(wbtn, [...selected])));
       sjob.addEventListener('click', () => { const saved = !!(me && me.analyses && me.analyses[jobId]); withAcct(() => saved ? removeJob() : saveJob()); });
       loadMe();
       const mkdemo = document.getElementById('mkdemo');
@@ -638,6 +750,9 @@
         apply();
       }
       table.tHead.addEventListener('click', e => {
+        const fb = e.target.closest('.hfil');
+        if (fb) { if (fpopFor === fb.dataset.fil && !fpop.hidden) closeFilter(); else openFilter(fb.dataset.fil, fb); return; }
+        if (e.target.closest('.hcur')) { EarlyCur.toggle(); return; }
         const th = e.target.closest('th.sortable'); if (!th) return;
         const k = th.dataset.key;
         sortBy(k, sortKey === k ? -sortDir : -1, th.dataset.type === 'text');
@@ -653,22 +768,62 @@
       let data = null;
       async function rowsData() { if (!data) { const r = await fetch('/job/' + jobId + '.json?scope=' + SCOPE); data = await r.json(); } return data; }
       function download(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
-      const csvCell = v => v == null ? '' : (/[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v));
+      // a cell a spreadsheet would run as a formula (= + - @) starts with a quote, as in the server's CSV of the lists
+      const csvCell = v => { if (v == null) return ''; let s = String(v); if (typeof v === 'string' && /^[=+\-@\t\r]/.test(s)) s = "'" + s;
+        return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+      const WHO = ['name', 'x_handle', 'funder', 'funder_exchange', 'wallet_first_tx_utc'];
+      const colsOut = cols => { const i = cols.indexOf('wallet') + 1; return cols.slice(0, i).concat(WHO, cols.slice(i).filter(c => !WHO.includes(c))); };
+      function whoOf(w) {
+        const idn = idents[w], fnd = funders[w], a = ages[w];
+        return { name: EarlyTags.displayName(idn) || '', x_handle: EarlyTags.handle(idn), funder: fnd || '',   // no @: a spreadsheet reads it as a formula
+          funder_exchange: fnd && EXCH[fnd] ? EXCH[fnd][0] : '', wallet_first_tx_utc: a && a.exact && a.ms ? new Date(a.ms).toISOString().slice(0, 19).replace('T', ' ') : '' };
+      }
       document.getElementById('xpanel').addEventListener('click', async e => {   // by id: a signed-in header has its own .menu-panel first
         const x = e.target.closest('[data-x]'); if (!x) return;
         EarlyUI.track('export', { format: x.dataset.x });
-        EarlyUI.use('export', { format: x.dataset.x, sel: selected.size, filtered: na() > 0 });
-        const wallets = exportSet().map(o => o.w), want = new Set(wallets);
-        const suffix = '-' + SCOPE + (selected.size ? '-selected' : (na() ? '-filtered' : ''));
+        EarlyUI.use('export', { format: x.dataset.x, filtered: na() > 0 });
+        const wallets = pass.map(o => o.w), want = new Set(wallets);
+        const suffix = '-' + SCOPE + (na() ? '-filtered' : '');
         if (x.dataset.x === 'txt') { download(jobId + suffix + '.txt', wallets.join('\n') + '\n', 'text/plain'); return; }
-        const d = await rowsData(), rowsOut = d.rows.filter(r => want.has(r.wallet));
-        if (x.dataset.x === 'json') { download(jobId + suffix + '.json', JSON.stringify({ ...d, rows: rowsOut, exported: selected.size ? 'selected' : (na() ? 'filtered' : 'all') }, null, 1), 'application/json'); return; }
-        const cols = d.columns, lines = [cols.join(',')];
+        // who each wallet is, right after its address (custdev 01.10): what the page already knows, no new requests
+        const d = await rowsData(), rowsOut = d.rows.filter(r => want.has(r.wallet)).map(r => Object.assign({}, r, whoOf(r.wallet)));
+        if (x.dataset.x === 'json') { download(jobId + suffix + '.json', JSON.stringify({ ...d, columns: colsOut(d.columns), rows: rowsOut, exported: na() ? 'filtered' : 'all' }, null, 1), 'application/json'); return; }
+        const cols = colsOut(d.columns), lines = [cols.join(',')];
         rowsOut.forEach(r => lines.push(cols.map(c => csvCell(r[c])).join(',')));
         download(jobId + suffix + '.csv', lines.join('\n') + '\n', 'text/csv');
       });
 
-      syncInputs(); apply();
+      syncHeads(); apply();
+      // the buying in the range as small bars under «bought»: when the wallets came in, in 24 steps
+      (function buyBars() {
+        const c = document.querySelector('#tally .tc'), ch0 = document.getElementById('chart'); if (!c || !ch0) return;
+        const a = +ch0.dataset.from, b = +ch0.dataset.to; if (!(b > a)) return;
+        const N = 24, n = new Array(N).fill(0);
+        all.forEach(o => { const x = +o.etime; if (x >= a && x <= b) n[Math.min(N - 1, Math.floor((x - a) / (b - a) * N))]++; });
+        const mx = Math.max(...n); if (!mx) return;
+        c.insertAdjacentHTML('beforeend', '<svg class="tsp" viewBox="0 0 ' + (N * 4) + ' 14" preserveAspectRatio="none" aria-hidden="true">'
+          + n.map((v, i) => '<rect x="' + (i * 4) + '" y="' + (14 - Math.max(1, Math.round(v / mx * 14))) + '" width="3" height="' + Math.max(1, Math.round(v / mx * 14)) + '"/>').join('') + '</svg>');
+        c.title += ' · the bars: when they bought, across the range';
+      })();
+      // a pointer comes to the first address and clicks it, the address rings, a label says what it does: once the first
+      // row is on screen (the table sits under the chart), until the person has opened a card, at most on three visits;
+      // gone at the first click or after a few seconds
+      (function cardHint() {
+        const seen = () => { try { return +localStorage.getItem('early:cardhint') || 0; } catch (e) { return 3; } };
+        const a = seen() < 3 && tbody.rows[0] && tbody.rows[0].querySelector('.wname'); if (!a || !window.IntersectionObserver) return;
+        const io = new IntersectionObserver(es => {
+          if (!es.some(x => x.isIntersecting)) return;
+          io.disconnect();
+          const n = seen(); if (n >= 3 || !a.isConnected) return;
+          try { localStorage.setItem('early:cardhint', String(n + 1)); } catch (e) {}
+          const h = document.createElement('span'); h.className = 'chint'; h.setAttribute('aria-hidden', 'true');
+          h.innerHTML = '<svg class="chint-cur" viewBox="0 0 16 22"><path d="M1.5 1.5v16.2l4.3-4.1 2.8 6.4 2.8-1.2-2.8-6.3h5.9z"/></svg><span class="chint-tip">Click an address: its card opens</span>';
+          a.classList.add('hinted'); a.appendChild(h);
+          const done = () => { h.remove(); a.classList.remove('hinted'); document.removeEventListener('pointerdown', done, true); };
+          document.addEventListener('pointerdown', done, true); setTimeout(done, 7000);
+        }, { threshold: 1, rootMargin: '0px 0px -12% 0px' });
+        io.observe(a);
+      })();
       const el = document.getElementById('chart');
       /* The token's own life on the chart: when trading left the launchpad, when someone paid DexScreener for
          visibility. Free, and a failure just leaves the chart without them. */
@@ -737,7 +892,7 @@
       // the wallet card: what this wallet did on this token, who it is if anyone knows, how it trades overall, where its SOL came from
       const rowOf = w => byW.get(w);
       const MAX_TAGS = {{ max_my_tags }};
-      const PLUS = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg>';
+      const PLUS = EarlyIcon('add');
       const dtags = document.getElementById('dtags'), dstar = document.getElementById('dstar'), dprof = document.getElementById('dprof');
       const profiles = new Map();
       const myTags = w => (me && me.wallets && me.wallets[w] && me.wallets[w].my_tags) || [];
@@ -754,15 +909,18 @@
       }
       function syncStar(w) {
         const on = inList(w);
-        dstar.textContent = on ? '★' : '☆'; dstar.classList.toggle('on', on);
-        dstar.title = on ? 'In ' + plural(listsOfWallet(w).length, 'list') + ' · click to change' : 'Add to one of your lists'; dstar.setAttribute('aria-label', dstar.title);
+        dstar.innerHTML = EarlyIcon(on ? 'star-on' : 'star'); dstar.classList.toggle('on', on);
+        dstar.title = on ? 'In your watchlist · click to change' : 'Add to your watchlist'; dstar.setAttribute('aria-label', dstar.title);
       }
+      // your tag goes only by its own × (owner, 02.10: a click on the word dropped it by accident)
+      const MINE = t => '<span class="tag mine" title="Your tag"><span>' + esc(t) + '</span><button type="button" class="tagx" data-tag="' + esc(t)
+        + '" title="Remove this tag" aria-label="Remove the tag ' + esc(t) + '">×</button></span>';
       function renderTags(w) {
         // our tags as picture and word, then the person's own; seen-before has its own block further down
         const row = rowOf(w), mine = myTags(w);
         const ours = row ? row.tags.filter(t => t && !QUIET.has(t))
           .map(t => EarlyTags.chip(t === 'bundle' && bundle[w] ? 'bundle ×' + bundle[w].n : t, TAGDEF[t], { text: true })).join('') : '';
-        dtags.innerHTML = ours + mine.map(t => '<button type="button" class="tag mine" title="Your tag · click to remove">' + esc(t) + '</button>').join('')
+        dtags.innerHTML = ours + mine.map(MINE).join('')
           + (mine.length < MAX_TAGS ? '<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd wide" title="Your own tag for this wallet" aria-label="Add your own tag">' + PLUS + '<span>tag</span></button>' : '');
       }
       function renderHead(w) {
@@ -808,18 +966,17 @@
         if (a && a.ms && a.exact) {
           const young = Date.now() - a.ms < 86400000, row = byW.get(w), at = row && +row.etime;
           if (row && row.tags.includes('fresh') && at > a.ms)                 // fresh is about the buy: "17h at buy", not "15d" today
-            out.push('<span class="dchip age young" title="Fresh: this wallet was ' + ageText(Date.now() - (at - a.ms)) + ' old when it first bought here. Created '
-              + EarlyTZ.fmt(a.ms, true) + ', ' + ageText(a.ms) + ' ago">' + ageText(Date.now() - (at - a.ms)) + ' at buy</span>');
-          else out.push('<span class="dchip age' + (young ? ' young' : '') + '" title="Wallet age today. First transaction ' + EarlyTZ.fmt(a.ms, true) + '">' + ageText(a.ms) + '</span>');
+            out.push('<span class="dchip age young" title="' + ageText(Date.now() - (at - a.ms)) + ' old at its first buy here · created '
+              + EarlyTZ.fmt(a.ms, true) + '">' + ageText(Date.now() - (at - a.ms)) + ' at buy</span>');
+          else out.push('<span class="dchip age' + (young ? ' young' : '') + '" title="First transaction ' + EarlyTZ.fmt(a.ms, true) + '">' + ageText(a.ms) + ' old</span>');
         } else if (a && a.ms) {
           // a busy wallet: its latest transactions end before its first one, so the age is unknown, not "at least 12 days".
           // Opening the card reads deeper; until that answers, or when it cannot, the count says why
           const n = +a.n || AGE_READ, reading = st === 'busy';
-          const why = reading ? 'Reading its whole history to find its age and first funder…'
-            : 'More than ' + nf(n) + ' transactions. The ' + nf(n) + ' read so far reach back only to ' + EarlyTZ.fmt(a.ms, true)
-              + ', so its first one and its first funder are older.'
-              + (st === 'connect' ? ' Connect a wallet to read its whole history.' : st === 'capped' ? ' Today\'s card checks are used up; more tomorrow.'
-                 : st === 'paused' ? ' Age checks are paused until next month.' : st === 'failed' ? ' The chain node did not answer; reopen the card to try again.' : '');
+          const why = reading ? 'Reading its whole history…'
+            : 'Over ' + nf(n) + ' transactions, read back to ' + EarlyTZ.fmt(a.ms, true) + ': its first one is older.'
+              + (st === 'connect' ? ' Connect a wallet to read all of it.' : st === 'capped' ? ' Card checks used up today.'
+                 : st === 'paused' ? ' Age checks paused till next month.' : st === 'failed' ? ' The node did not answer; reopen the card.' : '');
           const text = reading ? '…' : Math.floor(n / 1000) + 'k+ tx';
           out.push(st === 'connect' ? '<button type="button" class="dchip age" id="dagego" title="' + why + '">' + text + '</button>'
             : '<span class="dchip age' + (reading ? ' q' : '') + '" title="' + why + '">' + text + '</span>');
@@ -833,12 +990,16 @@
           out.push(st === 'connect' ? '<button type="button" class="dchip age q" id="dagego" title="' + why + '">age?</button>'
             : '<span class="dchip age q" title="' + why + '">' + (busy ? '…' : '?') + '</span>');
         }
+        if (DORM[w]) out.push('<span class="dchip dorm" title="Nothing touched the wallet for ' + DORM[w] + ' days before its first buy here">quiet ' + DORM[w] + 'd before</span>');
         if (fnd && EXCH[fnd]) out.push('<button type="button" class="dchip fund cex" id="dfund" data-fund="x:' + esc(EXCH[fnd][0]) + '" title="First SOL came straight from '
-          + esc(EXCH[fnd][1]) + ' (' + fnd + '), an exchange' + (bn && bn.n > 1 ? ', together with ' + (bn.n - 1) + ' wallets born in the same minutes (bundle)' : '')
-          + ' · click to show every wallet funded from ' + esc(EXCH[fnd][0]) + ' here">↘ ' + esc(EXCH[fnd][0]) + (bn && bn.n > 1 ? '<small>×' + bn.n + '</small>' : '') + '</button>');
-        else if (fnd) out.push('<button type="button" class="dchip fund mono" id="dfund" data-fund="' + fnd + '" title="First SOL came from '
+          + (EXCH[fnd][2] ? fnd + ', an exchange in InsightX\'s labels' : esc(EXCH[fnd][1]) + ' (' + fnd + '), an exchange') + (bn && bn.n > 1 ? ', together with ' + (bn.n - 1) + ' wallets born in the same minutes (bundle)' : '')
+          + ' · click to show every wallet funded from ' + esc(EXCH[fnd][0]) + ' here"><span class="dl">funded by</span>' + esc(EXCH[fnd][0]) + (bn && bn.n > 1 ? '<small>×' + bn.n + '</small>' : '') + '</button>');
+        else if (fnd && FLAB[fnd]) out.push('<button type="button" class="dchip fund cex" id="dfund" data-fund="' + fnd + '" title="First SOL came from '
+          + (FLAB[fnd][1] ? esc(FLAB[fnd][1]) + ' (' + fnd + '), ' : fnd + ', ') + esc(FLAB[fnd][2] || 'a known service') + (FLAB[fnd][1] ? '' : ' in InsightX\'s labels') + ' · click to show every wallet it funded here"><span class="dl">funded by</span>'
+          + esc(FLAB[fnd][0]) + (bn && bn.n > 1 ? '<small>×' + bn.n + '</small>' : '') + '</button>');
+        else if (fnd) out.push('<button type="button" class="dchip fund" id="dfund" data-fund="' + fnd + '" title="First SOL came from '
           + fnd + (bn && bn.n > 1 ? ', which funded ' + bn.n + ' wallets here (bundle)' : services.has(fnd) ? ', an exchange or an app: over 1,000 transactions a day, so the wallets it funded are not a bundle' : '')
-          + ' · click to show every wallet it funded here">↘ ' + short(fnd) + (bn && bn.n > 1 ? '<small>×' + bn.n + '</small>' : '') + '</button>');
+          + ' · click to show every wallet it funded here"><span class="dl">funded by</span><span class="mono">' + short(fnd) + '</span>' + (bn && bn.n > 1 ? '<small>×' + bn.n + '</small>' : '') + '</button>');
         document.getElementById('dchips').innerHTML = out.join('');
         const df = document.getElementById('dfund');
         if (df) df.addEventListener('click', () => {                   // the table shows who else this funder paid for
@@ -852,7 +1013,8 @@
       const nf = v => (+v || 0).toLocaleString('en-US');
       let period = '30';
       function renderProfile(all) {                               // the block itself is shared with Lists: static/card.js
-        EarlyCard.render(all, period, dprof, document.getElementById('dprofi'));
+        EarlyCard.render(all, period, dprof, document.getElementById('dprofi'), { recent: false });
+        document.getElementById('drecent').innerHTML = EarlyCard.recent(all) || '<p class="dline muted small">No other tokens in its last 30 days.</p>';
         document.querySelectorAll('#dper [data-p]').forEach(b => b.classList.toggle('on', b.dataset.p === period));
       }
       document.getElementById('dper').addEventListener('click', e => {
@@ -865,34 +1027,71 @@
       async function loadProfile(w) {
         if (profiles.has(w)) { renderProfile(profiles.get(w)); return; }
         dprof.innerHTML = '<div class="dskel"><i></i><i></i><i></i></div>';
+        const rec = document.getElementById('drecent'); rec.innerHTML = '<div class="dskel"><i></i><i></i></div>';
         document.getElementById('dprofi').hidden = true;
         let r;
         try { r = await fetch('/wallet_profile.json?' + new URLSearchParams({ job: jobId, wallet: w }), { credentials: 'same-origin' }); }
-        catch (e) { if (drawer.dataset.w === w) dprof.innerHTML = '<p class="dline muted small">Could not reach the server.</p>'; return; }
+        catch (e) { if (drawer.dataset.w === w) dprof.innerHTML = rec.innerHTML = '<p class="dline muted small">Could not reach the server.</p>'; return; }
         if (drawer.dataset.w !== w) return;                   // the card moved on to another wallet meanwhile
         if (r.status === 401) {
           dprof.innerHTML = '<div class="dconnect"><button type="button" class="primary" id="dprofgo">Connect wallet for more data</button>'
             + '<span class="muted small">PnL, win rate and active hours across all its tokens</span></div>';
+          rec.innerHTML = '<p class="dline muted small">Connect a wallet to see its other tokens.</p>';
           document.getElementById('dprofgo').addEventListener('click', () => EarlyWallet.open(() => { acctOn = true; loadMe().then(() => loadProfile(w)); }, 'Connect a wallet to see all its tokens.'));
           return;
         }
         let d = {}; try { d = await r.json(); } catch (e) {}
         if (drawer.dataset.w !== w) { if (r.ok) profiles.set(w, d); return; }   // reading the body took time too: keep it, but not on another wallet's card
-        if (!r.ok) { dprof.innerHTML = '<p class="dline muted small">' + esc(d.error || 'Could not load this wallet.') + '</p>'; return; }
+        if (!r.ok) { dprof.innerHTML = rec.innerHTML = '<p class="dline muted small">' + esc(d.error || 'Could not load this wallet.') + '</p>'; return; }
         profiles.set(w, d); renderProfile(d);
       }
       async function saveMyTags(w, tags) {
+        let ok = true;
         try {
           const d = await EarlyWallet.post('/me/wallets/tags', { wallet: w, tags });
           blank(); me.wallets[w] = me.wallets[w] || {}; me.wallets[w].my_tags = d.tags || [];
-        } catch (e) { EarlyUI.toast(e.message); }
+        } catch (e) { EarlyUI.toast(e.message); ok = false; }
         if (drawer.dataset.w === w) renderTags(w);
+        refreshRows();
+        return ok;
+      }
+      async function dropTag(w, tag) {                            // and one Undo brings it back
+        const before = myTags(w).slice();
+        if (!await saveMyTags(w, before.filter(t => t !== tag))) return;
+        EarlyUI.toast('Tag «' + esc(tag) + '» removed · <button type="button" class="link" id="tagundo">Undo</button>', 6000);
+        const u = document.getElementById('tagundo');
+        if (u) u.addEventListener('click', () => { saveMyTags(w, before); const box = u.closest('.toast'); if (box) box.hidden = true; });
       }
       async function addOne(w) {
         try {
           const d = await EarlyWallet.post('/me/wallets', { job: jobId, wallets: [w] });
           noteIn([w], d.list || 'main'); markSaved(); return true;
         } catch (e) { EarlyUI.toast(e.message); return false; }
+      }
+      // its trades on this token, or its recent tokens (owner, 04.10): the choice stays for the next card
+      let cardView = 'token'; try { if (localStorage.getItem('early:cardview') === 'all') cardView = 'all'; } catch (e) {}
+      function showView(v) {
+        cardView = v;
+        document.querySelectorAll('#dview [data-v]').forEach(b => { const on = b.dataset.v === v; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
+        document.getElementById('dtok').hidden = v !== 'token'; document.getElementById('dall').hidden = v !== 'all';
+      }
+      document.getElementById('dview').addEventListener('click', e => {
+        const b = e.target.closest('[data-v]'); if (!b || b.dataset.v === cardView) return;
+        showView(b.dataset.v);
+        try { localStorage.setItem('early:cardview', b.dataset.v); } catch (x) {}
+        EarlyUI.use('card-view', { v: b.dataset.v });
+      });
+      // what it did here, as the row says it, a number and a word each: on a phone the row is under the card
+      function renderTokFacts(w) {
+        const o = rowOf(w), el = document.getElementById('dtally'); if (!o) { el.innerHTML = ''; return; }
+        const amt = (usd, sol) => SOLON && sol != null ? '<span class="insol">' + EarlyCur.sol(sol) + '</span>' : money(usd);
+        const cell = (v, l, cls, tip) => '<span class="tc"' + (tip ? ' title="' + esc(tip) + '"' : '') + '><b class="' + (cls || '') + '">' + v + '</b><i>' + l + '</i></span>';
+        el.innerHTML = cell(amt(o.inv, o.invsol), 'bought', '', 'At a ' + (o.entry ? fm(o.entry) : '—') + ' market cap')
+          + cell(o.got ? amt(o.got, o.gotsol) : '—', 'sold', '', soldPct(o.sold) + ' of its tokens' + (o.exitcap ? ', at a ' + fm(o.exitcap) + ' cap on average' : ''))
+          + (o.sells == null ? cell('—', 'PnL', '', 'Its sells were not read: only the largest buyers\' are')
+            : cell(amt(o.real, o.realsol), 'PnL', o.real > 0 ? 'pos' : o.real < 0 ? 'neg' : '', o.unreal ? money(o.unreal) + ' on ' + leftPct(o.sold) + ' left' : ''))
+          + cell(roiX(o.mult), 'ROI', o.mult ? (o.mult >= 1 ? 'pos' : 'neg') : '', o.mult ? roiPct(o.mult) : 'Nothing sold yet')
+          + cell(holdText(o.hold), 'held', '', 'From its entry to its first sale');
       }
       let cardSrc = 'row';                                       // where the card was opened from, for the owner's log
       function openStory(o) {
@@ -902,8 +1101,7 @@
         const row = rowOf(o.wallet);
         drawer.dataset.w = o.wallet; drawer.hidden = false; document.body.classList.add('drawer-open');
         markCarded(o.wallet);
-        const dw = document.getElementById('dw'); dw.textContent = short(o.wallet); dw.title = o.wallet;
-        document.getElementById('dcopy').dataset.copy = o.wallet;
+        const dw = document.getElementById('dw'); dw.textContent = short(o.wallet); dw.dataset.copy = o.wallet; dw.title = o.wallet + ' · click to copy';
         document.getElementById('dsol').href = 'https://solscan.io/account/' + o.wallet;
         syncStar(o.wallet); renderTags(o.wallet); renderIdent(o.wallet);
         dtrades.innerHTML = o.trades.map(t => '<tr class="' + t.side + '"><td class="mono dtc" data-ms="' + t.t + '">' + EarlyTZ.fmt(t.t, false) + '</td><td>' + (t.side === 'buy' ? '<b class="buy">▲ buy</b>' : '<b class="sell">▼ sell</b>') + '</td><td class="num mono">' + (cur && t.sol != null ? EarlyCur.solHtml(t.sol) : money(t.usd)) + '</td><td class="num mono">' + (t.qty ? ch.fmtMcap(t.qty) : '—') + '</td><td class="num mono">' + ch.fmtMcap(t.mcap) + '</td></tr>').join('');
@@ -918,16 +1116,17 @@
         document.getElementById('dtcount').textContent = row ? plural(+row.buys || 0, 'buy') + ' · ' + plural(sells, 'sell') : '';
         document.getElementById('dnote').textContent = (o.complete === false ? 'Exits not fetched (over the cap): only trades inside the range are known. ' : '')
           + (o.truncated ? 'First ' + o.trades.length + ' of ' + o.n + '.' : '');
-        loadProfile(o.wallet);
+        renderTokFacts(o.wallet); showView(cardView); loadProfile(o.wallet);
+        try { localStorage.setItem('early:cardhint', '3'); } catch (e) {}   // found the card: the hint has done its job
         if (window.EarlyTZ) EarlyTZ.apply();
       }
       document.getElementById('dclose').addEventListener('click', () => { closeCard(); EarlyUI.use('card-close'); });
       document.addEventListener('keydown', e => { if (e.key === 'Escape' && !drawer.hidden) { closeCard(); EarlyUI.use('card-close'); } });
-      dstar.addEventListener('click', () => { const w = drawer.dataset.w; withAcct(() => openLists(dstar, [w])); });
+      dstar.addEventListener('click', () => { const w = drawer.dataset.w; withAcct(() => starWallet(w, dstar)); });   // the card's star works as the row's
       // your own tags: a tag is a reason to watch, so tagging a wallet that is not watched yet adds it to the watchlist
       dtags.addEventListener('click', e => {
-        const w = drawer.dataset.w, mine = e.target.closest('.tag.mine');
-        if (mine) { saveMyTags(w, myTags(w).filter(t => t !== mine.textContent)); return; }
+        const w = drawer.dataset.w, x = e.target.closest('.tagx');
+        if (x) { dropTag(w, x.dataset.tag); return; }
         if (!e.target.closest('.tagadd')) return;
         withAcct(async () => {
           if (!inList(w) && !(await addOne(w))) return;
@@ -962,7 +1161,7 @@
           return;
         }
         const d = await r.json();
-        const had = onChart.find(x => x.wallet === w);           // the row's ◉ and its name can both be in flight: one chart entry
+        const had = onChart.find(x => x.wallet === w);           // the row's chart icon and its name can both be in flight: one chart entry
         if (had) { if (story && lastAsked === w) openStory(had); return; }
         const o = { wallet: w, bundleColor: bundleColor(w), trades: d.trades, n: d.n, truncated: d.truncated, complete: d.complete };
         if (onChart.length >= MAX_ON_CHART) {                   // the chart keeps its ten; the card still opens, but only the one asked for last
@@ -975,19 +1174,20 @@
       // every button in a row answers here, so a redrawn row needs no listeners of its own
       tbody.addEventListener('click', e => {
         const tr = e.target.closest('tr'); if (!tr) return;
-        const w = tr.dataset.w, s = e.target.closest('.saved');
-        if (s) { withAcct(() => openLists(s, [w])); return; }
-        const fb = e.target.closest('.fundb');
-        if (fb) {
-          const fnd = fb.dataset.fund, b = bundle[w];
-          f.funder = f.funder === fnd ? '' : fnd; saveF(); limit = LIMIT; apply();
-          EarlyUI.use('funder', { on: !!f.funder });
-          const nf = fnd.startsWith('x:') ? all.filter(o => fundKey(o.w) === fnd).length : (b ? b.n : 1);
-          EarlyUI.toast(f.funder ? 'Showing the ' + nf + ' wallets funded by ' + fundLabel(fnd) + ' · click again to clear' : 'Funder filter cleared');
+        const w = tr.dataset.w, s = e.target.closest('.star');
+        if (s) { withAcct(() => starWallet(w, s)); return; }
+        const bb = e.target.closest('.bundb');
+        if (bb) {                                                 // that bundle alone, and a second click brings everyone back
+          f.bundle = f.bundle === bb.dataset.bund ? '' : bb.dataset.bund; saveF(); limit = LIMIT; apply();
+          EarlyUI.use('funder', { on: !!f.bundle });
           return;
         }
         if (e.target.closest('.t-seen-before.seen')) { cardSrc = 'seen'; toggleWallet(w, true); return; }
-        const b = e.target.closest('.mk, .wname'); if (!b) return;
+        let b = e.target.closest('.mk, .wname');
+        if (!b) {                                                 // the rest of the row opens the card too; a selection or a tag stays put
+          if (e.target.closest('a, button, input, .tag, .ids') || String(window.getSelection() || '')) return;
+          b = tr.querySelector('.wname'); if (!b || b.disabled) return;
+        }
         if (b.classList.contains('mk')) EarlyUI.use('pin', { on: !pinned.has(w) });
         b.disabled = true; toggleWallet(w, b.classList.contains('wname')).finally(() => { b.disabled = false; });
       });
@@ -999,6 +1199,16 @@
       const ASSIST_ON = {{ 'true' if assistant_on else 'false' }}, aipop = document.getElementById('aipop'), aiwrap = document.getElementById('aiwrap');
       const ALANG = navigator.language || 'en', SUMQ = 'Summary of this pump';
       const QUICK = [...apanel.querySelectorAll('.aqbtn[data-q]')].map(b => b.dataset.q);
+      // the agent knows your lists (custdev 01.10): when some of your saved wallets bought here, asking about them is one click
+      const MYQ = 'Which of my saved wallets are here?';
+      function myChip() {
+        if (QUICK.includes(MYQ) || !all.some(o => inList(o.w))) return;
+        QUICK.unshift(MYQ);
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'aqbtn'; b.dataset.q = MYQ;
+        b.innerHTML = aEsc(MYQ) + '<span aria-hidden="true">→</span>';
+        apanel.querySelector('.aquick').prepend(b);
+        aState();
+      }
       let aBusy = false, aSummed = false;
       const aEsc = t => esc(String(t == null ? '' : t));
       const aWallet = w => '<div class="awr"><button type="button" class="awallet mono" data-w="' + aEsc(w.wallet) + '" title="Open this wallet\'s card">' + aEsc(w.short) + '</button>'
@@ -1060,13 +1270,13 @@
         aBusy = true;
         EarlyUI.track('agent-ask', { chip: !!chip });
         // what the agent needs to follow the talk: the last three questions with the answers as shown, and the wallets
-        // picked on this page (on the chart or ticked), so "and this one?" means the one in front of the person
+        // put on the chart on this page, so "and this one?" means the one in front of the person
         const history = [...athread.querySelectorAll('.aqa')].slice(-3).map(it => ({
           q: ((it.querySelector('.aqq') || {}).textContent || '').trim(),
           a: [...it.querySelectorAll('.aa li, .aa .awallet, .aa .awhy')].map(x => x.textContent.trim()).join(' · ').slice(0, 600) }))
           .filter(h => h.q && h.a && h.q !== SUMQ);
-        // "asked about": the wallets on the chart and a hand-picked few; a Select all is not a question about 700 wallets (review)
-        const focus = [...new Set([...onChart.map(o => o.wallet), ...(selected.size <= 5 ? selected : [])])].slice(0, 5);
+        // "asked about": the wallets on the chart, five at most
+        const focus = [...new Set(onChart.map(o => o.wallet))].slice(0, 5);
         const slot = aBubble(q);
         const { status, ok, d } = await aPost('/job/' + jobId + '/agent/ask', { q, lang: ALANG, chip: !!chip, history, focus });
         aBusy = false;
@@ -1123,6 +1333,11 @@
         const svcs = d.services || [], newS = svcs.length !== services.size;   // a funder found to be an exchange unmakes its bundle
         if (newS) services = new Set(svcs);
         (d.fresh || []).forEach(w => { const o = byW.get(w); if (o && !o.tags.includes('fresh')) { o.tags.unshift('fresh'); added++; } });
+        let newL = 0;                                           // InsightX names a funder: an exchange joins EXCH, an app the card
+        Object.entries(d.labels || {}).forEach(([a, v]) => { if (EXCH[a] || FLAB[a]) return; newL++;
+          if (v[2] === 'exchange') EXCH[a] = v[1] ? [v[0], v[1]] : [v[0], '', 1]; else FLAB[a] = [v[0], v[1], KIND_TXT[v[2]] || 'a known service']; });
+        if (newL) changed = true;
+        Object.entries(d.dormant || {}).forEach(([w, n]) => { DORM[w] = n; const o = byW.get(w); if (o && !o.tags.includes('dormant')) { o.tags.push('dormant'); added++; } });
         if (newF || newS) {
           rebundle();
           byW.forEach((o, w) => {                               // the tag follows the recount both ways
@@ -1145,8 +1360,10 @@
         if (d.done < d.total) { en.textContent = 'wallet age ' + d.done + '/' + d.total + '…'; again(); }
         else {
           const nb = Object.keys(bundle).length;                // only the first d.total by PnL are checked: say so, or "checked" reads as every wallet
-          en.textContent = (busy ? 'funders ' + (d.funders_done || 0) + '/' + d.total + '…' : (d.total >= all.length ? 'age checked for every wallet' : 'age checked for the top ' + d.total + ' by PnL'))
-            + ((d.fresh || []).length ? ' · ' + d.fresh.length + ' fresh' : '') + (nb ? ' · ' + nb + ' in bundles' : '');
+          // short in the toolbar, the whole sentence on hover (it sits beside the count now, not in a panel)
+          const scope = d.total >= all.length ? 'every wallet' : 'the top ' + d.total + ' by PnL';
+          en.textContent = busy ? 'funders ' + (d.funders_done || 0) + '/' + d.total + '…' : 'top ' + Math.min(d.total, all.length) + ' checked';
+          en.title = 'Age and first funder checked for ' + scope + ((d.fresh || []).length ? ' · ' + d.fresh.length + ' fresh' : '') + (nb ? ' · ' + nb + ' in bundles' : '');
           if (busy) again(); else names();
         }
         refresh();

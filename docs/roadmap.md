@@ -6,13 +6,18 @@ Paste a token, mark a range, get every wallet that bought there with facts you c
 Export. Repeats across your own saved analyses. Amounts in dollars or in SOL.
 
 A wallet card with the wallet's last 7 or 30 days on every token, counted from its swaps, and a mark when it is a
-known one: a KOL, its X account, the app it trades through. Several named lists for the wallets you keep. A busy
-token analyzed in seconds. A result that reads on a phone and stays light with thousands of wallets. New analyses
-counted per person a day, not per wallet.
+known one: a KOL, its X account, the app it trades through. Any of its recent tokens opens its own chart in the card,
+with the wallet's buys and sells on it. A watchlist with several named lists for the wallets you keep. A busy token
+analyzed in seconds. A result that reads on a phone and stays light with thousands of wallets. New analyses counted
+per person a day, not per wallet.
+
+A strip of facts under the chart: who bought, how much is sold out or still held, the share of fresh wallets and of
+wallets funded straight from an exchange, whether the bundles sold out. Tags for wallets that never sold and for
+wallets that slept a week before buying. Exchange names for funders from our own list, and which other funders are exchanges or apps from InsightX labels.
 
 Fresh pumps on the home page: tokens of the last two days that reached a real peak and are really traded, without the
-clones and the wash volume. Telegram alerts for the wallets in a list, in a closed test: a buy or a sell about two
-seconds after the block, and each row counting the wallet's trades of the last 7 days.
+clones and the wash volume. Telegram alerts, in a closed test: a bell on a wallet or on a whole list, a buy or a sell
+about two seconds after the block, and each row counting the wallet's trades of the last 7 days.
 
 An AI agent that reads only the analysis in front of it: answers to your questions and a summary in three cards
 (what happened, what to weigh, whose wallets stand out), each line carrying a number from the table. It needs a connected

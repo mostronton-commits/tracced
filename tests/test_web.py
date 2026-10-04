@@ -144,9 +144,9 @@ if AioHTTPTestCase:
             html = ""
             for _ in range(80):
                 r = await self.client.get(loc); html = await r.text()
-                if "↓ Export" in html: break
+                if 'aria-label="Export"' in html: break
                 await asyncio.sleep(0.1)
-            self.assertIn("↓ Export", html)
+            self.assertIn('aria-label="Export"', html)
             self.assertNotIn("Whole history", html)                      # no scope switch: the numbers are the whole history
             self.assertEqual(self.st.requests, before)                    # not a single request to Solana Tracker
             st = await (await self.client.get(loc + ".state.json?since=0")).json()
@@ -263,16 +263,17 @@ if AioHTTPTestCase:
             loc, html = r.headers["Location"], ""
             for _ in range(80):
                 html = await (await self.client.get(loc)).text()
-                if "↓ Export" in html: break
+                if 'aria-label="Export"' in html: break
                 await asyncio.sleep(0.1)
-            self.assertIn("↓ Export", html)
+            self.assertIn('aria-label="Export"', html)
             self.assertIn('id="cur"', html)                                # перемикач USD | SOL над таблицею
             self.assertIn('class="button holo" id="askbtn"', html)         # сяйво лишилось тільки на кнопці агента
-            for el in ('id="dtags"', 'id="dchips"', 'id="dprof"', 'id="dprofi"', 'id="dstar"', 'id="dcopy"',
+            for el in ('id="dtags"', 'id="dchips"', 'id="dprof"', 'id="dprofi"', 'id="dstar"', 'id="dw"',
                        'id="dcross"', 'id="dtrades"', 'id="dnote"', 'id="dclose"'):
                 self.assertIn(el, html)                                    # картка гаманця: секції, на які спирається скрипт
             self.assertNotIn('id="dfacts"', html)                          # цифри цього токена — у таблиці, картка їх не повторює
-            self.assertIn('class="button wl" id="watchbtn"', html)
+            self.assertNotIn('id="watchbtn"', html)                        # no bulk «+ Add to list»: the star in each row
+            self.assertIn("starWallet(w, s)", html)
             m = re.search(r'<script type="application/json" id="rowsdata">(.*?)</script>', html, re.S)
             table = json.loads(m.group(1))                                 # рядки йдуть даними, малює їх браузер
             first = dict(zip(table["f"], table["r"][0]))
@@ -707,7 +708,7 @@ if AioHTTPTestCase:
             loc, html = r.headers["Location"], ""
             for _ in range(80):
                 html = await (await self.client.get(loc)).text()
-                if "↓ Export" in html: break
+                if 'aria-label="Export"' in html: break
                 await asyncio.sleep(0.1)
             self.assertIn('id="xpanel"', html)
             self.assertIn("getElementById('xpanel')", html)
@@ -806,7 +807,10 @@ if AioHTTPTestCase:
             first = await (await self.client.get("/docs/how-it-works", headers=GUEST)).text()
             self.assertIn('href="/docs/index"', first)                        # кнопка «назад» на попередню сторінку
             self.assertIn('href="/docs/tags"', first)                         # і «далі» на наступну
-            self.assertIn("no-exits", await (await self.client.get("/docs/tags", headers=GUEST)).text())
+            tg = await (await self.client.get("/docs/tags", headers=GUEST)).text()
+            self.assertIn("never-sold", tg)
+            self.assertIn("dormant", tg)
+            self.assertNotIn("no-exits", tg)
             cmp_ = await (await self.client.get("/docs/compare", headers=GUEST)).text()
             self.assertIn('<div class="dtw"><table class="cmp">', cmp_)      # таблиця з класом теж загорнута і прокручується
             self.assertIn('<td class="us">', cmp_)
@@ -1100,7 +1104,11 @@ if AioHTTPTestCase:
             self.assertIn("lightweight-charts", html)
             self.assertIn("static/chart.js", html)
             self.assertIn("<b>Analyze</b>", html)
-            self.assertNotIn("<svg", html.split("<footer")[0])         # the page body draws with the chart library, not inline SVG
+            self.assertNotRegex(html.split("<footer")[0], r'<svg(?! class="ci)')   # the chart library draws the page; inline SVG only for icons
+            self.assertIn("/static/icons.svg?v=", html)                  # the icons come from the Carbon sprite
+            # owner, 04.10: the token's address copies itself on a click, with no copy mark beside it
+            self.assertIn(f'<button type="button" class="dwc mono" data-copy="{MINT}"', html)
+            self.assertNotIn("#i-copy", html.split('class="contract')[1].split("</div>")[0])
 
         async def test_token_page_preset_from_result(self):
             r = await self.client.get(f"/token?mint={MINT}&from=2001-09-09T01:46&to=2001-09-09T02:06&exit=2001-09-09T02:46")
@@ -1131,25 +1139,40 @@ if AioHTTPTestCase:
             for _ in range(50):
                 r = await self.client.get(loc)
                 html = await r.text()
-                if "↓ Export" in html:
+                if 'aria-label="Export"' in html:
                     break
                 await asyncio.sleep(0.05)
-            self.assertIn("↓ Export", html)
-            self.assertIn("spent in the range", html)                     # counts in one line; findings above them
+            self.assertIn('aria-label="Export"', html)
+            self.assertIn('id="tally"', html)                             # the counts and the findings, one strip under the chart
+            self.assertIn("<i>spent</i>", html)
+            self.assertNotIn('data-key="funder"', html)                  # no Funded by column (owner, 02.10): the card says it
+            self.assertNotIn('data-key="w"', html)                       # nor sorting by the address
+            self.assertIn('data-v="all"', html)                          # the card: this token | all tokens
             self.assertIn('id="finds"', html)
             self.assertIn("Back to the chart", html)
             self.assertIn('id="chart"', html)
             self.assertIsNone(CYRILLIC.search(html))
-            self.assertIn('id="filters"', html)                        # facts filters + selection + export
+            self.assertNotIn('id="filters"', html)                     # no filter panel: a funnel in each column's head (owner, 02.10)
+            self.assertIn('class="hfil" data-fil="inv"', html)
+            self.assertIn('class="hcur"', html)                          # the money unit sits in the head too
             self.assertIn("Export", html)
             self.assertNotIn("Copy addresses", html)
-            self.assertIn('class="sortable"', html)
+            self.assertIn('class="num sortable"', html)                   # the numbers sort; the address does not (owner, 02.10)
             self.assertIn('data-count=', html)                          # count-up tiles
-            self.assertIn(">Hide:<", html)
+            self.assertIn("Hide wallets tagged", html)                  # the tags live in the Filters menu (owner, 02.10)
+            self.assertNotIn('data-fil="w"', html)                       # funnels only by the numbers
+            self.assertIn('id="freset"', html)                           # Reset beside Filters
             self.assertIn("Exits known for", html)                       # coverage line
             self.assertNotIn("Only:", html)                              # the "Only" chips are gone (owner, 25.09)
             self.assertIn("Trades up to", html)
-            self.assertIn("Select all", html)
+            self.assertNotIn("Select all", html)                         # no checkboxes (owner, 02.10): the star does it
+            self.assertNotIn('class="pick"', html)
+            self.assertIn("Add to your watchlist", html)                  # the star in every row
+            self.assertIn('id="fpanel"', html)                           # the filters as a panel over the table (owner, 04.10)
+            self.assertIn('data-fil="hold"', html)                       # Held: from and to, buys too
+            self.assertNotIn("every number is their whole history on", html)   # owner, 02.10: not needed on the page
+            self.assertNotIn('class="ghost wcopy" data-copy="\' + o.w', html)  # copying the address lives in the card
+            self.assertIn('class="kinfo tipt"', html)                     # the grey lines under the chart went into the i
             self.assertIn('id="more"', html)                             # rows beyond the first 100 wait behind "Show more"
             self.assertIn("Show 100 more", html)
             r = await self.client.get(loc + ".state.json?since=0")      # live state for the terminal
@@ -1169,7 +1192,7 @@ if AioHTTPTestCase:
             self.assertEqual(r.status, 200)
             page48 = await r.text()
             self.assertNotIn("Numbers for", page48)                      # the scope switch is gone; an old ?scope= link still opens
-            self.assertIn('id="watchbtn"', page48)                      # the real save to a list, no placeholder
+            self.assertIn("/me/wallets", page48)                         # the real save to a list, no placeholder
             self.assertIn('id="aform"', page48)                          # the agent: cards, suggested questions and a question line
             self.assertIn("Save analysis", page48)
             self.assertNotIn("Add to watchlist", page48)
@@ -1459,7 +1482,7 @@ if AioHTTPTestCase:
             class Flaky:
                 model = "fake"
 
-                def ask(self, result, cfg, q, lang, history=None, focus=None):
+                def ask(self, result, cfg, q, lang, history=None, focus=None, mine=None, dossier=None):
                     if q == "down":
                         raise AssistantError("The agent's model is busy right now. Try again in a minute.")
                     return {"on_topic": False, "answer": ["I only answer questions about this analysis."], "wallets": [], "model": "fake"}, [], {}
@@ -2054,8 +2077,13 @@ if __name__ == "__main__":
 
 if AioHTTPTestCase:
     import base64
+    import csv
+    import io
     import os
+    from unittest import mock
+    from tracced.early import exchanges as exch_mod
     from tracced.web import accounts as acct_mod
+    from tracced.web import app as app_mod
     from tracced.web.app import Throttle
 
     try:
@@ -2314,6 +2342,47 @@ if AioHTTPTestCase:
                     acct_mod.MAX_ANALYSES = old
                 self.assertEqual(self.st.requests, 0)                                # усе це — без платних запитів
 
+        async def test_lists_move_copy_and_a_csv_about_the_wallet(self):
+            seed_demo(self.tmp.name, self.app)
+            funder = acct_mod.b58encode(b"\x05" * 32)
+            res = self.app["jobs"].get(DEMO_JID).result
+            res["identities"] = {W1: {"twitter": "@trader_x", "name": "Some Name"}}
+            res["funders"], res["ages"] = {W1: funder}, {W1: {"ms": 999990000000, "exact": True}}
+            r, pk, _, _ = await self._sign_in()
+            h = self._hdr(r)
+            self.assertEqual((await self.client.post("/me/wallets", json={"job": DEMO_JID, "wallets": [W1]}, headers=h)).status, 200)
+            lid = (await (await self.client.post("/me/lists", json={"name": "Second"}, headers=h)).json())["id"]
+            move = lambda body: self.client.post("/me/lists/move", json=body, headers=h)
+            d = await (await move({"wallets": [W1], "to": lid})).json()                 # copy: in both
+            self.assertEqual((d["wallets"], d["moved"]), ({W1: ["main", lid]}, False))
+            self.assertEqual((await (await move({"wallets": [W1], "to": lid})).json())["wallets"], {})   # already there
+            d = await (await move({"wallets": [W1, "B" * 44], "to": lid, "from": "main"})).json()       # move: out of the first
+            self.assertEqual((d["wallets"], d["moved"]), ({W1: [lid]}, True))           # an address not saved is not added
+            self.assertEqual((await self.client.get("/me.json", headers=h)).status, 200)
+            self.assertEqual((await (await self.client.get("/me.json", headers=h)).json())["wallets"][W1]["lists"], [lid])
+            self.assertEqual((await move({"wallets": [], "to": lid})).status, 400)
+            r = await move({"wallets": [W1], "to": "nope"})
+            self.assertEqual(r.status, 400)
+            self.assertIn("does not exist", (await r.json())["error"])
+            moves = [e for e in self.app["events"].tail(50) if e.get("event") == "list_move"]
+            self.assertEqual(sorted(e["how"] for e in moves), ["copy", "move"])          # the no-op wrote nothing
+            html = await (await self.client.get("/me", headers=h)).text()
+            self.assertNotIn("data-mv-wallet", html)                                    # no folder button in the row (owner, 02.10)
+            self.assertIn('data-lt="', html)                                            # the card switches the lists
+            self.assertNotIn("prompt(", html)                                           # the name is edited in its tab
+            self.assertIsNone(CYRILLIC.search(html))
+            with mock.patch.dict(exch_mod.KNOWN, {funder: ["Binance", "Binance hot wallet"]}):
+                body = await (await self.client.get("/me/wallets.csv", headers=h)).text()
+            rows = list(csv.DictReader(io.StringIO(body)))
+            self.assertEqual(body.splitlines()[0], ",".join(app_mod.ME_COLUMNS))
+            self.assertNotIn("entry_mcap", body.splitlines()[0])                       # about the wallet, not the token
+            row = rows[0]
+            self.assertEqual((row["wallet"], row["name"], row["x_handle"]), (W1, "trader_x", "trader_x"))
+            self.assertEqual((row["funder"], row["funder_exchange"], row["lists"]), (funder, "Binance", "Second"))
+            self.assertEqual(row["wallet_first_tx_utc"], "Sep 8, 2001 23:00 UTC")
+            self.assertEqual(row["symbol"], "TST")
+            self.assertEqual(self.st.requests, 0)                                       # all of it from what was saved
+
         async def test_pages_show_the_account_control(self):
             r = await self.client.get("/")
             html = await r.text()
@@ -2359,10 +2428,12 @@ if AioHTTPTestCase:
                     calls.append(("cards", lang, cfg["v"]))
                     return {"story": ["1 wallet bought."], "risks": [], "watch": [], "method": "m", "model": "fake"}, [], {"cost": 0.001}
 
-                def ask(self, result, cfg, q, lang, history=None, focus=None):
+                def ask(self, result, cfg, q, lang, history=None, focus=None, mine=None, dossier=None):
                     calls.append(("ask", q, lang))
                     seen.append((history, focus))
+                    mines.append(mine)
                     return {"on_topic": True, "answer": ["1 wallet bought."], "wallets": [], "model": "fake"}, [], {"cost": 0.001}
+            mines = []
             self.app["agent"] = FakeAgent()
             try:
                 o = {"Origin": self.origin}
@@ -2381,8 +2452,13 @@ if AioHTTPTestCase:
                 self.assertEqual(((await r.json())["left"], calls[-1]), (9, ("ask", "Who took 3x?", "English")))
                 r = await self.client.post(f"/job/{DEMO_JID}/agent/ask", json={"q": "Хто тримає?", "focus": [pk, "not-a-key"],
                                            "history": [{"q": "Who took 3x?", "a": "1 wallet bought."}, "junk", {"q": " "}]}, headers=h)
-                self.assertEqual(calls[-1][2], "the language of the user's question")   # своє питання — його мовою
+                self.assertEqual(calls[-1][2], "Ukrainian")                     # своє питання — його мовою, впізнаною кодом
                 self.assertEqual(seen[-1], ([{"q": "Who took 3x?", "a": "1 wallet bought."}], [pk]))   # розмова і вибрані гаманці — до агента
+                self.assertEqual(mines[-1], {})                                 # signed in, nothing saved yet
+                self.assertEqual((await self.client.post("/me/wallets", json={"job": DEMO_JID, "wallets": [W1]}, headers=h)).status, 200)
+                self.assertEqual((await self.client.post(f"/me/wallets/tags", json={"wallet": W1, "tags": ["insider"]}, headers=h)).status, 200)
+                await self.client.post(f"/job/{DEMO_JID}/agent/ask", json={"q": "Which of my saved wallets are here?"}, headers=h)
+                self.assertEqual(mines[-1], {W1: {"lists": ["Main"], "tags": ["insider"]}})   # the agent knows the user's own lists
                 self.app["s"]["agent_questions_per_day"] = 2
                 r = await self.client.post(f"/job/{DEMO_JID}/agent/ask", json={"q": "more"}, headers=h)
                 self.assertEqual(r.status, 429)

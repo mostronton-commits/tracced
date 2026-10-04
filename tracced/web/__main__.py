@@ -13,6 +13,7 @@ from ..config import load_config
 from ..early import settings
 from ..early.st_client import EarlyST
 from ..early.assistant import Assistant
+from ..early.labels import InsightX
 from ..early.wallet_age import MonthBudget, WalletAge
 from .app import create_app
 
@@ -38,12 +39,18 @@ def main():
                              reserve_pct=s.get("rpc_reserve_pct", 10))
         ages = WalletAge(cache=JsonCache("cache/early/wallet_age.json", ttl_hours=s["wallet_age_ttl_hours"]), budget=budget,
                          pace_s=float(s.get("rpc_pace_s", 0.5)), tx_pace_s=float(s.get("rpc_tx_pace_s", 0.3)))
+    labels = None
+    if os.getenv("INSIGHTX_API_KEY"):                      # мітки спонсорів (біржі, застосунки); без ключа — лише наш список бірж
+        labels = InsightX(os.getenv("INSIGHTX_API_KEY"), cache=JsonCache("cache/early/labels.json", ttl_hours=24 * 30),
+                          budget=MonthBudget("output/early/daily/insightx-month.json", limit=s.get("insightx_month", 1000),
+                                             reserve_pct=s.get("insightx_reserve_pct", 10)),
+                          pace_s=float(s.get("insightx_pace_s", 13)))
     assistant = None
     if os.getenv("ASSISTANT_KEY"):
         assistant = Assistant(os.getenv("ASSISTANT_KEY"), url=os.getenv("ASSISTANT_URL"), model=os.getenv("ASSISTANT_MODEL"),
                               fallbacks=os.getenv("ASSISTANT_FALLBACKS"))
         logging.getLogger("early.web").info("assistant: %s @ %s", assistant.model, assistant.url)
-    app = create_app(st, s, cfg, ages=ages, assistant=assistant, background=True)   # фон дашборда власника: лише живий сервер
+    app = create_app(st, s, cfg, ages=ages, assistant=assistant, background=True, labels=labels)   # фон дашборда власника: лише живий сервер
 
     async def more_threads(_app):
         # blocking work goes to threads (rows, the chart, the agent, files): the default pool is cpu+4, and eight slow

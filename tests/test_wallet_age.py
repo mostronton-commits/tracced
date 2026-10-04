@@ -231,6 +231,51 @@ class TestWalletAge(unittest.TestCase):
         age = WalletAge(url=HX, post=unknown_sig, sleep=lambda s: None, pace_s=0).oldest_tx("APP", full=False, before="??")
         self.assertEqual((age["exact"], age["n"], len(calls)), (True, 3, 2))
 
+    def test_the_page_before_the_buy_also_says_when_the_wallet_was_last_awake(self):
+        # owner, 04.10: «dormant» — the transaction right before the first buy here, read with the age for free
+        class Cache(dict):
+            def get(self, k, since=None): return dict.get(self, k)
+            def put(self, k, v): self[k] = v
+            def flush(self): pass
+        HX = "https://mainnet.helius-rpc.com/?api-key=x"
+        post = FakePost([sigs(12, oldest_s=1_700_000_000)])
+        wa = WalletAge(url=HX, post=post, sleep=lambda s: None, pace_s=0, cache=Cache())
+        wa.oldest_tx("A", full=False, before="BUY")
+        self.assertEqual(wa.prev_tx("A", "BUY"), 1_700_000_012_000)              # the newest of the page before the buy
+        self.assertEqual(len(post.calls), 1)                                      # no second call for it
+        post = FakePost([[{"signature": "p", "blockTime": 1_700_000_500}]])      # age from the cache: one signature, 1 credit
+        b = MonthBudget(None, limit=100)
+        wa = WalletAge(url=HX, post=post, sleep=lambda s: None, pace_s=0, cache=Cache(), budget=b)
+        self.assertIsNone(wa.prev_tx("B", "BUY2", cached_only=True))             # paused: no call
+        self.assertEqual(wa.prev_tx("B", "BUY2"), 1_700_000_500_000)
+        self.assertEqual((post.calls[0]["params"][1], b.spent), ({"limit": 1, "before": "BUY2"}, 1))
+        self.assertEqual(wa.prev_tx("B", "BUY2"), 1_700_000_500_000)
+        self.assertEqual(len(post.calls), 1)
+        post = FakePost([[]])                                                     # the buy was its first transaction
+        wa = WalletAge(url=HX, post=post, sleep=lambda s: None, pace_s=0, cache=Cache())
+        self.assertIsNone(wa.prev_tx("C", "BUY3"))
+
+    def test_enrichment_tags_a_wallet_that_slept_a_week(self):
+        from types import SimpleNamespace
+        from tracced.web.app import make_enricher
+
+        class Cache(dict):
+            def get(self, k, since=None): return dict.get(self, k)
+            def put(self, k, v): self[k] = v
+            def flush(self): pass
+        buy_s = 1_790_000_000
+        HX = "https://mainnet.helius-rpc.com/?api-key=x"
+        # SLEPT: its last transaction before the buy was 23 days earlier; AWAKE: an hour earlier
+        post = FakePost([[{"signature": "x", "blockTime": buy_s - 23 * 86400}, {"signature": "y", "blockTime": buy_s - 400 * 86400}],
+                         [{"signature": "z", "blockTime": buy_s - 3600}, {"signature": "q", "blockTime": buy_s - 300 * 86400}],
+                         {"meta": {}}, {"meta": {}}])
+        wa = WalletAge(url=HX, post=post, sleep=lambda s: None, pace_s=0, cache=Cache())
+        rows = [{"wallet": w, "first_buy_ms": buy_s * 1000, "tag_list": [], "entry_tx": "buy-" + w} for w in ("SLEPT", "AWAKE")]
+        job = SimpleNamespace(result={"rows": rows}, log=[])
+        make_enricher(wa, {"age_lookups_max": 10, "age_full_top": 0})(job, lambda j: True)
+        self.assertEqual(job.result["dormant"], {"SLEPT": 23})
+        self.assertEqual((rows[0]["tag_list"], rows[1]["tag_list"]), (["dormant"], []))
+
     def test_the_cheap_funder_check_leaves_the_search_for_later(self):
         class Cache(dict):
             def get(self, k): return dict.get(self, k)

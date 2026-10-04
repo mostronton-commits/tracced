@@ -10,7 +10,7 @@
 Вікно ковзне: години за UTC, сума за останні 168 годин; тримаємо 8 діб. Усі зміни — з циклу подій сервера (один потік),
 на диск пишемо знімок у фоновому потоці з кожною перевіркою потоку (alerts_check_s) і при зупинці. Тут же закладка
 опитування-страховки і підписи, оброблені за останні 15 хвилин (після перезапуску не надсилаються вдруге). Файл:
-{гаманець: {"h": {"YYYY-MM-DDTHH": [купівлі, продажі]}, "last": ms, "since": ms, "sig": закладка, "done": [[підпис, ms]]}}."""
+{гаманець: {"h": {"YYYY-MM-DDTHH": [купівлі, продажі, найбільша купівля $]}, "last": ms, "since": ms, "sig": закладка, "done": [[підпис, ms]]}}."""
 import datetime
 import json
 import os
@@ -61,8 +61,8 @@ class Activity:
         for w, rec in (raw.items() if isinstance(raw, dict) else []):
             if not isinstance(rec, dict) or not _int(rec.get("since")) or not isinstance(rec.get("h", {}), dict):
                 continue
-            hours = {h: [v[0], v[1]] for h, v in rec.get("h", {}).items()
-                     if _hour_ms(h) and isinstance(v, list) and len(v) == 2 and all(_int(x) for x in v)}
+            hours = {h: list(v) for h, v in rec.get("h", {}).items()
+                     if _hour_ms(h) and isinstance(v, list) and len(v) in (2, 3) and all(_int(x) for x in v)}
             done = [[x[0], x[1]] for x in rec.get("done") or [] if isinstance(x, list) and len(x) == 2 and isinstance(x[0], str) and _int(x[1])]
             out[str(w)] = {"h": hours, "last": rec["last"] if _int(rec.get("last")) else 0, "since": rec["since"],
                            "sig": rec["sig"] if isinstance(rec.get("sig"), str) else "", "done": done[-DONE_MAX:]}
@@ -79,14 +79,23 @@ class Activity:
             self.data[w] = {"h": {}, "last": 0, "since": now_ms, "sig": "", "done": []}
             self.dirty = True
 
-    def bump(self, wallet, side, ms=None):
-        """Одна угода гаманця, за яким стежить потік."""
+    def bump(self, wallet, side, ms=None, usd=None):
+        """Одна угода гаманця, за яким стежить потік; у купівлі — ще й найбільша сума за годину (картка в Lists)."""
         rec = self.data.get(wallet)
         if rec is None or side not in ("buy", "sell"):
             return
         ms = int(ms or _now())
         h = rec["h"].setdefault(_hour(ms), [0, 0])
         h[0 if side == "buy" else 1] += 1
+        if side == "buy" and usd:
+            try:
+                big = int(round(float(usd)))
+            except (TypeError, ValueError):
+                big = 0
+            if big > 0:
+                if len(h) < 3:
+                    h.append(0)
+                h[2] = max(h[2], big)
         rec["last"] = max(rec["last"], ms)
         self.dirty = True
 
@@ -130,7 +139,8 @@ class Activity:
             if rec is None:
                 continue
             got = [v for h, v in rec["h"].items() if _hour_ms(h) + HOUR_MS > start]
-            out[w] = {"buys": sum(v[0] for v in got), "sells": sum(v[1] for v in got), "last": rec["last"], "since": rec["since"]}
+            out[w] = {"buys": sum(v[0] for v in got), "sells": sum(v[1] for v in got), "last": rec["last"], "since": rec["since"],
+                      "big": max((v[2] for v in got if len(v) > 2), default=0) or None}
         return out
 
     def snapshot(self, now_ms=None):

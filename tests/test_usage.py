@@ -172,7 +172,8 @@ class TestSummary(unittest.TestCase):
         self.assertEqual(self.summ(period="today")["pulse"]["dau"], 1)
 
     def test_alerts_count_but_never_as_the_subscribers_activity(self):
-        acc = [{"pubkey": A, "created_ms": NOW - 3 * D, "telegram": {"chat": 1}, "lists": {"main": {"name": "Main", "alerts": True}}}]
+        acc = [{"pubkey": A, "created_ms": NOW - 3 * D, "telegram": {"chat": 1}, "lists": {"main": {"name": "Main"}},
+                "wallets": {"W" * 44: {"lists": ["main"], "alert": True}, "V" * 44: {"lists": ["main"]}}}]   # bells are on wallets now
         evs = [ev(NOW - 3 * H, A, "tg_link"), ev(NOW - 3 * H, A, "telegram", on=1),
                ev(NOW - 2 * H, A, "alert", side="buy", usd=500, mint="M", lag_ms=4000, bg=True),
                ev(NOW - 2 * H, A, "alert", side="sell", usd=300, mint="M", lag_ms=6000),        # an old row without bg
@@ -290,6 +291,10 @@ class TestSummary(unittest.TestCase):
                          {"text": "saved 1 wallet from", "href": "/job/J1", "link": "ONE"})
         self.assertEqual(usage.label(ev(1, A, "limit", what="run", kind="wallet"))["text"], "hit the daily limit: run (wallet)")
         self.assertIn("off topic", usage.label(ev(1, A, "agent", kind="ask", ok=1, off=1, job="J1"))["text"])
+        self.assertEqual(usage.label(ev(1, A, "list_move", n=2, how="copy"))["text"], "copied 2 wallets to another list")
+        self.assertEqual(usage.label(ev(1, A, "list_move", n=1, how="move"))["text"], "moved 1 wallet to another list")
+        self.assertIn("star", usage.UI_FEATURES)                               # the star replaced the checkboxes (owner, 02.10)
+        self.assertNotIn("select-all", usage.UI_FEATURES)
 
 
 class TestOnchainHelpers(unittest.TestCase):

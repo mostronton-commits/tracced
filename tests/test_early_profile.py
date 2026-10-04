@@ -141,6 +141,16 @@ class TestCardExtras(unittest.TestCase):
         self.assertAlmostEqual(recent["TOKA"]["roi"], 50)
         self.assertEqual(c["recent"][0]["symbol"], "TOKC")          # найсвіжіший угорі
 
+    def test_recent_tokens_carry_their_trades_for_the_cards_chart(self):
+        # owner, 04.10: a recent token opens its chart in the card with the wallet's buys and sells; no new requests
+        raws = [swap(2, SOL, 1.0, "TOKA", 1000, 100.0, get_px=0.1, tx="b1"), swap(1, "TOKA", 1000, SOL, 1.5, 150.0, give_px=0.15, tx="s1")]
+        tok = {r["symbol"]: r for r in profile.card(events(raws), W, NOW)["recent"]}["TOKA"]
+        self.assertEqual([x[1] for x in tok["trades"]], ["b", "s"])                 # oldest first
+        t0, side, usd, qty, px = tok["trades"][0]
+        self.assertEqual((t0, side, usd, qty, px), (NOW - 2 * DAY, "b", 100.0, 1000, 0.1))
+        many = [swap(1 + i / 1000, SOL, 0.1, "TOKB", 10, 10.0, get_px=1.0, tx=f"m{i}") for i in range(60)]
+        self.assertEqual(len(profile.recent_tokens(events(many), NOW)[0]["trades"]), profile.RECENT_TRADES)
+
 
 class TestIdentity(unittest.TestCase):
     def test_only_what_we_show_survives(self):

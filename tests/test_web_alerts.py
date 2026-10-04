@@ -77,8 +77,8 @@ if AioHTTPTestCase:
             r = await self.client.post("/me/alerts", json={"buys": True, "sells": False, "min_usd": 250}, headers=self.origin)
             self.assertEqual((await r.json())["prefs"], {"buys": True, "sells": False, "min_usd": 250.0})
             r = await self.client.post("/me/lists/alerts", json={"id": "main", "on": True}, headers=self.origin)
-            self.assertIs((await r.json())["alerts"], True)
-            self.assertTrue(self.app["accounts"].load(TEST_PK)["lists"]["main"]["alerts"])
+            d = await r.json()
+            self.assertEqual((d["alerts"], d["changed"]), (True, 0))                      # the whole list at once; empty here
             self.assertIn('id="tgbar"', await (await self.client.get("/me")).text())
             self.client.session.headers["Cookie"] = wallet_cookie(W1)                      # anyone else, in the closed test
             self.assertEqual((await self.client.post("/me/telegram/link", json={}, headers=self.origin)).status, 403)
@@ -137,6 +137,111 @@ if AioHTTPTestCase:
             self.assertIn("last trade 9d ago", await (await self.client.get("/me")).text())   # quiet for a week
             act.data[W1]["last"] = 0
             self.assertIn("no trades yet", await (await self.client.get("/me")).text())       # watched, nothing traded
+
+        async def test_the_bell_is_per_wallet_and_capped(self):
+            # owner, 02.10: the bell on each wallet, at most alerts_max_wallets (10) on; the page counts them and today's alerts
+            seed_demo(self.tmp.name, self.app)
+            self.assertEqual(settings.load()["alerts_max_wallets"], 10)                     # owner, 02.10: 50 → 10 per account
+            from tracced.web import accounts as acct_mod
+            w2 = acct_mod.b58encode(b"\x02" * 32)
+            r = await self.client.post("/me/wallets", json={"job": DEMO_JID, "wallets": [W1]}, headers=self.origin)
+            self.assertEqual(r.status, 200, await r.text())
+            self.app["accounts"].add_wallets(TEST_PK, [{"wallet": w2}])
+            self.app["accounts"].set_telegram(TEST_PK, 4242, "@owner")
+            bell = lambda w, on: self.client.post("/me/wallets/alert", json={"wallet": w, "on": on}, headers=self.origin)
+            d = await (await bell(W1, True)).json()
+            self.assertEqual((d["on"], d["n"], d["cap"]), (True, 1, 10))
+            self.assertEqual(list(app_mod._watch_now(self.app)), [W1])                       # only the wallet with its bell on
+            self.app["s"]["alerts_max_wallets"] = 1
+            r = await bell(w2, True)
+            self.assertEqual(r.status, 400)
+            self.assertIn("Turn one off first", (await r.json())["error"])
+            html = await (await self.client.get("/me")).text()
+            self.assertIn('data-cap="1">1</b> of 1 wallets', html)                          # the counters by the switch
+            self.assertIn("<b>0</b> of 200 alerts today", html)
+            self.assertIn('class="ghost bell on" data-bell', html)
+            self.assertEqual((await (await bell(W1, False)).json())["n"], 0)
+            self.assertEqual((await (await bell(w2, True)).json())["n"], 1)
+            self.assertEqual(list(app_mod._watch_now(self.app)), [w2])
+            self.assertEqual((await bell("Q" * 44, True)).status, 400)                       # not in the lists
+            self.client.session.headers["Cookie"] = wallet_cookie(W1)                        # anyone else, in the closed test
+            self.assertEqual((await bell(w2, True)).status, 403)
+
+        async def test_a_whole_list_switches_on_and_the_page_gets_every_bell(self):
+            # owner, 04.10: «alerts by lists» again. The list's switch rings every wallet in it, the newest first while there
+            # is room, and the answer carries every bell so the page shows them all at once
+            from tracced.web import accounts as acct_mod
+            w2, w3 = acct_mod.b58encode(b"\x02" * 32), acct_mod.b58encode(b"\x03" * 32)
+            acc = self.app["accounts"]
+            acc.add_wallets(TEST_PK, [{"wallet": W1}, {"wallet": w2}])
+            lid, _ = acc.create_list(TEST_PK, "Second")
+            acc.add_wallets(TEST_PK, [{"wallet": w3}], lid)
+            the_list = lambda i, on: self.client.post("/me/lists/alerts", json={"id": i, "on": on}, headers=self.origin)
+            d = await (await the_list("main", True)).json()
+            self.assertEqual((d["changed"], sorted(d["bells"]), d["cap"]), (2, sorted([W1, w2]), 10))
+            self.app["s"]["alerts_max_wallets"] = 3
+            d = await (await the_list(lid, True)).json()
+            self.assertEqual((d["changed"], len(d["bells"])), (1, 3))
+            d = await (await the_list("main", False)).json()
+            self.assertEqual((d["changed"], d["bells"]), (2, [w3]))                          # the other list keeps its bell
+            html = await (await self.client.get("/me")).text()
+            self.assertIn('id="lalert"', html)
+            self.assertIn('id="tgconnect"', html)                                             # the real site: connect, no preview
+            self.assertNotIn("Preview on the draft", html)
+
+        async def test_after_the_alerts_counts_from_the_buy_price(self):
+            # owner, 04.10: «що було після алерту» — a bell wallet's first buy and what the token did next, from its price
+            from tracced.early import profile as profile_mod
+            now = int(time.time() * 1000)
+            step = 300_000
+            t_buy = (now - 3 * 3_600_000) // step * step
+            self.app["accounts"].add_wallets(TEST_PK, [{"wallet": W1}])
+            self.app["accounts"].set_wallet_alert(TEST_PK, W1, True, 10)
+            mint = "M" * 44
+            card = {"recent": [{"mint": mint, "symbol": "PUMP", "trades": [[t_buy, "b", 100.0, 1000, 0.1], [t_buy + 3_600_000, "s", 150.0, 500, 0.3]]}]}
+            self.app["profile_cache"].put(f"v{profile_mod.VERSION}:{W1}", card)          # its 30 days, from the card's cache
+            asked = []
+
+            def chart(m, interval, a, b, **kw):
+                asked.append((m, interval, a, b))
+                return [{"time": t_buy + i * step, "open": 0.1, "high": h, "low": lo, "close": h}
+                        for i, (h, lo) in enumerate([(0.5, 0.1), (0.12, 0.08), (0.25, 0.2), (0.2, 0.15)])]
+            self.app["st"].chart = chart
+            self.assertEqual((await self.client.get("/me/after.json")).status, 404)            # the public site: not yet (owner, 04.10)
+            self.assertNotIn('id="after"', await (await self.client.get("/me")).text())
+            self.app["s"]["after_alerts"] = "on"                                              # the draft has it; «on» opens it anywhere
+            d = await (await self.client.get("/me/after.json")).json()
+            self.assertEqual((d["basis"], d["wallets"], d["partial"]), ("bells", 1, None))
+            r = d["rows"][0]
+            self.assertEqual((r["symbol"], r["wallet"], r["new"]), ("PUMP", W1, True))
+            self.assertEqual((r["peak_x"], r["dip_x"], r["now_x"], r["at_end"]), (2.5, 0.8, 2.0, False))   # the buy's own candle is out
+            self.assertEqual((r["exit_x"], r["exit_min"], r["sold_pct"]), (3.0, 60, 50))
+            self.assertEqual(asked[0][:2], (mint, "5m"))
+            self.assertEqual(d["summary"]["n"], 1)
+            await self.client.get("/me/after.json")
+            self.assertEqual(len(asked), 1)                                                # counted once, then 15 minutes from memory
+            html = await (await self.client.get("/me")).text()
+            self.assertIn('id="after"', html)
+            self.assertIn("After the alerts", html)
+
+        async def test_old_results_are_labelled_only_when_the_owner_opens_them(self):
+            # release check, 04.10: guests and crawlers on the public site must not queue every old result for labels and
+            # «dormant»; the owner's view (or the draft) does, once
+            try:
+                from tests.test_web import OTHER_JID
+            except ImportError:
+                from test_web import OTHER_JID
+            seed_demo(self.tmp.name, self.app)
+            job = self.app["jobs"].get(OTHER_JID)
+            job.result["enrich"] = {"done": 1, "total": 1, "funders_done": 1}
+            job.result["funders"] = {W1: "F" * 44}
+            self.app["labels"] = object()                                   # a key is set on this server
+            with mock.patch.object(self.app["jobs"], "resume_enrich") as resume:
+                r = await self.client.get("/job/" + OTHER_JID, headers={"Cookie": ""})
+                self.assertEqual(r.status, 200)
+                resume.assert_not_called()                                  # a guest: nothing is queued
+                await self.client.get("/job/" + OTHER_JID)                  # the owner (an admin wallet)
+                resume.assert_called_once_with(job)
 
         async def test_the_poll_catches_what_the_stream_missed(self):
             now = int(time.time())
@@ -292,6 +397,14 @@ if AioHTTPTestCase:
             self.assertIn("T0:BOT", self.app["alerts_seen"])                             # and marked, so not sent later
             self.assertEqual(act.last_sig("BOT"), "T0")
 
+        async def test_the_poll_does_not_step_over_a_trade_still_in_work(self):
+            self.app["alerts_wm"] = {"WAL": [{"pk": TEST_PK, "chat": 7, "prefs": {}, "tags": []}]}
+            self.app["alerts_seen"]["S:WAL"] = time.time()
+            self.app["alerts_inflight"].add("S:WAL")                                   # the stream is still reading it
+            self.assertFalse(await app_mod._alert_tx(self.app, None, "WAL", "S", via="poll"))
+            self.app["alerts_inflight"].discard("S:WAL")
+            self.assertTrue(await app_mod._alert_tx(self.app, None, "WAL", "S", via="poll"))   # done: the poll moves on
+
         async def test_a_trade_the_node_did_not_give_is_retried_not_lost(self):
             self.app["alerts_wm"] = {"WAL": [{"pk": TEST_PK, "chat": 7, "prefs": {}, "tags": []}]}
             with mock.patch.object(app_mod, "_alert_rpc", mock.AsyncMock(side_effect=RuntimeError("rpc getTransaction: -32005 rate limit"))), \
@@ -386,6 +499,120 @@ if AioHTTPTestCase:
             self.app["alerts_wm"] = {}
             with mock.patch.object(app_mod, "_rpc", mock.AsyncMock(side_effect=AssertionError("no one watches"))):
                 await app_mod._alert_tx_safe(self.app, None, "WAL", "late")               # nobody watches: not even the node is asked
+
+        async def test_alerts_have_a_daily_share_of_the_data_provider(self):
+            # plan 0.8, item 17: past the day's share an alert still goes, without paid lookups (cached name only)
+            self.app["s"].update(alerts_per_hour=100, alerts_st_per_day=3)
+            sub = {"pk": TEST_PK, "chat": 7, "prefs": {"buys": True, "sells": True, "min_usd": 0}, "tags": [], "src": ""}
+            self.app["alerts_wm"] = {"WAL": [sub]}
+            self.app["activity"].watch({"WAL"})
+            ev = {"side": "buy", "mint": "M" * 32, "usd": 500.0, "amount": 10.0, "before": 0.0, "sig": "", "ts": int(time.time()), "mcap": 1e6}
+            calls, texts = {"facts": 0}, []
+
+            async def fetch(app, mint):                       # what a real lookup costs: two requests, counted the real way
+                calls["facts"] += 1
+                app_mod._alerts_spent(app, 2, mint)
+                app["alerts_tok"][mint] = (time.time(), {"symbol": "PAID"})                # and kept for 10 minutes, as the real one
+                return {"symbol": "PAID"}
+
+            async def send(app, http, chat, text, pk=None):
+                texts.append(text)
+                return True
+
+            async def rpc(*a, **k):
+                return {"tx": 1}
+
+            async def price(app, http):
+                return 150.0
+            with mock.patch.object(app_mod, "_rpc", rpc), mock.patch.object(app_mod, "_sol_price", price), \
+                    mock.patch.object(app_mod, "_token_facts_fetch", fetch), mock.patch.object(app_mod, "_tg_send", send), \
+                    mock.patch.object(app_mod.alerts_mod, "classify", lambda tx, w, px: [dict(ev)]):
+                await app_mod._alert_tx_safe(self.app, None, "WAL", "sig1")                # pays: 2 of 3
+                self.app["alerts_tok"].clear()                                             # a token not seen for 10 minutes
+                await app_mod._alert_tx_safe(self.app, None, "WAL", "sig2")                # pays again: 4 of 3, the day is used up
+                await app_mod._alert_tx_safe(self.app, None, "WAL", "sig3")                # no lookup, the name from memory
+                self.app["alerts_tok"].clear()
+                await app_mod._alert_tx_safe(self.app, None, "WAL", "sig4")                # no lookup, no name: the short address
+            self.assertEqual(calls["facts"], 2)
+            self.assertEqual(len(texts), 4)                                                # every trade still alerted
+            self.assertIn("$PAID", texts[2])
+            self.assertNotIn("$PAID", texts[3])
+            self.assertIn("MMMMMM", texts[3])
+            self.assertEqual(app_mod._alerts_st_left(self.app), -1)
+            st = await (await self.client.get("/me/telegram.json")).json()
+            self.assertEqual((st["state"]["st_today"], st["state"]["st_per_day"]), (4, 3))   # the owner sees the day's spend
+
+        async def test_an_account_gets_at_most_its_day_of_alerts(self):
+            # owner, 02.10: 200 a day per account; past it one line, then silence until 00:00 UTC. What the hour's cap
+            # skipped does not use up the day
+            sub = {"pk": TEST_PK, "chat": 7, "prefs": {"buys": True, "sells": True, "min_usd": 0}, "tags": [], "src": ""}
+            self.app["alerts_wm"] = {"WAL": [sub]}
+            self.app["activity"].watch({"WAL"})
+            ev = {"side": "buy", "mint": "M" * 32, "usd": 500.0, "amount": 10.0, "before": 0.0, "sig": "", "ts": int(time.time()), "mcap": 1e6}
+            texts = []
+
+            async def send(app, http, chat, text, pk=None):
+                texts.append(text)
+                return True
+
+            async def rpc(*a, **k):
+                return {"tx": 1}
+
+            async def price(app, http):
+                return 150.0
+            with mock.patch.object(app_mod, "_rpc", rpc), mock.patch.object(app_mod, "_sol_price", price), \
+                    mock.patch.object(app_mod, "_token_facts", mock.AsyncMock(return_value={"symbol": "X"})), mock.patch.object(app_mod, "_tg_send", send), \
+                    mock.patch.object(app_mod.alerts_mod, "classify", lambda tx, w, px: [dict(ev)]):
+                self.app["s"].update(alerts_per_hour=2, alerts_per_day=3)
+                for i in range(4):
+                    await app_mod._alert_tx_safe(self.app, None, "WAL", f"h{i}")
+                self.assertEqual(len(texts), 3)                                            # two alerts, one line about the hour
+                self.assertIn("this hour", texts[-1])
+                self.assertEqual(self.app["alerts_day"].left("a:" + TEST_PK, 3), 1)      # the skipped two did not use up the day
+                self.app["alerts_hour"].clear()                                             # a new hour
+                self.app["s"]["alerts_per_hour"] = 100
+                for i in range(4):
+                    await app_mod._alert_tx_safe(self.app, None, "WAL", f"d{i}")
+            self.assertEqual(len(texts), 5)                                                # one more alert, then the day's line, then silence
+            self.assertEqual(self.app["alerts_day"].count("s:" + TEST_PK + ":WAL"), 3)      # what the wallet's card says it sent today
+            self.assertIn("alerts today", texts[-1])
+            self.assertIn("00:00 UTC", texts[-1])
+
+        async def test_one_wallet_gets_at_most_its_day_of_alerts(self):
+            # owner, 02.10: 50 a day from any one wallet, so a bot trading every minute does not use up the account's day.
+            # Past it one line about that wallet, then it alone stays silent; the others keep coming
+            sub = {"pk": TEST_PK, "chat": 7, "prefs": {"buys": True, "sells": True, "min_usd": 0}, "tags": ["botty"], "src": ""}
+            self.app["alerts_wm"] = {"WAL": [sub], "OTHER": [dict(sub, tags=[])]}
+            self.app["activity"].watch({"WAL", "OTHER"})
+            ev = {"side": "buy", "mint": "M" * 32, "usd": 500.0, "amount": 10.0, "before": 0.0, "sig": "", "ts": int(time.time()), "mcap": 1e6}
+            texts = []
+
+            async def send(app, http, chat, text, pk=None):
+                texts.append(text)
+                return True
+
+            async def rpc(*a, **k):
+                return {"tx": 1}
+
+            async def price(app, http):
+                return 150.0
+            with mock.patch.object(app_mod, "_rpc", rpc), mock.patch.object(app_mod, "_sol_price", price), \
+                    mock.patch.object(app_mod, "_token_facts", mock.AsyncMock(return_value={"symbol": "X"})), mock.patch.object(app_mod, "_tg_send", send), \
+                    mock.patch.object(app_mod.alerts_mod, "classify", lambda tx, w, px: [dict(ev)]):
+                self.app["s"].update(alerts_per_hour=100, alerts_per_day=10, alerts_per_wallet_day=2)
+                for i in range(4):
+                    await app_mod._alert_tx_safe(self.app, None, "WAL", f"w{i}")
+                self.assertEqual(len(texts), 3)                                            # two alerts, then one line about it
+                self.assertIn("2 alerts from botty today", texts[-1])
+                self.assertIn("00:00 UTC", texts[-1])
+                self.assertEqual(self.app["alerts_day"].count("a:" + TEST_PK), 2)         # its silence took nothing from the day
+                await app_mod._alert_tx_safe(self.app, None, "OTHER", "o1")              # another wallet still comes through
+                self.assertEqual(len(texts), 4)
+                self.assertNotIn("⏸", texts[-1])
+                self.app["s"]["alerts_per_day"] = 3                                         # the account's day ends first:
+                await app_mod._alert_tx_safe(self.app, None, "OTHER", "o2")              # its line, and OTHER keeps its place
+                self.assertIn("alerts today", texts[-1])
+                self.assertEqual(self.app["alerts_day"].count("c:" + TEST_PK + ":OTHER"), 1)
 
 
 if __name__ == "__main__":

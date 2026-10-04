@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Lists · tracced{% endblock %}
+{% block title %}Watchlist · tracced{% endblock %}
 {% block main_class %}{% if not acct %}center{% else %}withcard{% endif %}{% endblock %}
-{% block head %}<script src="/static/card.js?v={{ v }}"></script>{% endblock %}
+{% block head %}<script src="/static/vendor/lightweight-charts.standalone.production.js?v={{ v }}"></script><script src="/static/chart.js?v={{ v }}"></script><script src="/static/card.js?v={{ v }}"></script>{% endblock %}
 {% block body %}
 {% if not acct %}
 <section class="card narrow">
@@ -21,32 +21,36 @@
       <b>Telegram alerts</b>
       <span id="tgtext">{% if tg.linked %}<i class="tgdot"></i>Connected as <b>{{ tg.user or 'your Telegram' }}</b>{% else %}The buys and sells of your wallets, seconds after they happen{% endif %}</span>
     </div>
-    <div class="tgprefs" id="tgprefs"{% if not tg.linked %} hidden{% endif %}>
+    <div class="tgprefs" id="tgprefs"{% if not tg.linked and not alerts_preview %} hidden{% endif %}>
       <button type="button" class="tgt{{ ' on' if prefs.buys }}" id="tgbuys" aria-pressed="{{ 'true' if prefs.buys else 'false' }}">Buys</button>
       <button type="button" class="tgt{{ ' on' if prefs.sells }}" id="tgsells" aria-pressed="{{ 'true' if prefs.sells else 'false' }}">Sells</button>
       <label class="tgmin">from $<input type="number" id="tgmin" min="0" step="10" value="{{ prefs.min_usd|round|int }}" aria-label="Smallest trade to alert on, in dollars"></label>
     </div>
-    <button type="button" class="primary tgbtn" id="tgconnect"{% if tg.linked %} hidden{% endif %}>Connect Telegram</button>
+    {% if alerts_preview %}<span class="tgprev">Preview on the draft: the bells save, nothing is sent. Alerts go out from tracced.xyz.</span>
+    {% else %}<button type="button" class="primary tgbtn" id="tgconnect"{% if tg.linked %} hidden{% endif %}>Connect Telegram</button>{% endif %}
     <button type="button" class="link" id="tgunlink"{% if not tg.linked %} hidden{% endif %}>Disconnect</button>
   </div>
-  <p class="tghint" id="tghint"{% if not tg.linked %} hidden{% endif %}>Turn on the bell <i class="lbell"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2V7.4a4 4 0 0 1 8 0v3.8l1.2 1.4H2.8z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/></svg></i> on a list below: the trades of its wallets come to the chat.</p>
+  {# the bell is on each wallet (owner, 02.10): how many are on and how many alerts went out today, right where the switch is #}
+  <p class="tghint" id="tghint"{% if not tg.linked and not alerts_preview %} hidden{% endif %}>Click the bell <i class="lbell">{{ icon('bell') }}</i> by a wallet, or switch a whole list on in its bar: their buys and sells come to this chat.
+    <span class="tgstat" id="tgstat" title="At most {{ s.alerts_per_wallet_day }} a day from any one wallet"><b id="tgn" data-cap="{{ watch_cap }}">{{ alert_n }}</b> of {{ watch_cap }} wallets · <b>{{ day_used }}</b> of {{ day_cap }} alerts today</span></p>
 </section>
 {% endif %}
 <section class="card me" id="list">
   <div class="row mehead">
-    <h2>Lists</h2><span class="muted small" id="wcount">{{ wallets|length }} wallet{{ '' if wallets|length == 1 else 's' }}</span>
-    {% if wallets %}<div class="menu right"><button type="button" class="ghost" data-menu>↓ Export</button>
+    <h2>Watchlist</h2><span class="muted small" id="wcount">{{ wallets|length }} wallet{{ '' if wallets|length == 1 else 's' }}</span>
+    {% if wallets %}<div class="menu right"><button type="button" class="ghost xbtn" data-menu title="Export the list on screen: CSV or TXT" aria-label="Export">{{ icon('download') }}</button>
       <div class="menu-panel r" hidden><a href="/me/wallets.csv" id="xcsv">CSV <small>all columns</small></a><button type="button" id="xtxt">TXT <small>addresses only</small></button></div></div>{% endif %}
   </div>
   <div class="ltabs" role="tablist" id="ltabs">
     <button type="button" class="ltab on" data-list="" role="tab">All <b>{{ wallets|length }}</b></button>
-    {% for l in lists %}<button type="button" class="ltab" data-list="{{ l.id }}" data-alerts="{{ 1 if l.alerts else 0 }}" role="tab">{{ l.name }} <b>{{ l.n }}</b>{% if alerts_ok %}<i class="lbell" title="Alerts on"{% if not l.alerts %} hidden{% endif %}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2V7.4a4 4 0 0 1 8 0v3.8l1.2 1.4H2.8z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/></svg></i>{% endif %}</button>{% endfor %}
+    {% for l in lists %}<button type="button" class="ltab" data-list="{{ l.id }}" role="tab">{{ l.name }} <b>{{ l.n }}</b></button>{% endfor %}
     {% if lists|length < max_lists %}<form class="lnewtab" id="lnew"><input type="text" maxlength="32" placeholder="New list" aria-label="Name of a new list"><button type="submit" class="ghost">+ Create</button></form>{% endif %}
   </div>
   {# the open list's own bar: its alerts switch where the eye lands, not a link at the end of the tabs (owner, 30.09) #}
-  <div class="lbar" id="lacts" hidden>{% if alerts_ok %}<button type="button" class="lalert" id="lalert" role="switch" aria-checked="false" aria-label="Alerts for this list"></button>{% endif %}
-    <span class="lmore"><button type="button" class="link" id="lrename">Rename</button> · <button type="button" class="link" id="ldelete">Delete this list</button></span></div>
-  {% if alerts_ok and lists %}<p class="lballhint" id="lallhint">Alerts are per list: open one above and switch them on.</p>{% endif %}
+  <div class="lbar" id="lacts" hidden>
+    {% if alerts_ok %}{# the bell of a whole list again (owner, 04.10): every wallet in it at once, the newest first while there is room #}
+    <button type="button" class="lalert" id="lalert" aria-pressed="false"><span class="sw"></span>{{ icon('bell') }}<span>Alerts for this list</span><small id="lalertn"></small></button>{% endif %}
+    <span class="lmore"><button type="button" class="link" id="lrename">Rename</button><span id="ldel"> · <button type="button" class="link" id="ldelete">Delete this list</button></span></span></div>
   {% if wallets %}
   {# a list is for watching: the wallet and your tags for it, added right in the row; its numbers open in the card (owner, 30.09) #}
   <div class="tablewrap"><table class="facts melist mewl"><thead><tr>
@@ -54,14 +58,14 @@
   </tr></thead><tbody>
   {% for w in wallets %}
     <tr data-w="{{ w.wallet }}" data-lists="{{ (w.lists or ['main'])|join(' ') }}" tabindex="0">
-      <td><span class="wlrow"><span class="mono wadr">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</span><span class="mytags">{% for t in w.my_tags or [] %}<button type="button" class="tag mine" title="Click to remove">{{ t }}</button>{% endfor %}<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd" title="Add your own tag: it names the wallet here and in the alerts" aria-label="Add your own tag"{% if (w.my_tags or [])|length >= max_my_tags %} hidden{% endif %}><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg></button></span>{% set ac = (act or {}).get(w.wallet) %}{% if ac %}{% set busy = ac.buys or ac.sells %}{% set ago = ac.last|ago %}{% set when = 'just now' if ago == 'now' else ago ~ ' ago' %}{% set sago = ac.since|ago %}{% set swhen = 'just now' if sago == 'now' else sago ~ ' ago' %}<span class="wact{{ '' if busy else ' quiet' }}" title="{% if busy %}Trades the alerts saw in the last 7 days: {{ ac.buys }} buy{{ '' if ac.buys == 1 else 's' }}, {{ ac.sells }} sell{{ '' if ac.sells == 1 else 's' }}. Last trade {{ when }}.{% elif ac.last %}No trades in the last 7 days. Last trade {{ when }}.{% else %}No trades since the alerts started watching it {{ swhen }}.{% endif %}">{% if busy %}<b class="up">↑{{ ac.buys }}</b><b class="dn">↓{{ ac.sells }}</b><span>· {{ when }}</span>{% elif ac.last %}<span>last trade {{ when }}</span>{% else %}<span>no trades yet</span>{% endif %}</span>{% endif %}</span></td>
-      <td class="rm"><button type="button" class="ghost x" data-rm-wallet title="Remove from this list" aria-label="Remove from this list">×</button></td>
+      <td><span class="wlrow"><span class="wadr mono" title="Open the wallet's card">{{ w.wallet[:6] }}…{{ w.wallet[-4:] }}</span><span class="mytags">{% for t in w.my_tags or [] %}<span class="tag mine" title="Your tag"><span>{{ t }}</span><button type="button" class="tagx" data-tag="{{ t }}" title="Remove this tag" aria-label="Remove the tag {{ t }}">×</button></span>{% endfor %}<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd" title="Add your own tag: it names the wallet here and in the alerts" aria-label="Add your own tag"{% if (w.my_tags or [])|length >= max_my_tags %} hidden{% endif %}>{{ icon('add') }}</button></span>{% set ac = (act or {}).get(w.wallet) %}{% if ac %}{% set busy = ac.buys or ac.sells %}{% set ago = ac.last|ago %}{% set when = 'just now' if ago == 'now' else ago ~ ' ago' %}{% set sago = ac.since|ago %}{% set swhen = 'just now' if sago == 'now' else sago ~ ' ago' %}<span class="wact{{ '' if busy else ' quiet' }}" title="{% if busy %}Trades the alerts saw in the last 7 days: {{ ac.buys }} buy{{ '' if ac.buys == 1 else 's' }}, {{ ac.sells }} sell{{ '' if ac.sells == 1 else 's' }}. Last trade {{ when }}.{% elif ac.last %}No trades in the last 7 days. Last trade {{ when }}.{% else %}No trades since the alerts started watching it {{ swhen }}.{% endif %}">{% if busy %}<b class="up">↑{{ ac.buys }}</b><b class="dn">↓{{ ac.sells }}</b><span>· {{ when }}</span>{% elif ac.last %}<span>last trade {{ when }}</span>{% else %}<span>no trades yet</span>{% endif %}</span>{% endif %}</span></td>
+      <td class="rm">{% if alerts_ok %}<button type="button" class="ghost bell{{ ' on' if w.alert }}" data-bell aria-pressed="{{ 'true' if w.alert else 'false' }}" title="{{ 'Alerts on · click to turn off' if w.alert else 'Get its buys and sells in Telegram' }}" aria-label="Alerts for this wallet">{{ icon('bell') }}</button>{% endif %}<button type="button" class="ghost x" data-rm-wallet title="Remove from this list" aria-label="Remove from this list">×</button></td>
     </tr>
   {% endfor %}
   </tbody></table></div>
-  <p class="muted" id="lempty" hidden>This list is empty. Open a result, tick wallets, then <b>+ Add to list</b>.</p>
+  <p class="muted" id="lempty" hidden>This list is empty. On a result, click the {{ icon('star', 'inl') }} by a wallet, or add one from another list in its card.</p>
   {% else %}
-  <p class="muted">Nothing here yet. Open a result, tick the wallets you want, then <b>+ Add to list</b>.{% if demo_mint %} <a href="/token?mint={{ demo_mint }}">Try it on the demo</a>.{% endif %}</p>
+  <p class="muted">Nothing here yet. On a result, click the {{ icon('star', 'inl') }} by a wallet: it lands in your watchlist.{% if demo_mint %} <a href="/token?mint={{ demo_mint }}">Try it on the demo</a>.{% endif %}</p>
   {% endif %}
 </section>
 
@@ -74,10 +78,10 @@
         <span class="wav" id="dav" aria-hidden="true"></span>
         <div class="dh-names">
           <div class="dh-top"><b id="dname">Wallet</b><span class="ids" id="dids"></span></div>
-          <div class="dh-addr"><span class="mono" id="dw"></span><button type="button" class="ghost wcopy" id="dcopy" data-copy="" title="Copy the address" aria-label="Copy the address"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.8"/><path d="M10.5 5.5V4.3A1.8 1.8 0 0 0 8.7 2.5H4.3a1.8 1.8 0 0 0-1.8 1.8v4.4a1.8 1.8 0 0 0 1.8 1.8h1.2"/></svg></button><a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan" aria-label="This wallet on Solscan">↗</a><span class="dchips" id="dchips"></span></div>
+          <div class="dh-addr"><button type="button" class="dwc mono" id="dw" data-copy="" title="Copy the address" aria-label="Copy the address"></button><a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan" aria-label="This wallet on Solscan">{{ icon('launch') }}</a><span class="dchips" id="dchips"></span></div>
         </div>
       </div>
-      <div class="dh-act"><button type="button" class="ghost x" id="dclose" title="Close" aria-label="Close">×</button></div>
+      <div class="dh-act">{% if alerts_ok %}<button type="button" class="ghost bell" id="dbell" aria-pressed="false" aria-label="Alerts for this wallet">{{ icon('bell') }}</button>{% endif %}<button type="button" class="ghost x" id="dclose" title="Close" aria-label="Close">×</button></div>
     </div>
     <div class="dtags" id="dtags"></div>
     <section class="dsec dsrc" id="dsrc"></section>
@@ -89,6 +93,16 @@
     <section class="dsec" id="dwsec" hidden><div class="dcross" id="dcross"></div></section>
   </div>
 </aside>
+{% endif %}
+{% if alerts_ok and wallets and after_on %}
+{# what the token did after a bell wallet bought (owner, 04.10: «реалізуй, як бачиш, я потім поправлю») #}
+<section class="card me aftr" id="after">
+  <div class="row mehead"><h2>After the alerts</h2><span class="muted small" id="aftsub">last 7 days</span>
+    <span class="kinfo tipt" tabindex="0" title="Each wallet's first buy of a token in the last 7 days, from its trades. Peak: the highest price in the next 24 h ÷ its buy price. Dip: the lowest before that peak. Now: the last price, or the one at 24 h. Its exit: the average price of its sells after the buy." aria-label="How it is counted">i</span></div>
+  <div class="tally" id="afttally" hidden></div>
+  <div class="tablewrap"><table class="facts melist aft"><thead><tr><th>Bought</th><th>Wallet</th><th>Token</th><th class="num">Size</th><th class="num">Peak</th><th class="num">Dip</th><th class="num">Now</th><th class="num">Its exit</th></tr></thead>
+    <tbody id="aftrows"><tr><td colspan="8" class="muted">Counting what happened after each buy…</td></tr></tbody></table></div>
+</section>
 {% endif %}
 
 <section class="card me" id="analyses">
@@ -123,7 +137,7 @@
         const left = current ? tr.dataset.lists.split(' ').filter(x => x !== current) : [];
         if (left.length) { tr.dataset.lists = left.join(' '); if (META[tr.dataset.w]) META[tr.dataset.w].lists = left; }
         else { tr.remove(); if (drawer && drawer.dataset.w === tr.dataset.w) closeCard(); }
-        showList(current);
+        recount(); showList(current);
       } catch (x) { oops(x); }
       return;
     }
@@ -133,7 +147,10 @@
   // ── the wallet card: who it is to you, where you found it, your tags, its last days on every token ──
   const drawer = document.getElementById('drawer'), META = drawer ? JSON.parse(document.getElementById('mewmeta').textContent) : {};
   const MAX_TAGS = {{ max_my_tags }}, esc = EarlyTags.esc, short = w => w.slice(0, 6) + '…' + w.slice(-4);
-  const PLUS = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 1.8v8.4M1.8 6h8.4"/></svg>';
+  const PLUS = EarlyIcon('add');
+  // your tag goes only by its own × (owner, 02.10: a tap on the word dropped it by accident)
+  const MINE = t => '<span class="tag mine" title="Your tag"><span>' + esc(t) + '</span><button type="button" class="tagx" data-tag="' + esc(t)
+    + '" title="Remove this tag" aria-label="Remove the tag ' + esc(t) + '">×</button></span>';
   const rowOf = w => document.querySelector('tr[data-w="' + CSS.escape(w) + '"]');
   let period = '30';
   const profiles = new Map();
@@ -148,13 +165,13 @@
     const tr = rowOf(w); if (!tr) return;
     const box = tr.querySelector('.mytags'), inp = box.querySelector('.tagin'), add = box.querySelector('.tagadd'), tags = (META[w] || {}).my_tags || [];
     box.querySelectorAll('.tag.mine').forEach(b => b.remove());
-    tags.forEach(t => { const b = document.createElement('button'); b.type = 'button'; b.className = 'tag mine'; b.title = 'Click to remove'; b.textContent = t; box.insertBefore(b, inp); });
+    tags.forEach(t => inp.insertAdjacentHTML('beforebegin', MINE(t)));
     inp.hidden = true; inp.value = ''; add.hidden = tags.length >= MAX_TAGS;
   }
   // the card is about the wallet itself (owner, 30.09 and 01.10): who it is, its age and funder, where else you met it,
   // its 30 days on every token; nothing about the token it was saved from
   const cards = new Map();
-  const CHAIN = '<svg class="lnk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" aria-hidden="true"><g transform="rotate(-45 12 12)"><rect x="1.2" y="7.4" width="12.4" height="9.2" rx="4.6"/><rect x="10.4" y="7.4" width="12.4" height="9.2" rx="4.6"/></g></svg>';
+  const CHAIN = EarlyIcon('link', 'lnk');
   const fm = v => EarlyUI.fmtShort(v), money = v => (v == null || isNaN(v) ? '—' : (v < 0 ? '-$' : '$') + fm(Math.abs(v)));
   const nf = v => (+v || 0).toLocaleString('en-US');
   const ageText = ms => { const d = (Date.now() - ms) / 86400000;
@@ -171,12 +188,13 @@
     // the card in Lists is about the wallet, not the token it was saved from (owner, 30.09): its age today, its funder
     const out = [], age = d.age;
     if (age && age.ms && age.exact) {
-      out.push('<span class="dchip age' + (Date.now() - age.ms < 86400000 ? ' young' : '') + '" title="Wallet age today. First transaction ' + EarlyTZ.fmt(age.ms, true) + '">' + ageText(age.ms) + '</span>');
+      out.push('<span class="dchip age' + (Date.now() - age.ms < 86400000 ? ' young' : '') + '" title="Wallet age today. First transaction ' + EarlyTZ.fmt(age.ms, true) + '">' + ageText(age.ms) + ' old</span>');
     } else if (age && age.ms) out.push('<span class="dchip age" title="More than ' + nf(age.n || 6000) + ' transactions: its first one is older than the ones read">' + Math.floor((+age.n || 6000) / 1000) + 'k+ tx</span>');
     const f = d.funder;
-    if (f && d.exchange) out.push('<a class="dchip fund cex" href="https://solscan.io/account/' + esc(f) + '" target="_blank" rel="noopener" title="First SOL came straight from ' + esc(d.exchange[1]) + ', an exchange">↘ ' + esc(d.exchange[0]) + '</a>');
-    else if (f) out.push('<a class="dchip fund mono" href="https://solscan.io/account/' + esc(f) + '" target="_blank" rel="noopener" title="First SOL came from ' + esc(f)
-      + (d.service ? ', an exchange or an app' : '') + '">↘ ' + short(f) + '</a>');
+    // the funder says what it is, without a hover (owner, 02.10)
+    if (f && d.exchange) out.push('<a class="dchip fund cex" href="https://solscan.io/account/' + esc(f) + '" target="_blank" rel="noopener" title="First SOL came straight from ' + esc(d.exchange[1]) + ', an exchange · opens Solscan"><span class="dl">funded by</span>' + esc(d.exchange[0]) + '</a>');
+    else if (f) out.push('<a class="dchip fund" href="https://solscan.io/account/' + esc(f) + '" target="_blank" rel="noopener" title="First SOL came from ' + esc(f)
+      + (d.service ? ', an exchange or an app' : '') + ' · opens Solscan"><span class="dl">funded by</span><span class="mono">' + short(f) + '</span></a>');
     document.getElementById('dchips').innerHTML = out.join('');
     const cx = d.seen || [];
     document.getElementById('dcross').innerHTML = cx.length ? '<b>' + CHAIN + ' Also in ' + cx.length + ' of your saved analyses</b><ul>' + cx.map(c =>
@@ -194,18 +212,27 @@
   function renderTags(w) {
     const mine = (META[w] || {}).my_tags || [], d = cards.get(w) || {};
     document.getElementById('dname').textContent = nameOf(w);
-    document.getElementById('dtags').innerHTML = mine.map(t => '<button type="button" class="tag mine" title="Your tag · click to remove">' + esc(t) + '</button>').join('')
+    document.getElementById('dtags').innerHTML = mine.map(MINE).join('')
       + (mine.length < MAX_TAGS ? '<input type="text" class="tagin" maxlength="24" aria-label="New tag" hidden><button type="button" class="tagadd wide" title="Your own tag for this wallet: it names the wallet here and in the Telegram alerts" aria-label="Add your own tag">' + PLUS + '<span>tag</span></button>' : '');
   }
   function renderSrc(w) {
-    const m = META[w] || {}, names = (m.lists || []).map(id => LISTNAMES[id] || id);
+    const m = META[w] || {}, has = m.lists || [], ids = Object.keys(LISTNAMES);
     const a = m.act, n = (k, x) => k + ' ' + x + (k === 1 ? '' : 's');
     // what the alerts saw this wallet do in 7 days (owner, 01.10: who is how active); only lists with the bell are watched
     const act = !a ? '' : '<p class="dline small">' + (a.buys || a.sells ? '<b>' + n(a.buys, 'buy') + ', ' + n(a.sells, 'sell') + '</b> in 7 days · ' : 'No trades in 7 days · ')
+      + (a.big ? 'biggest buy $' + EarlyUI.fmtShort(a.big) + ' · ' : '') + (m.sent_today ? n(m.sent_today, 'alert') + ' to you today · ' : '')
       + (a.last ? 'last trade ' + EarlyTZ.fmt(a.last, true) : 'watched since ' + EarlyTZ.fmt(a.since, true)) + '</p>';
-    document.getElementById('dsrc').innerHTML = act + '<p class="dline muted small">In ' + esc(names.join(', ') || 'no list') + (m.added_ms ? ' · saved ' + EarlyTZ.fmt(m.added_ms, false) : '') + '</p>';
+    // which lists hold it, as switches (owner, 02.10: a folder button in every row looked out of place); with one list
+    // there is nothing to switch, so it is said in words
+    const lists = ids.length < 2 ? '' : '<div class="dlists" role="group" aria-label="Where this wallet is saved"><span class="dl">Saved in</span>'
+      + ids.map(id => { const on = has.includes(id);
+          return '<button type="button" class="lchip' + (on ? ' on' : '') + '" data-lt="' + esc(id) + '" aria-pressed="' + on + '" title="'
+            + (on ? 'In this list · click to take it out' : 'Click to add it to this list') + '">' + (on ? '✓ ' : '') + esc(LISTNAMES[id]) + '</button>'; }).join('') + '</div>';
+    const saved = m.added_ms ? EarlyTZ.fmt(m.added_ms, false) : '';
+    const foot = lists ? (saved ? 'Saved ' + saved : '') : 'In ' + esc(has.map(id => LISTNAMES[id] || id).join(', ') || 'no list') + (saved ? ' · saved ' + saved : '');
+    document.getElementById('dsrc').innerHTML = act + lists + (foot ? '<p class="dline muted small">' + foot + '</p>' : '');
   }
-  async function dropTag(w, tag) {                          // one tap removes a tag; a mis-tap on a phone is one Undo away (review 01.10)
+  async function dropTag(w, tag) {                          // by its ×, and one Undo brings it back (review 01.10)
     const before = ((META[w] || {}).my_tags || []).slice();
     if (!await saveTags(w, before.filter(t => t !== tag))) return;      // not saved: the error stays on screen, no Undo
     EarlyUI.toast('Tag «' + esc(tag) + '» removed · <button type="button" class="link" id="tagundo">Undo</button>', 6000);
@@ -243,20 +270,19 @@
     document.querySelectorAll('tr.carded').forEach(r => r.classList.remove('carded'));
     const tr = rowOf(w); if (tr) tr.classList.add('carded');
     document.getElementById('dav').innerHTML = EarlyCard.identicon(w);
-    const dw = document.getElementById('dw'); dw.textContent = short(w); dw.title = w;
-    document.getElementById('dcopy').dataset.copy = w;
+    const dw = document.getElementById('dw'); dw.textContent = short(w); dw.dataset.copy = w; dw.title = w + ' · click to copy';
     document.getElementById('dsol').href = 'https://solscan.io/account/' + w;
     document.getElementById('dids').innerHTML = ''; document.getElementById('dchips').innerHTML = '';
     document.getElementById('dwsec').hidden = true;
-    renderTags(w); renderSrc(w); loadProfile(w); loadCard(w);
+    renderTags(w); renderSrc(w); loadProfile(w); loadCard(w); syncBell(w);
   }
   if (drawer) {
     const tbody = document.querySelector('.mewl tbody');
-    // tags right in the row, as fast as before the card: + opens a field, Enter keeps the word, a click on a tag drops it
+    // tags right in the row, as fast as before the card: + opens a field, Enter keeps the word, a tag's × drops it
     tbody.addEventListener('click', e => {
       const tr = e.target.closest('tr[data-w]'); if (!tr) return;
-      const w = tr.dataset.w, mine = e.target.closest('.mytags .tag.mine');
-      if (mine) { dropTag(w, mine.textContent); return; }
+      const w = tr.dataset.w, x = e.target.closest('.mytags .tagx');
+      if (x) { dropTag(w, x.dataset.tag); return; }
       if (e.target.closest('.mytags .tagadd')) { const inp = tr.querySelector('.tagin'); inp.hidden = false; e.target.closest('.tagadd').hidden = true; inp.focus(); }
     });
     tbody.addEventListener('keydown', e => {
@@ -283,8 +309,8 @@
     });
     const dtags = document.getElementById('dtags');
     dtags.addEventListener('click', e => {
-      const w = drawer.dataset.w, mine = e.target.closest('.tag.mine');
-      if (mine) { dropTag(w, mine.textContent); return; }
+      const w = drawer.dataset.w, x = e.target.closest('.tagx');
+      if (x) { dropTag(w, x.dataset.tag); return; }
       if (!e.target.closest('.tagadd')) return;
       const inp = dtags.querySelector('.tagin'), add = dtags.querySelector('.tagadd');
       inp.hidden = false; add.hidden = true; inp.focus();
@@ -299,6 +325,24 @@
       saveTags(w, ((META[w] || {}).my_tags || []).concat([v]));
     });
     dtags.addEventListener('focusout', e => { const inp = e.target.closest('.tagin'); if (inp && !inp.value.trim()) setTimeout(() => { if (!dtags.contains(document.activeElement)) renderTags(drawer.dataset.w); }, 0); });
+    // a wallet's lists from its card: a click adds it to a list or takes it out. The last list stays: × in the row drops
+    // the wallet itself
+    document.getElementById('dsrc').addEventListener('click', async e => {
+      const b = e.target.closest('[data-lt]'); if (!b || b.disabled) return;
+      const w = drawer.dataset.w, id = b.dataset.lt, m = META[w] = META[w] || {}, tr = rowOf(w);
+      const had = (m.lists || (tr ? tr.dataset.lists.split(' ') : [])).slice(), out = had.includes(id);
+      if (out && had.length === 1) { EarlyUI.toast('A saved wallet stays in at least one list. To drop it, use × in its row.'); return; }
+      b.disabled = true;
+      try {
+        if (out) { await post('/me/wallets/remove', { wallets: [w], list: id }); m.lists = had.filter(x => x !== id); }
+        else { const d = await post('/me/lists/move', { wallets: [w], to: id }); m.lists = (d.wallets || {})[w] || had.concat([id]); }
+        if (tr) tr.dataset.lists = m.lists.join(' ');
+        recount(); showList(current);
+        EarlyUI.use('list-move', { how: out ? 'remove' : 'copy' });
+        EarlyUI.toast((out ? 'Taken out of «' : 'Added to «') + esc(LISTNAMES[id]) + '»');
+      } catch (x) { oops(x); }
+      if (drawer.dataset.w === w) renderSrc(w);
+    });
   }
   // several lists: a tab shows one, «All» shows every saved wallet once; export follows the tab
   let current = '';
@@ -309,10 +353,9 @@
     let n = 0;
     document.querySelectorAll('tr[data-w]').forEach(tr => { const on = !current || tr.dataset.lists.split(' ').includes(current); tr.hidden = !on; n += on; });
     document.querySelectorAll('#ltabs .ltab').forEach(b => b.classList.toggle('on', b.dataset.list === current));
-    const acts = document.getElementById('lacts'); if (acts) { acts.hidden = !current; document.getElementById('ldelete').hidden = current === 'main'; }
-    const allh = document.getElementById('lallhint'); if (allh) allh.hidden = !!current;
+    const acts = document.getElementById('lacts'); if (acts) { acts.hidden = !current; document.getElementById('ldel').hidden = current === 'main'; }   // the first list stays: no «·» left hanging either
+    if (typeof syncListBell === 'function') syncListBell();
     const csv = document.getElementById('xcsv'); if (csv) csv.href = '/me/wallets.csv' + (current ? '?list=' + encodeURIComponent(current) : '');
-    bellText();
     const em = document.getElementById('lempty'); if (em) em.hidden = n > 0;
     try { localStorage.setItem('early:list', current); } catch (e) {}
   }
@@ -324,32 +367,49 @@
     try { await post('/me/lists', { name }); location.reload(); } catch (x) { oops(x); }
   });
   const lr = document.getElementById('lrename'), ld = document.getElementById('ldelete');
-  if (lr) lr.addEventListener('click', async () => {
-    const name = prompt('New name for «' + names[current] + '»', names[current]); if (!name) return;
-    try { await post('/me/lists/rename', { id: current, name }); location.reload(); } catch (x) { oops(x); }
+  // the name is edited where it stands, in its tab (designer, 01.10: the browser's prompt box looked broken)
+  if (lr) lr.addEventListener('click', () => {
+    const tab = tabOf(current); if (!tab || tab.hidden) return;
+    const id = current, was = names[id], inp = document.createElement('input');
+    inp.type = 'text'; inp.maxLength = 32; inp.value = was; inp.className = 'ltabedit'; inp.setAttribute('aria-label', 'New name for this list');
+    tab.hidden = true; tab.before(inp); inp.focus(); inp.select();
+    let done = false;
+    const finish = async save => {
+      if (done) return; done = true;
+      const name = inp.value.trim().replace(/\s+/g, ' ');
+      if (save && name && name !== was) {
+        try { await post('/me/lists/rename', { id, name }); names[id] = name; tab.firstChild.textContent = name + ' '; EarlyUI.toast('Renamed to «' + esc(name) + '»'); }
+        catch (x) { oops(x); }
+      }
+      inp.remove(); tab.hidden = false;
+    };
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); finish(true); } else if (e.key === 'Escape') { e.stopPropagation(); finish(false); } });
+    inp.addEventListener('blur', () => finish(true));
   });
+  // the counts on the tabs follow every change on the page, not only a reload
+  function recount() {
+    const rows = [...document.querySelectorAll('tr[data-w]')];
+    document.querySelectorAll('#ltabs .ltab').forEach(b => {
+      const n = b.dataset.list ? rows.filter(tr => tr.dataset.lists.split(' ').includes(b.dataset.list)).length : rows.length;
+      const c = b.querySelector('b'); if (c) c.textContent = n;
+    });
+    const wc = document.getElementById('wcount'); if (wc) wc.textContent = rows.length + ' wallet' + (rows.length === 1 ? '' : 's');
+  }
   if (ld) ld.addEventListener('click', async () => {
-    if (!confirm('Delete the list «' + names[current] + '»? Wallets that are only in it leave your lists.')) return;
+    if (!confirm('Delete the list «' + names[current] + '»? Wallets that are only in it leave your watchlist.')) return;
     try { await post('/me/lists/remove', { id: current }); try { localStorage.removeItem('early:list'); } catch (e) {} location.reload(); } catch (x) { oops(x); }
   });
   // ── Telegram alerts: connect with a one-time link, the bell on a list, buys / sells / from $ for all of them ──
-  const tgbar = document.getElementById('tgbar'), lalert = document.getElementById('lalert');
+  const tgbar = document.getElementById('tgbar');
+  const PREVIEW = {{ 'true' if alerts_preview else 'false' }};           // the draft: nothing is sent, so nothing to connect first
   let tgLinked = !!(tgbar && tgbar.classList.contains('on'));
   const tabOf = id => document.querySelector('#ltabs .ltab[data-list="' + id + '"]');
-  function bellText() {
-    if (!lalert || !current) return;
-    // on without Telegram: paused, and a click switches it off rather than connecting again (review 01.10)
-    const on = (tabOf(current) || { dataset: {} }).dataset.alerts === '1', paused = on && !tgLinked;
-    lalert.innerHTML = '<i class="sw" aria-hidden="true"></i><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2V7.4a4 4 0 0 1 8 0v3.8l1.2 1.4H2.8z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/></svg><span>' + (paused ? 'Alerts paused' : on ? 'Alerts on' : 'Turn on alerts') + '</span><small>'
-      + (paused ? 'Telegram is not connected' : on ? 'buys and sells of this list come to Telegram' : tgLinked ? 'get this list\'s buys and sells in Telegram' : 'connects Telegram first') + '</small>';
-    lalert.setAttribute('aria-checked', String(on)); lalert.classList.toggle('on', on);
-  }
   function tgShow(d) {
     tgLinked = !!d.linked; tgbar.classList.toggle('on', tgLinked);
     document.getElementById('tgtext').innerHTML = tgLinked ? '<i class="tgdot"></i>Connected as <b>' + EarlyTags.esc(d.user || 'your Telegram') + '</b>' : 'The buys and sells of your wallets, seconds after they happen';
-    document.getElementById('tgprefs').hidden = !tgLinked; document.getElementById('tghint').hidden = !tgLinked;
-    document.getElementById('tgconnect').hidden = tgLinked; document.getElementById('tgunlink').hidden = !tgLinked;
-    bellText();                                                   // the open list's switch follows at once (review 01.10)
+    document.getElementById('tgprefs').hidden = !tgLinked && !PREVIEW; document.getElementById('tghint').hidden = !tgLinked && !PREVIEW;
+    const tc = document.getElementById('tgconnect'); if (tc) tc.hidden = tgLinked;
+    document.getElementById('tgunlink').hidden = !tgLinked;
   }
   let tgPolling = false;
   async function tgConnect() {
@@ -373,7 +433,7 @@
     } finally { tgPolling = false; }
   }
   if (tgbar) {
-    document.getElementById('tgconnect').addEventListener('click', tgConnect);
+    const tc = document.getElementById('tgconnect'); if (tc) tc.addEventListener('click', tgConnect);
     document.getElementById('tgunlink').addEventListener('click', async () => {
       if (!confirm('Stop alerts in Telegram for this wallet?')) return;
       try { await post('/me/telegram/unlink', {}); tgShow({ linked: false }); } catch (x) { oops(x); }
@@ -389,15 +449,90 @@
     }));
     document.getElementById('tgmin').addEventListener('change', savePrefs);
   }
+  // the bell on each wallet (owner, 02.10): on in the row or in the card, at most watch_cap of them; Telegram comes first
+  const tgn = document.getElementById('tgn'), dbell = document.getElementById('dbell');
+  function syncBell(w) {
+    const on = !!(META[w] || {}).alert;
+    const tr = rowOf(w), b = tr && tr.querySelector('[data-bell]');
+    [b, drawer && drawer.dataset.w === w ? dbell : null].forEach(x => { if (!x) return;
+      x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on));
+      x.title = on ? 'Alerts on · click to turn off' : 'Get its buys and sells in Telegram'; });
+  }
+  async function toggleBell(w) {
+    const on = !(META[w] || {}).alert;
+    if (on && !tgLinked && !PREVIEW) { EarlyUI.toast('Connect Telegram first: the alerts go there.'); tgConnect(); return; }
+    let d; try { d = await post('/me/wallets/alert', { wallet: w, on }); } catch (x) { oops(x); return; }
+    (META[w] = META[w] || {}).alert = d.on; syncBell(w);
+    if (tgn) tgn.textContent = d.n;
+    EarlyUI.use('wallet-bell', { on: d.on });
+    EarlyUI.toast((d.on ? 'Alerts on for ' : 'Alerts off for ') + short(w) + ' · ' + d.n + ' of ' + d.cap + ' wallets');
+    syncListBell();
+  }
+  // a whole list at once: on — the bells of its wallets, the newest first while the cap leaves room; off — all of them
+  const lalert = document.getElementById('lalert');
+  function syncListBell() {
+    if (!lalert) return;
+    const rows = [...document.querySelectorAll('tr[data-w]')].filter(tr => current && tr.dataset.lists.split(' ').includes(current));
+    const on = rows.filter(tr => (META[tr.dataset.w] || {}).alert).length, all = !!rows.length && on === rows.length;
+    lalert.hidden = !current || !rows.length;
+    lalert.classList.toggle('on', all); lalert.setAttribute('aria-pressed', String(all));
+    document.getElementById('lalertn').textContent = on + ' of ' + rows.length + ' on';
+  }
   if (lalert) lalert.addEventListener('click', async () => {
-    if (!current) return;
-    const tab = tabOf(current), on = tab.dataset.alerts !== '1';
-    if (!tgLinked && on) { EarlyUI.toast('Connect Telegram first: the alerts go there.'); tgConnect(); return; }
-    try { await post('/me/lists/alerts', { id: current, on }); } catch (x) { oops(x); return; }
-    tab.dataset.alerts = on ? '1' : '0'; const b = tab.querySelector('.lbell'); if (b) b.hidden = !on;
-    bellText(); EarlyUI.toast((on ? 'Alerts on for «' : 'Alerts off for «') + esc(names[current]) + '»');
+    const turnOn = lalert.getAttribute('aria-pressed') !== 'true';
+    if (turnOn && !tgLinked && !PREVIEW) { EarlyUI.toast('Connect Telegram first: the alerts go there.'); tgConnect(); return; }
+    let d; try { d = await post('/me/lists/alerts', { id: current, on: turnOn }); } catch (x) { oops(x); return; }
+    const bells = new Set(d.bells || []);
+    Object.keys(META).forEach(w => { META[w].alert = bells.has(w); syncBell(w); });
+    if (tgn) tgn.textContent = bells.size;
+    syncListBell();
+    EarlyUI.use('list-bell', { on: turnOn });
+    const left = [...document.querySelectorAll('tr[data-w]')].filter(tr => tr.dataset.lists.split(' ').includes(current) && !bells.has(tr.dataset.w)).length;
+    EarlyUI.toast(!turnOn ? 'Alerts off for this list'
+      : !left ? 'Alerts on for the whole list · ' + bells.size + ' of ' + d.cap + ' wallets'
+      : !d.changed ? 'No room: all ' + d.cap + ' bells are on. Turn some off first.'
+      : 'Alerts on for ' + d.changed + ' more · ' + left + ' wait for room: ' + d.cap + ' wallets is the cap');
+  });
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-bell]'); if (b) { toggleBell(b.closest('tr').dataset.w); return; }
+    if (dbell && e.target.closest('#dbell')) toggleBell(drawer.dataset.w);
   });
   try { const was = localStorage.getItem('early:list'); if (was && document.querySelector('#ltabs .ltab[data-list="' + was + '"]')) showList(was); } catch (e) {}
+  // ── after the alerts: the server counts it (15 minutes cached), the page only draws ──
+  const aft = document.getElementById('after');
+  if (aft) (async () => {
+    const body = document.getElementById('aftrows'), sub = document.getElementById('aftsub'), tl = document.getElementById('afttally');
+    let d;
+    try { const r = await fetch('/me/after.json', { credentials: 'same-origin' }); d = await r.json(); if (!r.ok) throw new Error(d.error || 'failed'); }
+    catch (x) { body.innerHTML = '<tr><td colspan="8" class="muted">' + esc(x.message || 'Could not count it now. Reload the page to try again.') + '</td></tr>'; return; }
+    const X = v => v == null ? '—' : '×' + (v >= 10 ? Math.round(v) : v >= 1 ? v.toFixed(1) : v.toFixed(2));
+    const dur = m => m == null ? '' : m < 60 ? Math.max(1, m) + 'm' : m < 1440 ? (m / 60).toFixed(m < 600 ? 1 : 0) + 'h' : Math.round(m / 1440) + 'd';
+    const ago = ms => dur(Math.round((Date.now() - ms) / 60000)) + ' ago';
+    const tone = (v, lo) => v == null ? '' : v >= (lo || 1) ? 'pos' : 'neg';
+    sub.textContent = 'last ' + d.days + ' days · ' + (d.basis === 'bells' ? 'wallets with a bell' : 'no bells on yet: your ' + d.wallets + ' newest wallets')
+      + (PREVIEW ? ' · from their trades: the draft sends no alerts' : '') + (d.partial ? ' · ' + d.partial : '');
+    const sm = d.summary || {};
+    if (sm.n) {
+      const cell = (v, l, tip, cls) => '<span class="tc" title="' + esc(tip) + '"><b class="' + (cls || '') + '">' + v + '</b><i>' + l + '</i></span>';
+      tl.innerHTML = cell(sm.n, 'buys', 'First buys of a token in the last ' + d.days + ' days')
+        + cell(X(sm.peak), 'median peak', 'Half the buys went higher than this within ' + d.hours + ' h', sm.peak >= 2 ? 'pos' : sm.peak != null && sm.peak < 1 ? 'neg' : '')
+        + cell(sm.doubled + ' of ' + sm.priced, 'doubled', 'Buys whose token reached ×2 within ' + d.hours + ' h of the buy')
+        + cell(X(sm.now), 'median now', 'Where the price is now, or was at ' + d.hours + ' h', tone(sm.now))
+        + cell(X(sm.exit), 'its exit', 'Median of its own average sell price ÷ its buy price, over ' + sm.exits + ' buys it sold from', tone(sm.exit));
+      tl.hidden = false;
+    }
+    if (!d.rows.length) { body.innerHTML = '<tr><td colspan="8" class="muted">No first buys in the last ' + d.days + ' days.</td></tr>'; return; }
+    body.innerHTML = d.rows.map(r => '<tr>'
+      + '<td class="mono muted" title="' + esc(EarlyTZ.fmt(r.t, true)) + '">' + ago(r.t) + '</td>'
+      + '<td class="mono">' + esc((r.tags && r.tags[0]) || short(r.wallet)) + '</td>'
+      + '<td><a href="/token?mint=' + encodeURIComponent(r.mint) + '" title="' + esc(r.mint) + '">' + esc(r.symbol ? '$' + r.symbol : short(r.mint)) + '</a>' + (r.new ? '' : ' <small class="muted" title="It bought this token before, earlier in its 30 days">more</small>') + '</td>'
+      + '<td class="num mono">' + money(r.usd) + '</td>'
+      + '<td class="num mono ' + (r.peak_x >= 2 ? 'pos' : r.peak_x != null && r.peak_x < 1 ? 'neg' : '') + '" title="' + (r.peak_min != null ? 'The highest price, ' + dur(r.peak_min) + ' after the buy' : 'No candles for this token') + '">' + X(r.peak_x) + (r.peak_min != null ? '<small>' + dur(r.peak_min) + '</small>' : '') + '</td>'
+      + '<td class="num mono ' + (r.dip_x ? 'neg' : '') + '" title="' + (r.dip_x ? 'The lowest price before the peak' : 'Never below its buy price before the peak') + '">' + (r.dip_x ? X(r.dip_x) : '—') + '</td>'
+      + '<td class="num mono ' + tone(r.now_x) + '" title="' + (r.at_end ? 'At ' + d.hours + ' h after the buy' : 'The last price') + '">' + X(r.now_x) + (r.at_end && r.now_x != null ? '<small>' + d.hours + 'h</small>' : '') + '</td>'
+      + '<td class="num mono ' + tone(r.exit_x) + '" title="' + (r.exit_x ? 'Average sell price ÷ buy price · first sale ' + dur(r.exit_min) + ' after the buy' : 'No sells after this buy in its trades') + '">'
+      + (r.exit_x ? X(r.exit_x) + '<small>' + (r.sold_pct != null ? r.sold_pct + '%' : '') + '</small>' : '<span class="muted">holds</span>') + '</td></tr>').join('');
+  })();
   const tx = document.getElementById('xtxt');
   if (tx) tx.addEventListener('click', () => {
     EarlyUI.use('export', { format: 'txt', where: 'lists' });                // the CSV is a download the server counts itself

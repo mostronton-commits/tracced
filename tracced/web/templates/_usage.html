@@ -88,7 +88,7 @@
   <div class="khead"><h3>Alerts and fresh pumps</h3><span class="muted small">Telegram, and the way back to the site</span></div>
   <div class="kgrid">
     <div class="kcard" title="Wallets with Telegram connected now · lists with alerts switched on · Connect presses in this period and how many reached Start">
-      <span class="klabel">Telegram connected</span><b class="knum">{{ al.linked }}</b><span class="kfoot">{{ al.bells }} list{{ '' if al.bells == 1 else 's' }} with alerts on · {{ al.linked_new }} of {{ al.started }} pressed Start</span></div>
+      <span class="klabel">Telegram connected</span><b class="knum">{{ al.linked }}</b><span class="kfoot">{{ al.bells }} wallet{{ '' if al.bells == 1 else 's' }} with alerts on · {{ al.linked_new }} of {{ al.started }} pressed Start</span></div>
     <div class="kcard" title="Alerts sent in this period, to how many wallets, and the typical delay from the trade on chain to the message">
       <span class="klabel">Alerts sent</span><b class="knum">{{ al.sent }}</b><span class="kfoot">to {{ al.to }} · {{ al.buys }} buys{% if al.lag_s is not none %} · {{ al.lag_s|round(1) }} s after the trade{% endif %}</span></div>
     <div class="kcard" title="Visits that came from a link in an alert, guests included, per alert sent">
@@ -312,6 +312,7 @@
     <div title="Solana Tracker requests the log counted since the 1st (UTC). What is left is at the top of the page"><b>{{ m.st|num }}</b><span>Solana Tracker spent · {{ m.month }}</span></div>
     {% if budget.rpc %}<div title="Helius credits this month by the server's own counter{% if m.rpc_unlogged %}; {{ m.rpc_unlogged|num }} of them are not in the log (spent before it, or by scripts){% endif %}"><b>{{ budget.rpc.spent|num }}</b><span>Helius spent · {{ m.month }}</span></div>{% endif %}
     <div title="The agent's answers since the 1st"><b>{{ dollars(m.ai_usd) }}</b><span>AI spent · {{ m.month }}</span></div>
+    {% if budget.insightx %}<div title="InsightX label requests this month: each names up to 100 funders. The free plan has {{ budget.insightx.limit|num }} a month"><b>{{ budget.insightx.spent|num }}</b><span>InsightX of {{ budget.insightx.limit|num }} · {{ m.month }}</span></div>{% endif %}
     <div title="Live analyses started today by anyone but you"><b>{{ budget.runs_today }}</b><span>Runs today</span></div>
   </div>
   <div class="ucharts">
