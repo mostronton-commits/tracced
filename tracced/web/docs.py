@@ -15,11 +15,12 @@ PAGES = [
     ("index", "Overview", "🧭", "What tracced answers and how to read it"),
     ("compare", "Compare", "⚖️", "Why not just look at Axiom or GMGN"),
     ("how-it-works", "How it works", "⚙️", "Where every number on the page comes from"),
-    ("tags", "Tags", "🏷️", "Eight rules, each one checkable on chain"),
+    ("tags", "Tags", "🏷️", "Nine rules, each one checkable on chain"),
     ("limits", "Limits", "⏳", "What is free and what needs a wallet"),
     ("account", "Your account", "🔑", "Sign-in, lists, your own tags, repeats"),
     ("api", "API", "🔌", "A token check for partners, in beta"),
     ("roadmap", "Roadmap", "🗺️", "Shipped, next, and what we will not build"),
+    ("updates", "Updates", "🆕", "What each version brought, newest first"),
     ("project", "The project", "📌", "Why it exists and what it refuses to do"),
 ]
 _MD = markdown.Markdown(extensions=["extra", "toc", "sane_lists", "admonition"])

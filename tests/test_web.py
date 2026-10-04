@@ -797,7 +797,7 @@ if AioHTTPTestCase:
             self.assertIn('class="docs-nav"', html)
             self.assertIn('class="docs-pager"', html)                         # читається підряд, як книжка
             self.assertIsNone(CYRILLIC.search(html))
-            for slug in ("tags", "limits", "account", "roadmap", "how-it-works", "compare"):
+            for slug in ("tags", "limits", "account", "roadmap", "how-it-works", "compare", "updates"):
                 rr = await self.client.get(f"/docs/{slug}", headers=GUEST)
                 body = await rr.text()
                 self.assertEqual(rr.status, 200, slug)
@@ -807,6 +807,10 @@ if AioHTTPTestCase:
             first = await (await self.client.get("/docs/how-it-works", headers=GUEST)).text()
             self.assertIn('href="/docs/index"', first)                        # кнопка «назад» на попередню сторінку
             self.assertIn('href="/docs/tags"', first)                         # і «далі» на наступну
+            up = await (await self.client.get("/docs/updates", headers=GUEST)).text()
+            self.assertIn("<h1 id=\"updates\">Updates</h1>", up)                  # what each version brought (owner, 04.10)
+            from tracced import __version__
+            self.assertIn(">" + __version__ + " · ", up)                             # the running version has its entry
             tg = await (await self.client.get("/docs/tags", headers=GUEST)).text()
             self.assertIn("never-sold", tg)
             self.assertIn("dormant", tg)
