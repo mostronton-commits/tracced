@@ -212,14 +212,22 @@ th.sortable.desc::after { content: " ↓"; color: var(--ink); font-size: 10px; }
 .fpop .fck input { accent-color: #10b981; margin: 0; }
 .fpop .fpf { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
 .fpop .fpf .primary { height: 32px; padding: 0 16px; }
-.fmenu { width: 300px; padding: 10px; gap: 6px; }
-.fmenu .fph.sub { margin: 6px 0 0; font: 600 10.5px/1.4 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
-.fmenu .fmi { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; height: auto; min-height: 34px; padding: 6px 8px;
-  border: 0; border-radius: 6px; background: transparent; font-weight: 500; text-align: left; }
-.fmenu .fmi:hover { background: #F1F5F9; }
-.fmenu .fmi small { font: 11.5px var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
-.fmenu .fmi.on small { color: #047857; }
-.fmenu .fmi.rst { border-top: 1px solid var(--line); border-radius: 0 0 6px 6px; margin-top: 4px; color: var(--muted); font-weight: 400; font-size: 12.5px; }
+/* the filters as a panel over the table, its full width (owner, 04.10: as it was before, not a pop-up): find a wallet and
+   your watchlist, then every number from and to, then the tags to hide; all of it applies as you type */
+.fpanel { display: grid; gap: 12px; margin: 0 0 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.fpanel .fp-top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+.fpanel .fq { flex: 0 1 360px; min-width: 0; height: 34px; font: 13px var(--mono); }
+.fpanel .fp-nums { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px 20px; }
+.fpanel .fnum { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.fpanel .fnum span { white-space: nowrap; } .fpanel .fnum i { font-style: normal; }
+.fpanel .fnum input { width: 100%; min-width: 0; height: 32px; padding: 0 8px; font: 13px var(--mono); -moz-appearance: textfield; }
+.fpanel .fnum input::-webkit-inner-spin-button, .fpanel .fnum input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.fpanel .fp-hide { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.fpanel .fph { margin-right: 4px; font: 600 10.5px/1 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.fpanel .fck { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink); cursor: pointer; }
+.fpanel .fck input { margin: 0; accent-color: #10b981; } .fpanel .fck svg.ci { color: #D97706; }
+.fpanel .tagchip { height: 28px; padding: 0 10px; gap: 6px; cursor: pointer; }
+#ftoggle[aria-expanded="true"] { border-color: #94A3B8; }
 /* the money unit lives in the table's head; the toolbar keeps its switch only where the head is hidden */
 @media (min-width: 961px) { .toolbar #cur { display: none; } }
 /* the star by a wallet (owner, 02.10): invisible until the pointer reaches its own place before the address, then it
@@ -231,6 +239,12 @@ th.sortable.desc::after { content: " ↓"; color: var(--ink); font-size: 10px; }
 .star.on, .facts tbody tr .star.on { opacity: 1; color: #D97706; }
 .star.on:hover { background: #FEF3C7; }
 @media (hover: none) { .star { opacity: .5; } }        /* a phone has no pointer to bring it out */
+/* owner, 04.10: the star and the chart mark come out together, with the row under the pointer, and are gone without it;
+   a saved star and the mark of a wallet on the chart stay */
+.facts tbody tr:hover .star, .facts tbody tr:hover .mk, .facts .mk:focus-visible { opacity: 1; }
+.facts tbody tr:not(.onchart) .mk { opacity: 0; transition: opacity .12s ease, color .12s ease, background .12s ease; }
+.facts tbody tr:not(.onchart):hover .mk, .facts tbody tr:not(.onchart) .mk:focus-visible { opacity: 1; }
+@media (hover: none) { .facts tbody tr:not(.onchart) .mk { opacity: .5; } }
 /* a wallet kept on the chart though the filters would hide it */
 tr.outside > td:not(.wcell) { opacity: .55; }
 
@@ -1346,16 +1360,39 @@ header.top { position: relative; z-index: 45; }
 @media (max-width: 640px) { .tally .tc { padding: 9px 12px; } .tally .tc b { font-size: 16px; } }
 @media (max-width: 960px) { .toolbar #enrich { display: none; } }   /* with Sort in the toolbar there, the age-check note would wrap Export away */
 /* the card: this token or every token, two tabs under the tags (owner, 02.10) */
-.dview { display: flex; margin: 10px 16px 0; border-bottom: 1px solid var(--line); }
+.dview { display: flex; margin: 0 0 12px; border-bottom: 1px solid var(--line); }
 .dview button { height: 34px; margin-bottom: -1px; padding: 0 12px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent;
   color: var(--muted); font-weight: 500; }
 .dview button:hover { background: transparent; color: var(--ink); }
 .dview button.on { color: var(--ink); border-bottom-color: var(--ink); }
-.wcard .dtally { margin: 12px 16px 2px; }
+.wcard .dtally { margin: 0 0 12px; }
 .wcard .dtally { grid-template-columns: repeat(auto-fit, minmax(76px, 1fr)); }
 .wcard .dtally .tc { padding: 8px 12px; }
 .wcard .dtally .tc b { font-size: 15px; }
-.wcard .dtrades { border-top: 0; }
+.wcard .dtrades .dth { margin: 0 0 6px; }
+/* the card's address copies itself (owner, 04.10): no copy mark beside it, a copy cursor and a dotted line instead */
+.dwc { height: auto; padding: 0; border: 0; border-bottom: 1px dotted #94A3B8; border-radius: 0; background: transparent; font-size: 12.5px;
+  color: var(--muted); cursor: copy; }
+.dwc:hover { background: transparent; color: var(--ink); border-bottom-color: var(--ink); }
+/* the first visits: a pointer comes to the first address and clicks, the address rings, a label says what it does (owner,
+   04.10, like the chart's two clicks); gone at the first click */
+.wname { position: relative; }
+.wname.hinted .mono { border-radius: 3px; animation: chint-ring 2.4s ease-out .3s 2; }
+.chint { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
+.chint-cur { position: absolute; left: 45%; top: 55%; width: 16px; height: 22px; fill: #fff; stroke: #0F172A; stroke-width: 1.3; stroke-linejoin: round;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .35)); transform-origin: 2px 2px; opacity: 0; animation: chint-cur 2.4s ease-in-out .3s 2; }
+.chint-tip { position: absolute; left: calc(100% + 14px); top: 50%; padding: 7px 12px; border-radius: 999px; white-space: nowrap;
+  font: 500 12.5px/1 var(--sans); color: var(--navy); background: var(--mint); box-shadow: 0 6px 18px -8px rgba(15, 23, 42, .6);
+  transform: translateY(-50%); animation: chint-tip .3s ease-out .2s both; }
+@keyframes chint-cur { 0% { opacity: 0; transform: translate(46px, 26px); } 15% { opacity: 1; } 45% { transform: translate(0, 0) scale(1); }
+  52% { transform: translate(0, 0) scale(.78); } 60% { transform: translate(0, 0) scale(1); } 85% { opacity: 1; } 100% { opacity: 0; transform: translate(0, 0); } }
+@keyframes chint-ring { 0%, 50% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } 54% { box-shadow: 0 0 0 0 rgba(16, 185, 129, .55); }
+  100% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); } }
+@keyframes chint-tip { from { opacity: 0; transform: translate(-4px, -50%); } to { opacity: 1; transform: translate(0, -50%); } }
+@media (max-width: 960px) { .chint-tip { left: 0; top: calc(100% + 10px); transform: none; animation-name: chint-tip-m; } }
+@keyframes chint-tip-m { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .chint-cur { display: none; } .wname.hinted .mono { animation: none; box-shadow: 0 0 0 3px rgba(16, 185, 129, .35); }
+  .chint-tip { animation: none; } }
 /* a bundle in its group's colour: the Funded by column is gone (owner, 02.10), so the colour tells the groups apart */
 .tag.t-bundle.bundb { background: var(--c, #FFF7ED); border-color: transparent; color: #1E293B; cursor: pointer; }
 .tag.t-bundle.bundb:hover { box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .4); }

@@ -268,7 +268,7 @@ if AioHTTPTestCase:
             self.assertIn('aria-label="Export"', html)
             self.assertIn('id="cur"', html)                                # перемикач USD | SOL над таблицею
             self.assertIn('class="button holo" id="askbtn"', html)         # сяйво лишилось тільки на кнопці агента
-            for el in ('id="dtags"', 'id="dchips"', 'id="dprof"', 'id="dprofi"', 'id="dstar"', 'id="dcopy"',
+            for el in ('id="dtags"', 'id="dchips"', 'id="dprof"', 'id="dprofi"', 'id="dstar"', 'id="dw"',
                        'id="dcross"', 'id="dtrades"', 'id="dnote"', 'id="dclose"'):
                 self.assertIn(el, html)                                    # картка гаманця: секції, на які спирається скрипт
             self.assertNotIn('id="dfacts"', html)                          # цифри цього токена — у таблиці, картка їх не повторює
@@ -1161,7 +1161,8 @@ if AioHTTPTestCase:
             self.assertIn("Trades up to", html)
             self.assertNotIn("Select all", html)                         # no checkboxes (owner, 02.10): the star does it
             self.assertNotIn('class="pick"', html)
-            self.assertIn("Add to your Watchlist", html)                  # the star in every row
+            self.assertIn("Add to your watchlist", html)                  # the star in every row
+            self.assertIn('id="fpanel"', html)                           # the filters as a panel over the table (owner, 04.10)
             self.assertIn('data-fil="hold"', html)                       # Held: from and to, buys too
             self.assertNotIn("every number is their whole history on", html)   # owner, 02.10: not needed on the page
             self.assertNotIn('class="ghost wcopy" data-copy="\' + o.w', html)  # copying the address lives in the card
@@ -2451,7 +2452,7 @@ if AioHTTPTestCase:
                 self.assertEqual((await self.client.post("/me/wallets", json={"job": DEMO_JID, "wallets": [W1]}, headers=h)).status, 200)
                 self.assertEqual((await self.client.post(f"/me/wallets/tags", json={"wallet": W1, "tags": ["insider"]}, headers=h)).status, 200)
                 await self.client.post(f"/job/{DEMO_JID}/agent/ask", json={"q": "Which of my saved wallets are here?"}, headers=h)
-                self.assertEqual(mines[-1], {W1: {"lists": ["Watchlist"], "tags": ["insider"]}})   # the agent knows the user's own lists
+                self.assertEqual(mines[-1], {W1: {"lists": ["Main"], "tags": ["insider"]}})   # the agent knows the user's own lists
                 self.app["s"]["agent_questions_per_day"] = 2
                 r = await self.client.post(f"/job/{DEMO_JID}/agent/ask", json={"q": "more"}, headers=h)
                 self.assertEqual(r.status, 429)

@@ -53,7 +53,7 @@ number it writes is checked against the table before you see it, and it answers 
 
 ![AI agent](docs/img/agent.png)
 
-Keep what you find in several named lists, tag wallets in your own words, and export a list as CSV or TXT. In a closed
+Keep what you find in your watchlist, in several named lists, tag wallets in your own words, and export a list as CSV or TXT. In a closed
 test, a list sends its wallets' buys and sells to Telegram about two seconds after the block, and each row counts the
 wallet's trades of the last 7 days. [Your account →](https://tracced.xyz/docs/account)
 
@@ -69,7 +69,7 @@ card.
 | [How it works](https://tracced.xyz/docs/how-it-works) | Where every number comes from |
 | [Tags](https://tracced.xyz/docs/tags) | Eight rules, each checkable on chain |
 | [Limits](https://tracced.xyz/docs/limits) | What is free, what needs a wallet, the daily caps |
-| [Your account](https://tracced.xyz/docs/account) | Sign-in, lists, your own tags, repeats |
+| [Your account](https://tracced.xyz/docs/account) | Sign-in, the watchlist, your own tags, repeats |
 | [Compare](https://tracced.xyz/docs/compare) | Next to Axiom and GMGN |
 | [API](https://tracced.xyz/docs/api) | A token check for partners, in beta: rules and levels, no scores |
 | [Roadmap](https://tracced.xyz/docs/roadmap) | Shipped, next, and what we will not build |

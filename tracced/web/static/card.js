@@ -66,7 +66,8 @@
         + '<td class="num muted">' + ago(t.last_ms) + '</td></tr>').join('') + '</tbody></table>';
   }
   // box: where the block goes; info: the i beside the heading, which carries how it was counted
-  function render(all, period, box, info) {
+  // opts.recent false: the recent tokens go elsewhere (a result's card switches its trades and them; owner, 04.10)
+  function render(all, period, box, info, opts) {
     const p = (all.periods && all.periods[period]) || all;
     const sol = (window.EarlyCur && EarlyCur.get()) === 'sol' && p.pnl_sol != null;
     const cls = p.pnl_usd > 0 ? 'pos' : (p.pnl_usd < 0 ? 'neg' : '');
@@ -92,7 +93,7 @@
       + '</div>'
       + (distHtml(p) ? '<h5>Closed positions <span class="muted">' + ((p.wins || 0) + (p.losses || 0) || '') + '</span></h5>' + distHtml(p) : '')
       + (all.heat ? '<h5>Active hours · ' + ((window.EarlyTZ && EarlyTZ.get() === 'local') ? 'your time' : 'UTC') + '</h5>' + heatHtml(all.heat) : '')
-      + (all.recent && all.recent.length ? '<h5>Recent tokens</h5>' + recentHtml(all.recent) : '');
+      + (all.recent && all.recent.length && !(opts && opts.recent === false) ? '<h5>Recent tokens</h5>' + recentHtml(all.recent) : '');
     if (window.EarlyTZ) EarlyTZ.apply();
   }
   function identicon(w) {
@@ -126,5 +127,5 @@
   document.addEventListener('pointermove', sparkAt);
   document.addEventListener('pointerdown', sparkAt);
   document.addEventListener('pointerout', e => { if (e.target.closest && e.target.closest('.dsparkw') && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.dsparkw'))) sparkOff(e); });
-  window.EarlyCard = { render, identicon };
+  window.EarlyCard = { render, identicon, recent: all => (all && all.recent && all.recent.length ? recentHtml(all.recent) : '') };
 })();

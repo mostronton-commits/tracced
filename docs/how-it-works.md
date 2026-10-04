@@ -120,38 +120,30 @@ in the list is organic buying. A red word, first among the findings under the ch
 | Staged | mostly fresh wallets, made for the launch, without one funder |
 | Cabal | both at once: fresh wallets from shared funders |
 
-Above the table, tracced lists up to three things it found that a terminal does not show, each only when it is big
-enough to matter, and each a click into exactly those wallets:
-
-- operators: wallets that share a funder;
-- the token's creator bought in the range;
-- fresh wallets;
-- wallets funded straight from exchanges;
-- wallets early in your other pumps (with a wallet connected);
-- the top 10 took most of the profit.
-
 Until the check reaches a wallet, `fresh`, `bundle` and the filters that hide them do not know about it yet. Below
 the first {{ s.age_lookups_max }} they stay unknown unless a card is opened: a bundle there counts only the wallets
 that were checked. When the check is paused, the page says so.
 
 ## The wallet card
 
-Click a wallet's name. The chart icon before it puts its buys and sells on the chart instead, in the wallet's own
-colour. The card shows, top to bottom:
+Click a wallet's address, or anywhere else in its row. The chart mark before it, which comes out with the star when the
+pointer is over the row, puts its buys and sells on the chart instead, in the wallet's own colour. In the card, a click on
+the address copies it. The card shows, top to bottom:
 
 1. who it is, when the wallet is publicly identified (a star for a KOL, its X account, the app it trades through),
-   and next to the address its age, like `94d`, and who sent it its first SOL; hover either for the detail. A wallet outside
+   and next to the address its age, like `94d old`, and who sent it its first SOL (`funded by …`); hover either for
+   the detail. A wallet outside
    the first {{ s.age_lookups_max }} shows `…` for a moment while its card checks it; when that cannot happen (no
    wallet connected, the day's card checks used up) it shows `?` or `1k+ tx`: its age stays unknown rather than
    guessed;
 2. its tags, ours and your own;
 3. how it trades on every token over the last 7 or 30 days: realized PnL and its curve, win rate with wins and
    losses, volume, buys and sells, how many tokens and how many still open, average hold, best day, drawdown, how
-   its closed positions ended, the hours it trades, and its latest tokens. Point at the PnL curve for any day's
-   result and the running total after it;
-4. its position in this token, with its ROI;
-5. the analyses you saved where it was early too, if any;
-6. its trades on this token.
+   its closed positions ended and the hours it trades. Point at the PnL curve for any day's result and the running total
+   after it;
+4. the analyses you saved where it was early too, if any;
+5. its trades, with a switch: on this token, its numbers here (bought, sold, PnL, ROI, held) and every trade; on all
+   tokens, the latest tokens it traded.
 
 ROI, in the card and in its own column of the table, is the average exit cap over the average entry cap, buys
 before the range included: `2×` is +100%, `61.5×` is +6,050%. Hover it for the percent.
@@ -180,10 +172,10 @@ It reads only what the site computed from the table and does not compute a numbe
 reaches the page, every number and wallet in it is checked against the analysis, and a line that fails is dropped.
 It never tells you to buy or sell, never predicts a price and never calls a wallet good or a token safe.
 
-It knows your lists too: when you ask, it sees which of your saved wallets bought in this range, the lists that hold
+It knows your watchlist too: when you ask, it sees which of your saved wallets bought in this range, the lists that hold
 them and your own tags for them, so "which of my wallets are here?" or "what did my insiders do?" has an answer. When
-some of them did buy here, the panel offers that question as a button. It sees only your own lists, and only when you
-ask.
+some of them did buy here, the panel offers that question as a button. It sees only your own watchlist, and only when
+you ask.
 
 It answers only about the analysis it is on. Anything else, including a request to change how it works, gets one
 fixed reply. The agent needs a connected wallet; cards someone has already opened are kept, so opening them again is

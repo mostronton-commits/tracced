@@ -30,13 +30,14 @@ days are kept for a day, and the age and funder stay in the result.
 |---|---|
 | New analyses a day, per person: wallet and browser count together | {{ s.runs_per_day }} |
 | New analyses a day from one network | {{ s.runs_per_ip_per_day }} |
+| New analyses a day on the whole site, while the month's requests last | {{ s.runs_global_per_day }} |
 | Ranges per token | {{ s.ranges_per_token }} |
 | Longest range | {{ s.max_window_hours }} hours |
 | Wallets that get exact exits | {{ '{:,}'.format(s.max_wallet_lookups) }} |
 | Smallest position in the table | ${{ s.min_invested_usd }} bought inside the range |
 | Wallets whose age is checked with the analysis, first by PnL | {{ s.age_lookups_max }} |
 | Other wallets checked from their cards, per person a day, and per network | {{ s.age_card_per_day }} |
-| Changes to your lists, tags and notes, and exports, per wallet a day | {{ '{:,}'.format(s.acct_writes_per_day) }} |
+| Changes to your watchlist, tags and notes, and exports, per wallet a day | {{ '{:,}'.format(s.acct_writes_per_day) }} |
 | Questions to the AI agent, per person a day | {{ s.agent_questions_per_day }} |
 | Results the agent writes its cards for, per person a day (cards someone already opened are free) | {{ s.agent_cards_per_day }} |
 

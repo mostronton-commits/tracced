@@ -59,7 +59,7 @@
     {% if not sm.has_sol %}<p class="muted small solnote" hidden>This analysis was saved before tracced started recording SOL amounts, so its figures stay in dollars.</p>{% endif %}
 
     <div class="row toolbar">
-      <button type="button" id="ftoggle" aria-haspopup="dialog">Filters</button><button type="button" class="ghost frst" id="freset" hidden title="Back to no filters and the PnL order">Reset</button>
+      <button type="button" id="ftoggle" aria-expanded="false" aria-controls="fpanel">Filters</button><button type="button" class="ghost frst" id="freset" hidden title="Back to no filters and the PnL order">Reset</button>
       <span class="muted small" id="shown"></span><span class="factive" id="factive" hidden></span>
       {% if s.age_lookups_max %}<span class="muted small tipt" id="enrich" title="{{ TAGS.fresh }}">wallet age…</span>{% endif %}
       <label class="sortby muted small">Sort <select id="msort" aria-label="Sort the wallets">
@@ -85,6 +85,8 @@
       </div>
     </div>
 
+    {# the filters as a panel over the table, its full width (owner, 04.10: as it was, not a pop-up); filled by drawPanel() #}
+    <div class="fpanel" id="fpanel" hidden></div>
     <div class="tablewrap">
     <table class="facts" id="facts" data-id="{{ save_id }}">
       <thead>
@@ -133,28 +135,15 @@
             <span class="wav" id="dav" aria-hidden="true"></span>
             <div class="dh-names">
               <div class="dh-top"><b id="dname">Wallet</b><span class="ids" id="dids"></span></div>
-              <div class="dh-addr"><span class="mono" id="dw"></span><button type="button" class="ghost wcopy" id="dcopy" data-copy="" title="Copy the address" aria-label="Copy the address">{{ icon('copy') }}</button><a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan" aria-label="This wallet on Solscan">{{ icon('launch') }}</a><span class="dchips" id="dchips"></span></div>
+              <div class="dh-addr"><button type="button" class="dwc mono" id="dw" data-copy="" title="Copy the address" aria-label="Copy the address"></button><a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan" aria-label="This wallet on Solscan">{{ icon('launch') }}</a><span class="dchips" id="dchips"></span></div>
             </div>
           </div>
           <div class="dh-act">
-            <button type="button" class="ghost dstar" id="dstar" title="Add to one of your lists" aria-label="Add to one of your lists">{{ icon('star') }}</button>
+            <button type="button" class="ghost dstar" id="dstar" title="Add to your watchlist" aria-label="Add to your watchlist">{{ icon('star') }}</button>
             <button type="button" class="ghost x" id="dclose" title="Close" aria-label="Close">×</button>
           </div>
         </div>
         <div class="dtags" id="dtags"></div>
-        {# this token or every token (owner, 02.10: the trades here sat at the very bottom) #}
-        <div class="dview" id="dview" role="tablist" aria-label="What the card shows">
-          <button type="button" role="tab" data-v="token" aria-selected="true" class="on">{{ job.symbol }} token</button><button type="button" role="tab" data-v="all" aria-selected="false">All tokens</button>
-        </div>
-        <div id="dtok">
-          <div class="tally dtally" id="dtally"></div>
-          <section class="dsec dtrades">
-            <h4>Trades <span class="muted" id="dtcount"></span></h4>
-            <table class="story"><thead><tr><th>Time</th><th></th><th class="num">Amount</th><th class="num">Tokens</th><th class="num">Cap</th></tr></thead><tbody id="dtrades"></tbody></table>
-            <p class="muted small dline" id="dnote"></p>
-          </section>
-        </div>
-        <div id="dall" hidden>
         <section class="dsec dperf">
           <div class="dsec-h"><h4>Performance <span class="dinfo" id="dprofi" hidden>i</span></h4>
             <div class="seg" id="dper" role="tablist" aria-label="Period"><button type="button" data-p="7">7D</button><button type="button" data-p="30" class="on">30D</button></div></div>
@@ -163,7 +152,19 @@
         <section class="dsec" id="dwsec" hidden>
           <div class="dcross" id="dcross"></div>
         </section>
-        </div>
+        {# the trades: this token's or the recent tokens' (owner, 04.10: only these switch; the performance always shows) #}
+        <section class="dsec dtrades">
+          <div class="dview" id="dview" role="tablist" aria-label="Whose trades">
+            <button type="button" role="tab" data-v="token" aria-selected="true" class="on">{{ job.symbol }} token</button><button type="button" role="tab" data-v="all" aria-selected="false">All tokens</button>
+          </div>
+          <div id="dtok">
+            <div class="tally dtally" id="dtally"></div>
+            <h4 class="dth">Trades <span class="muted" id="dtcount"></span></h4>
+            <table class="story"><thead><tr><th>Time</th><th></th><th class="num">Amount</th><th class="num">Tokens</th><th class="num">Cap</th></tr></thead><tbody id="dtrades"></tbody></table>
+            <p class="muted small dline" id="dnote"></p>
+          </div>
+          <div id="dall" hidden><div id="drecent"></div></div>
+        </section>
       </div>
     </aside>
 
@@ -225,6 +226,7 @@
         });
         const u = document.querySelector('#facts .hcur');
         if (u) u.innerHTML = (window.EarlyCur && EarlyCur.get() === 'sol') ? '<span class="insol"></span>' : '$';
+        fillPanel();
       }
       function nActive() { return Object.keys(f.r).filter(isOn).length + [f.q, f.exits, f.profit, f.funder, f.bundle, f.repeat, f.only, f.mine].filter(Boolean).length + f.hide.length; }
 
@@ -305,7 +307,7 @@
       const cells = new Map();                                   // wallet → the tags markup last drawn for it
       const cardW = () => { const d = document.getElementById('drawer'); return d && !d.hidden ? d.dataset.w : ''; };   // the wallet whose card is open
       const STAR = w => { const on = inList(w); return '<button type="button" class="star' + (on ? ' on' : '') + '" aria-pressed="' + on + '" title="'
-        + (on ? 'In your lists · click to change' : 'Add to your Watchlist') + '" aria-label="' + (on ? 'In your lists' : 'Add to your Watchlist') + '">' + EarlyIcon(on ? 'star-on' : 'star') + '</button>'; };
+        + (on ? 'In your watchlist · click to change' : 'Add to your watchlist') + '" aria-label="' + (on ? 'In your watchlist' : 'Add to your watchlist') + '">' + EarlyIcon(on ? 'star-on' : 'star') + '</button>'; };
       const CHARTIC = EarlyIcon('chart');
       function rowHtml(o, n, i) {
         const oc = onChart.find(x => x.wallet === o.w), tg = tagsHtml(o);
@@ -492,7 +494,6 @@
       // one small window per filter: «from … to …», Reset and Apply; the Wallet funnel finds a wallet and hides tags.
       // The Filters button lists them all (the only way in on a phone, where the table has no head)
       const fpop = document.createElement('div'); fpop.className = 'fpop'; fpop.hidden = true; fpop.setAttribute('role', 'dialog'); document.body.appendChild(fpop);
-      const fmenu = document.createElement('div'); fmenu.className = 'fpop fmenu'; fmenu.hidden = true; document.body.appendChild(fmenu);
       let fpopFor = null, hasLists = false;
       const numIn = (k, i, v) => '<input type="number" inputmode="decimal" step="' + RANGES[k].step + '" data-k="' + k + '" data-i="' + i + '" placeholder="' + (i ? 'max' : 'min')
         + '" value="' + (v == null ? '' : v) + '" aria-label="' + RANGES[k].t + (i ? ', at most' : ', at least') + '">';
@@ -506,7 +507,7 @@
         el.style.left = (window.scrollX + Math.max(8, Math.min(x, cw - w - 8))) + 'px';
       }
       function openFilter(key, anchor) {
-        fmenu.hidden = true; fpopFor = key;
+        fpopFor = key;
         const body = key === 'hold' ? rangeRow('hold') + rangeRow('buys') : rangeRow(key);
         fpop.innerHTML = body + '<div class="fpf"><button type="button" class="ghost" data-reset>Reset</button><button type="button" class="primary" data-apply>Apply</button></div>';
         placeUnder(fpop, anchor, 290); fpop.hidden = false;
@@ -530,47 +531,60 @@
       fpop.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyFilter(); } else if (e.key === 'Escape') { e.stopPropagation(); closeFilter(); } });
       document.addEventListener('click', e => {
         if (!fpop.hidden && !e.target.closest('.fpop, .hfil, #ftoggle')) closeFilter();
-        if (!fmenu.hidden && !e.target.closest('.fmenu, #ftoggle')) fmenu.hidden = true;
       });
-      document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeFilter(); fmenu.hidden = true; } });
-      const MLABEL = { inv: 'Bought', sold: 'Sold', real: 'PnL', mult: 'ROI', hold: 'Held and buys' };
-      const span = k => { const v = f.r[k]; if (!isOn(k)) return ''; const u = RANGES[k].u, s = x => x == null ? '' : (u === '$' ? money(x) : x + (u === '%' ? '%' : u === '×' ? '×' : ''));
-        return v[0] != null && v[1] != null ? s(v[0]) + ' – ' + s(v[1]) : v[0] != null ? 'from ' + s(v[0]) : 'up to ' + s(v[1]); };
-      const valText = k => k === 'hold' ? [span('hold'), isOn('buys') && 'buys ' + span('buys')].filter(Boolean).join(' · ') || 'any' : span(k) || 'any';
-      // the Filters menu (owner, 02.10): finding a wallet, your lists and the tags live here and apply at once; the
-      // numbers keep their funnels in the head, and are listed here too for a phone, where the head is hidden
-      function drawMenu() {
-        fmenu.innerHTML = '<input type="text" class="fq" maxlength="44" placeholder="Find a wallet: address or name" value="' + esc(f.q) + '" aria-label="Find a wallet">'
-          + (hasLists || f.mine ? '<label class="fck"><input type="checkbox" data-mine' + (f.mine ? ' checked' : '') + '>' + EarlyIcon('star-on') + 'Only my lists</label>' : '')
-          + '<div class="fph sub">Hide wallets tagged</div><div class="fcks">' + HIDE_TAGS.map(x => '<label class="fck" title="' + esc(TAGDEF[x] || '') + '"><input type="checkbox" data-hide="' + x + '"'
-          + (f.hide.includes(x) ? ' checked' : '') + '>' + (EarlyTags.ICON[x] || '') + x + '</label>').join('') + '</div>'
-          + '<div class="fph sub">Numbers</div>' + Object.keys(MLABEL).map(k => '<button type="button" class="fmi' + (valText(k) !== 'any' ? ' on' : '') + '" data-fil="' + k + '"><span>' + MLABEL[k] + '</span><small>' + esc(valText(k)) + '</small></button>').join('');
+      document.addEventListener('keydown', e => { if (e.key === 'Escape') closeFilter(); });
+      // the panel: find a wallet, your watchlist, every number from and to, the tags to hide; all of it applies as you type.
+      // The funnels in the head edit the same numbers, so either one shows what the other set
+      const PANEL_NUMS = ['inv', 'sold', 'real', 'mult', 'hold', 'buys'];
+      function drawPanel() {
+        const fp = document.getElementById('fpanel');
+        fp.innerHTML = '<div class="fp-top"><input type="text" class="fq" maxlength="44" placeholder="Find a wallet: address or name" aria-label="Find a wallet">'
+          + '<label class="fck fmine" hidden><input type="checkbox" data-mine>' + EarlyIcon('star-on') + 'Only my watchlist</label></div>'
+          + '<div class="fp-nums">' + PANEL_NUMS.map(k => '<label class="fnum" title="' + esc(RANGES[k].hint) + '"><span>' + RANGES[k].t + (RANGES[k].u ? ', ' + RANGES[k].u : '')
+            + '</span>' + numIn(k, 0, null) + '<i>–</i>' + numIn(k, 1, null) + '</label>').join('') + '</div>'
+          + '<div class="fp-hide"><span class="fph">Hide</span>' + HIDE_TAGS.map(x => '<button type="button" class="tagchip t-' + x + '" data-hide="' + x + '" aria-pressed="false" title="Hide wallets tagged '
+            + x + ': ' + esc(TAGDEF[x] || '') + '">' + (EarlyTags.ICON[x] || '') + x + '</button>').join('') + '</div>';
+        fillPanel();
       }
+      function fillPanel() {                                     // the values from the state, never under the field being typed in
+        const fp = document.getElementById('fpanel'); if (!fp || fp.hidden || !fp.firstChild) return;
+        const q = fp.querySelector('.fq'); if (q !== document.activeElement) q.value = f.q;
+        const m = fp.querySelector('.fmine'); m.hidden = !(hasLists || f.mine); m.querySelector('input').checked = !!f.mine;
+        fp.querySelectorAll('input[data-k]').forEach(x => { if (x !== document.activeElement) { const v = (f.r[x.dataset.k] || [null, null])[+x.dataset.i]; x.value = v == null ? '' : v; } });
+        fp.querySelectorAll('[data-hide]').forEach(b => { const on = f.hide.includes(b.dataset.hide); b.classList.toggle('off', on); b.setAttribute('aria-pressed', String(on)); });
+      }
+      const fpanel = document.getElementById('fpanel');
       ftoggle.addEventListener('click', () => {
-        if (!fmenu.hidden) { fmenu.hidden = true; return; }
-        closeFilter(); drawMenu();
-        placeUnder(fmenu, ftoggle, 300); fmenu.style.left = Math.max(8, ftoggle.getBoundingClientRect().left + window.scrollX) + 'px';
-        fmenu.hidden = false; EarlyUI.use('filters-toggle', { on: true });
+        const open = fpanel.hidden;
+        if (open && !fpanel.firstChild) drawPanel();
+        fpanel.hidden = !open; ftoggle.setAttribute('aria-expanded', String(open));
+        if (open) { closeFilter(); fillPanel(); }
+        EarlyUI.use('filters-toggle', { on: open });
       });
-      let qT = 0;
-      fmenu.addEventListener('input', e => {
-        if (!e.target.classList.contains('fq')) return;
-        clearTimeout(qT); qT = setTimeout(() => { f.q = e.target.value.trim(); saveF(); limit = LIMIT; apply(); }, 250);
-      });
-      fmenu.addEventListener('change', e => {
+      let qT = 0, nT = 0;
+      fpanel.addEventListener('input', e => {
         const x = e.target;
-        if (x.matches('[data-mine]')) f.mine = x.checked;
-        else if (x.matches('[data-hide]')) { f.hide = x.checked ? [...new Set([...f.hide, x.dataset.hide])] : f.hide.filter(y => y !== x.dataset.hide); EarlyUI.use('hide', { tag: x.dataset.hide, on: x.checked }); }
-        else return;
-        saveF(); limit = LIMIT; apply();
+        if (x.classList.contains('fq')) { clearTimeout(qT); qT = setTimeout(() => { f.q = x.value.trim(); saveF(); limit = LIMIT; apply(); }, 250); return; }
+        if (!x.dataset.k) return;
+        clearTimeout(nT); nT = setTimeout(() => {
+          const k = x.dataset.k, v = [0, 1].map(i => { const y = fpanel.querySelector('input[data-k="' + k + '"][data-i="' + i + '"]').value.trim(); return y === '' || isNaN(+y) ? null : +y; });
+          if (v[0] == null && v[1] == null) delete f.r[k]; else f.r[k] = v;
+          saveF(); syncHeads(); limit = LIMIT; apply(); EarlyUI.use('filter', { k });
+        }, 400);
       });
-      fmenu.addEventListener('click', e => {
-        const b = e.target.closest('.fmi'); if (!b) return;
-        fmenu.hidden = true; openFilter(b.dataset.fil, ftoggle);
+      fpanel.addEventListener('change', e => {
+        if (!e.target.matches('[data-mine]')) return;
+        f.mine = e.target.checked; saveF(); limit = LIMIT; apply();
+      });
+      fpanel.addEventListener('click', e => {
+        const b = e.target.closest('[data-hide]'); if (!b) return;
+        const tg = b.dataset.hide, on = !f.hide.includes(tg);
+        f.hide = on ? f.hide.concat([tg]) : f.hide.filter(y => y !== tg);
+        saveF(); limit = LIMIT; apply(); fillPanel(); EarlyUI.use('hide', { tag: tg, on });
       });
       // Reset beside Filters, there whenever filters or the order differ from how the table came (owner, 02.10)
       const freset = document.getElementById('freset');
-      function resetAll() { Object.assign(f, fresh0()); saveF(); syncHeads(); fmenu.hidden = true; closeFilter(); sortBy('real', -1); EarlyUI.use('filters-reset'); }
+      function resetAll() { Object.assign(f, fresh0()); saveF(); syncHeads(); closeFilter(); sortBy('real', -1); EarlyUI.use('filters-reset'); }
       freset.addEventListener('click', resetAll);
 
       // the account: a wallet goes to a list by its star, the whole analysis to «My analyses»; no wallet yet → connect
@@ -582,7 +596,7 @@
          which lists hold it and toggles them; for a selection it adds all of them to the list you pick. */
       const listpop = document.createElement('div');
       listpop.className = 'listpop'; listpop.hidden = true; document.body.appendChild(listpop);
-      const listsOf = () => (me && me.lists) || { main: { name: 'Watchlist' } };
+      const listsOf = () => (me && me.lists) || { main: { name: 'Main' } };
       const listsOfWallet = w => (me && me.wallets && me.wallets[w] && me.wallets[w].lists) || [];
       // every add records which list took the wallet, so the star and its menu know it before the next reload
       const noteIn = (ws, lid) => { blank(); ws.forEach(w => { const x = me.wallets[w] = me.wallets[w] || { my_tags: [] }; x.lists = x.lists || []; if (!x.lists.includes(lid)) x.lists.push(lid); }); };
@@ -601,7 +615,7 @@
       }
       function openLists(anchor, ws) {
         const single = ws.length === 1 ? ws[0] : null, L = listsOf();
-        listpop.innerHTML = '<div class="lh">' + (single ? 'Lists for this wallet' : 'Add ' + plural(ws.length, 'wallet') + ' to') + '</div>'
+        listpop.innerHTML = '<div class="lh">' + (single ? 'Saved in' : 'Add ' + plural(ws.length, 'wallet') + ' to') + '</div>'
           + Object.entries(L).map(([id, v]) => {
               const on = single && listsOfWallet(single).includes(id);
               return '<button type="button" class="li' + (on ? ' on' : '') + '" data-id="' + id + '" aria-pressed="' + !!on + '">'
@@ -619,7 +633,7 @@
             if (b.dataset.rm) { await removeWallets(ws); listpop.hidden = true; return; }
             const id = b.dataset.id, name = L[id].name;
             if (single && listsOfWallet(single).includes(id)) { await removeFromList(id, single); EarlyUI.toast('Removed from ' + esc(name)); }
-            else { const d = await addToList(id, ws); EarlyUI.toast((single ? 'Added to ' : plural(d.added, 'wallet') + ' added to ') + esc(name) + ' · <a href="/me#list">Lists →</a>'); }
+            else { const d = await addToList(id, ws); EarlyUI.toast((single ? 'Added to ' : plural(d.added, 'wallet') + ' added to ') + esc(name) + ' · <a href="/me#list">Watchlist →</a>'); }
             if (single) { openLists(anchor, ws); if (drawer.dataset.w === single) { syncStar(single); renderTags(single); } } else listpop.hidden = true;
           } catch (x) { EarlyUI.toast(x.message); }
         };
@@ -630,7 +644,7 @@
             const d = await EarlyWallet.post('/me/lists', { name });
             blank(); me.lists = d.lists;
             await addToList(d.id, ws);
-            EarlyUI.toast((single ? 'Added' : plural(ws.length, 'wallet') + ' added') + ' to the new list ' + esc(d.name) + ' · <a href="/me#list">Lists →</a>');
+            EarlyUI.toast((single ? 'Added' : plural(ws.length, 'wallet') + ' added') + ' to the new list ' + esc(d.name) + ' · <a href="/me#list">Watchlist →</a>');
             if (single) { openLists(anchor, ws); if (drawer.dataset.w === single) { syncStar(single); renderTags(single); } } else listpop.hidden = true;
           } catch (x) { EarlyUI.toast(x.message); }
         };
@@ -643,14 +657,15 @@
           const st = r.querySelector('.star'); if (!st) continue;
           const on = inList(r.dataset.w);
           st.classList.toggle('on', on); st.innerHTML = EarlyIcon(on ? 'star-on' : 'star'); st.setAttribute('aria-pressed', String(on));
-          st.title = on ? 'In your lists · click to change' : 'Add to your Watchlist'; st.setAttribute('aria-label', on ? 'In your lists' : 'Add to your Watchlist');
+          st.title = on ? 'In your watchlist · click to change' : 'Add to your watchlist'; st.setAttribute('aria-label', on ? 'In your watchlist' : 'Add to your watchlist');
         }
         const card = document.getElementById('drawer');
         if (card && !card.hidden && card.dataset.w && typeof syncStar === 'function') syncStar(card.dataset.w);
         const saved = !!(me && me.analyses && me.analyses[jobId]);
         sjob.innerHTML = EarlyIcon(saved ? 'star-on' : 'star') + '<span>' + (saved ? 'Saved' : 'Save analysis') + '</span>'; sjob.classList.toggle('on', saved);
         sjob.title = saved ? 'In My analyses · click to remove' : 'Keep this analysis under My analyses';
-        hasLists = !!(me && me.wallets && Object.keys(me.wallets).length);   // «★ Only my lists» appears with the first saved wallet
+        hasLists = !!(me && me.wallets && Object.keys(me.wallets).length);   // «Only my watchlist» appears with the first saved wallet
+        fillPanel();
         try { myChip(); } catch (e) {}                               // the agent's question about them, once the account is known
         if (f.mine) apply();                                     // «My lists» needs the account to know which rows stay
       }
@@ -667,7 +682,7 @@
         try {
           const d = await addToList('main', [w]);
           EarlyUI.use('star', { on: true });
-          EarlyUI.toast((d.added ? 'Added to ' : 'Already in ') + esc((listsOf().main || {}).name || 'Watchlist') + ' · click the star to change · <a href="/me#list">Lists →</a>');
+          EarlyUI.toast((d.added ? 'Added to your watchlist' : 'Already in your watchlist') + ' · the star again picks its lists · <a href="/me#list">Watchlist →</a>');
         } catch (x) { EarlyUI.toast(x.message); }
       }
       async function removeWallets(ws) {
@@ -675,7 +690,7 @@
         try {
           const d = await EarlyWallet.post('/me/wallets/remove', { wallets: ws });
           blank(); ws.forEach(w => { delete me.wallets[w]; }); markSaved();
-          EarlyUI.toast(d.removed ? plural(d.removed, 'wallet') + ' removed from your lists' : 'Not in your lists');
+          EarlyUI.toast(d.removed ? plural(d.removed, 'wallet') + ' removed from your watchlist' : 'Not in your watchlist');
         } catch (e) { EarlyUI.toast(e.message); }
       }
       async function saveJob() {
@@ -766,6 +781,25 @@
       });
 
       syncHeads(); apply();
+      // a pointer comes to the first address and clicks it, the address rings, a label says what it does: once the first
+      // row is on screen (the table sits under the chart), until the person has opened a card, at most on three visits;
+      // gone at the first click or after a few seconds
+      (function cardHint() {
+        const seen = () => { try { return +localStorage.getItem('early:cardhint') || 0; } catch (e) { return 3; } };
+        const a = seen() < 3 && tbody.rows[0] && tbody.rows[0].querySelector('.wname'); if (!a || !window.IntersectionObserver) return;
+        const io = new IntersectionObserver(es => {
+          if (!es.some(x => x.isIntersecting)) return;
+          io.disconnect();
+          const n = seen(); if (n >= 3 || !a.isConnected) return;
+          try { localStorage.setItem('early:cardhint', String(n + 1)); } catch (e) {}
+          const h = document.createElement('span'); h.className = 'chint'; h.setAttribute('aria-hidden', 'true');
+          h.innerHTML = '<svg class="chint-cur" viewBox="0 0 16 22"><path d="M1.5 1.5v16.2l4.3-4.1 2.8 6.4 2.8-1.2-2.8-6.3h5.9z"/></svg><span class="chint-tip">Click an address: its card opens</span>';
+          a.classList.add('hinted'); a.appendChild(h);
+          const done = () => { h.remove(); a.classList.remove('hinted'); document.removeEventListener('pointerdown', done, true); };
+          document.addEventListener('pointerdown', done, true); setTimeout(done, 7000);
+        }, { threshold: 1, rootMargin: '0px 0px -12% 0px' });
+        io.observe(a);
+      })();
       const el = document.getElementById('chart');
       /* The token's own life on the chart: when trading left the launchpad, when someone paid DexScreener for
          visibility. Free, and a failure just leaves the chart without them. */
@@ -852,7 +886,7 @@
       function syncStar(w) {
         const on = inList(w);
         dstar.innerHTML = EarlyIcon(on ? 'star-on' : 'star'); dstar.classList.toggle('on', on);
-        dstar.title = on ? 'In ' + plural(listsOfWallet(w).length, 'list') + ' · click to change' : 'Add to your Watchlist'; dstar.setAttribute('aria-label', dstar.title);
+        dstar.title = on ? 'In your watchlist · click to change' : 'Add to your watchlist'; dstar.setAttribute('aria-label', dstar.title);
       }
       // your tag goes only by its own × (owner, 02.10: a click on the word dropped it by accident)
       const MINE = t => '<span class="tag mine" title="Your tag"><span>' + esc(t) + '</span><button type="button" class="tagx" data-tag="' + esc(t)
@@ -951,7 +985,8 @@
       const nf = v => (+v || 0).toLocaleString('en-US');
       let period = '30';
       function renderProfile(all) {                               // the block itself is shared with Lists: static/card.js
-        EarlyCard.render(all, period, dprof, document.getElementById('dprofi'));
+        EarlyCard.render(all, period, dprof, document.getElementById('dprofi'), { recent: false });
+        document.getElementById('drecent').innerHTML = EarlyCard.recent(all) || '<p class="dline muted small">No other tokens in its last 30 days.</p>';
         document.querySelectorAll('#dper [data-p]').forEach(b => b.classList.toggle('on', b.dataset.p === period));
       }
       document.getElementById('dper').addEventListener('click', e => {
@@ -964,20 +999,22 @@
       async function loadProfile(w) {
         if (profiles.has(w)) { renderProfile(profiles.get(w)); return; }
         dprof.innerHTML = '<div class="dskel"><i></i><i></i><i></i></div>';
+        const rec = document.getElementById('drecent'); rec.innerHTML = '<div class="dskel"><i></i><i></i></div>';
         document.getElementById('dprofi').hidden = true;
         let r;
         try { r = await fetch('/wallet_profile.json?' + new URLSearchParams({ job: jobId, wallet: w }), { credentials: 'same-origin' }); }
-        catch (e) { if (drawer.dataset.w === w) dprof.innerHTML = '<p class="dline muted small">Could not reach the server.</p>'; return; }
+        catch (e) { if (drawer.dataset.w === w) dprof.innerHTML = rec.innerHTML = '<p class="dline muted small">Could not reach the server.</p>'; return; }
         if (drawer.dataset.w !== w) return;                   // the card moved on to another wallet meanwhile
         if (r.status === 401) {
           dprof.innerHTML = '<div class="dconnect"><button type="button" class="primary" id="dprofgo">Connect wallet for more data</button>'
             + '<span class="muted small">PnL, win rate and active hours across all its tokens</span></div>';
+          rec.innerHTML = '<p class="dline muted small">Connect a wallet to see its other tokens.</p>';
           document.getElementById('dprofgo').addEventListener('click', () => EarlyWallet.open(() => { acctOn = true; loadMe().then(() => loadProfile(w)); }, 'Connect a wallet to see all its tokens.'));
           return;
         }
         let d = {}; try { d = await r.json(); } catch (e) {}
         if (drawer.dataset.w !== w) { if (r.ok) profiles.set(w, d); return; }   // reading the body took time too: keep it, but not on another wallet's card
-        if (!r.ok) { dprof.innerHTML = '<p class="dline muted small">' + esc(d.error || 'Could not load this wallet.') + '</p>'; return; }
+        if (!r.ok) { dprof.innerHTML = rec.innerHTML = '<p class="dline muted small">' + esc(d.error || 'Could not load this wallet.') + '</p>'; return; }
         profiles.set(w, d); renderProfile(d);
       }
       async function saveMyTags(w, tags) {
@@ -1002,18 +1039,16 @@
           noteIn([w], d.list || 'main'); markSaved(); return true;
         } catch (e) { EarlyUI.toast(e.message); return false; }
       }
-      // this token or every token (owner, 02.10): the choice stays for the next card; the 30 days cost requests, so they load
-      // only when their tab is shown
+      // its trades on this token, or its recent tokens (owner, 04.10): the choice stays for the next card
       let cardView = 'token'; try { if (localStorage.getItem('early:cardview') === 'all') cardView = 'all'; } catch (e) {}
-      function showView(v, w) {
+      function showView(v) {
         cardView = v;
         document.querySelectorAll('#dview [data-v]').forEach(b => { const on = b.dataset.v === v; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
         document.getElementById('dtok').hidden = v !== 'token'; document.getElementById('dall').hidden = v !== 'all';
-        if (v === 'all' && w) loadProfile(w);
       }
       document.getElementById('dview').addEventListener('click', e => {
         const b = e.target.closest('[data-v]'); if (!b || b.dataset.v === cardView) return;
-        showView(b.dataset.v, drawer.dataset.w);
+        showView(b.dataset.v);
         try { localStorage.setItem('early:cardview', b.dataset.v); } catch (x) {}
         EarlyUI.use('card-view', { v: b.dataset.v });
       });
@@ -1036,8 +1071,7 @@
         const row = rowOf(o.wallet);
         drawer.dataset.w = o.wallet; drawer.hidden = false; document.body.classList.add('drawer-open');
         markCarded(o.wallet);
-        const dw = document.getElementById('dw'); dw.textContent = short(o.wallet); dw.title = o.wallet;
-        document.getElementById('dcopy').dataset.copy = o.wallet;
+        const dw = document.getElementById('dw'); dw.textContent = short(o.wallet); dw.dataset.copy = o.wallet; dw.title = o.wallet + ' · click to copy';
         document.getElementById('dsol').href = 'https://solscan.io/account/' + o.wallet;
         syncStar(o.wallet); renderTags(o.wallet); renderIdent(o.wallet);
         dtrades.innerHTML = o.trades.map(t => '<tr class="' + t.side + '"><td class="mono dtc" data-ms="' + t.t + '">' + EarlyTZ.fmt(t.t, false) + '</td><td>' + (t.side === 'buy' ? '<b class="buy">▲ buy</b>' : '<b class="sell">▼ sell</b>') + '</td><td class="num mono">' + (cur && t.sol != null ? EarlyCur.solHtml(t.sol) : money(t.usd)) + '</td><td class="num mono">' + (t.qty ? ch.fmtMcap(t.qty) : '—') + '</td><td class="num mono">' + ch.fmtMcap(t.mcap) + '</td></tr>').join('');
@@ -1052,7 +1086,8 @@
         document.getElementById('dtcount').textContent = row ? plural(+row.buys || 0, 'buy') + ' · ' + plural(sells, 'sell') : '';
         document.getElementById('dnote').textContent = (o.complete === false ? 'Exits not fetched (over the cap): only trades inside the range are known. ' : '')
           + (o.truncated ? 'First ' + o.trades.length + ' of ' + o.n + '.' : '');
-        renderTokFacts(o.wallet); showView(cardView, o.wallet);
+        renderTokFacts(o.wallet); showView(cardView); loadProfile(o.wallet);
+        try { localStorage.setItem('early:cardhint', '3'); } catch (e) {}   // found the card: the hint has done its job
         if (window.EarlyTZ) EarlyTZ.apply();
       }
       document.getElementById('dclose').addEventListener('click', () => { closeCard(); EarlyUI.use('card-close'); });

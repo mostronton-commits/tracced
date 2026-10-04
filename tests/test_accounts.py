@@ -247,7 +247,7 @@ class TestStore(unittest.TestCase):
         a.pop("lists", None)
         self.st.save(a)
         a = self.st.load(self.pk)
-        self.assertEqual(a["lists"][A.MAIN_LIST]["name"], "Watchlist")
+        self.assertEqual(a["lists"][A.MAIN_LIST]["name"], "Main")                        # «Watchlist» names the whole page now (owner, 04.10)
         self.assertEqual(a["wallets"][w]["lists"], [A.MAIN_LIST])
 
     def test_wallet_cap(self):

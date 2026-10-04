@@ -1370,7 +1370,7 @@ async def me_wallet_json(request, pk):
     acct = app["accounts"].load(pk)
     meta = (acct.get("wallets") or {}).get(w)
     if not meta:
-        raise web.HTTPNotFound(text="That wallet is not in your lists.")
+        raise web.HTTPNotFound(text="That wallet is not in your watchlist.")
 
     def build():
         jobs = app["jobs"]
@@ -4221,7 +4221,7 @@ async def wallet_profile_json(request):
     elif not request.get("acct"):
         raise ConnectRequired(message="Connect a wallet to load this wallet's last 30 days.")
     elif wallet not in (app["accounts"].load(request["acct"]).get("wallets") or {}):
-        raise web.HTTPNotFound(text="That wallet is not in your lists.")
+        raise web.HTTPNotFound(text="That wallet is not in your watchlist.")
     cache, key = app["profile_cache"], f"v{profile.VERSION}:{wallet}"
     hit = cache.get(key)
     if hit is not None:

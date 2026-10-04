@@ -40,6 +40,7 @@ MAX_MESSAGE = 2048
 
 MAX_WALLETS, MAX_ANALYSES, MAX_NOTE = 500, 200, 200
 MAX_LISTS, MAX_LIST_NAME, MAIN_LIST = 20, 32, "main"      # кілька списків спостереження; «main» — той, що був завжди
+MAIN_NAME = "Main"          # перший список; «Watchlist» — назва всього, що людина зберігає (власник, 04.10)
 MAX_MY_TAGS, MAX_MY_TAG = 6, 24          # власні теги гаманця: коротка мітка, а не нотатка
 MY_TAG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 _-]{0,%d}$" % (MAX_MY_TAG - 1))
 WALLET_FIELDS = ("from_job", "mint", "symbol", "entry_mcap", "invested_usd", "multiple", "tags")
@@ -248,7 +249,7 @@ def migrate_alerts(a, cap=ALERT_WALLETS):
 
 def _empty(pubkey):
     return {"pubkey": pubkey, "created_ms": _now_ms(), "last_seen_ms": _now_ms(), "wallets": {}, "analyses": {},
-            "lists": {MAIN_LIST: {"name": "Watchlist", "created_ms": _now_ms()}}}
+            "lists": {MAIN_LIST: {"name": MAIN_NAME, "created_ms": _now_ms()}}}
 
 
 class AccountStore:
@@ -282,7 +283,9 @@ class AccountStore:
         a.setdefault("analyses", {})
         lists = a.setdefault("lists", {})
         if MAIN_LIST not in lists:                          # акаунти з часів одного списку: він стає першим
-            lists[MAIN_LIST] = {"name": "Watchlist", "created_ms": a.get("created_ms") or _now_ms()}
+            lists[MAIN_LIST] = {"name": MAIN_NAME, "created_ms": a.get("created_ms") or _now_ms()}
+        if lists[MAIN_LIST].get("name") == "Watchlist":     # «Watchlist» тепер назва всієї сторінки (власник, 04.10)
+            lists[MAIN_LIST]["name"] = MAIN_NAME
         for w in a["wallets"].values():
             ls = [x for x in (w.get("lists") or []) if x in lists]
             w["lists"] = ls or [MAIN_LIST]

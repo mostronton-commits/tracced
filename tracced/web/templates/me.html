@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Lists · tracced{% endblock %}
+{% block title %}Watchlist · tracced{% endblock %}
 {% block main_class %}{% if not acct %}center{% else %}withcard{% endif %}{% endblock %}
 {% block head %}<script src="/static/card.js?v={{ v }}"></script>{% endblock %}
 {% block body %}
@@ -36,7 +36,7 @@
 {% endif %}
 <section class="card me" id="list">
   <div class="row mehead">
-    <h2>Lists</h2><span class="muted small" id="wcount">{{ wallets|length }} wallet{{ '' if wallets|length == 1 else 's' }}</span>
+    <h2>Watchlist</h2><span class="muted small" id="wcount">{{ wallets|length }} wallet{{ '' if wallets|length == 1 else 's' }}</span>
     {% if wallets %}<div class="menu right"><button type="button" class="ghost xbtn" data-menu title="Export the list on screen: CSV or TXT" aria-label="Export">{{ icon('download') }}</button>
       <div class="menu-panel r" hidden><a href="/me/wallets.csv" id="xcsv">CSV <small>all columns</small></a><button type="button" id="xtxt">TXT <small>addresses only</small></button></div></div>{% endif %}
   </div>
@@ -62,7 +62,7 @@
   </tbody></table></div>
   <p class="muted" id="lempty" hidden>This list is empty. On a result, click the {{ icon('star', 'inl') }} by a wallet, or add one from another list in its card.</p>
   {% else %}
-  <p class="muted">Nothing here yet. On a result, click the {{ icon('star', 'inl') }} by a wallet: it lands in your Watchlist.{% if demo_mint %} <a href="/token?mint={{ demo_mint }}">Try it on the demo</a>.{% endif %}</p>
+  <p class="muted">Nothing here yet. On a result, click the {{ icon('star', 'inl') }} by a wallet: it lands in your watchlist.{% if demo_mint %} <a href="/token?mint={{ demo_mint }}">Try it on the demo</a>.{% endif %}</p>
   {% endif %}
 </section>
 
@@ -75,7 +75,7 @@
         <span class="wav" id="dav" aria-hidden="true"></span>
         <div class="dh-names">
           <div class="dh-top"><b id="dname">Wallet</b><span class="ids" id="dids"></span></div>
-          <div class="dh-addr"><span class="mono" id="dw"></span><button type="button" class="ghost wcopy" id="dcopy" data-copy="" title="Copy the address" aria-label="Copy the address">{{ icon('copy') }}</button><a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan" aria-label="This wallet on Solscan">{{ icon('launch') }}</a><span class="dchips" id="dchips"></span></div>
+          <div class="dh-addr"><button type="button" class="dwc mono" id="dw" data-copy="" title="Copy the address" aria-label="Copy the address"></button><a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan" aria-label="This wallet on Solscan">{{ icon('launch') }}</a><span class="dchips" id="dchips"></span></div>
         </div>
       </div>
       <div class="dh-act">{% if alerts_ok %}<button type="button" class="ghost bell" id="dbell" aria-pressed="false" aria-label="Alerts for this wallet">{{ icon('bell') }}</button>{% endif %}<button type="button" class="ghost x" id="dclose" title="Close" aria-label="Close">×</button></div>
@@ -211,7 +211,7 @@
       + (a.last ? 'last trade ' + EarlyTZ.fmt(a.last, true) : 'watched since ' + EarlyTZ.fmt(a.since, true)) + '</p>';
     // which lists hold it, as switches (owner, 02.10: a folder button in every row looked out of place); with one list
     // there is nothing to switch, so it is said in words
-    const lists = ids.length < 2 ? '' : '<div class="dlists" role="group" aria-label="Lists that hold this wallet"><span class="dl">Lists</span>'
+    const lists = ids.length < 2 ? '' : '<div class="dlists" role="group" aria-label="Where this wallet is saved"><span class="dl">Saved in</span>'
       + ids.map(id => { const on = has.includes(id);
           return '<button type="button" class="lchip' + (on ? ' on' : '') + '" data-lt="' + esc(id) + '" aria-pressed="' + on + '" title="'
             + (on ? 'In this list · click to take it out' : 'Click to add it to this list') + '">' + (on ? '✓ ' : '') + esc(LISTNAMES[id]) + '</button>'; }).join('') + '</div>';
@@ -257,8 +257,7 @@
     document.querySelectorAll('tr.carded').forEach(r => r.classList.remove('carded'));
     const tr = rowOf(w); if (tr) tr.classList.add('carded');
     document.getElementById('dav').innerHTML = EarlyCard.identicon(w);
-    const dw = document.getElementById('dw'); dw.textContent = short(w); dw.title = w;
-    document.getElementById('dcopy').dataset.copy = w;
+    const dw = document.getElementById('dw'); dw.textContent = short(w); dw.dataset.copy = w; dw.title = w + ' · click to copy';
     document.getElementById('dsol').href = 'https://solscan.io/account/' + w;
     document.getElementById('dids').innerHTML = ''; document.getElementById('dchips').innerHTML = '';
     document.getElementById('dwsec').hidden = true;
@@ -383,7 +382,7 @@
     const wc = document.getElementById('wcount'); if (wc) wc.textContent = rows.length + ' wallet' + (rows.length === 1 ? '' : 's');
   }
   if (ld) ld.addEventListener('click', async () => {
-    if (!confirm('Delete the list «' + names[current] + '»? Wallets that are only in it leave your lists.')) return;
+    if (!confirm('Delete the list «' + names[current] + '»? Wallets that are only in it leave your watchlist.')) return;
     try { await post('/me/lists/remove', { id: current }); try { localStorage.removeItem('early:list'); } catch (e) {} location.reload(); } catch (x) { oops(x); }
   });
   // ── Telegram alerts: connect with a one-time link, the bell on a list, buys / sells / from $ for all of them ──

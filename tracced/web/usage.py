@@ -157,14 +157,14 @@ CLICKS = {"card-open": "Opened a wallet card", "card-close": "Closed a wallet ca
           "range-add": "Added a range", "range-reset": "Reset the ranges", "tf": "Changed the timeframe", "chart-nav": "Jumped on the chart",
           "list-tab": "Switched a list", "copy": "Copied an address", "ext": "Followed a link out", "cur": "Switched USD/SOL",
           "tz": "Switched UTC/local", "leave": "Left a page", "egg": "Found an easter egg",
-          "star": "Starred a wallet into the Watchlist", "list-move": "Changed a wallet's lists in its card",
+          "star": "Starred a wallet into the watchlist", "list-move": "Changed a wallet's lists in its card",
           "wallet-bell": "Switched a wallet's alerts", "card-view": "Switched a card between this token and all tokens"}
 # що на сайті можна натиснути зараз: з цього списку — «ніхто не користувався» (прибрані кнопки сюди не входять,
 # інакше вони висіли б у списку вічно)
 UI_FEATURES = ("card-open", "card-period", "pin", "sort", "filter", "hide", "filters-toggle", "filters-reset", "funder", "finding",
                "star", "export", "show-more", "agent-open", "range-set", "range-add", "range-reset", "tf",
                "chart-nav", "list-tab", "list-move", "wallet-bell", "card-view", "copy", "ext", "cur", "tz")
-PAGE_NAMES = {"job": "On a result", "token": "On a token's chart", "me": "In Lists", "home": "On the home page", "docs": "In the docs"}
+PAGE_NAMES = {"job": "On a result", "token": "On a token's chart", "me": "In the watchlist", "home": "On the home page", "docs": "In the docs"}
 FUNNEL = (("result", "Opened a result"), ("card", "Opened a wallet card"), ("run", "Ran an analysis"),
           ("keep", "Saved or exported"), ("agent", "Asked the agent"))
 LIMITS = {"run": "Live analyses", "browse": "Charts of new tokens", "age-card": "Age checks from cards",

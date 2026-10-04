@@ -314,21 +314,28 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
 - **Filters live in the table's head** (owner, 02.10). A head reads, on one line: the money key where there is one,
   the sort mark, the name, the funnel. Only the numbers sort; the address does not, and there is no Funded by column:
   the card says who funded a wallet. Funnels stand only by numbers and open one small window: "from … to …", Reset, Apply; Enter applies and
-  Escape closes. A funnel holding a filter turns sage. The money unit is a small `$`/◎ key by "Bought". Everything
-  that is not a number lives in the Filters menu and applies at once: finding a wallet, ★ Only my lists, the tags to
-  hide. The menu lists the number filters too, the only way in on a phone or a tablet, where the table has no head.
+  Escape closes. A funnel holding a filter turns sage. The money unit is a small `$`/◎ key by "Bought". **Filters**
+  opens a panel over the table, its full width (owner, 04.10: as it was, not a pop-up): finding a wallet and ★ Only my
+  watchlist, then every number from and to, then the tags to hide, struck through when hidden. It applies as you type,
+  and it and the funnels edit the same numbers. On a phone or a tablet, where the table has no head, it is the way in.
   **Reset** stands beside Filters whenever a filter is on or the order is not "PnL, highest first", and clears both.
-- **The star** (save to lists) stays invisible until the pointer reaches its own place before the address, and then
-  lights up. One click on an empty star saves the wallet to the Watchlist, and the star turns filled amber. A filled
-  star always shows and opens the lists menu. Where there is no hover, as on a phone, the star always shows at 0.5
-  opacity.
+- **The star and the chart mark** before an address come out with the row under the pointer and are gone without it
+  (owner, 04.10). One click on an empty star saves the wallet to the watchlist, and the star turns filled amber. A
+  filled star always shows and opens the lists menu; the chart mark of a wallet on the chart stays in its colour.
+  Where there is no hover, as on a phone, both show at 0.5 opacity.
+- **The card hint**: on the first visits, once the table's first row is on screen, a pointer comes to its address and
+  clicks, the address rings once and a mint label says "Click an address: its card opens", like the chart's two clicks.
+  It shows on at most three visits, stops for good once a card is opened, and is gone at the first click.
+- **Watchlist** is the name of everything a person keeps (owner, 04.10): the one link at the top, the page, the star's
+  words. A list is one part of it; the first one is *Main*.
 - **The wallet card** is a right-hand sheet, 420–440 px wide and full width on a phone, with a sticky head: identity,
-  then two tabs, "<symbol> token" and "All tokens". The token tab holds the wallet's numbers here as a small tally and
-  its trades; the other tab holds the 7D/30D block (30D by default), loaded only when it is opened. The last tab chosen
-  stays for the next card. A wallet's address opens the card, never copies: it is underlined like a link, and a click
-  anywhere else in the row opens the card too. Its chips
-  say what they are without a hover: "funded by Binance", "94d old". In Lists the card shows the lists holding the
-  wallet as switches, amber when on; the last one stays, × in the row drops the wallet.
+  then the Performance block (7D/30D, 30D by default), always there, then the trades with a switch, "<symbol> token"
+  (its numbers here as a small tally, then its trades) and "All tokens" (its recent tokens); the last choice stays for
+  the next card (owner, 04.10). A wallet's address in the table opens the card, never copies: it is underlined like a
+  link, and a click anywhere else in the row opens the card too. In the card, the address copies itself on a click,
+  with no copy mark beside it. Its chips say what they are without a hover: "funded by Binance", "94d old". In the
+  watchlist the card shows the lists holding the wallet as switches under "Saved in", amber when on; the last one
+  stays, × in the row drops the wallet.
 - **Tooltips** come from `title` and stay short, about 90 characters at most. On a touch screen a tap on a `.tipt`
   element shows the same text as a toast. An `i` mark (`.dinfo`, `.kinfo`) holds the method; it turns into an amber
   `!` when the data is incomplete.

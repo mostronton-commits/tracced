@@ -6,15 +6,15 @@ no fee.
 Works with Phantom, Backpack and Solflare. On a phone, open tracced inside the wallet's own app: the Connect button
 takes you there.
 
-## Lists and saved analyses
+## Your watchlist and saved analyses
 
-In a result, point just before a wallet's address: a star (☆) lights up there. One click puts the wallet in your
-*Watchlist* and fills the star (★). A filled star, in the row or in the wallet's card, opens the menu of your lists: it
-shows which lists hold the wallet, and a click adds or removes it, or makes a new list. **★ Only my lists**, in the
-Filters menu, keeps only the wallets you have saved. **Save analysis** keeps the whole result under *My analyses* at `/me`; the
-*Lists* and *Analyses* links at the top of every page lead there.
+The wallets you keep are your watchlist. In a result, point at a wallet's row: a star (☆) comes out before its address.
+One click puts the wallet in your watchlist and fills the star (★). A filled star, in the row or in the wallet's card,
+opens the menu of your lists: it shows which lists hold the wallet, and a click adds or removes it, or makes a new
+list. **★ Only my watchlist**, in the Filters panel, keeps only the wallets you have saved. **Save analysis** keeps the
+whole result under *My analyses* at `/me`; the *Watchlist* link at the top of every page leads there.
 
-You start with one list, *Watchlist*, and can keep up to twenty: one per strategy, per token family, per person you
+Your watchlist starts with one list, *Main*, and can hold up to twenty: one per strategy, per token family, per person you
 follow. A wallet can sit in several. At `/me` every list has its own tab with its count, where you rename it right in the tab
 or delete it (the first one stays). A wallet's card there shows the lists that hold it: a click adds it to a list or
 takes it out. It stays in at least one; × in its row drops the wallet.
@@ -34,7 +34,7 @@ Counts are kept for 8 days.
 
 ## Your own tags
 
-Each saved wallet takes tags you write yourself: in your lists, right in its row, or in the wallet's card. Type a
+Each saved wallet takes tags you write yourself: in your watchlist, right in its row, or in the wallet's card. Type a
 short word, press Enter. A tag goes only by its own ×, and Undo in the message that follows brings it back. Tagging a wallet in its card on a result adds it to your *Watchlist*,
 because a tag is a reason to watch it. A tag is the wallet's name for you: your lists and your Telegram alerts show
 it instead of the address.
@@ -62,16 +62,16 @@ minute is taken for a bot: the rest of that minute is skipped.
 Only trades count: a wallet has to sign the transaction itself and pay SOL or a stablecoin for a token, or get them for
 one. Transfers, incoming SOL, airdrops and token-for-token swaps stay silent, and so does anything under your minimum.
 
-- **Connect**: on your lists page, press *Connect Telegram*, then *Start* in the bot. The link works once, for ten
+- **Connect**: on your watchlist page, press *Connect Telegram*, then *Start* in the bot. The link works once, for ten
   minutes, and only from the wallet you are signed in with. A chat already connected to another wallet stays with it:
   send /stop there first.
 - **Choose**: buys, sells, and the smallest trade in dollars, the same for every wallet with its bell on. Up to
   {{ s.alerts_max_wallets }} wallets per account: with all of them on, turn one off before you turn another on. Up to
   {{ s.alerts_per_hour }} alerts an hour and {{ s.alerts_per_day }} a day (UTC), and {{ s.alerts_per_wallet_day }} a day from
   any one wallet, so a bot trading every minute does not use up the rest; past any of them, one message says so and
-  the rest of that hour or day is skipped (for that wallet alone, when it is the wallet's cap). The lists page counts both: how many wallets have their bell on, and how many
+  the rest of that hour or day is skipped (for that wallet alone, when it is the wallet's cap). The watchlist page counts both: how many wallets have their bell on, and how many
   alerts went out today.
-- **Stop**: *Disconnect* on the lists page, or /stop in the bot.
+- **Stop**: *Disconnect* on the watchlist page, or /stop in the bot.
 
 An alert reads like a trades channel, three lines:
 
