@@ -108,7 +108,8 @@ within minutes of the launch: that is still a bundle, however busy its funder.
 When the first SOL came straight from a known exchange, the wallet's card says "funded by" and the exchange's name
 instead of an address. From an exchange, as from any busy funder, only wallets created close together make a bundle.
 Funders our own list of exchange wallets does not know are looked up in the labels of [InsightX](https://insightx.network):
-an exchange, a trading app or a casino gets its name, and the card's tooltip says the label came from InsightX.
+the card then says the funder is an exchange, an app or a casino, such a funder makes no bundle, and its wallets count
+among those funded from exchanges in the strip under the chart. The names stay with InsightX.
 
 In the table a bundle's tag takes one colour per funder, so two bundles side by side are told apart; a click on the tag
 shows that bundle alone.

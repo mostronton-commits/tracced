@@ -96,6 +96,7 @@ if AioHTTPTestCase:
             for bit in ('id="tgbar"', "Preview on the draft", 'id="lalert"', "data-bell", "const PREVIEW = true"):
                 self.assertIn(bit, html)
             self.assertNotIn('id="tgconnect"', html)                                        # nothing to connect: no bot here
+            self.assertIn('id="after"', html)                                                # «After the alerts» lives on the draft
             r = await self.client.post("/me/wallets/alert", json={"wallet": STRANGER, "on": True}, headers=dict(me, Origin="http://dev.example"))
             self.assertEqual((r.status, (await r.json())["on"]), (200, True))               # the bell saves
             pub = await (await self.client.get("/me", headers={"Cookie": wallet_cookie(TEST_PK)})).text()

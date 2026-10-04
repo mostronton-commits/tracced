@@ -207,6 +207,9 @@ if AioHTTPTestCase:
                 return [{"time": t_buy + i * step, "open": 0.1, "high": h, "low": lo, "close": h}
                         for i, (h, lo) in enumerate([(0.5, 0.1), (0.12, 0.08), (0.25, 0.2), (0.2, 0.15)])]
             self.app["st"].chart = chart
+            self.assertEqual((await self.client.get("/me/after.json")).status, 404)            # the public site: not yet (owner, 04.10)
+            self.assertNotIn('id="after"', await (await self.client.get("/me")).text())
+            self.app["s"]["after_alerts"] = "on"                                              # the draft has it; «on» opens it anywhere
             d = await (await self.client.get("/me/after.json")).json()
             self.assertEqual((d["basis"], d["wallets"], d["partial"]), ("bells", 1, None))
             r = d["rows"][0]

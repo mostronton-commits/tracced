@@ -56,8 +56,7 @@ number it writes is checked against the table before you see it, and it answers 
 
 Keep what you find in your watchlist, in several named lists, tag wallets in your own words, and export a list as CSV or TXT. In a closed
 test, a bell on a wallet, or on a whole list, sends its buys and sells to Telegram about two seconds after the block,
-each row counts the wallet's trades of the last 7 days, and *After the alerts* shows what every first buy did next:
-the peak, the dip before it, the price now and the wallet's own exit. [Your account →](https://tracced.xyz/docs/account)
+and each row counts the wallet's trades of the last 7 days. [Your account →](https://tracced.xyz/docs/account)
 
 A busy token takes seconds, not minutes. The result page stays light with thousands of wallets: the table arrives
 as numbers and the page draws the first hundred rows, more on request, on a phone too, where each wallet becomes a
@@ -96,7 +95,8 @@ docker compose run --rm --no-deps -v "$PWD/tests:/app/tests" web python -m unitt
 ## Data and privacy
 
 The table is built from swaps recorded on chain. No third-party PnL, scores or "smart money" labels. A funder's
-exchange name comes from our own list of exchange wallets and, for the ones it does not know, from InsightX labels. What is
+exchange name comes from our own list of exchange wallets; InsightX labels tell which of the other funders are
+exchanges or apps. What is
 recorded about a connected wallet is spelled out in [Your account](https://tracced.xyz/docs/account#what-we-record).
 
 ## Contact

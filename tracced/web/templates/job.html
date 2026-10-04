@@ -436,7 +436,7 @@
         const rep = all.filter(o => crossings[o.w]).length;
         if (rep >= 3) out.push({ k: 'repeat', sev: 'rep', act: ['repeat'], v: String(rep), l: 'seen before',
           tip: rep + ' wallets were early in your other saved pumps too' });
-        const ex = {}; all.forEach(o => { const x = funders[o.w]; if (x && EXCH[x]) ex[EXCH[x][0]] = (ex[EXCH[x][0]] || 0) + 1; });
+        const ex = {}; all.forEach(o => { const x = funders[o.w]; if (x && EXCH[x]) { const nm = EXCH[x][2] ? 'other exchanges' : EXCH[x][0]; ex[nm] = (ex[nm] || 0) + 1; } });
         const exN = Object.values(ex).reduce((a, b) => a + b, 0), funded = all.filter(o => funders[o.w]).length;
         if (exN >= 10 && funded && exN / funded >= 0.05) out.push({ k: 'cex', sev: 'info', act: ['only', 'cex'], v: pc(exN, funded) + '%', p: pc(exN, funded), l: 'from exchanges',
           tip: exN + ' of ' + funded + ' wallets got their first SOL straight from an exchange: ' + Object.entries(ex).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([nm, c]) => nm + ' ' + c).join(', ') });
@@ -992,10 +992,10 @@
         }
         if (DORM[w]) out.push('<span class="dchip dorm" title="Nothing touched the wallet for ' + DORM[w] + ' days before its first buy here">quiet ' + DORM[w] + 'd before</span>');
         if (fnd && EXCH[fnd]) out.push('<button type="button" class="dchip fund cex" id="dfund" data-fund="x:' + esc(EXCH[fnd][0]) + '" title="First SOL came straight from '
-          + esc(EXCH[fnd][1]) + ' (' + fnd + '), an exchange' + (bn && bn.n > 1 ? ', together with ' + (bn.n - 1) + ' wallets born in the same minutes (bundle)' : '')
+          + (EXCH[fnd][2] ? fnd + ', an exchange in InsightX\'s labels' : esc(EXCH[fnd][1]) + ' (' + fnd + '), an exchange') + (bn && bn.n > 1 ? ', together with ' + (bn.n - 1) + ' wallets born in the same minutes (bundle)' : '')
           + ' · click to show every wallet funded from ' + esc(EXCH[fnd][0]) + ' here"><span class="dl">funded by</span>' + esc(EXCH[fnd][0]) + (bn && bn.n > 1 ? '<small>×' + bn.n + '</small>' : '') + '</button>');
         else if (fnd && FLAB[fnd]) out.push('<button type="button" class="dchip fund cex" id="dfund" data-fund="' + fnd + '" title="First SOL came from '
-          + esc(FLAB[fnd][1]) + ' (' + fnd + '), ' + esc(FLAB[fnd][2] || 'a known service') + ' · click to show every wallet it funded here"><span class="dl">funded by</span>'
+          + (FLAB[fnd][1] ? esc(FLAB[fnd][1]) + ' (' + fnd + '), ' : fnd + ', ') + esc(FLAB[fnd][2] || 'a known service') + (FLAB[fnd][1] ? '' : ' in InsightX\'s labels') + ' · click to show every wallet it funded here"><span class="dl">funded by</span>'
           + esc(FLAB[fnd][0]) + (bn && bn.n > 1 ? '<small>×' + bn.n + '</small>' : '') + '</button>');
         else if (fnd) out.push('<button type="button" class="dchip fund" id="dfund" data-fund="' + fnd + '" title="First SOL came from '
           + fnd + (bn && bn.n > 1 ? ', which funded ' + bn.n + ' wallets here (bundle)' : services.has(fnd) ? ', an exchange or an app: over 1,000 transactions a day, so the wallets it funded are not a bundle' : '')
@@ -1335,7 +1335,7 @@
         (d.fresh || []).forEach(w => { const o = byW.get(w); if (o && !o.tags.includes('fresh')) { o.tags.unshift('fresh'); added++; } });
         let newL = 0;                                           // InsightX names a funder: an exchange joins EXCH, an app the card
         Object.entries(d.labels || {}).forEach(([a, v]) => { if (EXCH[a] || FLAB[a]) return; newL++;
-          if (v[2] === 'exchange') EXCH[a] = [v[0], v[1] + ' · label: InsightX']; else FLAB[a] = [v[0], v[1] + ' · label: InsightX', KIND_TXT[v[2]] || 'a known service']; });
+          if (v[2] === 'exchange') EXCH[a] = v[1] ? [v[0], v[1]] : [v[0], '', 1]; else FLAB[a] = [v[0], v[1], KIND_TXT[v[2]] || 'a known service']; });
         if (newL) changed = true;
         Object.entries(d.dormant || {}).forEach(([w, n]) => { DORM[w] = n; const o = byW.get(w); if (o && !o.tags.includes('dormant')) { o.tags.push('dormant'); added++; } });
         if (newF || newS) {

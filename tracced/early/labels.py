@@ -57,6 +57,12 @@ def entry_of(item):
 SERVICE_KINDS = {"exchange", "dex", "gambling", "bridge", "defi", "payments"}
 
 
+# what a funder is, without InsightX's name for it: their terms allow derived insights, not their data «in raw or
+# substantially similar form» (Terms of Service, API Usage, read 04.10)
+SHORT = {"exchange": "an exchange", "dex": "an app", "gambling": "a casino", "bridge": "a bridge", "defi": "a DeFi app",
+         "payments": "a payments app", "mev": "an MEV bot"}
+
+
 def kind_text(kind):
     return KINDS.get(kind or "", "a known service")
 

@@ -97,6 +97,10 @@ class TestEnrichment(unittest.TestCase):
         exch, flab = app_mod._labels_for_page(r)
         self.assertEqual(exch["CB"], ["Coinbase", "Coinbase Hot Wallet 2 · label: InsightX"])
         self.assertEqual(flab["ST"], ["Stake.com", "Stake.com · label: InsightX", "a gambling site"])
+        # the public site: their terms allow what we derive, not their names (API Usage, 04.10)
+        exch, flab = app_mod._labels_for_page(r, names=False)
+        self.assertEqual((exch["CB"], flab["ST"]), (["an exchange", "", 1], ["a casino", "", "a gambling site"]))
+        self.assertNotIn("Coinbase", str(app_mod._shown_labels(r, names=False)))
         app_mod._label_funders(r, None, {}, job)                                # no key: nothing changes, nothing breaks
 
 

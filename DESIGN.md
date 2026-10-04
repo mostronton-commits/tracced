@@ -239,6 +239,8 @@ chart sit on dark navy. The working surfaces are light: a pale page, white cards
   creator is red, sniper amber, bundle orange, bot-like slate, fresh lime, dormant fuchsia, transfer-in cyan, pre-range
   stone, re-bought green (a buy), never-sold sky. A KOL and an exchange are identity blue, a known exploit red. The
   filter legend keeps white chips and colours only the glyphs. Your own tags are words, in the watchlist's indigo.
+- **A funder from InsightX's labels** reads "funded by an exchange" (or an app, a casino) on the public site: their terms
+  allow what we derive, not their names. The draft shows the names, for the owner to judge them.
 - **Chart:** candles are mint (up) and slate #CBD5E1 (down) on navy. Ranges are close shades of the same mint
   (rgb 52 211 153, 45 212 191, 134 239 172, 34 211 238, 110 231 183), never a rainbow. A range's row in the list
   carries the same shade.
@@ -350,7 +352,7 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   token on the hours of the wallet's trades, its buys and sells marked as on the result's chart, with a link to the
   token's page (owner, 04.10). The token's address under a result's or a token's title copies itself on a click too,
   with no copy mark beside it.
-- **After the alerts** is a block of the watchlist under the lists (owner, 04.10): a tally strip (buys, median peak,
+- **After the alerts** (on the draft only until the owner shapes it, 04.10) is a block of the watchlist under the lists: a tally strip (buys, median peak,
   doubled, median now, its exit), then a table of first buys by the wallets with a bell, newest first: when, who, the
   token, the size, the peak with how long it took, the dip before it, now (or at 24 h) and the wallet's own exit, all
   as multiples of its buy price. A peak is green from ×2, red below ×1; now and the exit are green from ×1.

@@ -1464,6 +1464,13 @@ async def me_wallet_json(request, pk):
 AFTER_TTL = 900
 
 
+def _after_on(request):
+    """«After the alerts» лишається на закритій копії, поки власник його допрацьовує (04.10: «це ще допрацюю потім»).
+    after_alerts: draft (так за замовчуванням) — лише на private_hosts; on — усюди; off — ніде."""
+    v = str(request.app["s"].get("after_alerts", "draft"))
+    return v == "on" or (v == "draft" and _private_host(request))
+
+
 @_acct_route
 async def me_after_json(request, pk):
     """«Що було після алерту» (власник, 04.10): перші покупки токенів гаманцями з дзвіночком за останні дні і що токен
@@ -1471,6 +1478,8 @@ async def me_after_json(request, pk):
     кешу картки або 1-5 запитів, доба свічок після покупки — 1-2 запити; усе під денним бюджетом графіків людини
     (власник поза ним). Порахована відповідь живе AFTER_TTL секунд."""
     app, s = request.app, request.app["s"]
+    if not _after_on(request):
+        return _jerr("Not here yet.", 404)
     hit = app["after_memo"].get(pk)
     if hit and time.time() - hit[0] < AFTER_TTL:
         return web.json_response(hit[1], headers={"Cache-Control": "no-store"})
@@ -2653,6 +2662,7 @@ async def me_page(request):
     return render("me.html", request, wallets=wallets, analyses=analyses, max_my_tags=acct_mod.MAX_MY_TAGS, wmeta=wmeta, act=act,
                   demo_mint=(demo or {}).get("mint"), lists=lists, max_lists=acct_mod.MAX_LISTS,
                   alerts_ok=alerts_ok, alerts_preview=preview,   # без бота картка не обіцяє того, чого нема
+                  after_on=_after_on(request),
                   alert_n=alert_n, watch_cap=cap, day_cap=day_cap, day_used=dc.count("a:" + pk),
                   tg={"linked": bool(tg.get("chat")), "user": tg.get("user") or ""},
                   prefs=alerts_mod.prefs_of(a.get("alerts"), request.app["s"].get("alerts_min_usd")))
@@ -3960,7 +3970,7 @@ async def job_page(request):
             or (app.get("ages") is not None and jr.get("dormant_at") is None)):
         # a result checked before the labels or «dormant» (owner, 04.10): once, in the background; what is checked is skipped
         app["jobs"].resume_enrich(job)
-    exch, flab = _labels_for_page(job.result if result else None)
+    exch, flab = _labels_for_page(job.result if result else None, _ix_names(request))
     return render("job.html", request, job=job, save_id=job.canon or job.id, jstatus=status, result=result, s=app["s"], back=_back_link(job),
                   rows_json=_json_script(_table(result["rows"])) if result else "", bundle_min=tags.BUNDLE_MIN, burst_ms=tags.BURST_MS,
                   max_my_tags=acct_mod.MAX_MY_TAGS, is_admin=bool(request.get("acct")) and request.get("acct") in app["admins"],
@@ -3974,18 +3984,36 @@ async def job_page(request):
                   scope_end=(scope.end_for(sc, job.t_to, (result or {}).get("window", {}).get("end", 0)) if result else None))
 
 
-def _labels_for_page(r):
-    """Назви спонсорів для сторінки: наш список бірж + біржі з міток InsightX (з позначкою джерела в підказці) і, окремо,
-    інші названі сервіси (застосунки, казино): ті лише в картці, а не у фільтрі «з бірж»."""
-    exch, flab = dict(exch_mod.KNOWN), {}
+def _ix_names(request):
+    """Чи показувати назви з міток InsightX. Їхні умови (API Usage) дозволяють похідні висновки, але не їхні дані «в
+    сирому чи суттєво схожому вигляді»: на відкритому сайті спонсор — «an exchange», «an app», без назви; назви — на
+    закритій копії, щоб власник їх оцінив (04.10). insightx_names: draft | on | off."""
+    v = str(request.app["s"].get("insightx_names", "draft"))
+    return v == "on" or (v == "draft" and _private_host(request))
+
+
+def _shown_labels(r, names=True):
+    """Мітки InsightX такими, якими їх можна показати: [назва, повна мітка, тип] або без назви — [«an exchange», "", тип]."""
+    out = {}
     for a, v in ((r or {}).get("labels") or {}).items():
-        if a in exch or len(v) < 2:
+        if len(v) < 2:
             continue
         kind = v[2] if len(v) > 2 else ""
-        if kind == "exchange":
-            exch[a] = [v[0], v[1] + " · label: InsightX"]
+        out[a] = [v[0], v[1] + " · label: InsightX", kind] if names else [labels_mod.SHORT.get(kind, "a known service"), "", kind]
+    return out
+
+
+def _labels_for_page(r, names=True):
+    """Назви спонсорів для сторінки: наш список бірж + біржі з міток InsightX і, окремо, інші сервіси (застосунки,
+    казино): ті лише в картці, а не у фільтрі «з бірж». Без назв запис біржі має третім елементом 1."""
+    exch, flab = dict(exch_mod.KNOWN), {}
+    for a, v in _shown_labels(r, names).items():
+        if a in exch:
+            continue
+        if v[2] == "exchange":
+            exch[a] = [v[0], v[1]] if v[1] else [v[0], "", 1]
         else:
-            flab[a] = [v[0], v[1] + " · label: InsightX", labels_mod.kind_text(kind)]
+            flab[a] = [v[0], v[1], labels_mod.kind_text(v[2])]
     return exch, flab
 
 
@@ -4404,7 +4432,7 @@ async def job_enrich_json(request):
     out = {"done": e.get("done", 0), "total": e.get("total", 0), "fresh": fresh,
            "funders_done": e.get("funders_done", 0), "paused": paused,
            "funders": funders, "n_funders": n_funders, "ages": ages, "n_ages": n_ages, "services": r.get("services") or [],
-           "dormant": r.get("dormant") or {}, "labels": r.get("labels") or {},
+           "dormant": r.get("dormant") or {}, "labels": _shown_labels(r, _ix_names(request)),
            "identities_done": bool(r.get("identities_done")) or snapshot or app["jobs"].namer is None}
     if request.query.get("i") != "1":
         out["identities"] = r.get("identities") or {}

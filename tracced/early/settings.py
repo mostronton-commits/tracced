@@ -19,8 +19,10 @@ DEFAULTS = {
     "credits_reserve_pct": 0,
     "credits_renew_day": 0,      # день місяця, коли тариф оновлює кредити: дашборд власника каже, чи вистачить до нього (0 — невідомо)
     # сповіщення в Telegram: поки закритий тест — лише гаманці власника; потік транзакцій — публічні ноди Solana
+    "after_alerts": "draft",      # «After the alerts»: draft — лише на закритій копії (власник допрацьовує, 04.10); on; off
     "after_wallets": 10,          # «після алертів»: скільки гаманців з дзвіночком (чи найновіших) і скільки покупок
     "after_rows": 40,
+    "insightx_names": "draft",    # назви з міток InsightX: draft — лише на закритій копії (їхні умови, API Usage), on; off
     "insightx_calls_per_run": 3,  # InsightX: запитів на аналіз (по 100 спонсорів у кожному), лише з INSIGHTX_API_KEY
     "insightx_month": 1000,       # безкоштовний план: 1000 запитів на місяць і 5 на хвилину
     "insightx_reserve_pct": 10,
