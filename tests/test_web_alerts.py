@@ -224,6 +224,25 @@ if AioHTTPTestCase:
             self.assertIn('id="after"', html)
             self.assertIn("After the alerts", html)
 
+        async def test_old_results_are_labelled_only_when_the_owner_opens_them(self):
+            # release check, 04.10: guests and crawlers on the public site must not queue every old result for labels and
+            # «dormant»; the owner's view (or the draft) does, once
+            try:
+                from tests.test_web import OTHER_JID
+            except ImportError:
+                from test_web import OTHER_JID
+            seed_demo(self.tmp.name, self.app)
+            job = self.app["jobs"].get(OTHER_JID)
+            job.result["enrich"] = {"done": 1, "total": 1, "funders_done": 1}
+            job.result["funders"] = {W1: "F" * 44}
+            self.app["labels"] = object()                                   # a key is set on this server
+            with mock.patch.object(self.app["jobs"], "resume_enrich") as resume:
+                r = await self.client.get("/job/" + OTHER_JID, headers={"Cookie": ""})
+                self.assertEqual(r.status, 200)
+                resume.assert_not_called()                                  # a guest: nothing is queued
+                await self.client.get("/job/" + OTHER_JID)                  # the owner (an admin wallet)
+                resume.assert_called_once_with(job)
+
         async def test_the_poll_catches_what_the_stream_missed(self):
             now = int(time.time())
             self.app["alerts_wm"] = {"WAL": [{"pk": TEST_PK, "chat": 7, "prefs": {}, "tags": []}]}

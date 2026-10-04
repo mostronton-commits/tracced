@@ -3965,10 +3965,13 @@ async def job_page(request):
     is_demo = job.id in _demo_job_ids(app) or (job.canon or "") in _demo_job_ids(app)
     _view(request, "job", job.canon or job.id, state={"done": "done", "error": "err"}.get(status, "run"), demo=1 if is_demo else None)
     jr = job.result if result else {}
+    # a result checked before the labels or «dormant» (owner, 04.10): once, in the background; what is checked is
+    # skipped. Only when the owner opens it, or on the draft: on the public site guests and crawlers would queue every
+    # old result, and a new analysis would wait behind them for its ages and bundles (release check, 04.10)
     if result and not job.replay and (jr.get("enrich") or {}).get("funders_done") and (
+            request.get("acct") in app["admins"] or _private_host(request)) and (
             (app.get("labels") is not None and jr.get("funders") and jr.get("labels_at") is None)
             or (app.get("ages") is not None and jr.get("dormant_at") is None)):
-        # a result checked before the labels or «dormant» (owner, 04.10): once, in the background; what is checked is skipped
         app["jobs"].resume_enrich(job)
     exch, flab = _labels_for_page(job.result if result else None, _ix_names(request))
     return render("job.html", request, job=job, save_id=job.canon or job.id, jstatus=status, result=result, s=app["s"], back=_back_link(job),
