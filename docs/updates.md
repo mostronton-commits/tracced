@@ -1,96 +1,57 @@
 # Updates
 
-What each version brought, newest first. Small fixes between versions are not listed.
-
-!!! tip "🔔 How you hear about it"
-    The bell next to your wallet, at the top of every page, lights up when a new version is out. One click brings
-    you here.
-
 <div class="ulog" markdown="1">
+
+## 0.7.1 <span class="ud">Oct 4, 2026</span>
+
+- This page
+- A bell that tells you about new versions
 
 ## 0.7.0 <span class="ud">Oct 4, 2026</span>
 
-<p class="us">The watchlist, facts under the chart, filters in the table's head and a smarter agent.</p>
-
-- **Facts under the chart.** One strip: how many bought, how much is sold out or still held, fresh wallets, the top
-  10's share, wallets funded from exchanges, whether the bundles sold out.
-- **Filters in the table's head,** and a Filters panel over the table to find a wallet or hide a tag.
-- **New tags:** `never-sold`, and `dormant` for a wallet that was quiet for a week before it bought. `no-exits` is
-  gone: where a wallet's sells were not read, its row says `—`.
-- **Each kind of wallet has its own colour.** New icons, and a new typeface across the site.
-- **The wallet card:** its 7 or 30 days always on top, then its trades on this token or its recent tokens. A recent
-  token opens its own chart, with the wallet's buys and sells on it.
-- **Watchlist:** everything you keep in one place, in named lists.
-- **Alerts** (closed test): a bell on each wallet, or on a whole list at once.
-- **The AI agent** knows who a wallet is, how old it is and how it traded over 30 days, and answers in the language
-  you ask in.
-- **More exchanges among funders,** from InsightX labels: their wallets no longer count as a bundle.
-- Sign in with Backpack or Solflare too. Up to 10 analyses a day per person.
+- Facts strip under the chart
+- Filters in the table head
+- New tags: `never-sold`, `dormant`
+- Any recent token's chart inside the wallet card
+- Watchlist with named lists; alerts per wallet or per list
+- A smarter AI agent
+- New icons, colours and typeface
 
 ## 0.6.1 <span class="ud">Oct 1, 2026</span>
 
-<p class="us">Alerts that lose nothing.</p>
-
-- **Alerts lose nothing and never come twice.** A trade the live stream missed is caught by a check every minute,
-  and a restart sends nothing again.
+- Alerts are never lost or sent twice
 
 ## 0.6.0 <span class="ud">Oct 1, 2026</span>
 
-<p class="us">Telegram alerts, fresh pumps and lists with the full card.</p>
-
-- **Telegram alerts** for the wallets in a list, in a closed test: a buy or a sell about two seconds after the block.
-- **Fresh pumps** on the home page: tokens of the last two days with a real peak and real trading.
-- **Lists** show your tags in each row and open the full wallet card.
-- **The token page** shows where to click on the chart, and the analysis types out its log as it runs.
-- **Findings above the chart** on a result, and exchanges among funders by name.
+- Telegram alerts, in a closed test
+- Fresh pumps on the home page
+- The full wallet card in your lists
 
 ## 0.5.0 <span class="ud">Sep 27, 2026</span>
 
-<p class="us">A second AI agent, a card beside the page and sign-in with Phantom.</p>
-
-- **The AI agent, second version:** quick questions first, a summary on demand, a thread. A wallet it names opens
-  its card.
-- **The wallet card** opens beside the page instead of over it.
-- **The chart:** 1-minute candles on a new token, *Back to range* and *First hours*.
-- **Contact:** a form for bugs, ideas and questions.
-- **Sign in with Phantom.** On a phone, tracced opens inside the Phantom app.
-- Sep 29: **a token check API for partners,** in beta ([API](/docs/api)).
+- AI agent, second version
+- The wallet card beside the page
+- Sign in with Phantom
+- A token check API for partners, in beta
 
 ## 0.4 <span class="ud">Sep 24, 2026</span>
 
-<p class="us">The wallet card, several watchlists and the first AI agent.</p>
-
-- **The wallet card:** a wallet's last 7 or 30 days on every token, counted from its own swaps.
-- **Several watchlists,** with your own tags on each wallet.
-- **A light result page:** thousands of wallets without slowing down, on a phone too.
-- **Wallet age and first funder** for the top 200 by profit. An exchange or an app no longer makes a bundle.
-- **Five analyses a day per person,** not per wallet.
-- Sep 25: **the AI agent:** three cards about the analysis, and answers to your questions.
+- The wallet card: its last 7 or 30 days
+- Several watchlists
+- Fast results with thousands of wallets
+- The AI agent
 
 ## 0.3 <span class="ud">Sep 22, 2026</span>
 
-<p class="us">Amounts in SOL and the documentation.</p>
-
-- **Amounts in SOL** or in dollars, both taken from the same swap.
-- **Documentation** here, and a page comparing tracced with Axiom and GMGN ([Compare](/docs/compare)).
-- **Your own tags** on the wallets you keep.
-- Sep 23: **the token's story on the chart:** when it left the launchpad, and when someone paid DexScreener.
+- Amounts in SOL
+- Documentation and the Compare page
 
 ## 0.2 <span class="ud">Sep 20, 2026</span>
 
-<p class="us">Open to everyone, no passwords.</p>
-
-- **No passwords.** The demo and every finished result are open to everyone; a new analysis needs a connected
-  wallet.
+- Open to everyone, no passwords
 
 ## 0.1 <span class="ud">Sep 17, 2026</span>
 
-<p class="us">tracced goes live.</p>
-
-- **Paste a Solana token, mark the pump on the chart,** and get every wallet that bought inside it: what it paid,
-  what it sold, what it still holds.
-- **Tags that are rules:** sniper, fresh, bot-like, bundle and more.
-- **Export** of the wallet list.
-- **A demo token** that replays a real analysis for free.
+- tracced goes live
 
 </div>

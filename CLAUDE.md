@@ -5,4 +5,4 @@
   first, then add it to DESIGN.md in the same commit.
 - Before calling an interface change done, look at it at 1920, 1440, 1280, 768 and 390 px wide.
 - Every release to `main` adds its entry to [docs/updates.md](docs/updates.md) in the same commit (owner, 04.10): the
-  version, the date, a few short lines of what a user sees, newest first.
+  version, the date, two to seven bullets of a few words each about what a user sees, newest first.
