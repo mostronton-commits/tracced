@@ -132,6 +132,19 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   setTimeout(tick, 600);
 });
+/* What's new (owner, 04.10): the bell beside the wallet glows until this browser has seen the newest update. A first
+   visit has nothing new to it, so it starts as seen; the Updates page and a click on the bell mark it seen. */
+document.addEventListener('DOMContentLoaded', () => {
+  const m = document.getElementById('newsmark'); if (!m) return;
+  const v = m.dataset.v, KEY = 'early:news';
+  let seen = null, known = false;
+  try { seen = localStorage.getItem(KEY); for (let i = 0; i < localStorage.length; i++) if ((localStorage.key(i) || '').startsWith('early:')) known = true; } catch (e) { return; }
+  const mark = () => { try { localStorage.setItem(KEY, v); } catch (e) {} };
+  if (location.pathname === '/docs/updates' || (!seen && !known)) { mark(); return; }
+  if (seen === v) return;
+  m.classList.add('fresh');
+  m.addEventListener('click', mark);
+});
 /* copy buttons: [data-copy="text"]; the button may hold an icon, so its markup comes back, not only its text */
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-copy]'); if (!b || !b.dataset.copy || !navigator.clipboard) return;

@@ -356,6 +356,11 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   doubled, median now, its exit), then a table of first buys by the wallets with a bell, newest first: when, who, the
   token, the size, the peak with how long it took, the dip before it, now (or at 24 h) and the wallet's own exit, all
   as multiples of its buy price. A peak is green from ×2, red below ×1; now and the exit are green from ×1.
+- **What's new** (owner, 04.10): a quiet bell right of the wallet (or of Connect), in the top bar and on the home hero.
+  While this browser has not seen the newest update, it carries a mint dot with a soft ring that pulses a few times,
+  and a hover shows a small note, "Update 0.7.0 is out · Read what's new". It opens /docs/updates, which marks it seen;
+  a first visit starts as seen. The Updates page sets each version as a mono line with its date, a muted one-line
+  summary and short bullets, all on one rail; the newest carries a mint dot and "Latest".
 - **Tooltips** come from `title` and stay short, about 90 characters at most. On a touch screen a tap on a `.tipt`
   element shows the same text as a toast. An `i` mark (`.dinfo`, `.kinfo`) holds the method; it turns into an amber
   `!` when the data is incomplete.

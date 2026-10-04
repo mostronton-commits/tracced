@@ -810,7 +810,16 @@ if AioHTTPTestCase:
             up = await (await self.client.get("/docs/updates", headers=GUEST)).text()
             self.assertIn("<h1 id=\"updates\">Updates</h1>", up)                  # what each version brought (owner, 04.10)
             from tracced import __version__
-            self.assertIn(">" + __version__ + " · ", up)                             # the running version has its entry
+            self.assertIn(">" + __version__ + ' <span class="ud">', up)              # the running version has its entry
+            self.assertIn('class="ulog"', up)                                         # the versions on one rail (owner, 04.10)
+            # the bell beside the wallet knows the newest version, on a docs page and on the home page alike
+            from tracced.web import docs as docs_mod
+            from tracced.web.app import DOCS_DIR
+            self.assertEqual(docs_mod.latest(DOCS_DIR)["v"], __version__)
+            self.assertIn(f'id="newsmark" href="/docs/updates" data-v="{__version__}"', up)
+            home = await (await self.client.get("/", headers=GUEST)).text()
+            self.assertIn('class="hero-top"', home)
+            self.assertIn(f'data-v="{__version__}"', home)
             tg = await (await self.client.get("/docs/tags", headers=GUEST)).text()
             self.assertIn("never-sold", tg)
             self.assertIn("dormant", tg)

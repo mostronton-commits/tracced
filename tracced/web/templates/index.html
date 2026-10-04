@@ -6,7 +6,7 @@
     {% for l in bg_lines %}<span style="--i: {{ loop.index0 }}">{{ l }}</span>{% endfor %}
   </div>
   <div class="hero-in">
-    <div class="hero-acct">{% include "_acct.html" %}</div>
+    <div class="hero-top"><div class="hero-acct">{% include "_acct.html" %}</div>{% include "_news.html" %}</div>
     <h1 class="brandline">tracced</h1>
     <p class="tagline mono">every wallet <em>on the record</em><span class="cursor">_</span></p>
     <p class="lead">Paste a token, choose the pump range — see every wallet that bought there and what it did next.</p>

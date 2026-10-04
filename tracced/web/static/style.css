@@ -1627,3 +1627,45 @@ input.ltabedit { flex: none; width: 150px; min-width: 0; height: 30px; padding: 
 .aft td:first-child { white-space: nowrap; }
 /* a two-word label wraps instead of being cut at the cell's edge ("FROM EXCHANGES" at 1440, 04.10) */
 .tally .tc i { white-space: normal; max-width: 100%; }
+
+/* what's new, beside the wallet (owner, 04.10): a quiet bell, a mint dot and a soft ring while an update is unseen; the
+   short note shows on hover. Its own place, not inside the account slot, which a sign-in redraws */
+.newsmark { position: relative; display: inline-flex; align-items: center; justify-content: center; align-self: center; flex: none;
+  width: 32px; height: 32px; border: 0; border-radius: 8px; color: #94A3B8; }
+.newsmark:hover, .newsmark:focus-visible { color: #F8FAFC; background: #0F172A; border: 0; }
+.newsmark .ci { width: 18px; height: 18px; }
+.newsmark.fresh { color: #E2E8F0; }
+.newsmark.fresh::after { content: ""; position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--mint); box-shadow: 0 0 0 0 rgba(167, 243, 208, .55); animation: nm-glow 2.4s ease-out 4; }
+@keyframes nm-glow { 0% { box-shadow: 0 0 0 0 rgba(167, 243, 208, .55); } 70%, 100% { box-shadow: 0 0 0 9px rgba(167, 243, 208, 0); } }
+.newsmark .nm-tip { position: absolute; top: calc(100% + 8px); right: -4px; z-index: 30; display: none; flex-direction: column; gap: 2px;
+  width: max-content; max-width: 220px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
+  color: var(--ink); font: 12.5px/1.35 var(--sans); text-align: left; box-shadow: 0 6px 18px rgba(15, 23, 42, .12); pointer-events: none; }
+.newsmark .nm-tip b { font-weight: 600; } .newsmark .nm-tip span { color: var(--muted); }
+.newsmark:not(.fresh) .nm-tip b { display: none; }
+.newsmark:not(.fresh) .nm-tip span::before { content: "What's new in tracced · "; }
+.newsmark:hover .nm-tip, .newsmark:focus-visible .nm-tip { display: flex; }
+.hero-top { position: absolute; top: 18px; right: 24px; z-index: 2; display: flex; align-items: center; gap: 6px; }
+.hero-top .hero-acct { position: static; }
+@media (max-width: 720px) { .hero-top { top: 12px; right: 12px; } }
+@media (hover: none) { .newsmark .nm-tip { display: none !important; } }   /* a tap on a phone goes straight to the page */
+@media (prefers-reduced-motion: reduce) { .newsmark.fresh::after { animation: none; } }
+/* the Updates page (owner, 04.10: «гарніше, як інші сторінки»): a version line with its date, a one-line summary, and a
+   rail that ties the versions together; the newest one says so */
+.p-updates .ulog { position: relative; margin-top: 8px; padding-left: 26px; }
+.p-updates .ulog::before { content: ""; position: absolute; left: 6px; top: 34px; bottom: 6px; width: 2px; border-radius: 2px; background: var(--line); }
+.p-updates .ulog h2 { position: relative; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 28px 0 4px; padding-top: 0; border-top: 0;
+  font: 600 19px/1.3 var(--mono); letter-spacing: -.01em; }
+.p-updates .ulog h2::before { content: ""; position: absolute; left: -26px; top: 7px; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--surface); border: 2px solid #CBD5E1; box-sizing: border-box; }
+.p-updates .ulog h2:first-of-type::before { background: var(--mint); border-color: #34D399; box-shadow: 0 0 0 4px rgba(167, 243, 208, .35); }
+.p-updates .ulog h2:first-of-type::after { content: "Latest"; order: 2; padding: 2px 8px; border-radius: 999px; background: #ECFDF5; border: 1px solid #A7F3D0;
+  color: #047857; font: 600 11px/1.4 var(--sans); letter-spacing: .02em; }
+.p-updates .ulog h2 .ud { order: 1; font: 500 12.5px/1.3 var(--mono); color: var(--muted); }
+.p-updates .ulog .us { margin: 0 0 8px; color: var(--muted); font-size: 14.5px; }
+.p-updates .ulog ul { margin: 0 0 6px; }
+.p-updates .ulog h2:first-of-type { margin-top: 18px; }
+@media (max-width: 640px) { .p-updates .ulog { padding-left: 22px; } .p-updates .ulog h2::before { left: -22px; } .p-updates .ulog::before { left: 5px; } }
+/* the wallet pill keeps one line when the bell sits beside it on a phone (04.10) */
+.acct-pill { white-space: nowrap; flex: none; } .top-in .acct-slot { flex: none; } .topsearch { min-width: 0; }
+@media (max-width: 400px) { .top-in { gap: 8px; } .newsmark { width: 28px; } }

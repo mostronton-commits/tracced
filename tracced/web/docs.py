@@ -28,6 +28,17 @@ _lock = threading.Lock()
 _cache = {}
 
 
+def latest(docs_dir):
+    """Найновіша версія зі сторінки Updates: {"v": "0.7.0", "date": "Oct 4, 2026"} або None. Позначка «що нового» біля
+    гаманця світиться, поки людина не побачила саме цю версію (власник, 04.10)."""
+    try:
+        text = (docs_dir / "updates.md").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    m = re.search(r'^##\s+(\S+)(?:\s+<span class="ud">([^<]+)</span>)?', text, re.M)
+    return {"v": m.group(1), "date": (m.group(2) or "").strip()} if m else None
+
+
 def _slugs():
     return {p[0] for p in PAGES}
 
