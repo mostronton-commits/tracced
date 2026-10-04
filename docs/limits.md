@@ -54,7 +54,8 @@ Near the end of a heavy month new analyses may wait; the demo, every finished re
 
 ## Which wallets get exact exits
 
-The largest buyers of the range. The rest keep their entry and carry `no-exits`.
+The largest buyers of the range. The rest keep their entry; their Sold and PnL show `—`, because we did not read
+their sells.
 
 On some tokens everyone gets exact exits and this cap does not apply at all. The line above the table always says
 which happened.

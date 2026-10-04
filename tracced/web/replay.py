@@ -13,7 +13,7 @@ from collections import Counter
 from ..early import report
 
 PHASES = ("token", "trades", "wallets", "tags", "done")
-TAG_ORDER = ("sniper", "fresh", "bundle", "bot-like", "pre-range", "re-bought", "no-exits")
+TAG_ORDER = ("sniper", "fresh", "dormant", "bundle", "bot-like", "pre-range", "re-bought", "never-sold")
 
 
 def _utc(ms):

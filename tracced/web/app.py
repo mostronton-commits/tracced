@@ -32,10 +32,10 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
 from ..cache import JsonCache
-from ..early import agent as agent_mod, assistant as assistant_mod, exchanges as exch_mod, ledger, pipeline, profile, report, scope, tags, wallet_age as wallet_age_mod, window
+from ..early import agent as agent_mod, assistant as assistant_mod, exchanges as exch_mod, labels as labels_mod, ledger, pipeline, profile, report, scope, tags, wallet_age as wallet_age_mod, window
 from ..early.store import TradeStore
 from ..providers import dexscreener
-from . import accounts as acct_mod
+from . import accounts as acct_mod, after as after_mod
 from . import activity as activity_mod
 from . import alerts as alerts_mod
 from . import fresh as fresh_mod
@@ -191,11 +191,11 @@ def enrich_target(r, s):
     return min(len(rows), cap)
 
 
-def make_enricher(ages, s, spend=None):
+def make_enricher(ages, s, spend=None, labels=None):
     """Після аналізу, у фоні: вік кожного гаманця з RPC → тег `fresh` і перший спонсор → `bundle`; прогрес у
     result["enrich"]. Кредити ноди йдуть у журнал (`spend`) на кожному збереженні: деплой dev перезапускає сервер
     посеред збагачення, і витрачене до рестарту інакше загубилось би."""
-    body = _enrich_body(ages, s)
+    body = _enrich_body(ages, s, labels)
 
     def enrich(job, save):
         with wallet_age_mod.rpc_meter() as m:
@@ -216,7 +216,7 @@ def make_enricher(ages, s, spend=None):
     return enrich
 
 
-def _enrich_body(ages, s):
+def _enrich_body(ages, s, labels=None):
     """Сам прохід збагачення; що він коштував, рахує make_enricher.
 
     Перші full_top за PnL — повна перевірка: точний вік і зайнятого гаманця (10 кредитів), спонсор і в гаманця
@@ -230,6 +230,8 @@ def _enrich_body(ages, s):
         n, top = enrich_target(r, s), full_top(r, s)
         e = r.setdefault("enrich", {"done": 0, "total": n, "fresh": 0, "failed": 0})
         e["total"] = n
+        if not e.get("done") and r.get("dormant_at") is None:
+            r["dormant_run"] = True                        # this pass reads «dormant» with each age
         if e.get("failed"):
             e.update(done=0, failed=0, fresh=0)            # був збій ноди — перевіряємо заново (кеш лишається)
         e.pop("paused", None)
@@ -268,6 +270,7 @@ def _enrich_body(ages, s):
                 age = None
             if age and age.get("oldest_ms"):                # картка показує перший підпис гаманця
                 r.setdefault("ages", {})[row["wallet"]] = {"ms": age["oldest_ms"], "exact": bool(age.get("exact")), "n": age.get("n")}
+            _dormant(r, row, age, ages, is_paused())
             if age and tags.is_fresh(row.get("first_buy_ms"), age) and "fresh" not in (row.get("tag_list") or []):
                 row["tag_list"] = tags.with_tag(row.get("tag_list"), "fresh")
                 row["tags"] = "|".join(row["tag_list"])
@@ -280,6 +283,16 @@ def _enrich_body(ages, s):
                 if save(job) is False:
                     return                                 # аналіз видалили: кредити RPC на нього більше не йдуть
                 ages.flush()
+        if r.get("dormant_at") is None:
+            # a result checked before «dormant» existed (owner, 04.10): its first full_top get it once, from the age in the
+            # cache and one signature each (1 credit); a new run has just done it in the pass above
+            if e.get("done", 0) >= n and n and not r.get("dormant_run"):
+                kept = r.get("ages") or {}                 # the cache keeps an age a week; the result keeps it for good
+                for row in rows[:min(n, top or n)]:
+                    a = kept.get(row["wallet"])
+                    age = cached(row["wallet"]) or ({"oldest_ms": a["ms"], "exact": bool(a.get("exact"))} if a and a.get("ms") else None)
+                    _dormant(r, row, age, ages, is_paused())
+            r["dormant_at"] = int(time.time() * 1000)
         def services():
             """Біржі й застосунки серед спонсорів бандлів: одна сторінка підписів на спонсора, решта з кешу."""
             try:
@@ -327,12 +340,56 @@ def _enrich_body(ages, s):
                 ages.flush()
         r["funder_checked"] = sorted(checked)
         e["funders_done"] = n
+        _label_funders(r, labels, s, job)
         services()
         _bundles(r, rows)
         r["bundle_rev"] = tags.BUNDLE_REV                   # бандли пораховані чинним правилом
         save(job)
         ages.flush()
     return enrich
+
+
+def _label_funders(r, labels, s, job=None):
+    """Мітки InsightX (власник, 04.10: «подивимось, як це працює і що дає додатково») для спонсорів, яких не знає наш
+    список бірж: спершу тих, хто дав SOL кільком гаманцям (там мітка вирішує, бандл це чи біржа), далі решти. Не більше
+    insightx_calls_per_run запитів по 100 адрес; результат пам'ятає, коли його питали, щоб не питати знову."""
+    if labels is None:
+        return
+    from collections import Counter
+    known = r.get("labels") or {}
+    cnt = Counter((r.get("funders") or {}).values())
+    want = [f for f, _ in cnt.most_common() if f not in exch_mod.KNOWN and f not in known]
+    before = labels.requests
+    found = labels.lookup(want, max_calls=int(s.get("insightx_calls_per_run", 3))) if want else {}
+    if found:
+        r["labels"] = dict(known, **{a: [x["name"], x["label"], x.get("kind") or ""] for a, x in found.items()})
+    r["labels_at"] = int(time.time() * 1000)
+    used = labels.requests - before
+    if used and job is not None:
+        ex = sum(1 for x in found.values() if x.get("kind") == "exchange")
+        job.log.append(f"InsightX named {len(found)} funders ({ex} exchanges) in {used} request{'' if used == 1 else 's'}")
+    labels.flush()
+
+
+def _dormant(r, row, age, ages, paused=False):
+    """`dormant` (owner, 04.10): the transaction right before its first buy in the range is a week old or older. The age
+    check has just read that page, so this is mostly a cache hit; a fresh wallet cannot be asleep. A failure leaves the
+    tag off: missing a sleeper is the safe side."""
+    at, sig = row.get("first_range_buy_ms") or row.get("first_buy_ms"), row.get("entry_tx")
+    prev_tx = getattr(ages, "prev_tx", None)
+    if not (prev_tx and age and at and sig) or tags.is_fresh(row.get("first_buy_ms"), age):
+        return
+    try:
+        prev = prev_tx(row["wallet"], sig, cached_only=paused)
+    except Exception:  # noqa: BLE001
+        return
+    days = tags.dormant_days(at, prev)
+    if not days:
+        return
+    r.setdefault("dormant", {})[row["wallet"]] = days
+    if "dormant" not in (row.get("tag_list") or []):
+        row["tag_list"] = tags.with_tag(row.get("tag_list"), "dormant")
+        row["tags"] = "|".join(row["tag_list"])
 
 
 def _after_buy(age, row):
@@ -396,6 +453,7 @@ def _check_services(r, ages):
     services = set(r.get("services") or [])
     # відома біржа (список Dune у early/data) — сервіс без жодного запиту: і кредит не йде, і бандла від неї не буде
     services |= {f for f in set((r.get("funders") or {}).values()) if exch_mod.name_of(f)}
+    services |= {a for a, v in (r.get("labels") or {}).items() if len(v) > 2 and v[2] in labels_mod.SERVICE_KINDS}
     if check is not None and not (getattr(ages, "paused", None) or (lambda: False))():
         from collections import Counter
         for f, n in Counter((r.get("funders") or {}).values()).items():
@@ -404,7 +462,8 @@ def _check_services(r, ages):
     r["services"] = sorted(services)
 
 
-def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/early", ages=None, assistant=None, background=False):
+def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/early", ages=None, assistant=None, background=False,
+               labels=None):
     app = web.Application(middlewares=[errors_mw, auth_mw, private_mw])
     app.on_response_prepare.append(_security_headers)
     app["bg"] = {}                                                 # фонові задачі сервера (лише з background=True, не в тестах)
@@ -451,6 +510,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["alerts_day"] = DailyCount(daily_dir / "alerts_day.json")   # надіслані сповіщення на акаунт за добу (і чи вже попередили)
     app["feedback"] = FeedbackStore(Path(out_dir).parent / "feedback" / "feedback.jsonl")   # «Contact»: листи власнику
     app["feedback_throttle"] = Throttle(max_fails=5, window_s=3600, block_s=3600)       # п'ять листів на годину з однієї адреси
+    app["after_memo"] = {}                                        # «після алертів», порахований на 15 хвилин, на людину
     app["usage_cache"], app["view_last"] = {}, {}                 # порахований дашборд на хвилину; останній перегляд сторінки
     app["credits"] = {"left": None, "at": 0}                     # залишок кредитів Data API: питаємо не частіше ніж раз на 10 хв
     app["ai_balance"] = {"v": None, "at": 0}                     # залишок на відповіді агента (OpenRouter): так само раз на 10 хв
@@ -475,6 +535,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     for key in app["activity"].recent_done():                                       # оброблене до перезапуску: не вдруге
         app["alerts_seen"][key] = time.time()   # спроб з невірним ключем з однієї мережі за хвилину
     app["ages"] = ages
+    app["labels"] = labels                                      # InsightX: мітки спонсорів; None — без ключа (і в тестах)
     _share_st(st, app["st_slots"])
 
     def runner(job):
@@ -518,7 +579,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
 
     identify = ((lambda ws: st.identities(ws, strict=True))               # відмова джерела ≠ «імен нема»
                 if (hasattr(st, "identities") and s.get("st_identity", True)) else None)
-    app["jobs"] = JobQueue(runner, out_dir, enricher=make_enricher(ages, s, spend) if ages else None, on_error=on_error,
+    app["jobs"] = JobQueue(runner, out_dir, enricher=make_enricher(ages, s, spend, labels) if ages else None, on_error=on_error,
                            enrich_upto=(lambda r: enrich_target(r, s)) if ages else 0,
                            namer=make_namer(identify, st, spend) if identify else None, on_finish=on_finish)
     app.router.add_get("/", index)
@@ -562,6 +623,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_post("/me/telegram/unlink", me_tg_unlink)
     app.router.add_get("/me/telegram.json", me_tg_status)
     app.router.add_get("/me/wallet.json", me_wallet_json)
+    app.router.add_get("/me/after.json", me_after_json)
     app.router.add_post("/me/alerts", me_alerts)
     app.router.add_get("/admin", admin_page)
     app.router.add_get("/admin/w/{pk}", admin_wallet_page)
@@ -1397,6 +1459,97 @@ async def me_wallet_json(request, pk):
                 out["idn"] = (other.result.get("identities") or {}).get(w)
         return out
     return web.json_response(await asyncio.to_thread(build), headers={"Cache-Control": "no-store"})
+
+
+AFTER_TTL = 900
+
+
+@_acct_route
+async def me_after_json(request, pk):
+    """«Що було після алерту» (власник, 04.10): перші покупки токенів гаманцями з дзвіночком за останні дні і що токен
+    зробив далі, від ціни покупки (after.py). Нема жодного дзвіночка — найновіші гаманці зі списку. 30 днів гаманця — з
+    кешу картки або 1-5 запитів, доба свічок після покупки — 1-2 запити; усе під денним бюджетом графіків людини
+    (власник поза ним). Порахована відповідь живе AFTER_TTL секунд."""
+    app, s = request.app, request.app["s"]
+    hit = app["after_memo"].get(pk)
+    if hit and time.time() - hit[0] < AFTER_TTL:
+        return web.json_response(hit[1], headers={"Cache-Control": "no-store"})
+    ws = app["accounts"].load(pk).get("wallets") or {}
+    pick = [w for w, m in ws.items() if (m or {}).get("alert")]
+    basis = "bells" if pick else "newest"
+    if not pick:
+        pick = [w for w, _ in sorted(ws.items(), key=lambda kv: -((kv[1] or {}).get("added_ms") or 0))]
+    pick = pick[:int(s.get("after_wallets", 10))]
+    now, st, stop = int(time.time() * 1000), app["st"], []
+
+    def budget(est):
+        """Денний бюджет графіків людини: вичерпано — рахуємо те, що вже є, і кажемо про це."""
+        try:
+            return _browse_budget(request, est)
+        except WebError as e:
+            stop.append(str(e))
+            return None
+
+    def paid(what, fn, est, mint=None):
+        settle = budget(est)
+        if settle is None:
+            return None
+        with st.meter():
+            req0 = st.requests_here()
+            try:
+                return fn()
+            except Exception as e:  # noqa: BLE001 — один токен чи гаманець не валить решту
+                log.warning("after %s: %s", what, e)
+                return None
+            finally:
+                n = st.requests_here() - req0
+                settle(n)
+                _spend(app, pk, what, st=n, mint=mint)
+
+    def cards():
+        out = {}
+        for w in pick:
+            c = app["profile_cache"].get(f"v{profile.VERSION}:{w}")
+            if c is None and not stop and hasattr(st, "wallet_swaps"):
+                c = paid("after-profile", lambda w=w: _profile_now(app, w), 3)
+            if c is not None:
+                out[w] = c
+        return out
+    got = await asyncio.to_thread(cards)
+    ms = sorted((m for w, c in got.items() for m in after_mod.moments(c, w, now)), key=lambda m: -m["t"])[:int(s.get("after_rows", 40))]
+    infos = {m["mint"]: hit[1] for m in ms if (hit := app["overview_cache"].get(m["mint"])) and hit[1] is not None}
+
+    def candles():
+        out = {}
+        for m in ms:
+            key = (m["mint"], m["t"])
+            if stop or key in out:
+                continue
+            a, b = m["t"] - after_mod.STEP, min(now, m["t"] + after_mod.HOURS * HOUR)
+
+            def load(m=m, a=a, b=b):
+                info = infos.get(m["mint"])
+                if info is None:                       # міграція з кривої: без неї свічки до переїзду пропали б
+                    try:
+                        info = infos[m["mint"]] = pipeline.token(st, m["mint"])
+                    except Exception:  # noqa: BLE001
+                        info = None
+                return pipeline._chart(st, m["mint"], "5m", a, b, info)
+            out[key] = paid("after-chart", load, 2, m["mint"])
+        return out
+    cs = await asyncio.to_thread(candles)
+    rows = []
+    for m in ms:
+        trades = next((t.get("trades") or [] for t in got[m["wallet"]].get("recent") or [] if t.get("mint") == m["mint"]), [])
+        o = after_mod.outcome(m, cs.get((m["mint"], m["t"])), trades, now) if cs.get((m["mint"], m["t"])) is not None else {}
+        rows.append(dict(m, **o, tags=((ws.get(m["wallet"]) or {}).get("my_tags") or [])[:2]))
+    out = {"rows": rows, "summary": after_mod.summary(rows), "basis": basis, "wallets": len(pick), "days": after_mod.DAYS,
+           "hours": after_mod.HOURS, "partial": stop[0] if stop else None, "at": now}
+    if not stop:
+        app["after_memo"][pk] = (time.time(), out)
+        if len(app["after_memo"]) > 500:
+            app["after_memo"].clear()
+    return web.json_response(out, headers={"Cache-Control": "no-store"})
 
 
 @_acct_route
@@ -2769,7 +2922,8 @@ async def _budget(app):
             "credits_month": int(s.get("credits_month", 0) or 0), "reserve": _credits_reserve(s),
             "renew_day": int(s.get("credits_renew_day") or 0), "ai": await _ai_balance(app),
             "runs_today": gcap - app["runs_daily"].left("global", gcap),
-            "rpc": ages.budget.state() if ages is not None and getattr(ages, "budget", None) else None}
+            "rpc": ages.budget.state() if ages is not None and getattr(ages, "budget", None) else None,
+            "insightx": app["labels"].budget.state() if app.get("labels") is not None and app["labels"].budget else None}
 
 
 async def _usage_summary(app, period, include_team, budget):
@@ -3800,17 +3954,39 @@ async def job_page(request):
         result = None
     is_demo = job.id in _demo_job_ids(app) or (job.canon or "") in _demo_job_ids(app)
     _view(request, "job", job.canon or job.id, state={"done": "done", "error": "err"}.get(status, "run"), demo=1 if is_demo else None)
+    jr = job.result if result else {}
+    if result and not job.replay and (jr.get("enrich") or {}).get("funders_done") and (
+            (app.get("labels") is not None and jr.get("funders") and jr.get("labels_at") is None)
+            or (app.get("ages") is not None and jr.get("dormant_at") is None)):
+        # a result checked before the labels or «dormant» (owner, 04.10): once, in the background; what is checked is skipped
+        app["jobs"].resume_enrich(job)
+    exch, flab = _labels_for_page(job.result if result else None)
     return render("job.html", request, job=job, save_id=job.canon or job.id, jstatus=status, result=result, s=app["s"], back=_back_link(job),
                   rows_json=_json_script(_table(result["rows"])) if result else "", bundle_min=tags.BUNDLE_MIN, burst_ms=tags.BURST_MS,
                   max_my_tags=acct_mod.MAX_MY_TAGS, is_admin=bool(request.get("acct")) and request.get("acct") in app["admins"],
                   age_read=wallet_age_mod.MAX_PAGES * wallet_age_mod.LIMIT,   # скільки транзакцій гаманця читає перевірка віку
                   is_demo=is_demo, agent_chips=app["agent_store"].config()["chips"][:3],   # the agent's quick questions, drawn before any call
                   sm=sm, TAGS=tags.DEFS, created=created or (job.t_from - 24 * HOUR), now=int(time.time() * 1000),
-                  cov_text=report.coverage_text((result or {}).get("coverage")), exchanges=exch_mod.KNOWN,
+                  cov_text=report.coverage_text((result or {}).get("coverage")), exchanges=exch, flabels=flab,
                  
                   assistant_on=app.get("assistant") is not None,
                   scope=sc, scopes=scope.scopes_for(app["s"]), has_scopes=bool((result or {}).get("wallet_trades")),
                   scope_end=(scope.end_for(sc, job.t_to, (result or {}).get("window", {}).get("end", 0)) if result else None))
+
+
+def _labels_for_page(r):
+    """Назви спонсорів для сторінки: наш список бірж + біржі з міток InsightX (з позначкою джерела в підказці) і, окремо,
+    інші названі сервіси (застосунки, казино): ті лише в картці, а не у фільтрі «з бірж»."""
+    exch, flab = dict(exch_mod.KNOWN), {}
+    for a, v in ((r or {}).get("labels") or {}).items():
+        if a in exch or len(v) < 2:
+            continue
+        kind = v[2] if len(v) > 2 else ""
+        if kind == "exchange":
+            exch[a] = [v[0], v[1] + " · label: InsightX"]
+        else:
+            flab[a] = [v[0], v[1] + " · label: InsightX", labels_mod.kind_text(kind)]
+    return exch, flab
 
 
 # поля рядка таблиці результату в тому порядку, в якому їх віддає _table
@@ -3872,6 +4048,8 @@ def _stored_rows(result):
     rows = result.get("rows") or []
     for r in rows:                                          # результати до появи тегів
         r.setdefault("tag_list", (r.get("tags") or "").split("|") if r.get("tags") else [])
+        if "no-exits" in r["tag_list"]:                     # тег прибрано 04.10 (власник): у таблиці «—» замість нього
+            r["tag_list"] = [t for t in r["tag_list"] if t != "no-exits"]
     return rows, {**report.summary(rows), **(result.get("summary") or {})}
 
 
@@ -3913,7 +4091,7 @@ async def _rows_async(app, result, sc):
         return _stored_rows(result)
     memo = app["rows_memo"]
     key = (id(result), sc, len(result.get("fresh_wallets") or []), len(result.get("bundle") or {}),
-           len(result.get("funders") or {}))
+           len(result.get("funders") or {}), len(result.get("dormant") or {}))
     hit = memo.get(key)
     if hit and hit[0] is result:
         return hit[1]
@@ -4226,6 +4404,7 @@ async def job_enrich_json(request):
     out = {"done": e.get("done", 0), "total": e.get("total", 0), "fresh": fresh,
            "funders_done": e.get("funders_done", 0), "paused": paused,
            "funders": funders, "n_funders": n_funders, "ages": ages, "n_ages": n_ages, "services": r.get("services") or [],
+           "dormant": r.get("dormant") or {}, "labels": r.get("labels") or {},
            "identities_done": bool(r.get("identities_done")) or snapshot or app["jobs"].namer is None}
     if request.query.get("i") != "1":
         out["identities"] = r.get("identities") or {}

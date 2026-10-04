@@ -13,12 +13,13 @@ DEFS = {
     "dev":        "The wallet that created the token's pool",
     "sniper":     "Bought within 60 s of token creation",
     "fresh":      "Wallet younger than 24 h at its first buy",
+    "dormant":    "Nothing touched the wallet for 7+ days before its first buy here",
     "bot-like":   "30+ trades with a median hold under 2 min, or 5+ buy→sell pairs within 5 s",
     "pre-range":  "Also bought before the range",
     "transfer-in": "Sold more than it bought here: the rest came by transfer",
     "re-bought":  "Bought again after the range",
+    "never-sold": "No sells on this token: it still holds, or moved the tokens out",
     "bundle":     "Its first SOL came from the same wallet as 2+ others here: likely one operator",
-    "no-exits":   "Exits not fetched (over the cap)",
     "seen-before": "Also early in another analysis you saved",
 }
 BUNDLE_MIN = 3        # стільки гаманців списку з одним спонсором = бандл
@@ -27,6 +28,9 @@ BUNDLE_REV = 3        # версія правила бандлів: резуль
 
 SNIPER_MS = 60 * SEC
 FRESH_MS = 24 * HOUR
+# «dormant» (owner, 04.10, from BBB's «dormants»): the transaction just before its first buy here is a week old or older.
+# Any transaction counts, a stranger's dust too, so a wallet can only be missed, never called asleep by mistake
+DORMANT_MS = 7 * 24 * HOUR
 BOT_TRADES = 30
 BOT_HOLD_MIN = 2.0
 BOT_PAIRS = 5
@@ -49,6 +53,14 @@ def could_be_fresh(first_buy_ms, age):
     if age.get("exact"):
         return is_fresh(first_buy_ms, age)
     return first_buy_ms - age["oldest_ms"] <= FRESH_MS
+
+
+def dormant_days(first_buy_ms, prev_ms):
+    """Whole days the wallet was quiet before its first buy here, when that is DORMANT_MS or more; otherwise None.
+    prev_ms — the time of the transaction right before that buy (None: there was none, the buy is its first)."""
+    if not first_buy_ms or not prev_ms or first_buy_ms - prev_ms < DORMANT_MS:
+        return None
+    return int((first_buy_ms - prev_ms) // (24 * HOUR))
 
 
 def with_tag(tag_list, tag):
@@ -102,6 +114,7 @@ def compute(f, created_ms=None, buy_times=(), sell_times=(), wallet_first_tx_ms=
         out.append("transfer-in")      # продав більше, ніж купував: решта прийшла переказом, а не з біржі
     if f.get("bought_after_range"):
         out.append("re-bought")
-    if f.get("source") == "entry-only":
-        out.append("no-exits")
+    # never sold: its trades here were read (not entry-only beyond the cap) and none of them is a sale
+    if f.get("source") != "entry-only" and (f.get("buys") or 0) > 0 and not (f.get("sells") or 0):
+        out.append("never-sold")
     return out

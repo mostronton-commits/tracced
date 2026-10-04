@@ -314,6 +314,8 @@ class WalletAge:
                 sigs = self._call("getSignaturesForAddress", [wallet, {"limit": LIMIT, "before": before}]) or []
             except RuntimeError:
                 sigs = None
+            if sigs is not None:                          # the page before the buy also says when it was last active
+                self._put_prev(before, sigs[0] if sigs else None)
         if not sigs:
             sigs = self._call("getSignaturesForAddress", [wallet, {"limit": LIMIT}]) or []
         if len(sigs) < LIMIT:
@@ -333,6 +335,27 @@ class WalletAge:
         if not first:
             return fallback
         return self._age(first, True, None)               # скільки всього транзакцій — не рахуємо: це й було б гортання
+
+    def _put_prev(self, before, sig):
+        if self.cache is not None:
+            bt = (sig or {}).get("blockTime")
+            self.cache.put(f"prev:{before}", {"ms": int(bt) * 1000 if bt else None})
+
+    def prev_tx(self, wallet, before, cached_only=False):
+        """When the wallet's transaction right before `before` (its first buy here) happened, in ms; None — the buy was its
+        first transaction, or (cached_only) nobody has read it yet. For the tag `dormant`. The age check with `before`
+        reads that page anyway and leaves the answer in the cache; otherwise one signature, 1 credit on Helius."""
+        key = f"prev:{before}"
+        hit = self._get(key) if self.cache is not None else None
+        if hit is not None:
+            self.cache_hits += 1
+            return hit.get("ms")
+        if cached_only or not before:
+            return None
+        sigs = self._call("getSignaturesForAddress", [wallet, {"limit": 1, "before": before}]) or []
+        self._put_prev(before, sigs[0] if sigs else None)
+        bt = sigs[0].get("blockTime") if sigs else None
+        return int(bt) * 1000 if bt else None
 
     def oldest_tx_deep(self, wallet):
         """Той самий вік, але для зайнятого гаманця: гортаємо далі, з того підпису, де зупинився звичайний підрахунок,

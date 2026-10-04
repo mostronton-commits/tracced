@@ -234,6 +234,11 @@ chart sit on dark navy. The working surfaces are light: a pale page, white cards
   - identity, blue, for a publicly known wallet;
   - danger-tag, red, for the token's creator;
   - transfer, orange, for bundles and transfers in.
+- **Kinds of wallet** (owner, 04.10, second look: one grey made the pictures alike). Each tag's picture has its own
+  quiet colour, by meaning, on one recipe: a pale fill, a light border, the glyph a deeper shade of the same hue. The
+  creator is red, sniper amber, bundle orange, bot-like slate, fresh lime, dormant fuchsia, transfer-in cyan, pre-range
+  stone, re-bought green (a buy), never-sold sky. A KOL and an exchange are identity blue, a known exploit red. The
+  filter legend keeps white chips and colours only the glyphs. Your own tags are words, in the watchlist's indigo.
 - **Chart:** candles are mint (up) and slate #CBD5E1 (down) on navy. Ranges are close shades of the same mint
   (rgb 52 211 153, 45 212 191, 134 239 172, 34 211 238, 110 231 183), never a rainbow. A range's row in the list
   carries the same shade.
@@ -306,8 +311,9 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   The hero's Analyze is the plain primary key in Plex Sans 600 (owner, 02.10: the mono capitals went back).
 - **Icon-only buttons** (export, close, copy, bell) always carry an `aria-label` and a `title`, centre their glyph
   and are at least 30 px, 36 px on a phone.
-- **Chips and tags** are pills set in mono at 10.5–11 px. A bundle's tag in the table takes its group's colour (one
-  colour per funder; no violet, which means repeats), and a click on it shows that bundle alone. A filter chip that is on gets a filled background. A hidden
+- **Chips and tags** are pills set in mono at 10.5–11 px. A bundle's tag is orange like every bundle and carries its
+  group's colour as a dot in its corner (one colour per funder; no violet, which means repeats), and a click on it
+  shows that bundle alone. A filter chip that is on gets a filled background. A hidden
   tag is struck through and pale. Your own tag carries its own × and goes only by it, with an Undo in the toast; a
   click on the word does nothing (owner, 02.10: tags went by accident).
 - **Tables** are white, with 1 px row lines, a sticky uppercase header, numbers right-aligned in mono, and a sage bar
@@ -340,7 +346,14 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   link, and a click anywhere else in the row opens the card too. In the card, the address copies itself on a click,
   with no copy mark beside it. Its chips say what they are without a hover: "funded by Binance", "94d old". In the
   watchlist the card shows the lists holding the wallet as switches under "Saved in", amber when on; the last one
-  stays, × in the row drops the wallet.
+  stays, × in the row drops the wallet. In "All tokens" a recent token's row opens, under it, a small chart of that
+  token on the hours of the wallet's trades, its buys and sells marked as on the result's chart, with a link to the
+  token's page (owner, 04.10). The token's address under a result's or a token's title copies itself on a click too,
+  with no copy mark beside it.
+- **After the alerts** is a block of the watchlist under the lists (owner, 04.10): a tally strip (buys, median peak,
+  doubled, median now, its exit), then a table of first buys by the wallets with a bell, newest first: when, who, the
+  token, the size, the peak with how long it took, the dip before it, now (or at 24 h) and the wallet's own exit, all
+  as multiples of its buy price. A peak is green from ×2, red below ×1; now and the exit are green from ×1.
 - **Tooltips** come from `title` and stay short, about 90 characters at most. On a touch screen a tap on a `.tipt`
   element shows the same text as a toast. An `i` mark (`.dinfo`, `.kinfo`) holds the method; it turns into an amber
   `!` when the data is incomplete.

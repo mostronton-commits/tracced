@@ -312,6 +312,7 @@
     <div title="Solana Tracker requests the log counted since the 1st (UTC). What is left is at the top of the page"><b>{{ m.st|num }}</b><span>Solana Tracker spent · {{ m.month }}</span></div>
     {% if budget.rpc %}<div title="Helius credits this month by the server's own counter{% if m.rpc_unlogged %}; {{ m.rpc_unlogged|num }} of them are not in the log (spent before it, or by scripts){% endif %}"><b>{{ budget.rpc.spent|num }}</b><span>Helius spent · {{ m.month }}</span></div>{% endif %}
     <div title="The agent's answers since the 1st"><b>{{ dollars(m.ai_usd) }}</b><span>AI spent · {{ m.month }}</span></div>
+    {% if budget.insightx %}<div title="InsightX label requests this month: each names up to 100 funders. The free plan has {{ budget.insightx.limit|num }} a month"><b>{{ budget.insightx.spent|num }}</b><span>InsightX of {{ budget.insightx.limit|num }} · {{ m.month }}</span></div>{% endif %}
     <div title="Live analyses started today by anyone but you"><b>{{ budget.runs_today }}</b><span>Runs today</span></div>
   </div>
   <div class="ucharts">

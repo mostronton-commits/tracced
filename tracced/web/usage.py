@@ -24,6 +24,7 @@ UI = {
     "range-set": ("end",), "range-add": (), "range-reset": (), "tf": ("tf",), "chart-nav": ("to",),
     "list-tab": (), "copy": ("what",), "ext": ("to",), "cur": ("to",), "tz": ("to",), "leave": ("secs",),
     "egg": ("what",), "star": ("on",), "list-move": ("how",), "wallet-bell": ("on",), "card-view": ("v",),
+    "card-token-chart": (), "list-bell": ("on",),
 }
 # короткий рядок: адреса гаманця (32-44 символи) чи набраний людиною текст сюди не пролазять фізично
 VAL = re.compile(r"^[A-Za-z0-9_.:-]{1,24}$")
@@ -145,7 +146,8 @@ FEATURES = {"run": "Analyses", "names": "Wallet names", "enrich": "Wallet age an
             "card-trades": "Card: trades on the token", "card-age": "Card: age and funder", "demo": "Demo capture",
             "credits": "Balance checks", "onchain": "This dashboard: on-chain facts", "agent": "AI agent",
             "api-check": "Partner API: token checks", "alerts": "Telegram alerts: token names and positions",
-            "fresh": "Home: fresh pumps"}
+            "fresh": "Home: fresh pumps", "after-profile": "After the alerts: wallets' 30 days",
+            "after-chart": "After the alerts: token candles"}
 WHO = {"wallets": "Wallet users", "team": "You and test wallets", "guests": "Guests", "partners": "API partners", "system": "The server"}
 # кліки людською мовою: таблиця «що клікають» і хронологія гаманця
 CLICKS = {"card-open": "Opened a wallet card", "card-close": "Closed a wallet card", "card-period": "Switched 7D/30D in a card",
@@ -158,12 +160,14 @@ CLICKS = {"card-open": "Opened a wallet card", "card-close": "Closed a wallet ca
           "list-tab": "Switched a list", "copy": "Copied an address", "ext": "Followed a link out", "cur": "Switched USD/SOL",
           "tz": "Switched UTC/local", "leave": "Left a page", "egg": "Found an easter egg",
           "star": "Starred a wallet into the watchlist", "list-move": "Changed a wallet's lists in its card",
-          "wallet-bell": "Switched a wallet's alerts", "card-view": "Switched a card between this token and all tokens"}
+          "wallet-bell": "Switched a wallet's alerts", "card-view": "Switched a card between this token and all tokens",
+          "card-token-chart": "Opened another token's chart in a card", "list-bell": "Switched a whole list's alerts"}
 # що на сайті можна натиснути зараз: з цього списку — «ніхто не користувався» (прибрані кнопки сюди не входять,
 # інакше вони висіли б у списку вічно)
 UI_FEATURES = ("card-open", "card-period", "pin", "sort", "filter", "hide", "filters-toggle", "filters-reset", "funder", "finding",
                "star", "export", "show-more", "agent-open", "range-set", "range-add", "range-reset", "tf",
-               "chart-nav", "list-tab", "list-move", "wallet-bell", "card-view", "copy", "ext", "cur", "tz")
+               "chart-nav", "list-tab", "list-move", "wallet-bell", "card-view", "copy", "ext", "cur", "tz",
+               "card-token-chart", "list-bell")
 PAGE_NAMES = {"job": "On a result", "token": "On a token's chart", "me": "In the watchlist", "home": "On the home page", "docs": "In the docs"}
 FUNNEL = (("result", "Opened a result"), ("card", "Opened a wallet card"), ("run", "Ran an analysis"),
           ("keep", "Saved or exported"), ("agent", "Asked the agent"))

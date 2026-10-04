@@ -8,7 +8,7 @@
   <div class="tokenhead">
     <div>
       <h1 class="h-title">{{ job.symbol }}</h1>
-      <div class="h-addr mono"><span title="{{ job.mint }}">{{ job.mint[:6] }}…{{ job.mint[-5:] }}</span><button type="button" class="ghost copy" data-copy="{{ job.mint }}" title="Copy the token address" aria-label="Copy the token address">{{ icon('copy') }}</button><a class="ext" href="https://solscan.io/token/{{ job.mint }}" target="_blank" rel="noopener" title="Token on Solscan" aria-label="Token on Solscan">{{ icon('launch') }}</a></div>
+      <div class="h-addr mono"><button type="button" class="dwc mono" data-copy="{{ job.mint }}" title="Copy the token address: {{ job.mint }}" aria-label="Copy the token address">{{ job.mint[:6] }}…{{ job.mint[-5:] }}</button><a class="ext" href="https://solscan.io/token/{{ job.mint }}" target="_blank" rel="noopener" title="Token on Solscan" aria-label="Token on Solscan">{{ icon('launch') }}</a></div>
       <div class="h-sub mono muted">Range <span class="dtc" data-ms="{{ job.t_from }}">{{ job.t_from|dt }}</span> → <span class="dtc" data-ms="{{ job.t_to }}">{{ job.t_to|dt }}</span>{% if result %} · Trades up to <span class="dtc" data-ms="{{ result.window.end or job.t_exit or now }}">{{ (result.window.end or job.t_exit or now)|dt }}</span>{% endif %}</div>
     </div>
     <div class="h-right">
@@ -232,10 +232,13 @@
 
       // what arrives after the page: the background checks (funders, ages, names) and the account (repeats, lists)
       let funders = {}, bundle = {}, crossings = {}, idents = {}, ages = {}, ageDone = false, palette = new Map();
+      let DORM = {};                                             // wallet → days it was quiet before its first buy here
       let services = new Set();                                  // funders that are exchanges or apps: they make no bundle
       // known exchange hot wallets: the funder column names the exchange, and one click shows every
       // wallet funded from it, all its addresses together
       const EXCH = {{ exchanges|tojson }};
+      const FLAB = {{ flabels|tojson }};                         // other named funders (InsightX): apps, casinos — the card only
+      const KIND_TXT = { exchange: 'an exchange', dex: 'a trading app', gambling: 'a gambling site', bridge: 'a bridge', defi: 'a DeFi app', payments: 'a payments app', mev: 'an MEV bot' };
       const fundKey = w => { const x = funders[w]; return x && EXCH[x] ? 'x:' + EXCH[x][0] : (x || ''); };
       const fundLabel = k => k && k.startsWith('x:') ? k.slice(2) : short(k);
       const onChart = [], MAX_ON_CHART = 10, BUY_C = '#34D399', SELL_C = '#F87171';
@@ -322,6 +325,7 @@
         const cd = cardW() === o.w;
         const out = n === '';                                     // on the chart, though the filters would hide it
         const cl = [oc && 'onchart', cd && 'carded', out && 'outside'].filter(Boolean).join(' ');
+        const unk = o.sells == null, UNK = 'Its sells were not read: only the largest buyers\' are';   // entry-only, beyond the cap
         return '<tr data-w="' + o.w + '"' + (cl ? ' class="' + cl + '"' : '') + (out ? ' title="On the chart; the filters would hide it"' : '') + (style ? ' style="' + style + '"' : '') + '>'
           + '<td class="wcell"><span class="wid">' + STAR(o.w)
           + '<button type="button" class="mk" title="Show its buys and sells on the chart" aria-label="Show on the chart">' + CHARTIC + '</button>'
@@ -331,11 +335,11 @@
           + (o.tot > o.inv + 0.01 ? ' · ' + money(o.tot) + ' in total on this token' : '') + '">' + amount(o.inv, o.invsol, '')
           + '<small>' + cap(o.entry) + '</small></td>'
           + '<td class="num two c-sold" data-h="Sold"' + (o.exitcap ? ' title="Sold at a ' + fm(o.exitcap) + ' market cap on average'
-            + (vs != null ? ', ' + (vs > 0 ? '+' : '') + vs + '% against its average entry' : '') + ' · ' + soldPct(o.sold) + ' of its tokens sold"' : '') + '>'
+            + (vs != null ? ', ' + (vs > 0 ? '+' : '') + vs + '% against its average entry' : '') + ' · ' + soldPct(o.sold) + ' of its tokens sold"' : unk ? ' title="' + UNK + '"' : '') + '>'
           + (o.got ? amount(o.got, o.gotsol, '') : '<b class="mono">—</b>') + '<small>' + (o.exitcap ? fm(o.exitcap) + ' · ' + soldPct(o.sold) : '') + '</small></td>'
-          + '<td class="num two bar c-pnl' + (o.real < 0 ? ' neg' : '') + '" data-h="PnL" style="--w: ' + (MAXR ? Math.round(100 * Math.abs(o.real) / MAXR) : 0) + '%">'
-          + amount(o.real, o.realsol, cls(o.real)) + '<small class="' + cls(o.unreal) + '">' + (o.unreal ? money(o.unreal) + ' on ' + leftPct(o.sold) + ' left' : '') + '</small></td>'
-          + '<td class="num c-roi" data-h="ROI"' + (o.mult ? ' title="' + roiPct(o.mult) + ' · average exit ' + cap(o.exitcap) + ' ÷ average entry ' + cap(o.eavg) + '"' : ' title="Nothing sold yet"') + '>'
+          + '<td class="num two bar c-pnl' + (o.real < 0 ? ' neg' : '') + '" data-h="PnL" style="--w: ' + (MAXR ? Math.round(100 * Math.abs(o.real) / MAXR) : 0) + '%"' + (unk ? ' title="' + UNK + '"' : '') + '>'
+          + (unk ? '<b class="mono">—</b>' : amount(o.real, o.realsol, cls(o.real))) + '<small class="' + cls(o.unreal) + '">' + (o.unreal ? money(o.unreal) + ' on ' + leftPct(o.sold) + ' left' : '') + '</small></td>'
+          + '<td class="num c-roi" data-h="ROI"' + (o.mult ? ' title="' + roiPct(o.mult) + ' · average exit ' + cap(o.exitcap) + ' ÷ average entry ' + cap(o.eavg) + '"' : ' title="' + (unk ? UNK : 'Nothing sold yet') + '"') + '>'
           + '<b class="mono ' + (o.mult ? (o.mult >= 1 ? 'pos' : 'neg') : '') + '">' + roiX(o.mult) + '</b></td>'
           + '<td class="num two c-held" data-h="Held" title="' + plural(o.buys, 'buy') + ', ' + (o.sells == null ? 'sells unknown' : plural(o.sells, 'sell')) + '"><b class="mono">' + holdText(o.hold) + '</b>'
           + '<small class="bs"><span class="up">↑' + o.buys + '</span> <span class="dn">↓' + (o.sells == null ? '—' : o.sells) + '</span></small></td></tr>';
@@ -986,9 +990,13 @@
           out.push(st === 'connect' ? '<button type="button" class="dchip age q" id="dagego" title="' + why + '">age?</button>'
             : '<span class="dchip age q" title="' + why + '">' + (busy ? '…' : '?') + '</span>');
         }
+        if (DORM[w]) out.push('<span class="dchip dorm" title="Nothing touched the wallet for ' + DORM[w] + ' days before its first buy here">quiet ' + DORM[w] + 'd before</span>');
         if (fnd && EXCH[fnd]) out.push('<button type="button" class="dchip fund cex" id="dfund" data-fund="x:' + esc(EXCH[fnd][0]) + '" title="First SOL came straight from '
           + esc(EXCH[fnd][1]) + ' (' + fnd + '), an exchange' + (bn && bn.n > 1 ? ', together with ' + (bn.n - 1) + ' wallets born in the same minutes (bundle)' : '')
           + ' · click to show every wallet funded from ' + esc(EXCH[fnd][0]) + ' here"><span class="dl">funded by</span>' + esc(EXCH[fnd][0]) + (bn && bn.n > 1 ? '<small>×' + bn.n + '</small>' : '') + '</button>');
+        else if (fnd && FLAB[fnd]) out.push('<button type="button" class="dchip fund cex" id="dfund" data-fund="' + fnd + '" title="First SOL came from '
+          + esc(FLAB[fnd][1]) + ' (' + fnd + '), ' + esc(FLAB[fnd][2] || 'a known service') + ' · click to show every wallet it funded here"><span class="dl">funded by</span>'
+          + esc(FLAB[fnd][0]) + (bn && bn.n > 1 ? '<small>×' + bn.n + '</small>' : '') + '</button>');
         else if (fnd) out.push('<button type="button" class="dchip fund" id="dfund" data-fund="' + fnd + '" title="First SOL came from '
           + fnd + (bn && bn.n > 1 ? ', which funded ' + bn.n + ' wallets here (bundle)' : services.has(fnd) ? ', an exchange or an app: over 1,000 transactions a day, so the wallets it funded are not a bundle' : '')
           + ' · click to show every wallet it funded here"><span class="dl">funded by</span><span class="mono">' + short(fnd) + '</span>' + (bn && bn.n > 1 ? '<small>×' + bn.n + '</small>' : '') + '</button>');
@@ -1080,7 +1088,8 @@
         const cell = (v, l, cls, tip) => '<span class="tc"' + (tip ? ' title="' + esc(tip) + '"' : '') + '><b class="' + (cls || '') + '">' + v + '</b><i>' + l + '</i></span>';
         el.innerHTML = cell(amt(o.inv, o.invsol), 'bought', '', 'At a ' + (o.entry ? fm(o.entry) : '—') + ' market cap')
           + cell(o.got ? amt(o.got, o.gotsol) : '—', 'sold', '', soldPct(o.sold) + ' of its tokens' + (o.exitcap ? ', at a ' + fm(o.exitcap) + ' cap on average' : ''))
-          + cell(amt(o.real, o.realsol), 'PnL', o.real > 0 ? 'pos' : o.real < 0 ? 'neg' : '', o.unreal ? money(o.unreal) + ' on ' + leftPct(o.sold) + ' left' : '')
+          + (o.sells == null ? cell('—', 'PnL', '', 'Its sells were not read: only the largest buyers\' are')
+            : cell(amt(o.real, o.realsol), 'PnL', o.real > 0 ? 'pos' : o.real < 0 ? 'neg' : '', o.unreal ? money(o.unreal) + ' on ' + leftPct(o.sold) + ' left' : ''))
           + cell(roiX(o.mult), 'ROI', o.mult ? (o.mult >= 1 ? 'pos' : 'neg') : '', o.mult ? roiPct(o.mult) : 'Nothing sold yet')
           + cell(holdText(o.hold), 'held', '', 'From its entry to its first sale');
       }
@@ -1324,6 +1333,11 @@
         const svcs = d.services || [], newS = svcs.length !== services.size;   // a funder found to be an exchange unmakes its bundle
         if (newS) services = new Set(svcs);
         (d.fresh || []).forEach(w => { const o = byW.get(w); if (o && !o.tags.includes('fresh')) { o.tags.unshift('fresh'); added++; } });
+        let newL = 0;                                           // InsightX names a funder: an exchange joins EXCH, an app the card
+        Object.entries(d.labels || {}).forEach(([a, v]) => { if (EXCH[a] || FLAB[a]) return; newL++;
+          if (v[2] === 'exchange') EXCH[a] = [v[0], v[1] + ' · label: InsightX']; else FLAB[a] = [v[0], v[1] + ' · label: InsightX', KIND_TXT[v[2]] || 'a known service']; });
+        if (newL) changed = true;
+        Object.entries(d.dormant || {}).forEach(([w, n]) => { DORM[w] = n; const o = byW.get(w); if (o && !o.tags.includes('dormant')) { o.tags.push('dormant'); added++; } });
         if (newF || newS) {
           rebundle();
           byW.forEach((o, w) => {                               // the tag follows the recount both ways

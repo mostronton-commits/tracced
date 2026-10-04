@@ -189,6 +189,38 @@ if AioHTTPTestCase:
             self.assertIn('id="tgconnect"', html)                                             # the real site: connect, no preview
             self.assertNotIn("Preview on the draft", html)
 
+        async def test_after_the_alerts_counts_from_the_buy_price(self):
+            # owner, 04.10: «що було після алерту» — a bell wallet's first buy and what the token did next, from its price
+            from tracced.early import profile as profile_mod
+            now = int(time.time() * 1000)
+            step = 300_000
+            t_buy = (now - 3 * 3_600_000) // step * step
+            self.app["accounts"].add_wallets(TEST_PK, [{"wallet": W1}])
+            self.app["accounts"].set_wallet_alert(TEST_PK, W1, True, 10)
+            mint = "M" * 44
+            card = {"recent": [{"mint": mint, "symbol": "PUMP", "trades": [[t_buy, "b", 100.0, 1000, 0.1], [t_buy + 3_600_000, "s", 150.0, 500, 0.3]]}]}
+            self.app["profile_cache"].put(f"v{profile_mod.VERSION}:{W1}", card)          # its 30 days, from the card's cache
+            asked = []
+
+            def chart(m, interval, a, b, **kw):
+                asked.append((m, interval, a, b))
+                return [{"time": t_buy + i * step, "open": 0.1, "high": h, "low": lo, "close": h}
+                        for i, (h, lo) in enumerate([(0.5, 0.1), (0.12, 0.08), (0.25, 0.2), (0.2, 0.15)])]
+            self.app["st"].chart = chart
+            d = await (await self.client.get("/me/after.json")).json()
+            self.assertEqual((d["basis"], d["wallets"], d["partial"]), ("bells", 1, None))
+            r = d["rows"][0]
+            self.assertEqual((r["symbol"], r["wallet"], r["new"]), ("PUMP", W1, True))
+            self.assertEqual((r["peak_x"], r["dip_x"], r["now_x"], r["at_end"]), (2.5, 0.8, 2.0, False))   # the buy's own candle is out
+            self.assertEqual((r["exit_x"], r["exit_min"], r["sold_pct"]), (3.0, 60, 50))
+            self.assertEqual(asked[0][:2], (mint, "5m"))
+            self.assertEqual(d["summary"]["n"], 1)
+            await self.client.get("/me/after.json")
+            self.assertEqual(len(asked), 1)                                                # counted once, then 15 minutes from memory
+            html = await (await self.client.get("/me")).text()
+            self.assertIn('id="after"', html)
+            self.assertIn("After the alerts", html)
+
         async def test_the_poll_catches_what_the_stream_missed(self):
             now = int(time.time())
             self.app["alerts_wm"] = {"WAL": [{"pk": TEST_PK, "chat": 7, "prefs": {}, "tags": []}]}

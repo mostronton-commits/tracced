@@ -30,7 +30,8 @@ CASH = {
     "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1",          # bSOL
 }
 CLOSED_SHARE = 99.0          # позиція закрита, коли продано стільки відсотків купленого
-VERSION = 4                  # змінився порахунок — нова версія, і картки з кешу рахуються заново
+VERSION = 5                  # змінився порахунок — нова версія, і картки з кешу рахуються заново (5: угоди останніх токенів)
+RECENT_TRADES = 40           # угод на токен у «Recent tokens»: мітки графіка того токена в картці і «після алертів»
 
 
 def _num(v):
@@ -304,16 +305,25 @@ def heatmap(events, now_ms, days=30):
 
 
 def recent_tokens(events, now_ms, days=30, n=12):
-    """Останні токени гаманця з результатом кожного: що купив, що продав, скільки заробив, закрито чи ні."""
+    """Останні токени гаманця з результатом кожного: що купив, що продав, скільки заробив, закрито чи ні. І самі угоди
+    (останні RECENT_TRADES): [час, b|s, $, кількість, ціна] — з них графік того токена в картці ставить мітки, а «що було
+    після алертів» бере ціну купівлі (власник, 04.10). Нових запитів це не коштує: обміни вже прийшли."""
     since = now_ms - days * DAY
-    books, _ = _replay([e for e in events if e.get("time") is not None and since <= e["time"] <= now_ms])
+    evs = [e for e in events if e.get("time") is not None and since <= e["time"] <= now_ms]
+    books, _ = _replay(evs)
+    trades = {}
+    for e in evs:
+        if e.get("type") in ("buy", "sell") and e.get("mint"):
+            trades.setdefault(e["mint"], []).append([e["time"], "b" if e["type"] == "buy" else "s", round(float(e.get("usd") or 0), 2),
+                                                     e.get("qty"), e.get("price")])
     out = []
     for b in sorted(books.values(), key=lambda x: -(x.last_t or 0))[:n]:
         state = "sold only" if b.buys == 0 else ("closed" if b.share >= CLOSED_SHARE else "open")
         out.append({"mint": b.mint, "symbol": b.symbol, "state": state, "last_ms": b.last_t, "buys": b.buys,
                     "sells": b.sells + b.orphan_sells, "invested_usd": b.invested,
                     "realized_usd": b.realized if b.buys else None,
-                    "roi": (b.realized / b.invested * 100) if (state == "closed" and b.invested > 0) else None})
+                    "roi": (b.realized / b.invested * 100) if (state == "closed" and b.invested > 0) else None,
+                    "trades": sorted(trades.get(b.mint) or [], key=lambda x: x[0])[-RECENT_TRADES:]})
     return out
 
 

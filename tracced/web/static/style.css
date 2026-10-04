@@ -317,7 +317,6 @@ td.wcell .wid { white-space: nowrap; display: inline-flex; align-items: center; 
 td.wcell .wid .star, td.wcell .wid .mk { vertical-align: middle; }
 .tag { display: inline-block; margin-left: 5px; padding: 1px 6px; border-radius: 999px; font: 10.5px/1.5 var(--mono); color: var(--muted); border: 1px solid var(--line); background: var(--surface); cursor: help; vertical-align: 1px; }
 .tag.t-sniper, .tag.t-bot-like, .tag.t-fresh { color: #92400E; border-color: #FDE68A; background: #FFFBEB; }
-.tag.t-no-exits { color: var(--muted); border-style: dashed; }
 .tag.t-dev { color: #7F1D1D; border-color: #FCA5A5; background: #FEF2F2; font-weight: 600; }
 /* seen-before: early in another analysis of YOURS — ours, verifiable, not a bought label */
 .tag.t-seen-before { color: #5B21B6; border-color: #C4B5FD; background: #F5F3FF; cursor: pointer; font: inherit; font-size: 11px; height: auto; padding: 1px 7px; }
@@ -601,7 +600,7 @@ button.ghost.xbtn { padding: 0; color: #475569; }
 
 /* ── iteration 8: result header, tiles with hints, top bar/footer, home steps + roadmap, example row ── */
 .h-title { font-size: 24px; margin: 0; letter-spacing: -.02em; }
-.h-addr { display: flex; align-items: center; gap: 2px; color: var(--muted); margin-top: 2px; }
+.h-addr { display: flex; align-items: center; gap: 6px; color: var(--muted); margin-top: 2px; }
 .h-addr .copy { height: 22px; width: 22px; padding: 0; font-size: 13px; color: #94A3B8; } .h-addr .copy:hover { color: var(--ink); }
 .h-sub { font-size: 12.5px; margin-top: 6px; }
 .h-right { display: flex; align-items: center; gap: 12px; }
@@ -1565,17 +1564,34 @@ input.ltabedit { flex: none; width: 150px; min-width: 0; height: 30px; padding: 
 }
 @media (hover: none) { .tipt { cursor: pointer; } }   /* iOS delivers a tap on a plain span to the page only when it looks clickable */
 
-/* ── 04.10, owner: one quiet palette for what kind of wallet it is. The picture tells the rule and the tooltip says it;
-   a bundle keeps its group's colour as a dot in its corner, so two bundles side by side stay apart. Your own tags are
-   words in the table too, in the watchlist's indigo ── */
-.tag.ico, .tag.ico.t-sniper, .tag.ico.t-bot-like, .tag.ico.t-fresh, .tag.ico.t-dev, .tag.ico.t-bundle, .tag.ico.t-transfer-in,
-.tag.ico.t-no-exits, .tag.ico.t-pre-range, .tag.ico.t-re-bought, .idm.kol, .idm.role, .idm.role.r-hacker, .idm.role.r-exchange {
-  color: #475569; border-color: #E2E8F0; background: #F8FAFC; font-weight: 500; }
-.tag.ico:hover, .idm.kol:hover, .idm.role:hover { color: var(--ink); border-color: #CBD5E1; }
-.tag.t-bundle.bundb { position: relative; background: #F8FAFC; border-color: #E2E8F0; color: #475569; }
+/* ── 04.10, owner (second look): one colour made them all alike, so each kind of wallet has its own quiet colour, by
+   what it means. One recipe for all: a pale fill, a light border and the picture in a deeper shade of the same hue, so
+   neighbours stay apart and none shouts. A bundle keeps its group's colour as a dot in its corner; your own tags are
+   words, in the watchlist's indigo ── */
+.tag.ico { --tg: #475569; --tf: #F8FAFC; --tl: #E2E8F0; color: var(--tg); border-color: var(--tl); background: var(--tf); font-weight: 500; }
+.tag.ico.t-dev { --tg: #B91C1C; --tf: #FEF2F2; --tl: #FECACA; }          /* the creator: red */
+.tag.ico.t-sniper { --tg: #B45309; --tf: #FFFBEB; --tl: #FDE68A; }       /* in within a minute: amber */
+.tag.ico.t-bundle { --tg: #C2410C; --tf: #FFF7ED; --tl: #FED7AA; }       /* one funder behind many: orange */
+.tag.ico.t-bot-like { --tg: #475569; --tf: #F8FAFC; --tl: #E2E8F0; }     /* a machine: slate */
+.tag.ico.t-fresh { --tg: #4D7C0F; --tf: #F7FEE7; --tl: #D9F99D; }        /* a new wallet: lime */
+.tag.ico.t-dormant { --tg: #A21CAF; --tf: #FDF4FF; --tl: #F5D0FE; }      /* woke up for this: fuchsia */
+.tag.ico.t-transfer-in { --tg: #0E7490; --tf: #ECFEFF; --tl: #A5F3FC; }  /* tokens that came by transfer: cyan */
+.tag.ico.t-pre-range { --tg: #57534E; --tf: #FAFAF9; --tl: #E7E5E4; }    /* bought before the range: stone */
+.tag.ico.t-re-bought { --tg: #15803D; --tf: #F0FDF4; --tl: #BBF7D0; }    /* bought again: green, as buys are */
+.tag.ico.t-never-sold { --tg: #0369A1; --tf: #F0F9FF; --tl: #BAE6FD; }   /* still holds: sky */
+.idm.kol, .idm.role { --tg: #475569; --tf: #F8FAFC; --tl: #E2E8F0; color: var(--tg); border-color: var(--tl); background: var(--tf); font-weight: 500; }
+.idm.kol, .idm.role.r-exchange { --tg: #1D4ED8; --tf: #EFF6FF; --tl: #BFDBFE; }   /* known by name: identity blue */
+.idm.role.r-hacker { --tg: #B91C1C; --tf: #FEF2F2; --tl: #FECACA; }
+.tag.ico:hover, .idm.kol:hover, .idm.role:hover { border-color: var(--tg); }
+.tag.t-bundle.bundb { position: relative; color: var(--tg); background: var(--tf); border-color: var(--tl); }
 .tag.t-bundle.bundb::after { content: ""; position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; border-radius: 50%;
   background: var(--c, #FDBA74); box-shadow: 0 0 0 1.5px var(--surface); }
-.tagchip.t-dev, .tagchip.t-sniper, .tagchip.t-bot-like, .tagchip.t-fresh { border-color: var(--line); }
+/* the filter legend: white chips, each picture in its own colour */
+.tagchip { --tg: var(--muted); } .tagchip svg { color: var(--tg); }
+.tagchip.t-dev { --tg: #B91C1C; } .tagchip.t-sniper { --tg: #B45309; } .tagchip.t-bundle { --tg: #C2410C; } .tagchip.t-bot-like { --tg: #475569; }
+.tagchip.t-fresh { --tg: #4D7C0F; } .tagchip.t-dormant { --tg: #A21CAF; } .tagchip.t-transfer-in { --tg: #0E7490; } .tagchip.t-never-sold { --tg: #0369A1; }
+.tagchip.t-dev, .tagchip.t-sniper, .tagchip.t-bot-like, .tagchip.t-fresh, .tagchip.t-transfer-in { border-color: var(--line); }
+.tagchip.off svg { color: #CBD5E1; }
 .tag.own { display: inline-flex; align-items: center; height: 22px; margin: 0; padding: 0 8px; border-radius: 999px; border: 1px solid #C7D2FE;
   background: #EEF2FF; color: #3730A3; font: 500 11px/1 var(--sans); cursor: default; }
 /* the Filters panel holds no numbers where the table's head has funnels for them (owner, 04.10: no doubles) */
@@ -1592,3 +1608,22 @@ input.ltabedit { flex: none; width: 150px; min-width: 0; height: 30px; padding: 
 /* the draft site's alerts are a preview: the switches save, nothing is sent (owner, 04.10) */
 .tgprev { font-size: 12.5px; color: var(--muted); max-width: 300px; }
 .lbar .lalert[hidden] { display: none; }
+/* the card says how long a sleeper slept, in the dormant tag's colour (owner, 04.10) */
+.dchip.dorm { color: #A21CAF; border-color: #F5D0FE; background: #FDF4FF; }
+/* the card's recent tokens: a row opens that token's chart under it, with this wallet's trades (owner, 04.10) */
+.drecent tr.rt { cursor: pointer; } .drecent tr.rt:hover td, .drecent tr.rt.open td { background: var(--hover); }
+.drecent tr.rt:focus-visible { outline: 2px solid var(--primary-strong, #34D399); outline-offset: -2px; }
+.drecent .rts { font-weight: 600; border-bottom: 1px dotted var(--line-strong, #CBD5E1); }
+.drecent tr.rtc td { padding: 6px 0 10px; background: var(--surface); }
+.chartbox.mini { height: 240px; margin: 0 0 6px; padding-bottom: 34px; }
+.chartbox.mini .tf.back, .chartbox.mini .charthint { display: none; }
+.drecent .rtfoot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 12px; font: 12px var(--mono); color: var(--muted); }
+.drecent .rtfoot a { font-family: var(--sans); }
+/* after the alerts (owner, 04.10): the multiples read like the table's ROI, a small line under for when */
+.aftr .mehead .kinfo { margin-left: 2px; }
+.aftr .tally { margin: 4px 0 12px; }
+.aft td.num small { display: block; color: var(--muted); font-size: 10.5px; }
+.aft td.num.pos { color: var(--gain, #059669); } .aft td.num.neg { color: var(--loss, #DC2626); }
+.aft td:first-child { white-space: nowrap; }
+/* a two-word label wraps instead of being cut at the cell's edge ("FROM EXCHANGES" at 1440, 04.10) */
+.tally .tc i { white-space: normal; max-width: 100%; }

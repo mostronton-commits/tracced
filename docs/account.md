@@ -95,6 +95,18 @@ without the cap and the sold share.
 We keep the Telegram chat the alerts go to and your Telegram username; nothing else from Telegram. Alerts are in a
 closed test for now.
 
+### After the alerts
+
+Under your lists, *After the alerts* shows what happened after each first buy of a token by a wallet with its bell
+on, in the last 7 days: the highest price in the next 24 hours and how long it took, the lowest before that, the
+price now (or at 24 hours) and the wallet's own average exit, each as a multiple of its buy price. The strip above it
+sums them up: how many buys, the median peak, how many doubled, the median now and the median exit. With no bell on
+yet, it uses your 10 newest wallets.
+
+It is counted from the wallets' own trades, so it also covers a buy that sent no alert (under your minimum, past a
+daily limit). The trades come with each wallet's 30 days; the prices are 5-minute candles of each token. It is
+counted again at most every 15 minutes.
+
 ## What other people see
 
 Finished analyses are public. The home page lists what everyone analyzed, and any result opens for anyone.

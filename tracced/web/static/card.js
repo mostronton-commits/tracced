@@ -55,11 +55,14 @@
         '<i style="--a:' + (n ? (0.18 + 0.82 * n / max).toFixed(2) : 0) + '" title="' + D[d] + ' ' + ampm(h) + '–' + ampm((h + 1) % 24) + ' · ' + n + ' swap' + (n === 1 ? '' : 's') + '"></i>').join('') + '</div>').join('')
       + '<div class="hx"><span></span>' + [0, 3, 6, 9, 12, 15, 18, 21].map(h => '<b>' + ampm(h) + '</b>').join('') + '</div></div>';
   }
+  // the recent tokens of the card on screen (one card at a time): a click on a row draws that token's chart under it
+  let RECENT = [];
   function recentHtml(list) {
     if (!list || !list.length) return '';
+    RECENT = list.slice(0, 8);
     const ago = ms => { const m = (Date.now() - ms) / 60000; return m < 60 ? Math.max(1, Math.round(m)) + 'm' : m < 1440 ? Math.round(m / 60) + 'h' : Math.round(m / 1440) + 'd'; };
     return '<table class="drecent"><thead><tr><th>Token</th><th class="num">PnL</th><th class="num">ROI</th><th></th><th class="num">Last</th></tr></thead><tbody>'
-      + list.slice(0, 8).map(t => '<tr><td><a href="/token?mint=' + encodeURIComponent(t.mint) + '" title="Open ' + esc(t.symbol || t.mint) + ' in tracced">' + esc(t.symbol || short(t.mint)) + '</a></td>'
+      + RECENT.map((t, i) => '<tr class="rt" data-i="' + i + '" tabindex="0" title="Show ' + esc(t.symbol || 'this token') + '\'s chart with this wallet\'s buys and sells"><td><b class="rts">' + esc(t.symbol || short(t.mint)) + '</b></td>'
         + '<td class="num mono ' + (t.realized_usd > 0 ? 'pos' : (t.realized_usd < 0 ? 'neg' : '')) + '">' + (t.realized_usd == null ? '—' : money(t.realized_usd)) + '</td>'
         + '<td class="num mono">' + (t.roi == null ? '—' : (t.roi > 0 ? '+' : '') + Math.round(t.roi) + '%') + '</td>'
         + '<td><span class="st st-' + t.state.replace(' ', '-') + '">' + t.state + '</span></td>'
@@ -127,5 +130,35 @@
   document.addEventListener('pointermove', sparkAt);
   document.addEventListener('pointerdown', sparkAt);
   document.addEventListener('pointerout', e => { if (e.target.closest && e.target.closest('.dsparkw') && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.dsparkw'))) sparkOff(e); });
+  /* Another token's chart from the card (owner, 04.10: «реалізуй, як бачиш, я потім поправлю»): the row opens a small
+     chart of that token right under it, on the hours of this wallet's trades, with its buys and sells marked the way
+     the result's chart marks them. The trades come with the 30 days; the candles cost what any chart costs. */
+  function tokenChart(row, t) {
+    const td = row.querySelector('td'), tr = (t.trades || []).map(x => ({ t: x[0], side: x[1] === 'b' ? 'buy' : 'sell', usd: x[2], qty: x[3] || 0 }));
+    const buys = tr.filter(x => x.side === 'buy'), sells = tr.filter(x => x.side === 'sell');
+    const sum = a => a.reduce((s, x) => s + (x.usd || 0), 0);
+    td.innerHTML = '<div class="chartbox mini"></div><div class="rtfoot"><span><b class="up">↑' + buys.length + '</b> ' + money(sum(buys))
+      + ' <b class="dn">↓' + sells.length + '</b> ' + money(sum(sells)) + '</span><a href="/token?mint=' + encodeURIComponent(t.mint) + '">Open ' + esc(t.symbol || 'the token') + ' in tracced</a></div>';
+    const box = td.querySelector('.chartbox');
+    if (!window.EarlyChart || !window.LightweightCharts) { box.outerHTML = '<p class="muted small">The chart opens on the token\'s page.</p>'; return; }
+    const first = tr.length ? tr[0].t : t.last_ms, last = tr.length ? tr[tr.length - 1].t : t.last_ms;
+    const ch = EarlyChart(box, { mint: t.mint, symbol: t.symbol || '', created: first - 6 * 3600000, now: Date.now(), windows: [] });
+    ch.setWalletMarkers([{ wallet: 'card', trades: tr }]);
+    ch.focus(first, last, null);
+    if (window.EarlyUI) EarlyUI.use('card-token-chart');
+  }
+  function toggleToken(row) {
+    const body = row.parentElement, open = row.classList.contains('open');
+    body.querySelectorAll('tr.rtc').forEach(x => x.remove());
+    body.querySelectorAll('tr.rt.open').forEach(x => x.classList.remove('open'));
+    if (open) return;
+    const t = RECENT[+row.dataset.i]; if (!t) return;
+    row.classList.add('open');
+    const c = document.createElement('tr'); c.className = 'rtc'; c.innerHTML = '<td colspan="5"></td>';
+    row.after(c);
+    tokenChart(c, t);
+  }
+  document.addEventListener('click', e => { const r = e.target.closest('table.drecent tr.rt'); if (r && !e.target.closest('a')) toggleToken(r); });
+  document.addEventListener('keydown', e => { const r = e.target.closest && e.target.closest('table.drecent tr.rt'); if (r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleToken(r); } });
   window.EarlyCard = { render, identicon, recent: all => (all && all.recent && all.recent.length ? recentHtml(all.recent) : '') };
 })();

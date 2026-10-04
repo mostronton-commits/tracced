@@ -48,8 +48,24 @@ class TestTags(unittest.TestCase):
 
     def test_history_tags(self):
         t = tags.compute(facts(bought_before_range=True, bought_after_range=True, source="entry-only"))
-        self.assertEqual(t, ["pre-range", "re-bought", "no-exits"])
+        self.assertEqual(t, ["pre-range", "re-bought"])                     # no-exits is gone (owner, 04.10)
         self.assertTrue(all(k in tags.DEFS for k in t))
+        self.assertNotIn("no-exits", tags.DEFS)
+
+    def test_never_sold_only_when_its_sells_were_read(self):
+        # owner, 04.10: «never sold» instead of no-exits — but only where we read the sells and found none
+        self.assertIn("never-sold", tags.compute(facts(sells=0)))
+        self.assertNotIn("never-sold", tags.compute(facts(sells=2)))
+        self.assertNotIn("never-sold", tags.compute(facts(sells=None, source="entry-only")))   # beyond the cap: unknown
+        self.assertNotIn("never-sold", tags.compute(facts(buys=0, sells=0)))                   # nothing bought here
+
+    def test_dormant_counts_whole_days_from_a_week(self):
+        buy = T0 + 30 * 24 * H
+        self.assertEqual(tags.dormant_days(buy, buy - 7 * 24 * H), 7)
+        self.assertEqual(tags.dormant_days(buy, buy - 23 * 24 * H - 5 * H), 23)
+        self.assertIsNone(tags.dormant_days(buy, buy - 6 * 24 * H))             # less than a week: awake
+        self.assertIsNone(tags.dormant_days(buy, None))                          # the buy was its first transaction
+        self.assertEqual(tags.with_tag(["sniper", "bundle"], "dormant"), ["sniper", "dormant", "bundle"])
 
     def test_tokens_that_arrived_without_a_buy_are_not_called_a_purchase(self):
         # продав більше, ніж купував: це переказ, а не покупка до діапазону — два різні факти, два різні теги

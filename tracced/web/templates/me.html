@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Watchlist · tracced{% endblock %}
 {% block main_class %}{% if not acct %}center{% else %}withcard{% endif %}{% endblock %}
-{% block head %}<script src="/static/card.js?v={{ v }}"></script>{% endblock %}
+{% block head %}<script src="/static/vendor/lightweight-charts.standalone.production.js?v={{ v }}"></script><script src="/static/chart.js?v={{ v }}"></script><script src="/static/card.js?v={{ v }}"></script>{% endblock %}
 {% block body %}
 {% if not acct %}
 <section class="card narrow">
@@ -93,6 +93,16 @@
     <section class="dsec" id="dwsec" hidden><div class="dcross" id="dcross"></div></section>
   </div>
 </aside>
+{% endif %}
+{% if alerts_ok and wallets %}
+{# what the token did after a bell wallet bought (owner, 04.10: «реалізуй, як бачиш, я потім поправлю») #}
+<section class="card me aftr" id="after">
+  <div class="row mehead"><h2>After the alerts</h2><span class="muted small" id="aftsub">last 7 days</span>
+    <span class="kinfo tipt" tabindex="0" title="Each wallet's first buy of a token in the last 7 days, from its trades. Peak: the highest price in the next 24 h ÷ its buy price. Dip: the lowest before that peak. Now: the last price, or the one at 24 h. Its exit: the average price of its sells after the buy." aria-label="How it is counted">i</span></div>
+  <div class="tally" id="afttally" hidden></div>
+  <div class="tablewrap"><table class="facts melist aft"><thead><tr><th>Bought</th><th>Wallet</th><th>Token</th><th class="num">Size</th><th class="num">Peak</th><th class="num">Dip</th><th class="num">Now</th><th class="num">Its exit</th></tr></thead>
+    <tbody id="aftrows"><tr><td colspan="8" class="muted">Counting what happened after each buy…</td></tr></tbody></table></div>
+</section>
 {% endif %}
 
 <section class="card me" id="analyses">
@@ -476,7 +486,7 @@
     Object.keys(META).forEach(w => { META[w].alert = bells.has(w); syncBell(w); });
     if (tgn) tgn.textContent = bells.size;
     syncListBell();
-    EarlyUI.use('wallet-bell', { on: turnOn });
+    EarlyUI.use('list-bell', { on: turnOn });
     const left = [...document.querySelectorAll('tr[data-w]')].filter(tr => tr.dataset.lists.split(' ').includes(current) && !bells.has(tr.dataset.w)).length;
     EarlyUI.toast(!turnOn ? 'Alerts off for this list'
       : !left ? 'Alerts on for the whole list · ' + bells.size + ' of ' + d.cap + ' wallets'
@@ -488,6 +498,41 @@
     if (dbell && e.target.closest('#dbell')) toggleBell(drawer.dataset.w);
   });
   try { const was = localStorage.getItem('early:list'); if (was && document.querySelector('#ltabs .ltab[data-list="' + was + '"]')) showList(was); } catch (e) {}
+  // ── after the alerts: the server counts it (15 minutes cached), the page only draws ──
+  const aft = document.getElementById('after');
+  if (aft) (async () => {
+    const body = document.getElementById('aftrows'), sub = document.getElementById('aftsub'), tl = document.getElementById('afttally');
+    let d;
+    try { const r = await fetch('/me/after.json', { credentials: 'same-origin' }); d = await r.json(); if (!r.ok) throw new Error(d.error || 'failed'); }
+    catch (x) { body.innerHTML = '<tr><td colspan="8" class="muted">' + esc(x.message || 'Could not count it now. Reload the page to try again.') + '</td></tr>'; return; }
+    const X = v => v == null ? '—' : '×' + (v >= 10 ? Math.round(v) : v >= 1 ? v.toFixed(1) : v.toFixed(2));
+    const dur = m => m == null ? '' : m < 60 ? Math.max(1, m) + 'm' : m < 1440 ? (m / 60).toFixed(m < 600 ? 1 : 0) + 'h' : Math.round(m / 1440) + 'd';
+    const ago = ms => dur(Math.round((Date.now() - ms) / 60000)) + ' ago';
+    const tone = (v, lo) => v == null ? '' : v >= (lo || 1) ? 'pos' : 'neg';
+    sub.textContent = 'last ' + d.days + ' days · ' + (d.basis === 'bells' ? 'wallets with a bell' : 'no bells on yet: your ' + d.wallets + ' newest wallets')
+      + (PREVIEW ? ' · from their trades: the draft sends no alerts' : '') + (d.partial ? ' · ' + d.partial : '');
+    const sm = d.summary || {};
+    if (sm.n) {
+      const cell = (v, l, tip, cls) => '<span class="tc" title="' + esc(tip) + '"><b class="' + (cls || '') + '">' + v + '</b><i>' + l + '</i></span>';
+      tl.innerHTML = cell(sm.n, 'buys', 'First buys of a token in the last ' + d.days + ' days')
+        + cell(X(sm.peak), 'median peak', 'Half the buys went higher than this within ' + d.hours + ' h', sm.peak >= 2 ? 'pos' : sm.peak != null && sm.peak < 1 ? 'neg' : '')
+        + cell(sm.doubled + ' of ' + sm.priced, 'doubled', 'Buys whose token reached ×2 within ' + d.hours + ' h of the buy')
+        + cell(X(sm.now), 'median now', 'Where the price is now, or was at ' + d.hours + ' h', tone(sm.now))
+        + cell(X(sm.exit), 'its exit', 'Median of its own average sell price ÷ its buy price, over ' + sm.exits + ' buys it sold from', tone(sm.exit));
+      tl.hidden = false;
+    }
+    if (!d.rows.length) { body.innerHTML = '<tr><td colspan="8" class="muted">No first buys in the last ' + d.days + ' days.</td></tr>'; return; }
+    body.innerHTML = d.rows.map(r => '<tr>'
+      + '<td class="mono muted" title="' + esc(EarlyTZ.fmt(r.t, true)) + '">' + ago(r.t) + '</td>'
+      + '<td class="mono">' + esc((r.tags && r.tags[0]) || short(r.wallet)) + '</td>'
+      + '<td><a href="/token?mint=' + encodeURIComponent(r.mint) + '" title="' + esc(r.mint) + '">' + esc(r.symbol ? '$' + r.symbol : short(r.mint)) + '</a>' + (r.new ? '' : ' <small class="muted" title="It bought this token before, earlier in its 30 days">more</small>') + '</td>'
+      + '<td class="num mono">' + money(r.usd) + '</td>'
+      + '<td class="num mono ' + (r.peak_x >= 2 ? 'pos' : r.peak_x != null && r.peak_x < 1 ? 'neg' : '') + '" title="' + (r.peak_min != null ? 'The highest price, ' + dur(r.peak_min) + ' after the buy' : 'No candles for this token') + '">' + X(r.peak_x) + (r.peak_min != null ? '<small>' + dur(r.peak_min) + '</small>' : '') + '</td>'
+      + '<td class="num mono ' + (r.dip_x ? 'neg' : '') + '" title="' + (r.dip_x ? 'The lowest price before the peak' : 'Never below its buy price before the peak') + '">' + (r.dip_x ? X(r.dip_x) : '—') + '</td>'
+      + '<td class="num mono ' + tone(r.now_x) + '" title="' + (r.at_end ? 'At ' + d.hours + ' h after the buy' : 'The last price') + '">' + X(r.now_x) + (r.at_end && r.now_x != null ? '<small>' + d.hours + 'h</small>' : '') + '</td>'
+      + '<td class="num mono ' + tone(r.exit_x) + '" title="' + (r.exit_x ? 'Average sell price ÷ buy price · first sale ' + dur(r.exit_min) + ' after the buy' : 'No sells after this buy in its trades') + '">'
+      + (r.exit_x ? X(r.exit_x) + '<small>' + (r.sold_pct != null ? r.sold_pct + '%' : '') + '</small>' : '<span class="muted">holds</span>') + '</td></tr>').join('');
+  })();
   const tx = document.getElementById('xtxt');
   if (tx) tx.addEventListener('click', () => {
     EarlyUI.use('export', { format: 'txt', where: 'lists' });                // the CSV is a download the server counts itself

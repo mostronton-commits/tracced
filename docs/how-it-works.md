@@ -91,7 +91,8 @@ Together the two events often explain the timing of a run.
 ## Age and funding
 
 Two facts are not trades: a wallet's age is its first transaction ever, and its funder is whoever sent it its first
-SOL. They are what `fresh` and `bundle` are built from.
+SOL. They are what `fresh` and `bundle` are built from. The same check reads the transaction right before the wallet's
+first buy here: when it is a week old or older, the wallet slept until this token and gets `dormant`.
 
 The first {{ s.age_lookups_max }} wallets by PnL, the ones that made money on the token, are checked in the
 background after the table is already on screen. Any other wallet is checked the moment its card is opened, and the
@@ -106,6 +107,8 @@ within minutes of the launch: that is still a bundle, however busy its funder.
 
 When the first SOL came straight from a known exchange, the wallet's card says "funded by" and the exchange's name
 instead of an address. From an exchange, as from any busy funder, only wallets created close together make a bundle.
+Funders our own list of exchange wallets does not know are looked up in the labels of [InsightX](https://insightx.network):
+an exchange, a trading app or a casino gets its name, and the card's tooltip says the label came from InsightX.
 
 In the table a bundle's tag takes one colour per funder, so two bundles side by side are told apart; a click on the tag
 shows that bundle alone.
@@ -143,7 +146,8 @@ the address copies it. The card shows, top to bottom:
    after it;
 4. the analyses you saved where it was early too, if any;
 5. its trades, with a switch: on this token, its numbers here (bought, sold, PnL, ROI, held) and every trade; on all
-   tokens, the latest tokens it traded.
+   tokens, the latest tokens it traded. Click one of them: its chart opens right there, on the hours of the wallet's
+   trades, with its buys and sells marked. The trades come with the 30 days; the candles cost what any chart costs.
 
 ROI, in the card and in its own column of the table, is the average exit cap over the average entry cap, buys
 before the range included: `2×` is +100%, `61.5×` is +6,050%. Hover it for the percent.

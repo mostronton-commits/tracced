@@ -807,7 +807,10 @@ if AioHTTPTestCase:
             first = await (await self.client.get("/docs/how-it-works", headers=GUEST)).text()
             self.assertIn('href="/docs/index"', first)                        # кнопка «назад» на попередню сторінку
             self.assertIn('href="/docs/tags"', first)                         # і «далі» на наступну
-            self.assertIn("no-exits", await (await self.client.get("/docs/tags", headers=GUEST)).text())
+            tg = await (await self.client.get("/docs/tags", headers=GUEST)).text()
+            self.assertIn("never-sold", tg)
+            self.assertIn("dormant", tg)
+            self.assertNotIn("no-exits", tg)
             cmp_ = await (await self.client.get("/docs/compare", headers=GUEST)).text()
             self.assertIn('<div class="dtw"><table class="cmp">', cmp_)      # таблиця з класом теж загорнута і прокручується
             self.assertIn('<td class="us">', cmp_)
@@ -1103,6 +1106,9 @@ if AioHTTPTestCase:
             self.assertIn("<b>Analyze</b>", html)
             self.assertNotRegex(html.split("<footer")[0], r'<svg(?! class="ci)')   # the chart library draws the page; inline SVG only for icons
             self.assertIn("/static/icons.svg?v=", html)                  # the icons come from the Carbon sprite
+            # owner, 04.10: the token's address copies itself on a click, with no copy mark beside it
+            self.assertIn(f'<button type="button" class="dwc mono" data-copy="{MINT}"', html)
+            self.assertNotIn("#i-copy", html.split('class="contract')[1].split("</div>")[0])
 
         async def test_token_page_preset_from_result(self):
             r = await self.client.get(f"/token?mint={MINT}&from=2001-09-09T01:46&to=2001-09-09T02:06&exit=2001-09-09T02:46")
