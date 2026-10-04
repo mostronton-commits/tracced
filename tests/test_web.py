@@ -797,7 +797,7 @@ if AioHTTPTestCase:
             self.assertIn('class="docs-nav"', html)
             self.assertIn('class="docs-pager"', html)                         # читається підряд, як книжка
             self.assertIsNone(CYRILLIC.search(html))
-            for slug in ("tags", "limits", "account", "roadmap", "how-it-works", "compare"):
+            for slug in ("tags", "limits", "account", "roadmap", "how-it-works", "compare", "updates"):
                 rr = await self.client.get(f"/docs/{slug}", headers=GUEST)
                 body = await rr.text()
                 self.assertEqual(rr.status, 200, slug)
@@ -807,6 +807,19 @@ if AioHTTPTestCase:
             first = await (await self.client.get("/docs/how-it-works", headers=GUEST)).text()
             self.assertIn('href="/docs/index"', first)                        # кнопка «назад» на попередню сторінку
             self.assertIn('href="/docs/tags"', first)                         # і «далі» на наступну
+            up = await (await self.client.get("/docs/updates", headers=GUEST)).text()
+            self.assertIn("<h1 id=\"updates\">Updates</h1>", up)                  # what each version brought (owner, 04.10)
+            from tracced import __version__
+            self.assertIn(">" + __version__ + ' <span class="ud">', up)              # the running version has its entry
+            self.assertIn('class="ulog"', up)                                         # the versions on one rail (owner, 04.10)
+            # the bell beside the wallet knows the newest version, on a docs page and on the home page alike
+            from tracced.web import docs as docs_mod
+            from tracced.web.app import DOCS_DIR
+            self.assertEqual(docs_mod.latest(DOCS_DIR)["v"], __version__)
+            self.assertIn(f'id="newsmark" href="/docs/updates" data-v="{__version__}"', up)
+            home = await (await self.client.get("/", headers=GUEST)).text()
+            self.assertIn('class="hero-top"', home)
+            self.assertIn(f'data-v="{__version__}"', home)
             tg = await (await self.client.get("/docs/tags", headers=GUEST)).text()
             self.assertIn("never-sold", tg)
             self.assertIn("dormant", tg)

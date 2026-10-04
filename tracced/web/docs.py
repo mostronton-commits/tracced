@@ -15,16 +15,28 @@ PAGES = [
     ("index", "Overview", "🧭", "What tracced answers and how to read it"),
     ("compare", "Compare", "⚖️", "Why not just look at Axiom or GMGN"),
     ("how-it-works", "How it works", "⚙️", "Where every number on the page comes from"),
-    ("tags", "Tags", "🏷️", "Eight rules, each one checkable on chain"),
+    ("tags", "Tags", "🏷️", "Nine rules, each one checkable on chain"),
     ("limits", "Limits", "⏳", "What is free and what needs a wallet"),
     ("account", "Your account", "🔑", "Sign-in, lists, your own tags, repeats"),
     ("api", "API", "🔌", "A token check for partners, in beta"),
     ("roadmap", "Roadmap", "🗺️", "Shipped, next, and what we will not build"),
+    ("updates", "Updates", "🆕", "What each version brought, newest first"),
     ("project", "The project", "📌", "Why it exists and what it refuses to do"),
 ]
 _MD = markdown.Markdown(extensions=["extra", "toc", "sane_lists", "admonition"])
 _lock = threading.Lock()
 _cache = {}
+
+
+def latest(docs_dir):
+    """Найновіша версія зі сторінки Updates: {"v": "0.7.0", "date": "Oct 4, 2026"} або None. Позначка «що нового» біля
+    гаманця світиться, поки людина не побачила саме цю версію (власник, 04.10)."""
+    try:
+        text = (docs_dir / "updates.md").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    m = re.search(r'^##\s+(\S+)(?:\s+<span class="ud">([^<]+)</span>)?', text, re.M)
+    return {"v": m.group(1), "date": (m.group(2) or "").strip()} if m else None
 
 
 def _slugs():

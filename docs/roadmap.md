@@ -2,6 +2,8 @@
 
 ## Shipped
 
+Version by version, with dates: [Updates](/docs/updates).
+
 Paste a token, mark a range, get every wallet that bought there with facts you can check. Tags that are rules.
 Export. Repeats across your own saved analyses. Amounts in dollars or in SOL.
 

@@ -10,7 +10,7 @@
     {% endfor %}</ul>
   </nav>
   <div class="docs-main">
-    <article class="docs-body card">{{ body|safe }}</article>
+    <article class="docs-body card p-{{ slug }}">{{ body|safe }}</article>
     {% if prev or nxt %}
     <nav class="docs-pager" aria-label="More pages">
       {% if prev %}<a class="pg" href="/docs/{{ prev.slug }}"><span>← Previous</span><b>{{ prev.icon }} {{ prev.label }}</b></a>{% else %}<span></span>{% endif %}

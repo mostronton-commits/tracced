@@ -1,0 +1,2 @@
+{# what is new on the site, beside the wallet (owner, 04.10): it glows until you have seen the newest update #}
+{% if news %}<a class="newsmark" id="newsmark" href="/docs/updates" data-v="{{ news.v }}" aria-label="What's new in tracced">{{ icon('bell') }}<span class="nm-tip" role="tooltip"><b>Update {{ news.v }} is out</b><span>Read what's new</span></span></a>{% endif %}

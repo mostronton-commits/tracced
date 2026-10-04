@@ -104,6 +104,7 @@ env.globals["icon"] = lambda name, cls="": Markup(f'<svg class="ci{" " + cls if 
                                                  f'<use href="/static/icons.svg?v={env.globals["v"]}#i-{name}"/></svg>')
 from .. import __version__                                   # noqa: E402 — product version for the footer
 env.globals["version"] = ".".join(__version__.split(".")[:2])
+env.globals["news"] = docs_mod.latest(DOCS_DIR)                # the bell beside the wallet: which update is the newest
 env.filters["dt"] = chart.fmt_dt
 env.filters["dtu"] = lambda ms: chart.fmt_dt(ms, year=True, utc=True)   # експорт: у файлі колонка мусить назвати зону
 env.filters["dty"] = lambda ms: chart.fmt_dt(ms, year=True)            # на сторінці зону називає перемикач у підвалі
@@ -3479,7 +3480,7 @@ async def docs_page(request):
         raise web.HTTPNotFound(text="There is no such page in the documentation.")
     prev, nxt = docs_mod.around(DOCS_DIR, slug)
     _view(request, "docs", slug)
-    return render("docs.html", request, body=body, title=title, nav=docs_mod.nav(DOCS_DIR, slug), prev=prev, nxt=nxt)
+    return render("docs.html", request, body=body, title=title, nav=docs_mod.nav(DOCS_DIR, slug), prev=prev, nxt=nxt, slug=slug)
 
 
 FORM_MIN_S, FORM_MAX_S = 2, 6 * 3600          # швидше — не людина; довше — сторінку відкрили вчора

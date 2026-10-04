@@ -74,6 +74,7 @@ card.
 | [Compare](https://tracced.xyz/docs/compare) | Next to Axiom and GMGN |
 | [API](https://tracced.xyz/docs/api) | A token check for partners, in beta: rules and levels, no scores |
 | [Roadmap](https://tracced.xyz/docs/roadmap) | Shipped, next, and what we will not build |
+| [Updates](https://tracced.xyz/docs/updates) | What each version brought, newest first |
 | [The project](https://tracced.xyz/docs/project) | Why it exists and what it refuses to do |
 
 Pages are markdown in [`docs/`](docs/), served by the app itself, so a page changes in the same commit as the
