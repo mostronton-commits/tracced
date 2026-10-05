@@ -18,7 +18,7 @@ wallets funded straight from an exchange, whether the bundles sold out. Tags for
 wallets that slept a week before buying. Exchange names for funders from our own list, and which other funders are exchanges or apps from InsightX labels.
 
 Fresh pumps on the home page: tokens of the last two days that reached a real peak and are really traded, without the
-clones and the wash volume. Telegram alerts, in a closed test: a bell on a wallet or on a whole list, a buy or a sell
+clones and the wash volume. Telegram alerts for everyone: a bell on a wallet or on a whole list, a buy or a sell
 about two seconds after the block, and each row counting the wallet's trades of the last 7 days.
 
 An AI agent that reads only the analysis in front of it: answers to your questions and a summary in three cards
@@ -43,9 +43,6 @@ wallet.{% if not assistant_on %}
     wallets, open a card, keep lists. An agent you already use, in Claude, Cursor or your own trading bot, asks
     tracced who bought before a pump the way it would search the web. Alerts reach it next, then copy-trading, and
     no trade leaves without your confirmation.
-
-**Alerts for everyone.** A wallet on one of your lists buys or sells and Telegram tells you within seconds. In a
-closed test now; open to all next.
 
 **90 days in the wallet card.** Today it counts 30.
 

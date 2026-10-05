@@ -92,8 +92,7 @@ The token's name, its market cap and the share sold come from our data provider,
 until 00:00 UTC, with the token's short address in place of its name (unless it came up in the last ten minutes), and
 without the cap and the sold share.
 
-We keep the Telegram chat the alerts go to and your Telegram username; nothing else from Telegram. Alerts are in a
-closed test for now.
+We keep the Telegram chat the alerts go to and your Telegram username; nothing else from Telegram.
 
 
 ## What other people see

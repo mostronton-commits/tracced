@@ -35,6 +35,7 @@ early:
   st_eur_per_million: 200       # Pro costs €200 a month for 1,000,000 requests: the dashboard turns requests per analysis into euros
   runs_per_day: 10              # per person (owner, 04.10: 5 → 10): the wallet and the browser both count, so another wallet adds nothing
   runs_per_ip_per_day: 20       # per network: incognito plus a fresh wallet stops here; twice the person's, as an office or a phone carrier shares one address
+  alerts_open: true             # owner, 05.10: Telegram alerts for every connected wallet, no longer a closed test
   runs_per_day_new_wallet: 1    # owner, 05.10: someone rotated fresh wallets to reset the count. A wallet younger than
   new_wallet_days: 7            # new_wallet_days or holding under new_wallet_min_sol SOL gets this many a day; its age and
   new_wallet_min_sol: 0.01      # balance are read when it presses Analyze. Need more: the limit window offers the contact form
