@@ -177,6 +177,10 @@ It reads only what the site computed from the table and does not compute a numbe
 reaches the page, every number and wallet in it is checked against the analysis, and a line that fails is dropped.
 It never tells you to buy or sell, never predicts a price and never calls a wallet good or a token safe.
 
+Ask who a wallet is, or who owns it, and the first line comes from tracced, not from the model: its X account or that
+it has none, a KOL, a known bot or an exchange when the labels say so, a bot-like trader when its trades here look like
+one, otherwise a trader, then the app it trades through and the exchange its first SOL came from.
+
 It knows your watchlist too: when you ask, it sees which of your saved wallets bought in this range, the lists that hold
 them and your own tags for them, so "which of my wallets are here?" or "what did my insiders do?" has an answer. When
 some of them did buy here, the panel offers that question as a button. It sees only your own watchlist, and only when

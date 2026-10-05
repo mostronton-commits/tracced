@@ -139,6 +139,57 @@ class FakeChat:
         return self.answers.pop(0), {"prompt_tokens": 10, "completion_tokens": 5, "cost": 0.0001}
 
 
+class TestWhoLine(unittest.TestCase):
+    # owner, 05.10: «who owns it» must start with who the wallet is: its X account, or a trader (on which app), a bot,
+    # an exchange; the code writes that line from the public labels, the model never gets to skip it
+    def setUp(self):
+        from tracced.early import exchanges
+        self._known = dict(exchanges.KNOWN)
+        exchanges.KNOWN.clear()
+        exchanges.KNOWN["X" * 44] = ("Binance", "hot")
+        self.r = dict(RESULT,
+                      identities={W[0]: {"name": "wirelyss", "twitter": "wirelyss", "type": "pumpfun-app", "platforms": ["pumpfun-app"]},
+                                  W[1]: {"type": "potential_bot"}, W[3]: {"name": "FlowerJungleCat", "type": "fomo"}},
+                      funders={W[3]: "X" * 44, W[4]: "F" * 44},
+                      bundle={W[3]: {"funder": "F" * 44}, W[4]: {"funder": "F" * 44}})
+        self.r["rows"] = [dict(x) for x in RESULT["rows"]]
+        self.r["rows"][3]["tag_list"] = ["sniper"]
+
+    def tearDown(self):
+        from tracced.early import exchanges
+        exchanges.KNOWN.clear()
+        exchanges.KNOWN.update(self._known)
+
+    def test_the_line_says_who_from_the_labels(self):
+        s = agent.short
+        self.assertEqual(agent.who_line(self.r, W[0]), s(W[0]) + ": @wirelyss on X; a trader, no bot signs; trades through pump.fun app")
+        self.assertEqual(agent.who_line(self.r, W[1]), s(W[1]) + ": no X account; likely a bot or arbitrage wallet")
+        self.assertEqual(agent.who_line(self.r, W[2]), s(W[2]) + ": no X account; trades like a bot here")
+        line = agent.who_line(self.r, W[3])
+        self.assertTrue(line.startswith(s(W[3]) + ": no X account, named FlowerJungleCat; a trader, no bot signs; trades through FOMO"), line)
+        self.assertIn("bought in the first minute", line)
+        self.assertIn("in a bundle: its first SOL came from the same wallet as 1 more here", line)
+        self.assertIn("first SOL from Binance", line)
+        self.assertIsNone(agent.who_line(self.r, "Q" * 44))                  # not a buyer here: no line
+        uk = agent.who_line(self.r, W[0], "Ukrainian")
+        self.assertEqual(uk, s(W[0]) + ": @wirelyss в X; трейдер, без ознак бота; торгує через pump.fun app")
+
+    def test_a_who_question_starts_with_the_line_whatever_the_model_said(self):
+        s0 = agent.short(W[0])
+        chat = FakeChat([{"on_topic": True, "answer": [f"{s0}: no public label.", f"{s0} realized $134K at 16.82x."], "wallets": []}])
+        out, _, _ = Agent(chat, "m").ask(self.r, normalize_config({}), f"What is {W[0]}, who owns it, and is it worth watching?", "English")
+        self.assertEqual(out["answer"][0], agent.who_line(self.r, W[0]))
+        self.assertNotIn(f"{s0}: no public label.", out["answer"])          # the model's guess gives way to the labels
+        self.assertIn(f"{s0} realized $134K at 16.82x.", out["answer"])      # its facts stay
+        chat = FakeChat([{"on_topic": False}])                                # the model refused: the line still answers
+        out, _, _ = Agent(chat, "m").ask(self.r, normalize_config({}), f"чий це гаманець {W[0]}?", "Ukrainian")
+        self.assertTrue(out["on_topic"])
+        self.assertTrue(out["answer"][0].startswith(s0 + ": @wirelyss в X"))
+        chat = FakeChat([{"on_topic": True, "answer": [f"{s0} took 16.82x."], "wallets": []}])
+        out, _, _ = Agent(chat, "m").ask(self.r, normalize_config({}), f"How much did {W[0]} make?", "English")
+        self.assertEqual(out["answer"], [f"{s0} took 16.82x."])            # not a who-question: no line
+
+
 class TestAgent(unittest.TestCase):
     def test_cards_keep_the_rules_above_the_owners_method(self):
         chat = FakeChat([{"story": ["5 wallets bought PAID.", "4 are in profit."], "risks": ["1 wallet is fresh."],
