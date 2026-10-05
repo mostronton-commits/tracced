@@ -1283,7 +1283,8 @@ td.c-roi b { font-size: 13px; }
 .apanel p.aguest { margin: 10px 0 0; padding: 0; border: 0; }
 .athread { display: grid; gap: 16px; }
 .athread .aqa { border: 0; padding: 0; display: grid; gap: 8px; }
-.athread .aqq { justify-self: end; max-width: 85%; margin: 0; padding: 8px 12px; border-radius: 12px 12px 4px 12px; background: var(--navy); color: #F8FAFC; font-size: 13.5px; font-weight: 500; }
+.athread .aqq { justify-self: end; max-width: 85%; margin: 0; padding: 8px 12px; border-radius: 12px 12px 4px 12px; background: var(--navy); color: #F8FAFC; font-size: 13.5px; font-weight: 500;
+  overflow-wrap: anywhere; }   /* a pasted wallet address is one long word: it breaks inside the bubble, not past its edge */
 .athread .aans { margin: 0; padding: 10px 12px 10px 28px; border: 1px solid var(--line); border-radius: 4px 12px 12px 12px; background: var(--surface); }
 .athread .aans.off { padding-left: 12px; }
 .athread .aa > p { margin: 0; padding: 0; border: 0; }
