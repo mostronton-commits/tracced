@@ -481,6 +481,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["store_dir"] = store_dir
     app["runs"] = Throttle(max_fails=int(s.get("runs_per_hour", 20)), window_s=3600, block_s=3600)
     app["wallet_gate"] = {}                             # гаманець → (коли читали, чи новий або порожній): див. _wallet_gate
+    app["home_totals"] = {}                             # лічильники головної за всіма аналізами, раз на хвилину: _home_totals
     # демо безкоштовне, але кожне програвання тримає потік 12 с: з однієї адреси — близько десяти за 10 хвилин
     app["demo_runs"] = Throttle(max_fails=int(s.get("demo_replays_per_10min", 10)), window_s=600, block_s=600)
     app["demo_replays"] = {}                                     # (адреса, діапазон) → id програвання, що ще йде
@@ -3402,12 +3403,39 @@ async def _overview(app, mint, charge=None, who=None):
 
 # ───────────────────────── pages ─────────────────────────
 
+def _home_totals(app, now=None):
+    """Лічильники головної — за всіма аналізами, а не за 60 останніми, як було (власник, 05.10: «wallets on the
+    record» падав з 19 433 до 11 518, коли десятки малих свіжих аналізів витіснили старі великі зі списку). І рахунок
+    лише росте: найбільше значення лежить у файлі поруч з аналізами, тож видалений аналіз чи перезапуск його не
+    зменшить. Демо-програвання не рахуються: вони повторюють той самий аналіз. Перерахунок — раз на хвилину."""
+    now = time.time() if now is None else now
+    cache = app["home_totals"]
+    if cache.get("at") and now - cache["at"] < 60:
+        return cache["totals"]
+    done = [j for j in list(app["jobs"].jobs.values()) if j.status == "done" and j.result and not j.replay]
+    cur = {"wallets": sum(int((j.result.get("counts") or {}).get("n_early") or 0) for j in done),
+           "tokens": len({j.mint for j in done}),
+           "trades": sum(int((j.result.get("counts") or {}).get("n_trades") or 0) for j in done)}
+    path = Path(app["jobs"].dir) / "home_totals.json"
+    try:
+        best = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        best = {}
+    totals = {k: max(int(best.get(k) or 0), v) for k, v in cur.items()}
+    if totals != {k: best.get(k) for k in totals}:
+        tmp = path.with_suffix(".tmp")
+        try:
+            tmp.write_text(json.dumps(totals), encoding="utf-8")
+            os.replace(tmp, path)
+        except OSError:
+            log.warning("could not keep the home totals in %s", path)
+    cache.update(at=now, totals=totals)
+    return totals
+
+
 def _home_data(jobs):
-    """Totals, the sample job and background lines for the home page — from stored results only."""
+    """The sample job and background lines for the home page — from stored results only."""
     done = [j for j in jobs if j.status == "done" and j.result]
-    totals = {"wallets": sum((j.result.get("counts") or {}).get("n_early", 0) for j in done),
-              "tokens": len({j.mint for j in done}),
-              "trades": sum((j.result.get("counts") or {}).get("n_trades", 0) for j in done)}
     sample = next((j for j in done if j.result.get("mode") == "trades" and j.result.get("rows")), None) \
         or next((j for j in done if j.result.get("rows")), None)
     lines = []
@@ -3416,7 +3444,7 @@ def _home_data(jobs):
             if r.get("first_buy_ms") and r.get("invested_in_range_usd"):
                 lines.append(f"{r['wallet'][:4]}…{r['wallet'][-4:]}  buy  {_usd(r['invested_in_range_usd'])}  @ "
                              f"{chart.fmt_mcap(r.get('entry_mcap_avg'))}  {chart.fmt_dt(r['first_buy_ms'])}")
-    return totals, sample, lines
+    return sample, lines
 
 
 def _replay(job, page_size=250, budget_s=12.0):
@@ -3501,7 +3529,8 @@ async def index(request):
     app = request.app
     jobs = app["jobs"].recent(60)
     jobs = [j for j in jobs if j.status != "error"]                    # помилки на головній — шум
-    totals, sample, lines = _home_data(jobs)
+    sample, lines = _home_data(jobs)
+    totals = _home_totals(app)
     want = (demo_mod.read_override(str(Path(app["jobs"].dir).parent / "demo")).get("example_job")
             or app["s"].get("example_job") or "")
     example = app["jobs"].get(want) if want else None

@@ -336,6 +336,30 @@ if AioHTTPTestCase:
             with open(f"{self.tmp.name}/web/{new.id}.json") as f:
                 self.assertEqual(json.load(f)["result"]["marker"], "fresh")
 
+        async def test_home_counters_count_every_analysis_and_never_go_down(self):
+            # власник, 05.10: лічильники рахувались лише за 60 останніми аналізами й падали; тепер — за всіма, і лише ростуть
+            import re as _re
+            from tracced.web.app import _home_totals
+            q = self.app["jobs"]
+            for m in [chr(ord("C") + i) * 40 for i in range(3)]:
+                q.submit(m, 999999960000, 1000001160000)
+                await asyncio.to_thread(q.q.join)
+            done = [j for j in q.jobs.values() if j.status == "done" and j.result]
+            for j in done:
+                j.result.setdefault("counts", {})["n_early"] = 100
+            self.app["home_totals"].clear()
+            self.assertEqual(_home_totals(self.app)["wallets"], 100 * len(done))
+            self.assertEqual(_home_totals(self.app)["tokens"], len({j.mint for j in done}))
+            gone = done[0]
+            q.jobs.pop(gone.id)                                          # аналіз видалили: рахунок не меншає
+            self.app["home_totals"].clear()
+            self.assertEqual(_home_totals(self.app)["wallets"], 100 * len(done))
+            q.jobs[gone.id] = gone
+            self.app["home_totals"].clear()
+            html = await (await self.client.get("/")).text()
+            self.assertIn(f'data-count="{100 * len(done)}"', html)
+            self.assertTrue(_re.search(r'data-count="\d+" data-fmt="int">0</b><span>wallets on the record', html))
+
         async def test_home_lists_ten_tokens_and_blurs_the_eleventh(self):
             # власник, 05.10: список на головній ріс без кінця — десять токенів, одинадцятий розмитий і без посилання
             q = self.app["jobs"]
