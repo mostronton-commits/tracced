@@ -2,6 +2,16 @@
 
 <div class="ulog" markdown="1">
 
+## 0.7.2 <span class="ud">Oct 5, 2026</span>
+
+- Telegram alerts for everyone
+- The agent says first who a wallet is
+- New wallets get one analysis a day
+- Need more? Ask us from the limit window
+- Home counters that only grow
+- A shorter list of recent analyses
+- Our Telegram channel in the footer
+
 ## 0.7.1 <span class="ud">Oct 4, 2026</span>
 
 - This page
