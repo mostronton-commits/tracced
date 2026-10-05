@@ -190,7 +190,7 @@ document.addEventListener('click', e => {
 document.addEventListener('click', e => {
   const a = e.target.closest('a[target=_blank]'); if (!a) return;
   let h = ''; try { h = new URL(a.href).hostname.replace(/^www\./, ''); } catch (x) {}
-  EarlyUI.use('ext', { to: /solscan/.test(h) ? 'solscan' : (h === 'x.com' || h === 'twitter.com') ? 'x' : /dexscreener/.test(h) ? 'dexscreener' : /github/.test(h) ? 'github' : 'other' });
+  EarlyUI.use('ext', { to: /solscan/.test(h) ? 'solscan' : (h === 'x.com' || h === 'twitter.com') ? 'x' : /dexscreener/.test(h) ? 'dexscreener' : /github/.test(h) ? 'github' : h === 't.me' ? 'telegram' : 'other' });
 });
 
 /* IBM Carbon icons, from one sprite (owner, 02.10: not the Lucide look of AI-made sites); templates use icon() */

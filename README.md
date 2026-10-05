@@ -102,7 +102,8 @@ recorded about a connected wallet is spelled out in [Your account](https://tracc
 
 ## Contact
 
-Updates on X: [@tracced_xyz](https://x.com/tracced_xyz). A bug, an idea, a question:
+Updates on X, [@tracced_xyz](https://x.com/tracced_xyz), and in Telegram, [t.me/tracced_xyz](https://t.me/tracced_xyz).
+A bug, an idea, a question:
 [tracced.xyz/feedback](https://tracced.xyz/feedback).
 
 ## License

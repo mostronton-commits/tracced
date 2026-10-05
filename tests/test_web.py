@@ -246,6 +246,7 @@ if AioHTTPTestCase:
                 self.assertIn(">v" + ".".join(__version__.split(".")[:2]) + "<", html)   # product version, not the asset hash
                 self.assertIn('href="https://github.com/mostronton-commits/tracced"', html)
                 self.assertIn('href="https://x.com/tracced_xyz"', html)
+                self.assertIn('href="https://t.me/tracced_xyz"', html)        # the Telegram channel (owner, 05.10)
             html = await (await self.client.get("/docs")).text()
             self.assertIn('<header class="top"><div class="top-in">', html)
             self.assertNotIn('<main class="wide"', html)
