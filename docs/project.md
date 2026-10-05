@@ -58,6 +58,6 @@ the owner can see how the product is used. None of it goes to anyone else:
 | | |
 |---|---|
 | The demo | [open it, no sign-up]({{ '/token?mint=' ~ demo_token if demo_token else '/' }}) |
-| Updates | [@tracced_xyz](https://x.com/tracced_xyz) |
+| Updates | [@tracced_xyz](https://x.com/tracced_xyz) on X · [t.me/tracced_xyz](https://t.me/tracced_xyz) in Telegram |
 | A bug, an idea, a question | [Contact](/feedback) |
 | Next to the terminals | [where this sits beside Axiom and GMGN](/docs/compare) |

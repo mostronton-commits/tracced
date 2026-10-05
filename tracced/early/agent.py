@@ -570,6 +570,71 @@ def check_answer(raw, d, wmap, question):
     return {"on_topic": bool(answer or wallets), "answer": answer, "wallets": wallets}, bad1 + bad2
 
 
+# «Хто це» першим рядком (власник, 05.10): на «who owns it» модель пропускала X-акаунт, хоча він був у вижимці. Рядок
+# складає код з публічних міток гаманця: X, ім'я, хто він (KOL, бот, біржа, творець токена чи трейдер), через який
+# застосунок торгує, з якої біржі перший SOL. Мови — ті, що й у відповіді «не по темі»; решта — англійською.
+WHO_Q = re.compile(r"\b(who|whose|owner|owns|owned|identity|what is this wallet|what wallet is)\b|"
+                   r"(^|[^а-яіїєґё])(хто|чий|чия|чиє|кому належить|власник|кто|чей|чья|кому принадлежит|владелец)([^а-яіїєґё]|$)", re.I)
+WHO_WORDS = {
+    "English": {"x": "@{h} on X", "no_x": "no X account", "named": "named {n}", "kol": "a known trader (KOL)",
+                "trader": "a trader", "no_bot": "no bot signs", "bot_like": "trades like a bot here", "dev": "the token's creator",
+                "apps": "trades through {a}", "sniper": "bought in the first minute", "bundle": "in a bundle: its first SOL came from the same wallet as {n} more here",
+                "first_sol": "first SOL from {x}", "roles": {"exchange": "an exchange wallet", "hacker": "a known exploit or scam wallet",
+                "bot": "a known bot", "potential_bot": "likely a bot or arbitrage wallet", "arbitrage": "an arbitrage wallet"}},
+    "Ukrainian": {"x": "@{h} в X", "no_x": "без X-акаунта", "named": "ім'я {n}", "kol": "відомий трейдер (KOL)",
+                  "trader": "трейдер", "no_bot": "без ознак бота", "bot_like": "тут торгує як бот", "dev": "творець токена",
+                  "apps": "торгує через {a}", "sniper": "купив у першу хвилину", "bundle": "у бандлі: перший SOL з того самого гаманця, що й ще в {n}",
+                  "first_sol": "перший SOL з {x}", "roles": {"exchange": "гаманець біржі", "hacker": "відомий гаманець злому чи скаму",
+                  "bot": "відомий бот", "potential_bot": "схоже, бот чи арбітраж", "arbitrage": "арбітражний гаманець"}},
+    "Russian": {"x": "@{h} в X", "no_x": "без X-аккаунта", "named": "имя {n}", "kol": "известный трейдер (KOL)",
+                "trader": "трейдер", "no_bot": "без признаков бота", "bot_like": "здесь торгует как бот", "dev": "создатель токена",
+                "apps": "торгует через {a}", "sniper": "купил в первую минуту", "bundle": "в бандле: первый SOL с того же кошелька, что и ещё у {n}",
+                "first_sol": "первый SOL с {x}", "roles": {"exchange": "кошелёк биржи", "hacker": "известный кошелёк взлома или скама",
+                "bot": "известный бот", "potential_bot": "похоже, бот или арбитраж", "arbitrage": "арбитражный кошелёк"}},
+}
+
+
+def who_line(result, wallet, lang="English"):
+    """Рядок «хто це» про гаманець цього аналізу, складений кодом: «AvGiSd…GdMP: @wirelyss on X; a trader, trades through
+    the pump.fun app». Лише публічні мітки й факти результату; нема гаманця серед покупців — None."""
+    r = result or {}
+    row = next((x for x in r.get("rows") or [] if x.get("wallet") == wallet), None)
+    if not row:
+        return None
+    L = WHO_WORDS.get(lang) or WHO_WORDS["English"]
+    i = (r.get("identities") or {}).get(wallet) or {}
+    h = re.sub(r"[^A-Za-z0-9_]", "", str(i.get("twitter") or "").lstrip("@"))[:30]
+    name = _label(i.get("name"), 30)
+    first = [L["x"].format(h=h) if h else L["no_x"]]
+    if name and name.lower() != h.lower():
+        first.append(L["named"].format(n=name))
+    tags = set(row.get("tag_list") or [])
+    kinds = [L["roles"][x] for x in dict.fromkeys([i.get("type")] + list(i.get("tags") or [])) if x in L["roles"]]
+    if i.get("type") == "kol" or "kol" in (i.get("tags") or []):
+        kinds.insert(0, L["kol"])
+    if "dev" in tags:
+        kinds.append(L["dev"])
+    if "bot-like" in tags:
+        kinds.append(L["bot_like"])
+    if not kinds:
+        kinds = [L["trader"] + ", " + L["no_bot"]]
+    more = []
+    apps = sorted({APPS[x] for x in (i.get("platforms") or []) + [i.get("type")] if x in APPS})
+    if apps:
+        more.append(L["apps"].format(a=", ".join(apps)))
+    if "sniper" in tags:
+        more.append(L["sniper"])
+    b = (r.get("bundle") or {}).get(wallet)
+    if b and b.get("funder"):
+        n = sum(1 for x in (r.get("bundle") or {}).values() if x.get("funder") == b["funder"]) - 1
+        if n > 0:
+            more.append(L["bundle"].format(n=n))
+    ex = exchanges.name_of((r.get("funders") or {}).get(wallet) or "")
+    if ex:
+        more.append(L["first_sol"].format(x=ex))
+    return short(wallet) + ": " + ", ".join(first) + "; " + "; ".join([", ".join(kinds)] + more)
+
+
 class Agent:
     """Три картки і відповіді. `chat` — Assistant.json_chat (OpenRouter), підмінюваний у тестах."""
 
@@ -601,7 +666,16 @@ class Agent:
         system, user = prompt_ask(d, config["method"], q, lang, history)
         raw, usage = self.chat(system, user)
         out, dropped = check_answer(raw, d, wmap, q)
-        if not out["on_topic"]:
+        # «хто це / чий він» про гаманець цього аналізу: першим рядком — хто він за публічними мітками, складений кодом
+        line = who_line(result, asked[0], lang if lang in WHO_WORDS else question_lang(q, lang)) if asked and WHO_Q.search(q) else None
+        if line:
+            # the model's own words about who it is would repeat the line: its bullets naming the X account or saying
+            # «no public label» give way, the facts stay (four at most, as before)
+            ident = ((result or {}).get("identities") or {}).get(asked[0]) or {}
+            handle = re.sub(r"[^A-Za-z0-9_]", "", str(ident.get("twitter") or "").lstrip("@"))[:30]
+            rest = [x for x in out["answer"] if not (handle and "@" + handle.lower() in x.lower()) and "public label" not in x]
+            out = dict(out, on_topic=True, answer=[line] + rest[:4])
+        elif not out["on_topic"]:
             out["answer"] = [OFF_TOPIC.get(question_lang(q, lang), OFF_TOPIC["English"])]
         return dict(out, model=self.model), dropped, usage
 

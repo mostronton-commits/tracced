@@ -174,7 +174,7 @@ FUNNEL = (("result", "Opened a result"), ("card", "Opened a wallet card"), ("run
 LIMITS = {"run": "Live analyses", "browse": "Charts of new tokens", "age-card": "Age checks from cards",
           "agent-ask": "Questions to the agent", "agent-cards": "Agent cards"}
 LIMIT_KINDS = {"wallet": "per wallet", "site": "whole site", "network": "per network", "token": "per token",
-               "hourly": "per hour from one address", "month": "month budget"}
+               "hourly": "per hour from one address", "month": "month budget", "newwallet": "new or empty wallet"}
 RANGE_BUCKETS = ((5, "≤ 5 min"), (15, "5–15 min"), (60, "15–60 min"), (360, "1–6 h"), (None, "> 6 h"))
 AGE_BUCKETS = ((1, "< 1 h"), (6, "1–6 h"), (24, "6–24 h"), (168, "1–7 d"), (None, "> 7 d"))
 AFTER_BUCKETS = ((1, "< 1 h"), (6, "1–6 h"), (24, "6–24 h"), (72, "1–3 d"), (None, "> 3 d"))

@@ -627,6 +627,9 @@ button.ghost.xbtn { padding: 0; color: #475569; }
 .ph.later { border-style: dashed; }
 @media (max-width: 720px) { .phases { grid-template-columns: 1fr; } .phases::before { display: none; } }
 .rrow.ex { background: #FFFBEB; }
+/* the home page lists ten tokens (owner, 05.10); the eleventh, blurred and fading out, only says there are more */
+.recent .rrow.more { pointer-events: none; user-select: none; filter: blur(2px); opacity: .6;
+  -webkit-mask-image: linear-gradient(to bottom, #000, transparent); mask-image: linear-gradient(to bottom, #000, transparent); }
 .chip.ex { background: #FEF3C7; border-color: #FCD34D; color: #92400E; }   /* поруч зі статусом Done: зелений від зеленого не відрізниш */
 
 /* ── iteration 9: assistant ── */
@@ -1220,6 +1223,7 @@ td.c-roi b { font-size: 13px; }
 .fbtext { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .uflag.fb-bug { border-color: #FECACA; background: #FEF2F2; color: #B91C1C; }
 .uflag.fb-idea { border-color: #A7F3D0; background: var(--sage); color: #065F46; }
+.uflag.fb-limits { border-color: #FDE68A; background: #FFFBEB; color: #92400E; }   /* asks for more analyses: a lead */
 /* пасхалки: сторінка «rugged» з Wick і дощ свічок із назви (сім швидких кліків, egg.js вантажиться лише тоді) */
 .rugged .rug-scene { margin: 0 0 16px; }
 .rugged .rug-scene svg { display: block; width: 100%; height: auto; }
@@ -1280,7 +1284,8 @@ td.c-roi b { font-size: 13px; }
 .apanel p.aguest { margin: 10px 0 0; padding: 0; border: 0; }
 .athread { display: grid; gap: 16px; }
 .athread .aqa { border: 0; padding: 0; display: grid; gap: 8px; }
-.athread .aqq { justify-self: end; max-width: 85%; margin: 0; padding: 8px 12px; border-radius: 12px 12px 4px 12px; background: var(--navy); color: #F8FAFC; font-size: 13.5px; font-weight: 500; }
+.athread .aqq { justify-self: end; max-width: 85%; margin: 0; padding: 8px 12px; border-radius: 12px 12px 4px 12px; background: var(--navy); color: #F8FAFC; font-size: 13.5px; font-weight: 500;
+  overflow-wrap: anywhere; }   /* a pasted wallet address is one long word: it breaks inside the bubble, not past its edge */
 .athread .aans { margin: 0; padding: 10px 12px 10px 28px; border: 1px solid var(--line); border-radius: 4px 12px 12px 12px; background: var(--surface); }
 .athread .aans.off { padding-left: 12px; }
 .athread .aa > p { margin: 0; padding: 0; border: 0; }

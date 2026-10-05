@@ -9,7 +9,7 @@ import secrets
 import threading
 import time
 
-KINDS = ("bug", "idea", "question", "other")
+KINDS = ("bug", "idea", "question", "other", "limits")   # limits: «more analyses» from the limit window (owner, 05.10)
 MAX_TEXT, MAX_CONTACT, MAX_PAGE = 2000, 120, 200
 URL_RE = re.compile(r"(https?://|www\.|t\.me/|\b[a-z0-9-]+\.(?:com|io|xyz|ru|net|org|app|me|site|online|top|click)\b)", re.I)
 

@@ -19,7 +19,8 @@ Built for the Colosseum Crypto World's Fair, 2026. [Why it exists →](https://t
 
 Looking is free: the demo, every finished result, the chart of any token. A new analysis needs a connected wallet:
 Phantom, Backpack or Solflare, a signed message, no transaction, no fee. It counts against a daily allowance per person:
-the wallet and the browser count together, one network has its own count, and all of them reset at midnight UTC.
+the wallet and the browser count together, one network has its own count, a new or empty wallet gets one a day, and
+all of them reset at midnight UTC. Need more? The limit window has a button to ask.
 [Limits →](https://tracced.xyz/docs/limits)
 
 ![Range](docs/img/range.png)
@@ -49,14 +50,16 @@ its own chart right in the card, with the wallet's buys and sells on it.
 With a wallet connected, the AI agent answers questions about the analysis on the page: who sold the top, whether
 it was a bundled launch, who is still holding, or anything in your own words. A summary gives three short cards:
 what happened in the range, what to weigh, and whose wallets stand out. A wallet it names opens its card. Every
-number it writes is checked against the table before you see it, and it answers nothing but the analysis.
+number it writes is checked against the table before you see it, and it answers nothing but the analysis. Ask who a
+wallet is, and the first line comes from tracced itself: its X account, or a KOL, a bot, an exchange, a trader and the
+app it trades through.
 [The AI agent →](https://tracced.xyz/docs/how-it-works#the-ai-agent)
 
 ![AI agent](docs/img/agent.png)
 
-Keep what you find in your watchlist, in several named lists, tag wallets in your own words, and export a list as CSV or TXT. In a closed
-test, a bell on a wallet, or on a whole list, sends its buys and sells to Telegram about two seconds after the block,
-and each row counts the wallet's trades of the last 7 days. [Your account →](https://tracced.xyz/docs/account)
+Keep what you find in your watchlist, in several named lists, tag wallets in your own words, and export a list as CSV or TXT. A bell
+on a wallet, or on a whole list, sends its buys and sells to Telegram about two seconds after the block, and each row
+counts the wallet's trades of the last 7 days. [Your account →](https://tracced.xyz/docs/account)
 
 A busy token takes seconds, not minutes. The result page stays light with thousands of wallets: the table arrives
 as numbers and the page draws the first hundred rows, more on request, on a phone too, where each wallet becomes a
@@ -102,7 +105,8 @@ recorded about a connected wallet is spelled out in [Your account](https://tracc
 
 ## Contact
 
-Updates on X: [@tracced_xyz](https://x.com/tracced_xyz). A bug, an idea, a question:
+Updates on X, [@tracced_xyz](https://x.com/tracced_xyz), and in Telegram, [t.me/tracced_xyz](https://t.me/tracced_xyz).
+A bug, an idea, a question:
 [tracced.xyz/feedback](https://tracced.xyz/feedback).
 
 ## License

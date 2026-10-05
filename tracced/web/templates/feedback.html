@@ -6,9 +6,10 @@
   <h2>Contact</h2>
   <form id="fbform" novalidate>
     <div class="fbkinds" role="radiogroup" aria-label="What is it about">
-      {% for k in kinds %}<label class="fbkind"><input type="radio" name="kind" value="{{ k }}"{% if k == kind %} checked{% endif %}><span>{{ {'bug': 'Bug', 'idea': 'Idea', 'question': 'Question', 'other': 'Other'}[k] }}</span></label>{% endfor %}
+      {# «More analyses» shows only when the limit window sent the person here #}
+      {% for k in kinds if k != 'limits' or kind == 'limits' %}<label class="fbkind"><input type="radio" name="kind" value="{{ k }}"{% if k == kind %} checked{% endif %}><span>{{ {'bug': 'Bug', 'idea': 'Idea', 'question': 'Question', 'other': 'Other', 'limits': 'More analyses'}[k] }}</span></label>{% endfor %}
     </div>
-    <textarea name="text" rows="6" maxlength="{{ max_text }}" required aria-label="Your message" placeholder="Your message"></textarea>
+    <textarea name="text" rows="6" maxlength="{{ max_text }}" required aria-label="Your message" placeholder="{{ 'How do you use tracced, and how many analyses a day would you need?' if kind == 'limits' else 'Your message' }}"></textarea>
     <input type="text" name="contact" maxlength="{{ max_contact }}" aria-label="How to reach you" placeholder="X, Telegram or email (optional)">
     <input type="text" name="website" class="fbhp" tabindex="-1" autocomplete="off" aria-hidden="true">
     <input type="hidden" name="t" value="{{ form_token }}">

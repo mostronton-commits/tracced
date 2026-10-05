@@ -48,16 +48,22 @@
 <section class="card" id="recent">
   <div class="row mehead"><h2>Recently analyzed on tracced</h2>{% if acct %}<a class="right small" href="/me#analyses">My analyses ({{ my_n }}) →</a>{% endif %}</div>
   <p class="muted small">Everyone's analyses. Who ran them is never shown.</p>
-  <div class="recent">
-    {% for t in tokens %}
-      <a class="rrow{{ ' ex' if t.example else '' }}" href="/token?mint={{ t.mint }}">
+  {% macro cells(t) %}
         <span class="sym">{{ t.symbol }}</span>
         <span class="mono muted win" title="When this token was last analyzed">analyzed <span class="dtc" data-ms="{{ t.at }}">{{ t.at|dt }}</span></span>
         <span class="mono n">{{ t.ranges }} range{{ '' if t.ranges == 1 else 's' }}</span>
         <span class="mono n"{% if t.best %} title="Highest average exit cap ÷ average entry cap among its wallets, buys before the range included"{% endif %}>{% if t.best %}best {{ t.best|round(1) }}×{% endif %}</span>
         {% if t.example %}<span class="chip ex" title="Recorded token — press Analyze on a pump to replay the run, no requests">Demo</span>{% else %}<span class="chip st-{{ t.status }}">{{ {'running':'Running','done':'Done','error':'Error'}[t.status] }}</span>{% endif %}
         <span class="open">Open →</span>
-      </a>
+  {% endmacro %}
+  <div class="recent">
+    {# ten tokens; an eleventh, blurred and fading out, only says the list goes on (owner, 05.10: it grew without end) #}
+    {% for t in tokens[:11] %}
+      {% if loop.index <= 10 %}
+      <a class="rrow{{ ' ex' if t.example else '' }}" href="/token?mint={{ t.mint }}">{{ cells(t) }}</a>
+      {% else %}
+      <div class="rrow more" aria-hidden="true">{{ cells(t) }}</div>
+      {% endif %}
     {% endfor %}
   </div>
 </section>
