@@ -627,6 +627,9 @@ button.ghost.xbtn { padding: 0; color: #475569; }
 .ph.later { border-style: dashed; }
 @media (max-width: 720px) { .phases { grid-template-columns: 1fr; } .phases::before { display: none; } }
 .rrow.ex { background: #FFFBEB; }
+/* the home page lists ten tokens (owner, 05.10); the eleventh, blurred and fading out, only says there are more */
+.recent .rrow.more { pointer-events: none; user-select: none; filter: blur(2px); opacity: .6;
+  -webkit-mask-image: linear-gradient(to bottom, #000, transparent); mask-image: linear-gradient(to bottom, #000, transparent); }
 .chip.ex { background: #FEF3C7; border-color: #FCD34D; color: #92400E; }   /* поруч зі статусом Done: зелений від зеленого не відрізниш */
 
 /* ── iteration 9: assistant ── */

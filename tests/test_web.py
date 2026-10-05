@@ -335,6 +335,20 @@ if AioHTTPTestCase:
             with open(f"{self.tmp.name}/web/{new.id}.json") as f:
                 self.assertEqual(json.load(f)["result"]["marker"], "fresh")
 
+        async def test_home_lists_ten_tokens_and_blurs_the_eleventh(self):
+            # власник, 05.10: список на головній ріс без кінця — десять токенів, одинадцятий розмитий і без посилання
+            q = self.app["jobs"]
+            mints = [chr(ord("B") + i) * 40 for i in range(12)]
+            for m in mints:
+                q.submit(m, 999999960000, 1000001160000)
+                await asyncio.to_thread(q.q.join)
+            html = await (await self.client.get("/")).text()
+            self.assertEqual(html.count('<a class="rrow'), 10)
+            self.assertEqual(html.count('class="rrow more" aria-hidden="true"'), 1)
+            shown = [m for m in mints if f"/token?mint={m}" in html]
+            self.assertEqual(len(shown), 10)                               # дванадцятий не рендериться зовсім
+            self.assertEqual(html.count('class="rrow'), 11)
+
         async def test_home_groups_by_token_and_token_page_lists_its_analyses(self):
             # головна = один рядок на токен; сторінка токена показує його готові діапазони з сервера
             await self.client.get(f"/token?mint={MINT}")

@@ -371,6 +371,8 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   something. Colour only for meaning: amber a warning, red the creator or a staged launch, violet repeats. A cell with
   a filter or an order behind it is a button. The strip is a grid: a short last row keeps its cells' width. The home
   page shows none.
+- **Recently analyzed** on the home page lists ten tokens (owner, 05.10: the list grew without end). An eleventh row,
+  blurred and fading out, only says there are more: it is no link, and the home page has no way to the rest.
 - **Toasts** sit at the bottom centre, one at a time. They name the result and can carry one link ("Lists →") or one
   Undo.
 - **Menus and popovers** are white with a 1 px border. Menus have an 8 px radius, popovers 10 px. Escape or a click
