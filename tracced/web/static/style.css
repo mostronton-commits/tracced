@@ -1223,6 +1223,7 @@ td.c-roi b { font-size: 13px; }
 .fbtext { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .uflag.fb-bug { border-color: #FECACA; background: #FEF2F2; color: #B91C1C; }
 .uflag.fb-idea { border-color: #A7F3D0; background: var(--sage); color: #065F46; }
+.uflag.fb-limits { border-color: #FDE68A; background: #FFFBEB; color: #92400E; }   /* asks for more analyses: a lead */
 /* пасхалки: сторінка «rugged» з Wick і дощ свічок із назви (сім швидких кліків, egg.js вантажиться лише тоді) */
 .rugged .rug-scene { margin: 0 0 16px; }
 .rugged .rug-scene svg { display: block; width: 100%; height: auto; }

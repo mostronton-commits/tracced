@@ -703,6 +703,79 @@ if AioHTTPTestCase:
             s["runs_per_day"], s["runs_per_ip_per_day"] = 1, 10
             self.app["admins"] = {TEST_PK}
 
+        async def test_a_new_or_empty_wallet_gets_one_run_a_day_and_the_window_offers_to_write(self):
+            # власник, 05.10: денну стелю обходили, щоразу підключаючи свіжий гаманець. Молодий (< 7 днів) чи порожній
+            # (< 0.01 SOL) гаманець має 1 аналіз на добу; гаманець з історією — свої 10; збій читання не обмежує нікого
+            import time as _time
+            self.app["admins"] = set()
+            s = self.app["s"]
+            s["runs_per_day"], s["runs_per_ip_per_day"], s["runs_per_day_new_wallet"] = 3, 50, 1
+            now_ms = int(_time.time() * 1000)
+
+            class FakeAges:
+                def __init__(self, info):
+                    self.info, self.calls = info, 0       # гаманець → (вік у днях або None, SOL або виняток)
+
+                def paused(self):
+                    return False
+
+                def balances(self, wallets):
+                    self.calls += 1
+                    sol = self.info[wallets[0]][1]
+                    if isinstance(sol, Exception):
+                        raise sol
+                    return {wallets[0]: sol}
+
+                def oldest_tx(self, wallet, full=True):
+                    days = self.info[wallet][0]
+                    return {"oldest_ms": now_ms - int(days * 86_400_000) if days is not None else None, "exact": True, "n": 3}
+
+            young, empty, old, broken = (acct_mod.b58encode(bytes([x]) * 32) for x in (0x31, 0x32, 0x33, 0x34))
+            ages = FakeAges({young: (2, 1.5), empty: (400, 0.001), old: (400, 2.0), broken: (None, RuntimeError("node down"))})
+            self.app["ages"] = ages
+            starts = ["01:46", "01:50", "01:52", "01:54"]
+
+            async def run(pk, i, end="02:06"):              # кожному гаманцю свої діапазони: той самий відкрився б готовим
+                return await self.client.post("/analyze", allow_redirects=False, headers={"Cookie": wallet_cookie(pk)},
+                                              data={"mint": MINT, "from": f"2001-09-09T{starts[i]}", "to": f"2001-09-09T{end}"})
+            try:
+                for pk, end in ((young, "02:06"), (empty, "02:05")):
+                    r = await run(pk, 0, end)
+                    self.assertTrue(r.headers["Location"].startswith("/job/"), r.headers["Location"])   # перший — так
+                    r = await run(pk, 1, end)
+                    self.assertIn("notice=newwallet", r.headers["Location"])                           # другий — ні
+                    self.assertEqual(self.app["accounts"].runs_today(pk), 1)
+                self.assertEqual(self.app["wallet_gate"][young][1]["why"], "new")
+                self.assertEqual(self.app["wallet_gate"][empty][1]["why"], "empty")
+                for i in range(2):                                        # гаманець з історією і грошима: як завжди
+                    r = await run(old, i, "02:04")
+                    self.assertTrue(r.headers["Location"].startswith("/job/"), r.headers["Location"])
+                r = await run(broken, 0, "02:03")                         # нода не відповіла: не обмежуємо
+                self.assertTrue(r.headers["Location"].startswith("/job/"), r.headers["Location"])
+                r = await run(broken, 1, "02:03")
+                self.assertTrue(r.headers["Location"].startswith("/job/"), r.headers["Location"])
+                calls = ages.calls
+                await run(young, 2)
+                self.assertEqual(ages.calls, calls)                       # перевірка з пам'яті: нода вдруге не питається
+                # вікно: чому один, і запрошення написати, щоб підняли ліміт
+                html = await (await self.client.get(f"/token?mint={MINT}&notice=newwallet", headers={"Cookie": wallet_cookie(young)})).text()
+                self.assertIn("openLimit('newwallet')", html)
+                self.assertIn("A new wallet gets 1 free analysis a day", html)
+                self.assertIn('href="/feedback?kind=limits"', html)
+                self.assertIn("None left today", html)
+                html = await (await self.client.get(f"/token?mint={MINT}", headers={"Cookie": wallet_cookie(old)})).text()
+                self.assertIn('<span class="runsleft">1 of 3</span>', html)   # звичайний гаманець: звичайна стеля
+                fb = await (await self.client.get("/feedback?kind=limits")).text()
+                self.assertIn("More analyses", fb)
+                self.assertIn("how many analyses a day would you need", fb)
+                self.assertNotIn("More analyses", await (await self.client.get("/feedback")).text())
+                self.assertFalse(CYRILLIC.search(html + fb))
+            finally:
+                await asyncio.to_thread(self.app["jobs"].q.join)
+                self.app["ages"] = None
+                s["runs_per_day"], s["runs_per_ip_per_day"] = 1, 10
+                self.app["admins"] = {TEST_PK}
+
         async def test_analytics_counts_only_on_the_live_domains_and_never_names_the_wallet(self):
             from unittest import mock
             with mock.patch.dict(os.environ, {"UMAMI_WEBSITE_ID": "site-id", "UMAMI_DOMAINS": "tracced.xyz"}):

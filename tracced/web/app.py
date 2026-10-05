@@ -480,6 +480,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["st"], app["s"], app["cfg"] = st, s, cfg or {}
     app["store_dir"] = store_dir
     app["runs"] = Throttle(max_fails=int(s.get("runs_per_hour", 20)), window_s=3600, block_s=3600)
+    app["wallet_gate"] = {}                             # гаманець → (коли читали, чи новий або порожній): див. _wallet_gate
     # демо безкоштовне, але кожне програвання тримає потік 12 с: з однієї адреси — близько десяти за 10 хвилин
     app["demo_runs"] = Throttle(max_fails=int(s.get("demo_replays_per_10min", 10)), window_s=600, block_s=600)
     app["demo_replays"] = {}                                     # (адреса, діапазон) → id програвання, що ще йде
@@ -1289,6 +1290,47 @@ def _ip_key(ip):
     return "ip:" + hashlib.sha256(f"{_acct_secret()}|{ip}".encode()).hexdigest()[:16]
 
 
+GATE_TTL_S = 6 * 3600       # вік і баланс гаманця для денної стелі читаються знову через шість годин: баланс рухається
+
+
+def _wallet_gate(app, pk, now=None):
+    """Чи гаманець новий або порожній (власник, 05.10: денну стелю обходили, щоразу підключаючи свіжий гаманець).
+    Молодший за `new_wallet_days` чи з балансом під `new_wallet_min_sol` SOL — тоді `runs_per_day_new_wallet` живих
+    аналізів на добу. Баланс — публічна нода (0 кредитів), вік — одна сторінка підписів (1 кредит Helius, у кеші віку).
+    Вік рахується лише точний: гаманець з тисячею транзакцій за тиждень — це торгівля, а не свіжий гаманець для обходу.
+    Не вдалось прочитати — не обмежуємо: наш збій не має карати людей, а решта стель стоїть. Синхронна: у потоці."""
+    s, now = app["s"], time.time() if now is None else now
+    hit = app["wallet_gate"].get(pk)
+    if hit and now - hit[0] < GATE_TTL_S:
+        return hit[1]
+    ages, sol, age_days = app.get("ages"), None, None
+    if ages is not None:
+        try:
+            sol = ages.balances([pk]).get(pk)
+        except Exception:  # noqa: BLE001 — нода не відповіла: балансу не знаємо
+            sol = None
+        try:
+            if not ages.paused():
+                o = ages.oldest_tx(pk, full=False) or {}
+                if o.get("exact") and o.get("oldest_ms"):
+                    age_days = (now * 1000 - o["oldest_ms"]) / 86_400_000
+        except Exception:  # noqa: BLE001 — вік не прочитали: віку не знаємо
+            age_days = None
+    why = ("new" if age_days is not None and age_days < float(s.get("new_wallet_days", 7)) else
+           "empty" if sol is not None and sol < float(s.get("new_wallet_min_sol", 0.01)) else None)
+    out = {"limited": bool(why), "why": why, "sol": sol, "age_days": None if age_days is None else round(age_days, 1)}
+    if len(app["wallet_gate"]) > 20_000:
+        app["wallet_gate"].clear()
+    app["wallet_gate"][pk] = (now, out)
+    return out
+
+
+def _gate_cached(app, pk):
+    """Те саме з пам'яті, без мережі: сторінка токена показує лічильник, поки Analyze не перевірив гаманець сам."""
+    hit = app["wallet_gate"].get(pk) if pk else None
+    return hit[1] if hit and time.time() - hit[0] < GATE_TTL_S else None
+
+
 def _runs_left(app, pk, dev, ip):
     """(скільки живих аналізів людині лишилось сьогодні, який лічильник це вирішив: "person" чи "network").
 
@@ -1298,11 +1340,21 @@ def _runs_left(app, pk, dev, ip):
     не каже «ви використали свої п'ять»."""
     s = app["s"]
     cap = int(s.get("runs_per_day", 1))
-    person = cap - app["accounts"].runs_today(pk)
+    own = _person_cap(app, pk) - app["accounts"].runs_today(pk)     # новий чи порожній гаманець: своя, менша стеля
+    person = own
     if dev:
         person = min(person, app["runs_daily"].left("dev:" + dev, cap))
     net = app["runs_daily"].left(_ip_key(ip), int(s.get("runs_per_ip_per_day", 10)))
-    return max(0, min(person, net)), ("network" if net <= 0 < person else "person")
+    gate = _gate_cached(app, pk)
+    why = "network" if net <= 0 < person else ("newwallet" if gate and gate["limited"] and own <= 0 else "person")
+    return max(0, min(person, net)), why
+
+
+def _person_cap(app, pk):
+    """Денна стеля людини: `runs_per_day`, а гаманцю, який Analyze визнав новим чи порожнім, — `runs_per_day_new_wallet`."""
+    s, gate = app["s"], _gate_cached(app, pk)
+    cap = int(s.get("runs_per_day", 1))
+    return min(cap, int(s.get("runs_per_day_new_wallet", 1))) if gate and gate["limited"] else cap
 
 
 def _next_midnight_ms(now=None):
@@ -3587,11 +3639,12 @@ async def token_page(request):
     admin = bool(pk) and pk in app["admins"]
     beta = bool(pk) and not admin and pk in _beta(app)
     runs_left, runs_why = _runs_left(app, pk, _device_id(request), _client_ip(request)) if pk and not admin and not beta else (None, None)
-    notice = q.get("notice") if q.get("notice") in ("limit", "netcap", "sitecap") else None   # Analyze bounced off a daily cap
-    if notice in ("limit", "netcap") and not runs_left == 0:
+    notice = q.get("notice") if q.get("notice") in ("limit", "netcap", "sitecap", "newwallet") else None   # Analyze bounced off a daily cap
+    if notice in ("limit", "netcap", "newwallet") and not runs_left == 0:
         notice = None                                   # стара адреса, чуже посилання чи гість: вікно лише тому, кому справді нема
-    # яке вікно показати: людина вичерпала свої, мережа — спільні, чи сайт — день
-    limit_kind = notice or (("netcap" if runs_why == "network" else "limit") if runs_left == 0 else None)
+    # яке вікно показати: людина вичерпала свої, новий гаманець — свій один, мережа — спільні, чи сайт — день
+    limit_kind = notice or (({"network": "netcap", "newwallet": "newwallet"}.get(runs_why, "limit")) if runs_left == 0 else None)
+    runs_cap = _person_cap(app, pk) if pk else None
     if chart.from_input(q.get("from")) and chart.from_input(q.get("to")):
         preset = {"n": None, "label": "Your range" if notice else "From the result", "from": q.get("from"), "to": q.get("to")}
     done_jobs = sorted((j for j in app["jobs"].jobs.values() if j.mint == mint and j.status == "done"),
@@ -3623,7 +3676,7 @@ async def token_page(request):
             last[gkey] = now_ms
             request.app["events"].add("guest", "view", page="token", ref=mint, src=src, dev=_device(request))
     return render("token.html", request, info=info, mint=mint, s=s, is_demo=bool(demo and demo["mint"] == mint), beta=beta,
-                  runs_left=runs_left, notice=notice, limit_kind=limit_kind, reset_ms=_next_midnight_ms(), demo_mint=(demo or {}).get("mint"),
+                  runs_left=runs_left, runs_cap=runs_cap, notice=notice, limit_kind=limit_kind, reset_ms=_next_midnight_ms(), demo_mint=(demo or {}).get("mint"),
                   n_demo=len(demo["ranges"]) if demo and demo["mint"] == mint else 0, bounced=q.get("notice") == "demo", created=info.get("created_time") or 0, now=int(time.time() * 1000),
                   rows_json=json.dumps(rows), jobs_json=json.dumps(jobs_done), preset_json=json.dumps(preset))
 
@@ -3831,6 +3884,8 @@ async def analyze(request):
                 raise WebError("This month's data budget is nearly used up, so new live analyses wait until it renews. "
                                "The demo and every saved result stay open.", 503)
             log.warning("admin run with %s credits left (reserve %s)", left, reserve)
+    if not admin and not beta:
+        await asyncio.to_thread(_wallet_gate, app, pk)                  # новий чи порожній гаманець: менша денна стеля (05.10)
     same_range()                                                        # друге натискання, поки перше чекало огляд чи баланс: не платить удруге
     # one person, one day's runs: the wallet, the browser and the network are counted together, so connecting another
     # wallet in the same browser adds nothing. No awaits from here to submit: the check and the charge are one step.
@@ -3855,7 +3910,10 @@ async def analyze(request):
         if left_today <= 0 and why == "network":
             _limit(app, pk, "run", "network")
             raise web.HTTPFound(back + "&notice=netcap")                # свої ще є, а мережа свої вичерпала: вікно каже саме це
-        if left_today <= 0 or not app["accounts"].take_run(pk, int(s.get("runs_per_day", 1))):
+        if left_today <= 0 and why == "newwallet":
+            _limit(app, pk, "run", "newwallet")
+            raise web.HTTPFound(back + "&notice=newwallet")             # новий чи порожній гаманець свій один вичерпав
+        if left_today <= 0 or not app["accounts"].take_run(pk, _person_cap(app, pk)):
             _limit(app, pk, "run", "wallet")
             raise web.HTTPFound(back + "&notice=limit")
         if not dev:

@@ -31,7 +31,7 @@
   {% set limits_tip = 'Up to ' ~ s.ranges_per_token ~ ' ranges per token, ' ~ s.max_window_hours ~ ' h each. ' ~ early_note %}
   <div class="stepbar small"><span class="stepn">03</span><div class="stepx"><b>Analyze</b>{% if is_demo %}<span>Press Analyze on a pump to watch the run</span>{% elif not acct %}<span class="tipt" title="Analyze asks for a wallet: a signature, no transaction. {{ limits_tip }}">Free in beta</span>
   {% elif beta %}<span class="tipt" title="{{ limits_tip }}">Beta tester · no daily limit</span>
-  {% elif runs_left is not none %}<span class="tipt" title="{{ limits_tip }}">{% if runs_left > 0 %}<span class="runsleft">{{ runs_left }} of {{ s.runs_per_day }}</span> left today{% else %}<span class="runsleft none">None left today</span> · resets at 00:00 UTC{% endif %}</span>
+  {% elif runs_left is not none %}<span class="tipt" title="{% if runs_cap is not none and runs_cap < s.runs_per_day %}A wallet younger than {{ s.new_wallet_days }} days or with under {{ s.new_wallet_min_sol }} SOL gets {{ runs_cap }} a day. {% endif %}{{ limits_tip }}">{% if runs_left > 0 %}<span class="runsleft">{{ runs_left }} of {{ runs_cap if runs_cap is not none else s.runs_per_day }}</span> left today{% else %}<span class="runsleft none">None left today</span> · resets at 00:00 UTC{% endif %}</span>
   {% else %}<span class="tipt" title="{{ limits_tip }}">{{ (s.runs_per_day|per_day)|capitalize }}</span>{% endif %}</div></div>
   <template id="row-tpl">
     <form class="wrow" method="post" action="/analyze" novalidate>
@@ -51,11 +51,13 @@
   {% if limit_kind %}
   <div class="sheet" id="limitsheet" hidden role="dialog" aria-modal="true" aria-labelledby="limith">
     <div class="sheet-card">
-      <div class="sheet-head"><b id="limith">{% if limit_kind == 'sitecap' %}Today's live analyses are used up for the whole site{% elif limit_kind == 'netcap' %}Your network has used today's {{ s.runs_per_ip_per_day }} free analyses{% else %}You've used your {{ s.runs_per_day }} free analyses for today{% endif %}</b><button type="button" class="ghost x" data-limit-close aria-label="Close">×</button></div>
-      <p>{% if limit_kind == 'sitecap' %}{{ early_note }}{% elif limit_kind == 'netcap' %}An office or a phone carrier can share one address, so analyses run by others on it count here too.{% else %}Each person gets {{ s.runs_per_day }} a day, whichever wallet is connected.{% endif %}
+      <div class="sheet-head"><b id="limith">{% if limit_kind == 'sitecap' %}Today's live analyses are used up for the whole site{% elif limit_kind == 'netcap' %}Your network has used today's {{ s.runs_per_ip_per_day }} free analyses{% elif limit_kind == 'newwallet' %}A new wallet gets {{ s.runs_per_day_new_wallet }} free {{ 'analysis' if s.runs_per_day_new_wallet == 1 else 'analyses' }} a day{% else %}You've used your {{ s.runs_per_day }} free analyses for today{% endif %}</b><button type="button" class="ghost x" data-limit-close aria-label="Close">×</button></div>
+      <p>{% if limit_kind == 'sitecap' %}{{ early_note }}{% elif limit_kind == 'netcap' %}An office or a phone carrier can share one address, so analyses run by others on it count here too.{% elif limit_kind == 'newwallet' %}This wallet is younger than {{ s.new_wallet_days }} days or holds under {{ s.new_wallet_min_sol }} SOL, so it gets {{ s.runs_per_day_new_wallet }} instead of {{ s.runs_per_day }}. That keeps the free analyses for traders, not for scripts.{% else %}Each person gets {{ s.runs_per_day }} a day, whichever wallet is connected.{% endif %}
         The count resets at midnight UTC, in <b data-reset></b>.</p>
+      {# owner, 05.10: whoever needs more is a lead, not an abuser to block: the window asks them to write #}
+      <p class="limitmore">Need more? Tell us how you use tracced, and we'll raise your limit.</p>
       <p class="muted small">Ready results and the demo stay open.</p>
-      <div class="row limitact">{% if demo_mint and demo_mint != mint %}<a class="button" href="/token?mint={{ demo_mint }}">Open the demo</a>{% endif %}<button type="button" class="primary" data-limit-close>OK</button></div>
+      <div class="row limitact">{% if demo_mint and demo_mint != mint %}<a class="button" href="/token?mint={{ demo_mint }}">Open the demo</a>{% endif %}<button type="button" class="ghost" data-limit-close>Close</button><a class="button primary" href="/feedback?kind=limits">Write to us</a></div>
     </div>
   </div>
   {% endif %}
