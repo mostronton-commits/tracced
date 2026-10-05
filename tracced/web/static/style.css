@@ -626,11 +626,35 @@ button.ghost.xbtn { padding: 0; color: #475569; }
 .ph b { display: block; margin-bottom: 4px; } .ph p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .ph.later { border-style: dashed; }
 @media (max-width: 720px) { .phases { grid-template-columns: 1fr; } .phases::before { display: none; } }
-.rrow.ex { background: #FFFBEB; }
-/* the home page lists ten tokens (owner, 05.10); the eleventh, blurred and fading out, only says there are more */
-.recent .rrow.more { pointer-events: none; user-select: none; filter: blur(2px); opacity: .6;
-  -webkit-mask-image: linear-gradient(to bottom, #000, transparent); mask-image: linear-gradient(to bottom, #000, transparent); }
-.chip.ex { background: #FEF3C7; border-color: #FCD34D; color: #92400E; }   /* поруч зі статусом Done: зелений від зеленого не відрізниш */
+/* «Live on tracced» (owner, 05.10): everyone's latest analyses roll slowly upward and lead nowhere, so nobody takes
+   them for our verdicts; the action on the page is pasting a token. Fewer than six rows stand still; the pointer stops the
+   roll for reading. The top fade is thin so the newest row reads in full before it starts to move. */
+.livefeed .mehead { align-items: baseline; }
+.livefeed h2 { display: inline-flex; align-items: center; gap: 10px; }
+.livefeed .lday { margin-left: 4px; }
+.lfeed-win { position: relative; height: 308px; overflow: hidden; margin-top: 10px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 44px), transparent 100%);
+          mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 44px), transparent 100%); }
+.lfeed-win.still { height: auto; -webkit-mask-image: none; mask-image: none; }
+.lfeed-track { animation: lfeed var(--dur, 60s) linear infinite; }
+.lfeed-win.still .lfeed-track { animation: none; }
+.lfeed-win:hover .lfeed-track { animation-play-state: paused; }
+@keyframes lfeed { to { transform: translateY(-50%); } }
+.lrow { display: grid; grid-template-columns: 26px minmax(80px, 160px) 1fr auto; align-items: center; gap: 12px; height: 44px;
+  padding: 0 6px; border-bottom: 1px solid var(--line); font-size: 13px; cursor: default; }
+.lrow .sym { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lrow .lstat small { color: var(--muted); font-size: 12px; }
+.lrow .lt { font-size: 12px; text-align: right; white-space: nowrap; }
+.limg { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 600 12px/1 var(--mono);
+  background: hsl(var(--h, 160) 55% 93%); color: hsl(var(--h, 160) 45% 30%); }
+.limg::before { content: attr(data-l); }
+.lnow { display: inline-flex; align-items: center; gap: 8px; color: #047857; font-size: 12.5px; }
+.lnow .flive { width: 7px; height: 7px; }
+.herodemo { margin: 12px 0 0; font-size: 13px; color: #94A3B8; }
+.herodemo a { color: var(--mint); }
+@media (max-width: 560px) { .lrow { grid-template-columns: 26px minmax(0, 1fr) auto auto; gap: 10px; } .lrow .lstat small { display: none; } }
+@media (prefers-reduced-motion: reduce) { .lfeed-track { animation: none; } .lfeed-track .lrow[aria-hidden] { display: none; }
+  .lfeed-win { height: auto; max-height: 440px; overflow: auto; -webkit-mask-image: none; mask-image: none; } }
 
 /* ── iteration 9: assistant ── */
 .ask { border-color: #C4B5FD; background: linear-gradient(115deg, #F5F3FF, #ECFEFF); }

@@ -97,7 +97,8 @@ We keep the Telegram chat the alerts go to and your Telegram username; nothing e
 
 ## What other people see
 
-Finished analyses are public. The home page lists what everyone analyzed, and any result opens for anyone.
+Finished analyses are public. The home page shows a live feed of the tokens everyone analyzes, and anyone who opens
+a token sees its analyzed ranges and can open them.
 
 **Who ran an analysis is never shown.** Your lists, your own tags and your saved analyses are never shown to other
 people.

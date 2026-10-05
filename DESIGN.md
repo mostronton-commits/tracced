@@ -371,8 +371,12 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   something. Colour only for meaning: amber a warning, red the creator or a staged launch, violet repeats. A cell with
   a filter or an order behind it is a button. The strip is a grid: a short last row keeps its cells' width. The home
   page shows none.
-- **Recently analyzed** on the home page lists ten tokens (owner, 05.10: the list grew without end). An eleventh row,
-  blurred and fading out, only says there are more: it is no link, and the home page has no way to the rest.
+- **Live on tracced** on the home page is a feed, not a list of links (owner, 05.10: people opened others' finished
+  analyses and took them for our verdicts, not seeing they could run their own). It shows the latest twenty analyses by
+  anyone, one row each: a letter mark, the symbol, the wallets found and the best ×, or "analyzing now", and how long
+  ago. Never who ran them. Rows lead nowhere; the one action is "paste it above" in the caption, which focuses the
+  token field. Six rows or more roll slowly upward in a loop, fewer stand still. The demo is no row: it has its own
+  link under the token field.
 - **Toasts** sit at the bottom centre, one at a time. They name the result and can carry one link ("Lists →") or one
   Undo.
 - **Menus and popovers** are white with a 1 px border. Menus have an 8 px radius, popovers 10 px. Escape or a click
@@ -387,8 +391,9 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   longer than 300 ms, and nothing uses `ease-in`.
 - **Nothing jumps on hover.** No `translateY` on buttons, rows, chips or cards; a chip in a clipped strip gets cut.
 - **Name the properties being animated.** Never write `transition: all`.
-- **Decorative loops** (the agent button's sheen, the fresh-pumps tape, the live dot) run briefly or only under the
-  pointer. All of them stop under `prefers-reduced-motion: reduce`.
+- **Decorative loops** (the agent button's sheen, the live dot) run briefly or only under the pointer.
+- **The two rolls**, the fresh-pumps tape and the live feed, move slowly all the time and stop under the pointer.
+- All of these stop under `prefers-reduced-motion: reduce`; the rolls then scroll by hand.
 
 ## Do's and Don'ts
 

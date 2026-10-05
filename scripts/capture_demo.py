@@ -2,10 +2,9 @@
 
 The snapshot in output/early/demo/<mint>.json is self-contained — token facts, candles for every timeframe,
 the range, the analysis log and its result. The app only reads it, so a demo can never turn into a live,
-paid run. Point config.yaml at the analysis afterwards:
+paid run. Point config.yaml at the analysis afterwards (or pick it in /admin):
 
-    early.demo_job:    <analysis id>     # replays on Analyze
-    early.example_job: <analysis id>     # pinned as the example on the home page
+    early.demo_job: <analysis id>     # replays on Analyze; the home page links to it under the token field
 
 Usage (inside the container, so it shares the app's key and paths):
     docker compose run --rm --no-deps -v "$PWD/scripts:/app/scripts" web \

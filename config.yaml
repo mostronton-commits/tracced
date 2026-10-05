@@ -13,7 +13,6 @@ detect:                             # pump detector: suggested ranges on the cha
 early:
   plan: advanced                # Pro: 1 000 000 requests a month, no rate limit. One call is one credit.
   private_hosts: [dev.tracced.xyz]   # owner, 30.09: the working copy opens for the owner's wallets only
-  example_job: 98kfF7_20260915-1930_1950   # a finished analysis pinned as the example on the home page (ignored if missing)
   demo_job: 98kfF7_20260915-1930_1950      # replays from output/early/demo/<mint>.json with zero requests (ignored if missing)
 
   # Cost of one new token. The entry range is always fetched in full (up to max_window_pages); exits come

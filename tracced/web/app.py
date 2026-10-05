@@ -3497,32 +3497,35 @@ def _demo(app):
     return app["demo"]
 
 
-def _by_token(jobs, example_id=None):
-    """Один запис на токен: скільки діапазонів по ньому проаналізовано і що з них вийшло.
+LIVE_ROWS = 20            # «Live on tracced»: скільки останніх аналізів котиться на головній
 
-    На головній цікавий токен, а не окремий прогін: рядок веде на сторінку токена, де діапазони видно
-    на графіку і кожен відкривається своїм результатом.
-    """
-    groups = {}
-    for j in jobs:
-        groups.setdefault(j.mint, []).append(j)
-    out = []
-    for mint, js in groups.items():
-        done = [j for j in js if j.status == "done" and j.result]
-        best = max(((j.result.get("summary") or {}).get("best_multiple") or 0 for j in done), default=0)
-        out.append({
-            "mint": mint,
-            "symbol": next((j.symbol for j in js if j.symbol), mint[:6]),
-            "ranges": len(js),
-            "t_from": min(j.t_from for j in js),
-            "t_to": max(j.t_to for j in js),
-            "best": best,
-            "status": "running" if any(j.status in ("queued", "running") for j in js) else ("done" if done else "error"),
-            "example": any(j.id == example_id for j in js),
-            "at": max(j.created_ms or 0 for j in js),
-        })
-    out.sort(key=lambda g: (not g["example"], -g["at"]))               # приклад першим, далі найсвіжіші
-    return out
+
+def _live_ago(ms, now_ms):
+    """«4 min ago» для стрічки на головній; далі сторінка оновлює це сама щопівхвилини."""
+    m = max(0, int((now_ms - (ms or 0)) // 60000))
+    return "just now" if m < 1 else f"{m} min ago" if m < 60 else f"{m // 60} h ago" if m < 1440 else f"{m // 1440} d ago"
+
+
+def _live_feed(app, now_ms=None):
+    """«Live on tracced» (власник, 05.10): люди відкривали чужі готові аналізи зі списку «Recently analyzed» і приймали їх
+    за висновки від нас, не розуміючи, що можуть зробити свій. Тепер це стрічка останніх аналізів будь-кого, без посилань:
+    видно, що й як часто аналізують, а дія на сторінці одна — вставити свій токен. Програвання демо сюди не потрапляють
+    (recent() їх не бачить), у демо своє посилання під полем."""
+    now_ms = int(time.time() * 1000) if now_ms is None else now_ms
+    rows = []
+    for j in app["jobs"].recent(60):
+        if j.status == "error":
+            continue
+        r = j.result or {}
+        sym = str(j.symbol or (r.get("info") or {}).get("symbol") or j.mint[:6])[:16]
+        rows.append({"symbol": sym, "letter": sym[:1].upper(), "hue": int(hashlib.sha1(j.mint.encode()).hexdigest()[:4], 16) % 360,
+                     "running": j.status in ("queued", "running"), "wallets": (r.get("counts") or {}).get("n_early"),
+                     "best": (r.get("summary") or {}).get("best_multiple"), "at": j.created_ms or 0, "ago": _live_ago(j.created_ms, now_ms)})
+        if len(rows) >= LIVE_ROWS:
+            break
+    day = sum(1 for j in list(app["jobs"].jobs.values()) if not j.replay and j.status != "error"
+              and now_ms - (j.created_ms or 0) < 86_400_000)
+    return {"rows": rows, "day": day}
 
 
 async def index(request):
@@ -3531,12 +3534,6 @@ async def index(request):
     jobs = [j for j in jobs if j.status != "error"]                    # помилки на головній — шум
     sample, lines = _home_data(jobs)
     totals = _home_totals(app)
-    want = (demo_mod.read_override(str(Path(app["jobs"].dir).parent / "demo")).get("example_job")
-            or app["s"].get("example_job") or "")
-    example = app["jobs"].get(want) if want else None
-    if not example or example.status != "done":
-        done = [j for j in jobs if j.status == "done" and j.result and j.result.get("rows")]
-        example = min(done, key=lambda j: j.created_ms or 0) if done else None      # найстарший готовий = показовий
     my_n = len(app["accounts"].load(request["acct"])["analyses"]) if request.get("acct") else 0
     _view(request, "home")
     f, s = app["fresh"], app["s"]
@@ -3547,7 +3544,7 @@ async def index(request):
     if s.get("fresh_on") and f["ok_at"] and now_ms - f["ok_at"] < float(s.get("fresh_stale_hours", 3)) * 3_600_000:
         # вік рахується зараз, а не в момент оновлення; список, старший за кілька годин, не показується зовсім (рев'ю 30.09)
         fresh = [dict(r, age_h=max(0.0, (now_ms - r["created_ms"]) / 3_600_000) if r.get("created_ms") else None) for r in f["rows"]]
-    return render("index.html", request, tokens=_by_token(jobs, example.id if example else None),
+    return render("index.html", request, live=_live_feed(app),
                   totals=totals, sample=sample, bg_lines=lines, my_n=my_n,
                   fresh=fresh, fresh_min=int((now_ms - f["ok_at"]) / 60_000) if f["ok_at"] else None)
 

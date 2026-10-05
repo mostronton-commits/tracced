@@ -360,30 +360,39 @@ if AioHTTPTestCase:
             self.assertIn(f'data-count="{100 * len(done)}"', html)
             self.assertTrue(_re.search(r'data-count="\d+" data-fmt="int">0</b><span>wallets on the record', html))
 
-        async def test_home_lists_ten_tokens_and_blurs_the_eleventh(self):
-            # власник, 05.10: список на головній ріс без кінця — десять токенів, одинадцятий розмитий і без посилання
+        async def test_home_live_feed_rolls_the_latest_analyses_and_leads_nowhere(self):
+            # власник, 05.10: чужі готові аналізи зі списку приймали за наші висновки. Тепер «Live on tracced» — стрічка
+            # останніх аналізів без посилань; шість і більше рядків котяться (список двічі, друга копія схована від
+            # читалок екрана), менше — стоять; демо-приклад має своє посилання під полем
+            import re as _re
             q = self.app["jobs"]
             mints = [chr(ord("B") + i) * 40 for i in range(12)]
             for m in mints:
                 q.submit(m, 999999960000, 1000001160000)
                 await asyncio.to_thread(q.q.join)
             html = await (await self.client.get("/")).text()
-            self.assertEqual(html.count('<a class="rrow'), 10)
-            self.assertEqual(html.count('class="rrow more" aria-hidden="true"'), 1)
-            shown = [m for m in mints if f"/token?mint={m}" in html]
-            self.assertEqual(len(shown), 10)                               # дванадцятий не рендериться зовсім
-            self.assertEqual(html.count('class="rrow'), 11)
+            feed = html[html.index('id="live"'):html.index("</section>", html.index('id="live"'))]
+            self.assertEqual(feed.count('class="lrow"'), 24)
+            self.assertEqual(feed.count('class="lrow" aria-hidden="true"'), 12)
+            self.assertNotIn("<a ", feed.split("<p", 2)[-1].split("</p>", 1)[-1])   # жоден рядок не посилання
+            for m in mints:
+                self.assertNotIn(f'href="/token?mint={m}"', feed)
+            self.assertIn("Live on tracced", html)
+            self.assertIn("12 analyses in the last 24 h", html)
+            self.assertIn("data-focus-mint", html)
+            self.assertTrue(_re.search(r'data-ago="\d+">just now<', feed))
+            self.assertNotIn("Recently analyzed", html)
 
-        async def test_home_groups_by_token_and_token_page_lists_its_analyses(self):
-            # головна = один рядок на токен; сторінка токена показує його готові діапазони з сервера
+        async def test_home_feed_and_token_page_list_the_analyses(self):
+            # стрічка — один рядок на аналіз; сторінка токена показує його готові діапазони з сервера
             await self.client.get(f"/token?mint={MINT}")
             for a, b in (("2001-09-09T01:46", "2001-09-09T02:06"), ("2001-09-09T02:20", "2001-09-09T02:40")):
                 await self.client.post("/analyze", data={"mint": MINT, "from": a, "to": b}, allow_redirects=False)
             await asyncio.to_thread(self.app["jobs"].q.join)
             html = await (await self.client.get("/")).text()
-            self.assertIn(f'href="/token?mint={MINT}"', html)              # рядок веде на токен, не на прогін
-            self.assertIn("2 ranges", html)
-            self.assertEqual(html.count('class="rrow'), 1)                 # один токен — один рядок
+            feed = html[html.index('id="live"'):html.index("</section>", html.index('id="live"'))]
+            self.assertEqual(feed.count('class="lrow"'), 2)                # менше шести — стоять, без другої копії
+            self.assertIn('lfeed-win still', feed)
             import re as _re, json as _json, html as _html
             page = await (await self.client.get(f"/token?mint={MINT}")).text()
             rows = _json.loads(_html.unescape(_re.search(r"data-rows='([^']*)'", page).group(1)))
@@ -429,6 +438,8 @@ if AioHTTPTestCase:
             r = await self.client.get("/project", allow_redirects=False, headers=GUEST)
             self.assertEqual((r.status, r.headers["Location"]), (302, "/docs/project"))   # стара адреса сторінки проєкту жива
             self.assertEqual(self.st.requests, before)                  # сторінки й демо — без запитів
+            home = await (await self.client.get("/", headers=GUEST)).text()
+            self.assertIn(f'<a href="/token?mint={MINT}">Open the demo</a>', home)   # демо — окреме посилання під полем, не рядок стрічки
             r = await self.client.get(f"/token?mint={other}", headers=GUEST)
             html = await r.text()
             self.assertEqual(r.status, 200)                             # гість бачить голий графік і ставить межі
@@ -1342,7 +1353,7 @@ if AioHTTPTestCase:
             r = await self.client.get("/")                               # home with a finished analysis: counters, sample, bg lines
             self.assertEqual(r.status, 200)
             home = await r.text()
-            self.assertIn(">Demo<", home)                                # the recorded token is called the same word everywhere
+            self.assertIn('<div class="lrow">', home)                     # the finished analysis rolls in the live feed, not as a link
             self.assertNotIn(">Example<", home)
             self.assertIn("TST", home)
             r = await self.client.get(loc + ".csv")
