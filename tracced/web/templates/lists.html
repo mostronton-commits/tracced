@@ -5,6 +5,7 @@
 {% block body %}
 {# a ready list (owner, 07.10): who is in it, by which rule, and one key to take all of it with alerts. A row opens the
    wallet's card. The ranking and its sums are Solana Tracker's; the card's 30 days are counted by tracced from swaps #}
+{% macro sub(r) %}{% set bits = [] %}{% if r.x %}{% set _ = bits.append('@' ~ r.x) %}{% endif %}{% if r.win_rate is not none %}{% set _ = bits.append((r.win_rate|round|int) ~ '% win rate') %}{% endif %}{% set _ = bits.append(r.wins ~ 'W ' ~ r.losses ~ 'L') %}{% if not r.x %}{% set _ = bits.append(r.tokens ~ ' tokens') %}{% endif %}{{ bits|join(' · ') }}{% endmacro %}
 {% macro face(r) %}<span class="limg" data-l="{{ r.letter }}" style="--h: {{ r.hue }}" aria-hidden="true">{% if r.avatar %}<img src="{{ r.avatar }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span>{% endmacro %}
 <section class="card lpage">
   <a class="lp-back small" href="/#ready">Ready lists</a>
@@ -19,7 +20,7 @@
     </div>
   </div>
   <div class="lp-tally">
-    <div><b class="mono pos">+{{ lst.summary.realized|usd3 }}</b><span>Realized</span></div>
+    <div><b class="mono pos">+{{ lst.summary.pnl|usd3 }}</b><span>Profit</span></div>
     <div><b class="mono pos">+{{ lst.summary.best|usd3 }}</b><span>Best</span></div>
     <div><b class="mono">{{ lst.summary.n }}</b><span>Wallets</span></div>
     {% if ago %}<div><b class="mono">{{ ago }}</b><span>Updated</span></div>{% endif %}
@@ -28,12 +29,11 @@
   {% for r in rows %}
     <li data-w="{{ r.wallet }}" tabindex="0" title="Open this wallet's card">
       <span class="rk">{{ r.rank }}</span>{{ face(r) }}
-      <span class="nm"><b{% if not r.name %} class="mono"{% endif %}>{{ r.label }}</b><small>{% if r.x %}@{{ r.x }}{% if r.days %} · {{ r.days }} active days{% endif %}{% elif r.win_rate %}{{ r.win_rate|round|int }}% win rate · {{ '{:,}'.format(r.trades) }} trades{% elif r.days %}{{ r.days }} active days{% endif %}</small></span>
-      <b class="mono pos rv">+{{ r.realized|usd3 }}</b>
+      <span class="nm"><b{% if not r.name %} class="mono"{% endif %}>{{ r.label }}</b><small>{{ sub(r) }}</small></span>
+      <b class="mono pos rv">+{{ r.rv }}</b>
     </li>
   {% endfor %}
   </ol>
-  <p class="muted small lp-note">Ranked by Solana Tracker from each wallet's own trades, updated twice a day. Past results, not advice.</p>
   {% for o in others %}<p class="lp-other small">Also: <a href="/lists/{{ o.slug }}">{{ o.title }}</a></p>{% endfor %}
 </section>
 <aside class="drawer wcard" id="drawer" hidden aria-label="Wallet card">
@@ -48,7 +48,6 @@
       </div>
       <div class="dh-act"><button type="button" class="ghost x" id="dclose" title="Close" aria-label="Close">×</button></div>
     </div>
-    <section class="dsec dlistsec" id="dlist"></section>
     <section class="dsec dperf">
       <div class="dsec-h"><h4>All tokens <span class="dinfo" id="dprofi" hidden>i</span></h4>
         <div class="seg" id="dper" role="tablist" aria-label="Period"><button type="button" data-p="7">7D</button><button type="button" data-p="30" class="on">30D</button></div></div>
@@ -59,7 +58,7 @@
 <script type="application/json" id="lprows">{{ rows|tojson }}</script>
 <script>
 (function () {
-  const rows = JSON.parse(document.getElementById('lprows').textContent), byW = {}, LIST = {{ lst.title|tojson }};
+  const rows = JSON.parse(document.getElementById('lprows').textContent), byW = {};
   rows.forEach(r => { byW[r.wallet] = r; });
   const drawer = document.getElementById('drawer'), box = document.getElementById('dprof'), info = document.getElementById('dprofi');
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -91,11 +90,6 @@
     document.getElementById('dids').innerHTML = r.x ? '<a class="ext small" href="https://x.com/' + encodeURIComponent(r.x) + '" target="_blank" rel="noopener">@' + esc(r.x) + '</a>' : '';
     const dw = document.getElementById('dw'); dw.textContent = w.slice(0, 4) + '…' + w.slice(-4); dw.dataset.copy = w; dw.title = w + ' · click to copy';
     document.getElementById('dsol').href = 'https://solscan.io/account/' + w;
-    // the list's own numbers first: a guest sees them before any card is loaded, with whose ranking they are
-    document.getElementById('dlist').innerHTML = '<div class="dsec-h"><h4>#' + r.rank + ' in ' + esc(LIST) + '</h4></div>'
-      + '<div class="dl-big"><b class="mono pos">+' + esc(r.rv) + '</b><span>realized in 30 days'
-      + (r.win_rate ? ' · ' + Math.round(r.win_rate) + '% win rate · ' + Number(r.trades || 0).toLocaleString('en-US') + ' trades' : r.days ? ' · ' + r.days + ' active days' : '')
-      + '</span></div><p class="muted small dline">By Solana Tracker, from its own trades. Below: tracced counts its swaps itself.</p>';
     document.getElementById('dclose').focus({ preventScroll: true });
     EarlyUI.use('card-open', { src: 'list' });
     load(w);

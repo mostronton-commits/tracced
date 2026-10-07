@@ -381,17 +381,18 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   letter while it loads or when it has none), symbol, one fact, how long ago. The fact is "saved N wallets" with the
   star when people really saved wallets from that analysis, otherwise "found N wallets". Never a made-up number. The
   demo is no row: a guest gets a demo card under the token field (the token, its wallets and 2×+, Open the demo).
-- **Ready lists** (owner, 07.10: «цікаво, зрозуміло і привабливо») sit on the home page under the live feed: two
-  cards side by side, one column on a phone. A card is a small leaderboard: the title with "10 wallets · updated …",
-  the sum the ten realized in 30 days in mono at 24 px 700, green as profit is, the first three as rows (navy rank
-  mark, face, name with @X or win rate and trades, the profit), the other seven as overlapping faces with "and 7
-  more" that open the list, and one key, *Follow 10 wallets* with the bell. The two cards are one choice, so each
-  carries its own mint key. Profits show three significant figures ($6.77M, $583K): with fewer, neighbours look
-  alike. A face is the trader's avatar, or the letter on its hue while it loads or when there is none. The rankings
-  are Solana Tracker's, never our verdict: the section ends with "Past results, not advice."
+- **Ready lists** (owner, 07.10: «цікаво, зрозуміло і привабливо»; 08.10) sit on the home page under the live feed:
+  two cards side by side, one column on a phone. A card is a small leaderboard: the title with "N wallets · updated …",
+  the sum they made in 30 days in mono at 24 px 700, green as profit is, the first three as rows (navy rank mark,
+  face, name with @X or win rate, the profit), then two keys: *Follow N wallets* with the bell (mint) and *See all
+  N* (white). The two cards are one choice, so each carries its own mint key. No stack of faces, no "and 7 more", no
+  line of selling points and no note under the cards (owner, 08.10: they looked cheap). Profits show three
+  significant figures ($6.77M, $583K): with fewer, neighbours look alike. Every number is tracced's own count, the
+  same as the wallet's card; the board that names the candidates is never quoted.
 - **A ready list's page**: the title and its rule in one paragraph, the key on top (on a phone a bar fixed at the
-  bottom of the screen), a tally strip (Realized, Best, Wallets, Updated), then the ten as a leaderboard. A row opens
-  the wallet card. Once the person follows the list, the key becomes "In your watchlist".
+  bottom of the screen), a tally strip (Profit, Best, Wallets, Updated), then the wallets as a leaderboard with
+  @X, win rate, wins and losses. A row opens the wallet card, which shows the same number. Once the person follows
+  the list, the key becomes "In your watchlist".
 - **Free while we build it** (owner, 07.10: out of the hero): its own quiet block at the end of the home page, above
   the footer: the line, and *Follow @tracced_xyz* with the X mark, instead of payment.
 - **Phones get less text, not fewer facts** (owner, 07.10, «like FOMO»): a short lead in the hero, no 01/02/03 steps,
@@ -403,7 +404,11 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
     and ROI on the right. Seven to nine wallets fit a screen. The chart mark leaves the line: the card puts the
     wallet on the chart when it opens;
   - the toolbar is two lines: Filters, Sort and the money unit; then the count, Export and the agent;
-  - the result's head keeps the star and "Chart" beside the title, the range under it across the width;
+  - the result's head keeps the star and "Chart" beside the title, the range under it across the width; the token
+    page's facts stand three to a line, never one under another;
+  - where the desktop shows a mouse pointer clicking (the chart's two-click demo, the result's card hint), a touch
+    screen shows a fingertip pressing, or nothing;
+  - a range row is two lines: its number, name and ×; then its times, the pencil and the key;
   - the wallet card rises from the bottom as a sheet (12 px corners, a handle, the page dimmed behind it) and closes
     by ×, a tap above it or pulling its head down. In it, this token's PnL is large like a position, ROI beside it,
     then bought, sold and held.

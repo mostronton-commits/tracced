@@ -108,7 +108,7 @@
     // round until the person clicks the chart. 'two' — both clicks; {after} — the second, from the first mark
     let demo = null;
     const demoEl = document.createElement('div'); demoEl.className = 'clickdemo'; demoEl.hidden = true; demoEl.setAttribute('aria-hidden', 'true');
-    demoEl.innerHTML = '<i class="cd-band"></i><i class="cd-ring r1"></i><i class="cd-ring r2"></i>'
+    demoEl.innerHTML = '<i class="cd-band"></i><i class="cd-ring r1"></i><i class="cd-ring r2"></i><i class="cd-tap"></i>'
       + '<svg class="cd-cur" viewBox="0 0 16 22"><path d="M1.5 1.5v16.2l4.3-4.1 2.8 6.4 2.8-1.2-2.8-6.3h5.9z"/></svg>';
     el.appendChild(demoEl);
 

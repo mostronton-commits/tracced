@@ -1831,7 +1831,7 @@ def _alert_fail(app, pk, why):
 def _watch_now(app):
     s = app["s"]
     return alerts_mod.watch_map(app["accounts"].all(), app["admins"], bool(s.get("alerts_open")),
-                                int(s.get("alerts_max_wallets", 10)), s.get("alerts_min_usd"))
+                                int(s.get("alerts_max_wallets", 20)), s.get("alerts_min_usd"))
 
 
 async def _rpc(http, url, method, params):
@@ -2589,7 +2589,7 @@ async def me_lists(request, pk):
             if not _alerts_allowed(request.app, pk):
                 return _jerr("Alerts are in a closed test for now.", 403)
             on = bool(body.get("on"))
-            cap = int(request.app["s"].get("alerts_max_wallets", 10))
+            cap = int(request.app["s"].get("alerts_max_wallets", 20))
             out = {"alerts": on, "changed": acc.set_list_alerts(pk, str(body.get("id") or ""), on, cap), "cap": cap}
             out["bells"] = [w for w, m in acc.load(pk)["wallets"].items() if m.get("alert")]   # the page shows every bell as it is now
         else:
@@ -2613,7 +2613,7 @@ async def me_wallet_alert(request, pk):
     body = await _json_body(request)
     if body is None:
         return _jerr("Bad request body.")
-    cap = int(app["s"].get("alerts_max_wallets", 10))
+    cap = int(app["s"].get("alerts_max_wallets", 20))
     try:
         on, n = app["accounts"].set_wallet_alert(pk, str(body.get("wallet") or ""), bool(body.get("on")), cap)
     except acct_mod.AccountError as e:
@@ -2731,7 +2731,7 @@ async def me_page(request):
     live = _alerts_live(request.app)
     preview = not live and _private_host(request)
     s, alerts_ok = request.app["s"], _alerts_allowed(request.app, pk) and (live or preview)
-    cap = int(s.get("alerts_max_wallets", 10))
+    cap = int(s.get("alerts_max_wallets", 20))
     watched = alerts_mod.watch_map([a], request.app["admins"], bool(s.get("alerts_open")), cap,
                                    s.get("alerts_min_usd")) if alerts_ok else {}
     # дзвіночки на гаманцях і скільки алертів уже пішло сьогодні: лічильник угорі і рядок у картці (власник, 02.10)
@@ -3594,7 +3594,7 @@ def _ready_load(path):
     try:
         with open(path, encoding="utf-8") as f:
             d = json.load(f)
-        if isinstance(d, dict) and isinstance(d.get("lists"), dict):
+        if isinstance(d, dict) and isinstance(d.get("lists"), dict) and d.get("v") == READY_FORMAT:
             return dict(d, busy=False)
     except (OSError, ValueError):
         pass
@@ -3607,10 +3607,32 @@ def _ready_due(app):
         time.time() * 1000 - (r.get("at") or 0) >= float(s.get("ready_lists_refresh_hours", 12)) * 3_600_000
 
 
+READY_FORMAT = 2             # 08.10: суми — наш леджер, не рейтинг Solana Tracker; файл старого вигляду не читаємо
+
+
+def _ready_count(app, cands):
+    """Кожен кандидат готового списку — нашим леджером, як його картка (власник, 08.10: список казав +$2.31M, картка
+    $463K): усі 30 днів, до ready_profile_pages сторінок обмінів, старі купівлі — з окремої добової стелі списків.
+    Картка лягає в кеш, тож зі списку вона відкривається одразу, і гостю теж."""
+    s = app["s"]
+    pages, cap = int(s.get("ready_profile_pages", 12)), int(s.get("ready_history_per_day", 1500))
+
+    def one(row):
+        try:
+            return ready_mod.counted(row, _profile_now(app, row["wallet"], pages=pages, history_key="ready-history", history_cap=cap))
+        except Exception as ex:  # noqa: BLE001 — без цього гаманця список лише коротший
+            log.info("ready count %s: %s", row["wallet"][:8], ex)
+            return None
+    with ThreadPoolExecutor(max_workers=4) as pool:      # лічильник запитів живе в контексті: копія на кожен
+        futs = [pool.submit(contextvars.copy_context().run, one, r) for r in cands]
+        return [x for x in (f.result() for f in futs) if x]
+
+
 async def _ready_refresh(app):
-    """Готові списки (власник, 07.10): рейтинги Solana Tracker не частіше ніж раз на ready_lists_refresh_hours і лише
-    коли хтось відкриває головну чи сторінку списку; ~11 запитів за раз. Кожен список оновлюється сам по собі: збій
-    одного лишає його попередню версію."""
+    """Готові списки: не частіше ніж раз на ready_lists_refresh_hours і лише коли хтось відкриває головну чи сторінку
+    списку. Хто може бути в списку — каже Solana Tracker (його KOL і загальний рейтинг, ~11 запитів); скільки кожен
+    заробив — рахуємо самі, його картку (до ~40 запитів на гаманець). Кожен список оновлюється сам по собі: збій одного
+    лишає його попередню версію."""
     s, st, r = app["s"], app["st"], app["ready"]
     if not _ready_due(app) or not hasattr(st, "kol_leaderboard"):
         return
@@ -3618,18 +3640,21 @@ async def _ready_refresh(app):
     try:
         if not await _st_open(app):
             return
+        n = int(s.get("ready_candidates", 20))
 
         def work():
             got = {}
             with st.meter():
                 n0 = st.requests_here()
                 try:
-                    for slug, fetch in (("kols-30d", lambda: ready_mod.kols(st.kol_leaderboard(30, ready_mod.SIZE * 2))),
-                                        ("top-traders-30d", lambda: ready_mod.traders(st.top_traders(30, int(s.get("ready_top_pages", 10)))))):
+                    for slug, fetch in (("kols-30d", lambda: ready_mod.kols(st.kol_leaderboard(30, n), n)),
+                                        ("top-traders-30d", lambda: ready_mod.traders(st.top_traders(30, int(s.get("ready_top_pages", 10))), n))):
                         try:
-                            got[slug] = fetch()
+                            cands = fetch()
                         except Exception as ex:  # noqa: BLE001 — цей список лишається вчорашнім
                             log.warning("ready list %s: %s", slug, ex)
+                            continue
+                        got[slug] = ready_mod.rank(_ready_count(app, cands), min_pnl=float(s.get("ready_min_pnl", 10_000)))
                 finally:
                     _spend(app, "system", "ready", st=st.requests_here() - n0)
             return got
@@ -3637,9 +3662,8 @@ async def _ready_refresh(app):
         now = int(time.time() * 1000)
         lists = dict(r.get("lists") or {})
         for slug, rows in got.items():
-            if rows:
-                lists[slug] = dict(ready_mod.LISTS[slug], slug=slug, rows=rows, summary=ready_mod.summary(rows), at=now)
-        data = {"lists": lists, "at": now if got else r.get("at") or 0}
+            lists[slug] = dict(ready_mod.LISTS[slug], slug=slug, rows=rows, summary=ready_mod.summary(rows), at=now)
+        data = {"v": READY_FORMAT, "lists": lists, "at": now if got else r.get("at") or 0}
         path = app["ready_path"]
         tmp = str(path) + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
@@ -3658,22 +3682,23 @@ def _ready_rows(lst):
     for i, row in enumerate(lst.get("rows") or [], 1):
         w = row["wallet"]
         label = row.get("name") or (w[:4] + "…" + w[-4:])
-        out.append(dict(row, rank=i, label=label, short=w[:4] + "…" + w[-4:], letter=label[:1].upper(), rv=_usd3(row["realized"]),
+        out.append(dict(row, rank=i, label=label, short=w[:4] + "…" + w[-4:], letter=label[:1].upper(), rv=_usd3(row["pnl"]),
                         hue=int(hashlib.sha1(w.encode()).hexdigest()[:4], 16) % 360))
     return out
 
 
 def _ready_view(app, now_ms=None):
-    """Готові списки для головної: у кожного — назва, підсумок, троє перших рядками й решта обличчями. Оновлення — фоном."""
+    """Готові списки для головної: у кожного — назва, підсумок і троє перших. Список коротший за ready_min_rows не
+    показується. Оновлення — фоном."""
     if _ready_due(app):
         asyncio.get_running_loop().create_task(_ready_refresh(app))
     now_ms = int(time.time() * 1000) if now_ms is None else now_ms
     lists, out = app["ready"].get("lists") or {}, []
     for k in READY_ORDER:
-        if not (lists.get(k) or {}).get("rows"):
+        if len((lists.get(k) or {}).get("rows") or []) < int(app["s"].get("ready_min_rows", 3)):
             continue
         rows = _ready_rows(lists[k])
-        out.append(dict(lists[k], top=rows[:3], rest=rows[3:], ago=_live_ago(lists[k]["at"], now_ms) if lists[k].get("at") else None))
+        out.append(dict(lists[k], top=rows[:3], ago=_live_ago(lists[k]["at"], now_ms) if lists[k].get("at") else None))
     return out
 
 
@@ -3762,7 +3787,7 @@ async def me_follow_list(request, pk):
         items = [{"wallet": r["wallet"], "from_job": None, "mint": None, "symbol": None, "entry_mcap": 0,
                   "invested_usd": 0, "multiple": 0, "tags": []} for r in lst["rows"]]
         added, _ = acc.add_wallets(pk, items, lid)
-        cap = int(app["s"].get("alerts_max_wallets", 10))
+        cap = int(app["s"].get("alerts_max_wallets", 20))
         if _alerts_allowed(app, pk):
             acc.set_list_alerts(pk, lid, True, cap)
     except acct_mod.AccountError as e:
@@ -4857,7 +4882,7 @@ async def wallet_profile_json(request):
     return web.json_response(out)
 
 
-def _profile_history(app, wallet, evs, now, days):
+def _profile_history(app, wallet, evs, now, days, key="profile-history", cap=None):
     """Власник, 07.10: прибуток у картці — за датою продажу. Токен, проданий у вікні, але куплений раніше, бере
     собівартість зі своєї повної історії: `/trades/{mint}/by-wallet/{wallet}`, 1 запит на сторінку, свіжа (у кеші
     може бракувати останніх продажів). Не більше `profile_history_tokens` токенів на картку, від найбільших продажів,
@@ -4867,8 +4892,8 @@ def _profile_history(app, wallet, evs, now, days):
     need = profile.needs_history(evs, now, days)
     if not need or not hasattr(st, "wallet_token_trades"):
         return {}, 0
-    daily, key = app["browse_daily"], "profile-history"
-    room = daily.left(key, int(s.get("profile_history_per_day", 3000)))
+    daily = app["browse_daily"]
+    room = daily.left(key, int(cap if cap is not None else s.get("profile_history_per_day", 3000)))
     picked = need[:max(0, min(int(s.get("profile_history_tokens", 25)), room))]
     if not picked:
         return {}, 0
@@ -4897,16 +4922,17 @@ def _profile_history(app, wallet, evs, now, days):
     return hist, used
 
 
-def _profile_now(app, wallet):
+def _profile_now(app, wallet, pages=None, history_key="profile-history", history_cap=None):
     """30 днів гаманця нашим леджером, зараз: 1-5 запитів на обміни і по запиту на кожен токен, куплений до вікна
     (_profile_history); відповідь лягає в кеш картки (його ж читає дашборд власника). Кличеться в потоці, під
-    лічильником запитів того, хто питає."""
+    лічильником запитів того, хто питає. Готові списки читають більше сторінок і платять за старі купівлі зі своєї
+    добової стелі, не з людської."""
     st, s = app["st"], app["s"]
-    days, pages = int(s.get("profile_days", 30)), int(s.get("profile_max_pages", 5))
+    days, pages = int(s.get("profile_days", 30)), int(pages or s.get("profile_max_pages", 5))
     now = int(time.time() * 1000)
     raw, partial = st.wallet_swaps(wallet, now - days * 86_400_000, pages)
     evs = [ev for r in reversed(raw) for ev in profile.normalize_wallet_swap(r, wallet)]   # джерело віддає новіші першими
-    hist, used = _profile_history(app, wallet, evs, now, days)
+    hist, used = _profile_history(app, wallet, evs, now, days, key=history_key, cap=history_cap)
     out = profile.card(evs, wallet, now, partial, history=hist)
     out["computed_ms"] = now
     out["history_requests"] = used

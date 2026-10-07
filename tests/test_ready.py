@@ -93,8 +93,32 @@ class TestTopTraders(unittest.TestCase):
         self.assertEqual((rows[0]["trades"], rows[0]["win_rate"]), (300, 60.0))
 
     def test_summary(self):
-        self.assertEqual(ready.summary([{"realized": 3.0}, {"realized": 5.0}]), {"n": 2, "realized": 8.0, "best": 5.0})
-        self.assertEqual(ready.summary([]), {"n": 0, "realized": 0, "best": 0.0})
+        self.assertEqual(ready.summary([{"pnl": 3.0}, {"pnl": 5.0}]), {"n": 2, "pnl": 8.0, "best": 5.0})
+        self.assertEqual(ready.summary([]), {"n": 0, "pnl": 0, "best": 0.0})
+
+
+class TestOwnCount(unittest.TestCase):
+    """Власник, 08.10: список казав +$2.31M, картка $463K. Тепер у списку — той самий підрахунок, що в картці."""
+
+    def card(self, pnl, partial=False, wr=0.41):
+        p = {"pnl_usd": pnl, "win_rate": wr, "wins": 7, "losses": 10, "tokens": 22, "swaps": 81}
+        return dict(p, partial=partial, periods={"7": dict(p, pnl_usd=1.0), "30": p})
+
+    def test_the_card_gives_the_number_and_the_board_only_the_name(self):
+        row = ready.counted(ready.kols([kol(1, 2_309_458.4, name="Dolo")])[0], self.card(463_143.0))
+        self.assertEqual(row["pnl"], 463_143.0)                                   # 30 днів, не 7
+        self.assertEqual((row["win_rate"], row["wins"], row["losses"], row["tokens"]), (41.0, 7, 10, 22))
+        self.assertEqual((row["name"], row["x"]), ("Dolo", "kol1"))
+        self.assertNotIn("realized", row)                                          # суми рейтингу не показуються ніде
+        self.assertIsNone(ready.counted(ready.kols([kol(2, 1.0)])[0], dict(self.card(5.0), win_rate=None, periods={}))["win_rate"])
+
+    def test_a_list_keeps_whole_months_in_profit_best_first(self):
+        rows = [ready.counted(ready.kols([kol(i, 1.0)])[0], self.card(pnl, partial)) for i, (pnl, partial) in
+                enumerate([(100.0, False), (-5.0, False), (900.0, True), (0.0, False), (300.0, False)], 1)]
+        out = ready.rank(rows)
+        self.assertEqual([r["pnl"] for r in out], [300.0, 100.0])                 # збиток, нуль і неповний місяць — поза
+        self.assertEqual([r["pnl"] for r in ready.rank(rows, min_pnl=150)], [300.0])   # поріг «топу»
+        self.assertEqual(len(ready.rank([dict(rows[0], wallet=str(i)) for i in range(15)])), ready.SIZE)
 
 
 class TestClientPaging(unittest.TestCase):
@@ -149,7 +173,7 @@ if AioHTTPTestCase:
             self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
             self.st = ReadyST(TRADES)
             s = settings.load()
-            s["ready_lists_on"], s["ready_top_pages"] = True, 4
+            s["ready_lists_on"], s["ready_top_pages"], s["ready_min_pnl"] = True, 4, 0   # у фейку кожен гаманець заробляє $50
             app = create_app(self.st, s, {}, out_dir=self.tmp.name + "/web", store_dir=self.tmp.name + "/cache")
             app["admins"] = {TEST_PK}
             return app
@@ -172,21 +196,32 @@ if AioHTTPTestCase:
             await _ready_refresh(self.app)
             return self.app["ready"]["lists"]
 
-        async def test_the_lists_are_read_twice_a_day_and_kept_in_a_file(self):
+        async def test_the_lists_are_counted_once_a_day_and_kept_in_a_file(self):
             self.app["s"]["ready_lists_on"] = False
             self.assertNotIn('id="ready"', await (await self.client.get("/")).text())     # вимкнено — ні блоку, ні запитів
             self.assertEqual(self.st.requests, 0)
             self.app["s"]["ready_lists_on"] = True
             lists = await self.refresh()
-            self.assertEqual(self.st.requests, 1 + 4)                                      # KOL — один запит, дошка — 4 сторінки
+            # KOL — один запит, дошка — 4 сторінки, і кожен кандидат (12 + 12) — своїми обмінами, як у картці
+            self.assertEqual(self.st.requests, 1 + 4 + 24)
             self.assertEqual(set(lists), {"kols-30d", "top-traders-30d"})
             self.assertEqual(len(lists["kols-30d"]["rows"]), 10)
-            self.assertEqual(lists["kols-30d"]["rows"][0]["name"], "Kol 1")
-            self.assertEqual(lists["top-traders-30d"]["summary"]["n"], 10)
+            first = lists["kols-30d"]["rows"][0]
+            self.assertEqual((first["name"], first["pnl"], first["win_rate"]), ("Kol 1", 50.0, 100.0))   # наш леджер: +$50 у фейку
+            self.assertNotIn("realized", first)
+            self.assertEqual(lists["top-traders-30d"]["summary"], {"n": 10, "pnl": 500.0, "best": 50.0})
             await self.refresh()
-            self.assertEqual(self.st.requests, 5)                                          # за 12 годин — не раніше
+            self.assertEqual(self.st.requests, 29)                                         # за добу — не раніше
             with open(self.tmp.name + "/ready_lists.json") as f:
-                self.assertEqual(set(json.load(f)["lists"]), set(lists))                    # після перезапуску — з файлу
+                saved = json.load(f)
+            self.assertEqual((saved["v"], set(saved["lists"])), (2, set(lists)))            # після перезапуску — з файлу
+
+        async def test_a_file_of_the_old_kind_is_not_read(self):
+            from tracced.web.app import _ready_load
+            path = self.tmp.name + "/old.json"
+            with open(path, "w") as f:
+                json.dump({"lists": {"kols-30d": {"rows": [{"wallet": "W", "realized": 1.0}]}}, "at": 1}, f)
+            self.assertEqual(_ready_load(path)["lists"], {})                                # рейтингові суми 07.10 не показуються
 
         async def test_a_failed_list_keeps_its_last_version(self):
             await self.refresh()
@@ -208,10 +243,12 @@ if AioHTTPTestCase:
             self.assertIn("Top traders · 30 days", html)
             self.assertIn('data-follow="kols-30d"', html)
             self.assertIn("Follow 10 wallets", html)
-            self.assertIn("and 7 more", html)                                               # троє рядками, решта обличчями
+            self.assertIn('href="/lists/kols-30d">See all 10</a>', html)                    # троє рядками і дві кнопки (власник, 08.10)
             self.assertIn('src="https://pbs.example/1.jpg"', html)
-            self.assertIn("@kol1", html)
-            self.assertIn("Past results, not advice.", html)
+            self.assertIn("@kol1 · 100% win rate", html)
+            self.assertIn("Their trades come to your Telegram.", html)
+            for gone in ("and 7 more", "Past results", "Rankings by", "No hours of searching", "rc-stack"):
+                self.assertNotIn(gone, html)
             self.assertLess(html.index('id="ready"'), html.index('class="freebar"'))          # «Free while we build it» — нижче, окремо
             self.assertNotIn("herofree", html)
             self.assertIsNone(CYRILLIC.search(html))
@@ -222,9 +259,9 @@ if AioHTTPTestCase:
             self.assertEqual(r.status, 200)
             html = await r.text()
             self.assertIn("human pace", html)                                              # правило відбору на сторінці
-            self.assertIn("% win rate", html)
+            self.assertIn("100% win rate · 1W 0L · 1 tokens", html)
             self.assertIn('href="/lists/kols-30d"', html)                                   # інший список
-            self.assertIn('id="dlist"', html)                                              # у картці — цифри списку, і гостю
+            self.assertNotIn("Ranked by Solana Tracker", html)
             self.assertIn('data-follow="top-traders-30d"', html)
             self.assertIsNone(CYRILLIC.search(html))
             self.assertEqual((await self.client.get("/lists/nope", headers=GUEST)).status, 404)
@@ -253,11 +290,16 @@ if AioHTTPTestCase:
             tail = [e["event"] for e in self.app["events"].tail(10)]
             self.assertIn("list_follow", tail)
 
-        async def test_a_second_list_rings_only_while_bells_are_left(self):
+        async def test_twenty_bells_hold_both_lists_and_more_waits(self):
             await self.refresh()
+            self.assertEqual(self.app["s"]["alerts_max_wallets"], 20)                        # власник, 08.10: 10 → 20
             await self.client.post("/me/ready/follow", json={"slug": "kols-30d"}, headers=self.origin)
             d = await (await self.client.post("/me/ready/follow", json={"slug": "top-traders-30d"}, headers=self.origin)).json()
-            self.assertEqual((d["added"], d["alerts_on"], d["cap"]), (10, 0, 10))         # усі 10 дзвіночків уже зайняті
+            self.assertEqual((d["added"], d["alerts_on"], d["cap"]), (10, 10, 20))
+            self.app["s"]["alerts_max_wallets"] = 15
+            await self.client.post("/me/ready/follow", json={"slug": "kols-30d"}, headers=self.origin)
+            a = self.app["accounts"].load(TEST_PK)
+            self.assertEqual(sum(1 for x in a["wallets"].values() if x.get("alert")), 20)    # нижча стеля не гасить уже ввімкнені
 
         async def test_the_result_head_shows_the_tokens_picture_and_each_row_its_phone_line(self):
             seed_demo(self.tmp.name, self.app)
@@ -275,6 +317,12 @@ if AioHTTPTestCase:
         async def test_a_ready_wallets_card_opens_without_a_watchlist(self):
             await self.refresh()
             w = self.app["ready"]["lists"]["kols-30d"]["rows"][0]["wallet"]
+            before = self.st.requests
+            r = await self.client.get(f"/wallet_profile.json?wallet={w}", headers=GUEST)
+            self.assertEqual(r.status, 200)                                                # список уже порахував картку: і гостю
+            self.assertEqual(((await r.json())["periods"]["30"]["pnl_usd"], self.st.requests), (50.0, before))   # те саме число, 0 запитів
+            from tracced.early import profile as profile_mod
+            self.app["profile_cache"].put(f"v{profile_mod.VERSION}:{w}", None)
             r = await self.client.get(f"/wallet_profile.json?wallet={w}", headers=GUEST)
             self.assertEqual(r.status, 401)                                                # новий профіль — лише з гаманцем
             self.client.session.headers["Cookie"] = wallet_cookie(OTHER)

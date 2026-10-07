@@ -5,7 +5,7 @@
 {% block head %}<script src="/static/vendor/lightweight-charts.standalone.production.js?v={{ v }}"></script><script src="/static/chart.js?v={{ v }}"></script><script src="/static/card.js?v={{ v }}"></script><script src="/static/term.js?v={{ v }}" defer></script>{% endblock %}
 {% block body %}
 <section class="card">
-  <div class="tokenhead">
+  <div class="tokenhead jobhead">
     <div>
       <div class="h-tok"><span class="limg h-img" data-l="{{ (job.symbol or '?')[:1]|upper }}" style="--h: {{ thue }}" aria-hidden="true">{% if timg %}<img src="{{ timg }}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span><h1 class="h-title">{{ job.symbol }}</h1></div>
       <div class="h-addr mono"><button type="button" class="dwc mono" data-copy="{{ job.mint }}" title="Copy the token address: {{ job.mint }}" aria-label="Copy the token address">{{ job.mint[:6] }}…{{ job.mint[-5:] }}</button><a class="ext" href="https://solscan.io/token/{{ job.mint }}" target="_blank" rel="noopener" title="Token on Solscan" aria-label="Token on Solscan">{{ icon('launch') }}</a></div>

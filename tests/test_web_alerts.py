@@ -139,9 +139,9 @@ if AioHTTPTestCase:
             self.assertIn("no trades yet", await (await self.client.get("/me")).text())       # watched, nothing traded
 
         async def test_the_bell_is_per_wallet_and_capped(self):
-            # owner, 02.10: the bell on each wallet, at most alerts_max_wallets (10) on; the page counts them and today's alerts
+            # owner, 02.10: the bell on each wallet, at most alerts_max_wallets (20) on; the page counts them and today's alerts
             seed_demo(self.tmp.name, self.app)
-            self.assertEqual(settings.load()["alerts_max_wallets"], 10)                     # owner, 02.10: 50 → 10 per account
+            self.assertEqual(settings.load()["alerts_max_wallets"], 20)                     # owner: 50 → 10 (02.10) → 20 (08.10) per account
             from tracced.web import accounts as acct_mod
             w2 = acct_mod.b58encode(b"\x02" * 32)
             r = await self.client.post("/me/wallets", json={"job": DEMO_JID, "wallets": [W1]}, headers=self.origin)
@@ -150,7 +150,7 @@ if AioHTTPTestCase:
             self.app["accounts"].set_telegram(TEST_PK, 4242, "@owner")
             bell = lambda w, on: self.client.post("/me/wallets/alert", json={"wallet": w, "on": on}, headers=self.origin)
             d = await (await bell(W1, True)).json()
-            self.assertEqual((d["on"], d["n"], d["cap"]), (True, 1, 10))
+            self.assertEqual((d["on"], d["n"], d["cap"]), (True, 1, 20))
             self.assertEqual(list(app_mod._watch_now(self.app)), [W1])                       # only the wallet with its bell on
             self.app["s"]["alerts_max_wallets"] = 1
             r = await bell(w2, True)
@@ -178,7 +178,7 @@ if AioHTTPTestCase:
             acc.add_wallets(TEST_PK, [{"wallet": w3}], lid)
             the_list = lambda i, on: self.client.post("/me/lists/alerts", json={"id": i, "on": on}, headers=self.origin)
             d = await (await the_list("main", True)).json()
-            self.assertEqual((d["changed"], sorted(d["bells"]), d["cap"]), (2, sorted([W1, w2]), 10))
+            self.assertEqual((d["changed"], sorted(d["bells"]), d["cap"]), (2, sorted([W1, w2]), 20))
             self.app["s"]["alerts_max_wallets"] = 3
             d = await (await the_list(lid, True)).json()
             self.assertEqual((d["changed"], len(d["bells"])), (1, 3))

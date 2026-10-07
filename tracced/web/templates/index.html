@@ -127,27 +127,22 @@
 
 
 {% if ready %}
-{# owner, 07.10: lists a person can take in one click, made from Solana Tracker's rankings; ten wallets each, as many as
-   one account's alert bells, so following a list turns on alerts for all of it. A card: the sum the ten realized, the
-   first three as a podium, the other seven as faces that lead to the list, one key to follow #}
-{% macro face(r, cls='') %}<span class="limg{{ cls }}" data-l="{{ r.letter }}" style="--h: {{ r.hue }}" aria-hidden="true">{% if r.avatar %}<img src="{{ r.avatar }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span>{% endmacro %}
+{# owner, 07.10–08.10: lists a person can take in one click. Solana Tracker names the candidates; what each one made is
+   counted by tracced from its own swaps, the same number its card shows. A card: the sum, the first three, two keys #}
+{% macro face(r) %}<span class="limg" data-l="{{ r.letter }}" style="--h: {{ r.hue }}" aria-hidden="true">{% if r.avatar %}<img src="{{ r.avatar }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span>{% endmacro %}
+{% macro sub(r) %}{% if r.x %}@{{ r.x }}{% if r.win_rate is not none %} · {{ r.win_rate|round|int }}% win rate{% endif %}{% elif r.win_rate is not none %}{{ r.win_rate|round|int }}% win rate · {{ r.tokens }} tokens{% else %}{{ r.tokens }} tokens{% endif %}{% endmacro %}
 <section class="ready" id="ready" aria-labelledby="readyh">
-  <div class="ready-head">
-    <div><h2 id="readyh">Ready lists</h2><p class="muted">Follow proven traders in one click. Their buys and sells come to your Telegram.</p></div>
-    <ul class="ready-why"><li>{{ icon('time') }}No hours of searching</li><li>{{ icon('chart') }}Ranked by their own trades</li><li>{{ icon('bell') }}Alerts in one click</li></ul>
-  </div>
+  <div class="ready-head"><h2 id="readyh">Ready lists</h2><p class="muted">Follow proven traders in one click. Their trades come to your Telegram.</p></div>
   <div class="ready-grid">
   {% for l in ready %}
     <article class="rcard">
       <div class="rc-head"><h3><a href="/lists/{{ l.slug }}">{{ l.title }}</a></h3><span class="mono muted">{{ l.summary.n }} wallets{% if l.ago %} · updated {{ l.ago }}{% endif %}</span></div>
-      <div class="rc-big"><b class="mono pos">+{{ l.summary.realized|usd3 }}</b><span>realized together in 30 days</span></div>
-      <ol class="rc-top">{% for r in l.top %}<li><span class="rk">{{ r.rank }}</span>{{ face(r) }}<span class="nm"><b{% if not r.name %} class="mono"{% endif %}>{{ r.label }}</b>{% if r.x %}<small>@{{ r.x }}</small>{% elif r.win_rate %}<small>{{ r.win_rate|round|int }}% win rate · {{ '{:,}'.format(r.trades) }} trades</small>{% endif %}</span><b class="mono pos">+{{ r.realized|usd3 }}</b></li>{% endfor %}</ol>
-      {% if l.rest %}<a class="rc-rest" href="/lists/{{ l.slug }}"><span class="rc-stack">{% for r in l.rest %}{{ face(r) }}{% endfor %}</span><span>and {{ l.rest|length }} more</span></a>{% endif %}
-      <div class="rc-act"><button type="button" class="primary" data-follow="{{ l.slug }}" data-n="{{ l.summary.n }}">{{ icon('bell') }}Follow {{ l.summary.n }} wallets</button></div>
+      <div class="rc-big"><b class="mono pos">+{{ l.summary.pnl|usd3 }}</b><span>profit together in 30 days</span></div>
+      <ol class="rc-top">{% for r in l.top %}<li><span class="rk">{{ r.rank }}</span>{{ face(r) }}<span class="nm"><b{% if not r.name %} class="mono"{% endif %}>{{ r.label }}</b><small>{{ sub(r) }}</small></span><b class="mono pos">+{{ r.rv }}</b></li>{% endfor %}</ol>
+      <div class="rc-act"><button type="button" class="primary" data-follow="{{ l.slug }}" data-n="{{ l.summary.n }}">{{ icon('bell') }}Follow {{ l.summary.n }} wallets</button><a class="button" href="/lists/{{ l.slug }}">See all {{ l.summary.n }}</a></div>
     </article>
   {% endfor %}
   </div>
-  <p class="muted small rc-note">Rankings by Solana Tracker, from each wallet's own trades. Past results, not advice.</p>
 </section>
 {% endif %}
 
