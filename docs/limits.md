@@ -32,6 +32,9 @@ Loading what a result does not hold yet in a wallet card: the wallet's last 30 d
 first funder when the analysis has not checked them. What someone has already loaded is free for everyone: the 30
 days are kept for a day, and the age and funder stay in the result.
 
+To count a sale at its real cost, a card also reads the wallet's earlier trades of the tokens it sold in those days
+but bought before them: up to {{ s.profile_history_tokens }} tokens a card, from the site's day rather than yours.
+
 | Limit | Value |
 |---|---|
 | New analyses a day, per person: wallet and browser count together | {{ s.runs_per_day }} |

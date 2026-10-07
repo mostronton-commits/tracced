@@ -76,8 +76,10 @@
     const cls = p.pnl_usd > 0 ? 'pos' : (p.pnl_usd < 0 ? 'neg' : '');
     const day = x => x ? '<b class="' + (x.usd >= 0 ? 'pos' : 'neg') + '">' + money(x.usd) + '</b><small>' + utcDay(x.ms) + '</small>' : '<b>—</b>';
     if (info) {                                  // short (custdev 01.10: too much text in the tooltips)
-      info.title = 'From ' + nf(p.swaps) + ' swaps on every token' + (all.partial ? ', latest only, since ' + EarlyTZ.fmt(all.oldest_ms || p.since_ms, false) : '')
-        + '. Closed = 99% sold.' + (p.unbacked_tokens ? ' ' + plural(p.unbacked_tokens, 'token') + ' sold without a buy left out.' : '');
+      // owner, 07.10: profit counts on the day of the sale, at what the wallet paid, even for a token bought earlier
+      info.title = 'PnL counts every sale in these ' + p.days + ' days at what the wallet paid, even if it bought earlier. From '
+        + nf(p.swaps) + ' swaps on every token' + (all.partial ? ', latest only, since ' + EarlyTZ.fmt(all.oldest_ms || p.since_ms, false) : '')
+        + '. Closed = 99% sold.' + (p.unbacked_tokens ? ' ' + plural(p.unbacked_tokens, 'token') + ' sold with no buy found left out.' : '');
       info.hidden = !p.swaps;
       info.classList.toggle('warn', !!(all.partial || p.unbacked_tokens));
     }

@@ -570,6 +570,53 @@ if AioHTTPTestCase:
             self.assertEqual(self.st.requests - before, 1)              # і без другого запиту
             self.app["admins"] = {TEST_PK}
 
+        async def test_wallet_card_counts_a_sale_at_the_cost_of_an_older_buy(self):
+            # власник, 07.10: прибуток за датою продажу. Проданий токен без купівлі в 30 днях — картка дочитує його історію;
+            # людина платить лише за обміни, дочитане йде з добової стелі сайту
+            import time as _time
+            jid, mint = "EEEEEF_20010909-0146_0206", "E" * 40
+            listed = acct_mod.b58encode(b"\x09" * 32)
+            stored = {"id": jid, "mint": mint, "t_from": 999999960000, "t_to": 1000001160000, "t_exit": None, "status": "done", "error": None,
+                      "created_ms": 1, "started_ms": 1, "finished_ms": 2, "symbol_hint": "EEE", "progress": {"phase": "done", "done": 1, "total": 1}, "log": [],
+                      "result": {"info": {"mint": mint, "symbol": "EEE", "supply": 1000000, "created_time": 999996400000},
+                                 "window": {"from": 999999960000, "to": 1000001160000, "end": 1000003560000}, "mode": "wallet-trades",
+                                 "counts": {"n_wallets": 1, "n_trades": 3, "n_early": 1}, "coverage": {"exits_known": 0, "total": 1, "mode": "wallet-trades"},
+                                 "wallet_trades": {}, "rows": [{"wallet": listed}], "scope": "all", "requests": 0}}
+            with open(f"{self.tmp.name}/web/{jid}.json", "w") as f:
+                json.dump(stored, f)
+            self.app["jobs"]._load()
+            sol, day = "So11111111111111111111111111111111111111112", 86_400_000
+            sold_at = int(_time.time() * 1000) - 25 * day
+
+            def swaps(owner, since_ms, max_pages=5):              # у 30 днях — лише продаж
+                self.st.requests += 1
+                return [{"tx": "s1", "wallet": owner, "time": sold_at, "from": {"address": "TOKX", "amount": 1000, "token": {"symbol": "TOKX"}},
+                         "to": {"address": sol, "amount": 3.0}, "volume": {"usd": 300.0, "sol": 3.0}}], False
+
+            asked = []
+
+            def by_wallet(wallet, m, max_pages=4, fresh=False, store=True):
+                self.st.requests += 1
+                asked.append((m, fresh, store))
+                return [{"wallet": wallet, "type": "buy", "time": sold_at - 15 * day, "qty": 1000, "usd": 100.0, "sol": 1.0, "price": 0.1, "tx": "b0"},
+                        {"wallet": wallet, "type": "sell", "time": sold_at, "qty": 1000, "usd": 300.0, "sol": 3.0, "price": 0.3, "tx": "s1"}]
+            self.st.wallet_swaps, self.st.wallet_token_trades = swaps, by_wallet
+            self.app["admins"] = set()
+            try:
+                left0, before = self.app["browse_daily"].left("global", 300), self.st.requests
+                r = await self.client.get(f"/wallet_profile.json?job={jid}&wallet={listed}")
+                self.assertEqual(r.status, 200, await r.text())
+                d = await r.json()
+                self.assertAlmostEqual(d["pnl_usd"], 200.0)                 # куплено 40 днів тому за 100, продано за 300
+                self.assertEqual((d["closed"], d["wins"], d["unbacked_tokens"], d["bought_earlier_tokens"]), (1, 1, 0, 1))
+                self.assertEqual(asked, [("TOKX", True, False)])            # свіжа історія і не в спільний кеш угод
+                self.assertEqual(self.st.requests - before, 2)
+                self.assertEqual(self.app["browse_daily"].left("global", 300), left0 - 1)   # людина платить лише за обміни
+                self.assertEqual(self.app["browse_daily"].count("profile-history"), 1)      # дочитане — з денної стелі сайту
+            finally:
+                del self.st.wallet_swaps, self.st.wallet_token_trades
+                self.app["admins"] = {TEST_PK}
+
         async def test_live_runs_wait_when_the_month_is_nearly_spent(self):
             # місяць: запуск можливий, лише поки найгірший прогін лишає резерв; день людини при відмові не згорає
             s = self.app["s"]

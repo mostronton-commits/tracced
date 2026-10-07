@@ -24,6 +24,7 @@ import threading
 import time
 import urllib.error
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import aiohttp
@@ -4530,7 +4531,8 @@ async def job_enrich_json(request):
 async def wallet_profile_json(request):
     """The wallet's last days on every token, counted by our own ledger from its raw swaps: PnL, win rate, holds.
 
-    1-5 requests, cached for a day. Only wallets that appear in this analysis are looked up (the site does not
+    1-5 requests, plus one for each token it sold in the window but bought before it (its real cost; up to 25, from
+    the site's daily cap rather than the person's), cached for a day. Only wallets that appear in this analysis are looked up (the site does not
     resell Solana Tracker for arbitrary addresses), or, without `job`, a wallet the connected person keeps in a
     list (the card in Lists): it came from an analysis when it was saved. A cached profile is free for anyone; a
     new one needs a connected wallet and is paid from the same daily budget as charts."""
@@ -4564,11 +4566,14 @@ async def wallet_profile_json(request):
     def work():
         with st.meter():
             req0 = st.requests_here()
+            hist = [0]
             try:
-                return _profile_now(app, wallet)
+                out = _profile_now(app, wallet)
+                hist[0] = int(out.get("history_requests") or 0)
+                return out
             finally:
                 n = st.requests_here() - req0
-                settle(n)
+                settle(n - hist[0])        # старі купівлі токенів дочитуються з добової стелі сайту, не людини
                 _spend(app, pk, "card-profile", st=n, job=(job.canon or job.id) if job else None)
     try:
         out = await asyncio.to_thread(work)
@@ -4578,16 +4583,59 @@ async def wallet_profile_json(request):
     return web.json_response(out)
 
 
+def _profile_history(app, wallet, evs, now, days):
+    """Власник, 07.10: прибуток у картці — за датою продажу. Токен, проданий у вікні, але куплений раніше, бере
+    собівартість зі своєї повної історії: `/trades/{mint}/by-wallet/{wallet}`, 1 запит на сторінку, свіжа (у кеші
+    може бракувати останніх продажів). Не більше `profile_history_tokens` токенів на картку, від найбільших продажів,
+    і не більше `profile_history_per_day` таких запитів на весь сайт за добу; решта лишається «без купівлі» і в PnL не
+    входить. Повертає (історії по токенах, скільки запитів пішло)."""
+    st, s = app["st"], app["s"]
+    need = profile.needs_history(evs, now, days)
+    if not need or not hasattr(st, "wallet_token_trades"):
+        return {}, 0
+    daily, key = app["browse_daily"], "profile-history"
+    room = daily.left(key, int(s.get("profile_history_per_day", 3000)))
+    picked = need[:max(0, min(int(s.get("profile_history_tokens", 25)), room))]
+    if not picked:
+        return {}, 0
+    sym = {}
+    for e in evs:
+        sym.setdefault(e.get("mint"), e.get("symbol"))
+    pages = int(s.get("profile_history_pages", 4))
+
+    def one(mint):
+        try:
+            return st.wallet_token_trades(wallet, mint, pages, fresh=True, store=False)
+        except Exception as ex:  # noqa: BLE001 — токен лишиться «без купівлі», картка однаково відкриється
+            log.info("card history %s %s: %s", wallet[:8], mint[:8], ex)
+            return None
+    req0 = st.requests_here()
+    with ThreadPoolExecutor(max_workers=min(4, len(picked))) as pool:   # лічильник запитів живе в контексті: копія на кожен
+        futs = [(m, pool.submit(contextvars.copy_context().run, one, m)) for m in picked]
+        got = [(m, f.result()) for m, f in futs]
+    used = st.requests_here() - req0
+    daily.add(key, used)
+    hist = {}
+    for mint, trs in got:
+        h = [x for x in (profile.history_event(t, mint, sym.get(mint)) for t in trs or []) if x]
+        if h:
+            hist[mint] = h
+    return hist, used
+
+
 def _profile_now(app, wallet):
-    """30 днів гаманця нашим леджером, зараз: 1-5 запитів, і відповідь лягає в кеш картки (його ж читає дашборд власника).
-    Кличеться в потоці, під лічильником запитів того, хто питає."""
+    """30 днів гаманця нашим леджером, зараз: 1-5 запитів на обміни і по запиту на кожен токен, куплений до вікна
+    (_profile_history); відповідь лягає в кеш картки (його ж читає дашборд власника). Кличеться в потоці, під
+    лічильником запитів того, хто питає."""
     st, s = app["st"], app["s"]
     days, pages = int(s.get("profile_days", 30)), int(s.get("profile_max_pages", 5))
     now = int(time.time() * 1000)
     raw, partial = st.wallet_swaps(wallet, now - days * 86_400_000, pages)
     evs = [ev for r in reversed(raw) for ev in profile.normalize_wallet_swap(r, wallet)]   # джерело віддає новіші першими
-    out = profile.card(evs, wallet, now, partial)
+    hist, used = _profile_history(app, wallet, evs, now, days)
+    out = profile.card(evs, wallet, now, partial, history=hist)
     out["computed_ms"] = now
+    out["history_requests"] = used
     app["profile_cache"].put(f"v{profile.VERSION}:{wallet}", out)
     return out
 

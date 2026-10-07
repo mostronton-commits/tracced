@@ -152,6 +152,67 @@ class TestCardExtras(unittest.TestCase):
         self.assertEqual(len(profile.recent_tokens(events(many), NOW)[0]["trades"]), profile.RECENT_TRADES)
 
 
+class TestSaleDate(unittest.TestCase):
+    """Власник, 07.10: прибуток рахується в день продажу, за справжньою собівартістю, навіть коли купівля старша за
+    вікно. Історію такого токена картка дочитує окремо (history); без неї все як раніше — «продано без купівлі»."""
+
+    @staticmethod
+    def trade(days_ago, typ, qty, usd, tx=None):
+        """Угода з /trades/{mint}/by-wallet/{wallet} у форматі ledger.normalize."""
+        return {"wallet": W, "type": typ, "time": NOW - int(days_ago * DAY), "qty": qty, "usd": usd, "sol": usd / 100,
+                "price": usd / qty, "tx": tx or f"h-{days_ago}-{typ}", "program": "pumpfun-amm"}
+
+    def hist(self, rows, mint="TOKX"):
+        return {mint: [profile.history_event(r, mint, mint) for r in rows]}
+
+    def test_a_token_bought_before_the_window_counts_on_the_day_it_is_sold(self):
+        evs = events([swap(5, "TOKX", 1000, SOL, 3.0, 300.0, tx="h-5-sell")])
+        old = profile.summary(evs, W, NOW)
+        self.assertEqual((old["pnl_usd"], old["unbacked_tokens"], old["closed"]), (0.0, 1, 0))     # без історії — як і було
+        h = self.hist([self.trade(40, "buy", 1000, 100.0), self.trade(5, "sell", 1000, 300.0, tx="h-5-sell")])
+        s = profile.summary(evs, W, NOW, history=h)
+        self.assertAlmostEqual(s["pnl_usd"], 200.0)
+        self.assertAlmostEqual(s["pnl_sol"], 2.0)
+        self.assertEqual((s["closed"], s["wins"], s["unbacked_tokens"], s["tokens"], s["bought_earlier_tokens"]), (1, 1, 0, 1, 1))
+        self.assertAlmostEqual(s["invested_usd"], 0.0)                # куплено не в ці дні
+        self.assertEqual(s["dist"]["200-500"], 1)                     # ROI позиції: +200 на 100
+        self.assertAlmostEqual(s["avg_hold_min"], 35 * 24 * 60)       # справжнє утримання, від купівлі 40 днів тому
+        self.assertEqual([round(v) for _, v in s["daily"]], [200])
+        self.assertEqual((s["swaps"], s["buys"], s["sells"]), (1, 0, 1))   # лічильники — лише з обмінів вікна
+
+    def test_only_the_sales_inside_the_window_count(self):
+        evs = events([swap(5, "TOKX", 500, SOL, 1.5, 150.0, tx="h-5-sell")])
+        h = self.hist([self.trade(40, "buy", 1000, 100.0), self.trade(35, "sell", 500, 100.0),
+                       self.trade(5, "sell", 500, 150.0, tx="h-5-sell")])
+        s = profile.summary(evs, W, NOW, history=h)
+        self.assertAlmostEqual(s["pnl_usd"], 100.0)                   # 150 мінус 50 собівартості; +50 місяць тому — поза вікном
+        self.assertEqual((s["closed"], s["wins"], s["unbacked_tokens"]), (1, 1, 0))
+        seven = profile.card(evs, W, NOW, history=h)["periods"]["7"]
+        self.assertAlmostEqual(seven["pnl_usd"], 100.0)               # той самий продаж і в тижні
+
+    def test_needs_history_ranks_by_sales_and_skips_covered_tokens(self):
+        evs = events([swap(10, SOL, 1.0, "TOKA", 1000, 100.0), swap(9, "TOKA", 1000, SOL, 1.5, 150.0),   # покрито
+                      swap(6, "TOKY", 10, SOL, 0.5, 50.0), swap(5, "TOKX", 1000, SOL, 3.0, 300.0),
+                      swap(4, SOL, 1.0, "TOKZ", 100, 100.0), swap(3, "TOKZ", 300, SOL, 4.0, 400.0)])   # продав утричі більше
+        self.assertEqual(profile.needs_history(evs, NOW), ["TOKZ", "TOKX", "TOKY"])
+
+    def test_a_rounding_crumb_is_not_a_sale_without_a_buy(self):
+        evs = events([swap(3, SOL, 1.0, "TOKA", 1000, 100.0), swap(2, "TOKA", 1000.004, SOL, 1.5, 150.0)])
+        self.assertEqual(profile.needs_history(evs, NOW), [])
+        self.assertEqual(profile.summary(evs, W, NOW)["unbacked_tokens"], 0)
+
+    def test_history_event_takes_the_by_wallet_feed(self):
+        e = profile.history_event(self.trade(40, "buy", 10, 1.0), "TOKX", "X")
+        self.assertEqual((e["mint"], e["symbol"], e["type"], e["qty"]), ("TOKX", "X", "buy", 10))
+        self.assertIsNone(profile.history_event({"type": "transfer", "time": 5}, "TOKX"))
+
+    def test_recent_tokens_show_a_token_bought_earlier_as_closed(self):
+        evs = events([swap(5, "TOKX", 1000, SOL, 3.0, 300.0, tx="h-5-sell")])
+        h = self.hist([self.trade(40, "buy", 1000, 100.0), self.trade(5, "sell", 1000, 300.0, tx="h-5-sell")])
+        [t] = profile.card(evs, W, NOW, history=h)["recent"]
+        self.assertEqual((t["state"], round(t["realized_usd"]), round(t["roi"])), ("closed", 200, 200))
+
+
 class TestIdentity(unittest.TestCase):
     def test_only_what_we_show_survives(self):
         idn = profile.compact_identity({"name": "Cented", "twitter": "@Cented7", "avatar": "https://x/y.png", "type": "kol",

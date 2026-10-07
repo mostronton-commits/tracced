@@ -39,8 +39,9 @@ definition you can read and check. [Every rule →](https://tracced.xyz/docs/tag
 Amounts read in dollars or in SOL. Both come from the same swap, so nothing is converted at a rate, and profit
 uses the cost basis of what was actually sold in both units. [Where the numbers come from →](https://tracced.xyz/docs/how-it-works)
 
-Click a wallet and its card shows the last 7 or 30 days on every token it traded: PnL, win rate over closed
-positions, average hold, counted by tracced from the wallet's own swaps. When the wallet is publicly identified,
+Click a wallet and its card shows the last 7 or 30 days on every token it traded: PnL counted on the day of each
+sale at what the wallet really paid, win rate over closed positions, average hold, counted by tracced from the
+wallet's own swaps. When the wallet is publicly identified,
 small marks say so: a star for a KOL, its X account, the app it trades through. Any of its recent tokens opens
 its own chart right in the card, with the wallet's buys and sells on it.
 [The wallet card →](https://tracced.xyz/docs/how-it-works#the-wallet-card)

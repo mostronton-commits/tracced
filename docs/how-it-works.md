@@ -154,11 +154,14 @@ ROI, in the card and in its own column of the table, is the average exit cap ove
 before the range included: `2×` is +100%, `61.5×` is +6,050%. Hover it for the percent.
 
 The 30 days are counted by tracced from the wallet's own swaps, the same way as the table: average cost, and
-profit only on tokens the wallet actually bought. A position is closed once 99% of it is sold. Win rate is the
-closed positions that made money, out of all closed ones.
+profit only on what the wallet actually bought. Profit counts on the day of the sale, as a broker counts it: a token
+sold in those days counts in full, at what the wallet really paid for it, even when the buy came earlier. For such a
+token the card reads the wallet's earlier trades of it too, up to {{ s.profile_history_tokens }} tokens with the biggest sales. A
+position is closed once 99% of it is sold; win rate is the positions closed in those days that made money, out of all
+of them.
 
-A token the wallet sold in those days without buying it there is left out and counted apart. It came by transfer
-or was bought earlier, so its cost is unknown, and a transfer is not a profit.
+A token sold in those days with no buy found is left out and counted apart: it came by transfer, or its buy is
+older than what the card reads, so its cost is unknown, and a transfer is not a profit.
 
 !!! info "📊 Why not a third-party PnL"
     Third-party PnL often comes from a formula nobody publishes, and a "win rate" over a period can count
