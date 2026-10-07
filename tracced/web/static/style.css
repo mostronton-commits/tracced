@@ -665,13 +665,93 @@ button.ghost.xbtn { padding: 0; color: #475569; }
 .herodemo-card .mono { color: #94A3B8; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .herodemo-card .hd-go { padding: 4px 10px; border-radius: 999px; background: var(--mint); color: var(--navy); font-weight: 600; white-space: nowrap; }
 .hero-dark .lead-short { display: none; }
-.herofree { margin: 14px 0 0; font-size: 13px; color: #94A3B8; max-width: 640px; }
-.herofree a { color: var(--mint); }
+/* Ready lists (owner, 07.10): ten proven wallets a person takes in one click. A card is a small leaderboard: the sum the
+   ten realized, the first three as a podium on navy marks, the other seven as faces that open the list, one key */
+.ready { margin: 8px 0 16px; }
+.ready-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px 24px; flex-wrap: wrap; margin-bottom: 12px; }
+.ready-head h2 { margin: 0 0 4px; font-size: 20px; letter-spacing: -.01em; }
+.ready-head p { margin: 0; }
+.ready-why { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--muted); }
+.ready-why li { display: inline-flex; align-items: center; gap: 6px; }
+.ready-why svg.ci { width: 16px; height: 16px; color: var(--ink); }
+.ready-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 16px; }
+.rcard { display: flex; flex-direction: column; gap: 14px; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px 22px; }
+.rc-head { display: flex; align-items: baseline; justify-content: space-between; gap: 2px 12px; flex-wrap: wrap; }
+.rc-head h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.rc-head h3 a { border-bottom-color: transparent; }
+.rc-head h3 a:hover { border-bottom-color: var(--ink); }
+.rc-head .mono { font-size: 12px; }
+.rc-big { display: flex; flex-direction: column; gap: 2px; }
+.rc-big b { font: 700 24px/1.1 var(--mono); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.rc-big span { font-size: 12px; color: var(--muted); }
+.rc-top, .lp-rows { list-style: none; margin: 0; padding: 0; }
+.rc-top { border-top: 1px solid var(--line); }
+.rc-top li { display: grid; grid-template-columns: 22px 32px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 52px; border-bottom: 1px solid var(--line); }
+.rk { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font: 600 11px/1 var(--mono); color: var(--muted);
+  background: var(--bg); border: 1px solid var(--line); }
+.rc-top .rk, .lp-rows li:nth-child(-n+3) .rk { background: var(--navy); border-color: var(--navy); color: #fff; }
+.rc-top .limg { width: 32px; height: 32px; font-size: 13px; }
+.nm { display: flex; flex-direction: column; min-width: 0; }
+.nm b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nm b.mono { font-size: 13px; font-weight: 500; }
+.nm small { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rc-top li > b.mono { font-size: 13.5px; font-weight: 600; white-space: nowrap; }
+.rc-rest { display: flex; align-items: center; gap: 10px; align-self: flex-start; color: var(--muted); font-size: 13px; border-bottom-color: transparent; }
+.rc-rest:hover { color: var(--ink); border-bottom-color: transparent; }
+.rc-rest:hover > span:last-child { text-decoration: underline; text-underline-offset: 3px; }
+.rc-stack { display: inline-flex; }
+.rc-stack .limg { width: 26px; height: 26px; margin-left: -8px; font-size: 11px; box-shadow: 0 0 0 2px var(--surface); }
+.rc-stack .limg:first-child { margin-left: 0; }
+.rc-act { display: flex; align-items: center; gap: 16px; margin-top: auto; }
+.rc-act .primary, .lp-bar .primary, .lp-bar .button, .freebar .button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.rc-act svg.ci, .lp-bar svg.ci { width: 16px; height: 16px; }
+.rc-note { margin: 10px 0 0; }
+/* free while we build it (owner, 07.10): a follow on X is the only payment we ask, in its own quiet block at the end */
+.freebar { display: flex; align-items: center; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; margin: 24px 0 0;
+  padding: 16px 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.freebar b { display: block; font-size: 15px; font-weight: 600; }
+.freebar span { color: var(--muted); font-size: 13px; }
+.freebar .xmark { width: 14px; height: 14px; }
+/* a ready list's own page: what it is and the key on top, the tally, then the ten as a leaderboard; a row opens the card */
+.lpage { max-width: 880px; margin-left: auto; margin-right: auto; }
+.lp-back { color: var(--muted); }
+.lp-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px 32px; flex-wrap: wrap; margin: 12px 0 18px; }
+.lp-id { flex: 1 1 360px; min-width: 0; }
+.lp-id h1 { margin: 0 0 6px; }
+.lp-rule { margin: 0; max-width: 62ch; font-size: 13px; line-height: 1.5; }
+.lp-bar { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.lp-bar .primary, .lp-bar .button { height: 40px; padding: 0 18px; }
+.lp-tally { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line);
+  border-radius: 10px; margin-bottom: 8px; overflow: hidden; }
+.lp-tally div { padding: 12px 16px; min-width: 0; background: var(--surface); }
+.lp-tally b { display: block; font-size: 18px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lp-tally span { display: block; margin-top: 2px; font-size: 11.5px; font-weight: 500; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.lp-rows li { display: grid; grid-template-columns: 24px 36px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 60px; padding: 0 10px;
+  border-bottom: 1px solid var(--line); cursor: pointer; transition: background-color .12s ease; }
+.lp-rows li:hover { background: var(--bg); }
+.lp-rows li.on { background: var(--sage); }
+.lp-rows li:focus-visible { outline: 2px solid #86EFAC; outline-offset: -2px; }
+.lp-rows .rk { width: 24px; height: 24px; }
+.lp-rows .limg { width: 36px; height: 36px; font-size: 14px; }
+.lp-rows .rv { font-size: 14px; font-weight: 600; white-space: nowrap; }
+.lp-note { margin: 12px 0 0; }
+.lp-other { margin: 6px 0 0; color: var(--muted); }
+@media (max-width: 640px) {
+  .lpage { padding: 16px; }
+  .lp-rows li { gap: 10px; padding: 0 4px; }
+  .lp-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; align-items: stretch; gap: 4px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: var(--surface); border-top: 1px solid var(--line); }
+  .lp-bar .primary, .lp-bar .button { width: 100%; height: 44px; }
+  .lp-bar .small { text-align: center; }
+  body:has(.lp-bar) { padding-bottom: 92px; }
+}
 /* phones (owner, 07.10, «like FOMO»): less text, the same facts — a short lead, no steps, no captions */
 @media (max-width: 560px) { .lrow { grid-template-columns: 26px minmax(0, 1fr) auto auto; gap: 10px; }
   .herodemo-card .mono, .herodemo-lead { display: none; }
-  .hero-dark .lead-long, .steps3, .livefeed > p.muted { display: none; }
-  .hero-dark .lead-short { display: inline; } }
+  .hero-dark .lead-long, .steps3, .livefeed > p.muted, .ready-head p, .ready-why { display: none; }
+  .hero-dark .lead-short { display: inline; }
+  .rcard, .freebar { padding: 16px; }
+  .rc-act .primary, .freebar .button { width: 100%; height: 44px; } }
 @media (prefers-reduced-motion: reduce) { .lrow { transition: none; } }
 
 /* ── iteration 9: assistant ── */

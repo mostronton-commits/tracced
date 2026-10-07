@@ -225,7 +225,8 @@ chart sit on dark navy. The working surfaces are light: a pale page, white cards
   marks a hover.
 - **Background (#F8FAFC), surface (#FFFFFF), hover (#F1F5F9), sage (#D1FAE5)** are the light layers: the page, the
   cards, ghost hover and press, selected rows and the PnL bar.
-- **Navy (#090D16) with navy-line (#1E293B)** carries the header, the home hero and the chart.
+- **Navy (#090D16) with navy-line (#1E293B)** carries the header, the home hero and the chart, and the rank marks of
+  a ready list's first three.
 - **Meanings, each used for its meaning only:**
   - gain (#059669) and loss (#DC2626) for money;
   - saved, in amber (#D97706), for a wallet in your lists;
@@ -380,7 +381,19 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   letter while it loads or when it has none), symbol, one fact, how long ago. The fact is "saved N wallets" with the
   star when people really saved wallets from that analysis, otherwise "found N wallets". Never a made-up number. The
   demo is no row: a guest gets a demo card under the token field (the token, its wallets and 2×+, Open the demo).
-- **Free while we build it**: one quiet line under the hero counters asks for a follow on X instead of payment.
+- **Ready lists** (owner, 07.10: «цікаво, зрозуміло і привабливо») sit on the home page under the live feed: two
+  cards side by side, one column on a phone. A card is a small leaderboard: the title with "10 wallets · updated …",
+  the sum the ten realized in 30 days in mono at 24 px 700, green as profit is, the first three as rows (navy rank
+  mark, face, name with @X or win rate and trades, the profit), the other seven as overlapping faces with "and 7
+  more" that open the list, and one key, *Follow 10 wallets* with the bell. The two cards are one choice, so each
+  carries its own mint key. Profits show three significant figures ($6.77M, $583K): with fewer, neighbours look
+  alike. A face is the trader's avatar, or the letter on its hue while it loads or when there is none. The rankings
+  are Solana Tracker's, never our verdict: the section ends with "Past results, not advice."
+- **A ready list's page**: the title and its rule in one paragraph, the key on top (on a phone a bar fixed at the
+  bottom of the screen), a tally strip (Realized, Best, Wallets, Updated), then the ten as a leaderboard. A row opens
+  the wallet card. Once the person follows the list, the key becomes "In your watchlist".
+- **Free while we build it** (owner, 07.10: out of the hero): its own quiet block at the end of the home page, above
+  the footer: the line, and *Follow @tracced_xyz* with the X mark, instead of payment.
 - **Phones get less text, not fewer facts** (owner, 07.10, «like FOMO»): a short lead in the hero, no 01/02/03 steps,
   no captions under section titles; numbers and actions stay.
 - **Toasts** sit at the bottom centre, one at a time. They name the result and can carry one link ("Lists →") or one

@@ -33,7 +33,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
 from ..cache import JsonCache
-from ..early import agent as agent_mod, assistant as assistant_mod, exchanges as exch_mod, labels as labels_mod, ledger, pipeline, profile, report, scope, tags, wallet_age as wallet_age_mod, window
+from ..early import agent as agent_mod, assistant as assistant_mod, exchanges as exch_mod, labels as labels_mod, ledger, pipeline, profile, ready as ready_mod, report, scope, tags, wallet_age as wallet_age_mod, window
 from ..early.store import TradeStore
 from ..providers import dexscreener
 from . import accounts as acct_mod, after as after_mod
@@ -71,6 +71,23 @@ def _usd(v):
     if s == "—":
         return s
     return "-$" + s[1:] if s.startswith("-") else "$" + s
+
+
+def _usd3(v):
+    """Прибуток у готових списках — три значущі цифри: $6.77M, $1.02M, $583K. З однією ($6.8M, $1M) сусідні місця
+    виглядали однаково."""
+    try:
+        v = float(v)
+    except Exception:  # noqa: BLE001 — None, '', jinja Undefined
+        return "—"
+    if v != v:
+        return "—"
+    sign, v = ("-" if v < 0 else ""), abs(v)
+    for lim, suf in ((1e9, "B"), (1e6, "M"), (1e3, "K")):
+        if v >= lim * 0.9995:
+            x = v / lim
+            return f"{sign}${x:.{2 if x < 9.995 else 1 if x < 99.95 else 0}f}{suf}"
+    return f"{sign}${v:.0f}"
 
 
 def _num(v, digits=0):
@@ -114,6 +131,7 @@ env.filters["day"] = chart.fmt_day
 env.filters["mcap"] = chart.fmt_mcap
 env.filters["usd"] = _usd
 env.filters["num"] = _num
+env.filters["usd3"] = _usd3
 env.filters["per_day"] = lambda n: "one live analysis a day" if int(n or 0) == 1 else f"{int(n or 0)} live analyses a day"
 env.filters["log10"] = lambda v: math.log10(v) if (v and float(v) > 0) else 0.0
 
@@ -494,6 +512,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     # картинки токенів для головної: у нових аналізів вона в info, старшим дочитується раз (1 запит) і живе місяць
     app["token_images"] = JsonCache(str(Path(store_dir) / "token_images.json"), ttl_hours=24 * 30)
     app["images_busy"] = False
+    app["ready_path"] = Path(out_dir).parent / "ready_lists.json"   # готові списки гаманців: з файлу, оновлюються фоном
+    app["ready"] = _ready_load(app["ready_path"])
     app["profile_cache"] = JsonCache(str(Path(store_dir) / "wallet_profile.json"),             # картка гаманця: 1-5 запитів, добу з кешу
                                      ttl_hours=float(s.get("wallet_profile_ttl_hours", 24)), flush_every=25)   # решту допише зупинка сервера
     app["accounts"] = acct_mod.AccountStore(Path(out_dir).parent / "accounts")   # поруч з web/ і demo/ у output/early
@@ -591,6 +611,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
                            namer=make_namer(identify, st, spend) if identify else None, on_finish=on_finish)
     app.router.add_get("/", index)
     app.router.add_get("/live.json", live_json)
+    app.router.add_get("/lists/{slug}", list_page)
+    app.router.add_post("/me/ready/follow", me_follow_list)
     app.router.add_get("/how", how)
     app.router.add_get("/docs", docs_page)
     app.router.add_get("/docs/{slug}", docs_page)
@@ -3565,6 +3587,100 @@ def _saved_counts(app, now=None):
     return counts
 
 
+READY_ORDER = ("kols-30d", "top-traders-30d")
+
+
+def _ready_load(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+        if isinstance(d, dict) and isinstance(d.get("lists"), dict):
+            return dict(d, busy=False)
+    except (OSError, ValueError):
+        pass
+    return {"lists": {}, "at": 0, "busy": False}
+
+
+def _ready_due(app):
+    s, r = app["s"], app["ready"]
+    return bool(s.get("ready_lists_on")) and not r.get("busy") and \
+        time.time() * 1000 - (r.get("at") or 0) >= float(s.get("ready_lists_refresh_hours", 12)) * 3_600_000
+
+
+async def _ready_refresh(app):
+    """Готові списки (власник, 07.10): рейтинги Solana Tracker не частіше ніж раз на ready_lists_refresh_hours і лише
+    коли хтось відкриває головну чи сторінку списку; ~11 запитів за раз. Кожен список оновлюється сам по собі: збій
+    одного лишає його попередню версію."""
+    s, st, r = app["s"], app["st"], app["ready"]
+    if not _ready_due(app) or not hasattr(st, "kol_leaderboard"):
+        return
+    r["busy"] = True
+    try:
+        if not await _st_open(app):
+            return
+
+        def work():
+            got = {}
+            with st.meter():
+                n0 = st.requests_here()
+                try:
+                    for slug, fetch in (("kols-30d", lambda: ready_mod.kols(st.kol_leaderboard(30, ready_mod.SIZE * 2))),
+                                        ("top-traders-30d", lambda: ready_mod.traders(st.top_traders(30, int(s.get("ready_top_pages", 10)))))):
+                        try:
+                            got[slug] = fetch()
+                        except Exception as ex:  # noqa: BLE001 — цей список лишається вчорашнім
+                            log.warning("ready list %s: %s", slug, ex)
+                finally:
+                    _spend(app, "system", "ready", st=st.requests_here() - n0)
+            return got
+        got = await asyncio.to_thread(work)
+        now = int(time.time() * 1000)
+        lists = dict(r.get("lists") or {})
+        for slug, rows in got.items():
+            if rows:
+                lists[slug] = dict(ready_mod.LISTS[slug], slug=slug, rows=rows, summary=ready_mod.summary(rows), at=now)
+        data = {"lists": lists, "at": now if got else r.get("at") or 0}
+        path = app["ready_path"]
+        tmp = str(path) + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+        os.replace(tmp, path)
+        app["ready"] = dict(data, busy=False)
+    except Exception as e:  # noqa: BLE001 — сторінки показують попередні списки
+        log.warning("ready lists: %s", e)
+    finally:
+        r["busy"] = False
+
+
+def _ready_rows(lst):
+    """Рядки списку для сторінки: кожен гаманець з літерою, відтінком і короткою адресою на випадок, коли аватарки нема."""
+    out = []
+    for i, row in enumerate(lst.get("rows") or [], 1):
+        w = row["wallet"]
+        label = row.get("name") or (w[:4] + "…" + w[-4:])
+        out.append(dict(row, rank=i, label=label, short=w[:4] + "…" + w[-4:], letter=label[:1].upper(),
+                        hue=int(hashlib.sha1(w.encode()).hexdigest()[:4], 16) % 360))
+    return out
+
+
+def _ready_view(app, now_ms=None):
+    """Готові списки для головної: у кожного — назва, підсумок, троє перших рядками й решта обличчями. Оновлення — фоном."""
+    if _ready_due(app):
+        asyncio.get_running_loop().create_task(_ready_refresh(app))
+    now_ms = int(time.time() * 1000) if now_ms is None else now_ms
+    lists, out = app["ready"].get("lists") or {}, []
+    for k in READY_ORDER:
+        if not (lists.get(k) or {}).get("rows"):
+            continue
+        rows = _ready_rows(lists[k])
+        out.append(dict(lists[k], top=rows[:3], rest=rows[3:], ago=_live_ago(lists[k]["at"], now_ms) if lists[k].get("at") else None))
+    return out
+
+
+def _ready_wallets(app):
+    return {r["wallet"] for lst in (app["ready"].get("lists") or {}).values() for r in lst.get("rows") or []}
+
+
 def _made_2x(result):
     """Гаманці аналізу, що продали щонайменше вдвічі дорожче за вхід (ROI ≥ 2× з продажами)."""
     return sum(1 for r in (result or {}).get("rows") or [] if (r.get("sells") or 0) > 0 and (r.get("multiple") or 0) >= 2)
@@ -3602,6 +3718,60 @@ def _live_feed(app, now_ms=None):
     day = sum(1 for j in list(app["jobs"].jobs.values()) if not j.replay and j.status != "error"
               and now_ms - (j.created_ms or 0) < 86_400_000)
     return {"rows": rows, "day": day}
+
+
+async def list_page(request):
+    """Готовий список гаманців: хто в ньому, за яким правилом, і кнопка взяти його собі разом зі сповіщеннями."""
+    app = request.app
+    if _ready_due(app):
+        asyncio.get_running_loop().create_task(_ready_refresh(app))
+    slug = request.match_info.get("slug", "")
+    lst = (app["ready"].get("lists") or {}).get(slug)
+    if not lst or not lst.get("rows"):
+        raise web.HTTPNotFound(text="This list is not ready yet.")
+    following = False
+    if request.get("acct"):
+        a = app["accounts"].load(request["acct"])
+        lid = next((k for k, v in (a.get("lists") or {}).items() if v.get("name") == lst["title"]), None)
+        following = bool(lid) and all(lid in ((a.get("wallets") or {}).get(r["wallet"]) or {}).get("lists", []) for r in lst["rows"])
+    _view(request, "list", ref=slug)
+    return render("lists.html", request, lst=lst, rows=_ready_rows(lst), following=following,
+                  ago=_live_ago(lst["at"], int(time.time() * 1000)) if lst.get("at") else None,
+                  others=[dict(v, slug=k) for k, v in (app["ready"].get("lists") or {}).items() if k != slug and v.get("rows")],
+                  alerts_ok=_alerts_allowed(app, request.get("acct")))
+
+
+@_acct_route
+async def me_follow_list(request, pk):
+    """Готовий список одним кліком (власник, 07.10): свій список з тією самою назвою (або наявний), десять гаманців у
+    ньому і дзвіночки на них, поки вистачає стелі. Telegram ще не підключено — дзвіночки чекають, сторінка про це скаже."""
+    app = request.app
+    body = await _json_body(request)
+    if body is None:
+        return _jerr("Bad request body.")
+    slug = str(body.get("slug") or "")
+    lst = (app["ready"].get("lists") or {}).get(slug)
+    if not lst or not lst.get("rows"):
+        return _jerr("This list is not ready yet. Try again in a minute.", 404)
+    acc = app["accounts"]
+    try:
+        a = acc.load(pk)
+        lid = next((k for k, v in (a.get("lists") or {}).items() if v.get("name") == lst["title"]), None)
+        if lid is None:
+            lid, _ = acc.create_list(pk, lst["title"])
+        items = [{"wallet": r["wallet"], "from_job": None, "mint": None, "symbol": None, "entry_mcap": 0,
+                  "invested_usd": 0, "multiple": 0, "tags": []} for r in lst["rows"]]
+        added, _ = acc.add_wallets(pk, items, lid)
+        cap = int(app["s"].get("alerts_max_wallets", 10))
+        if _alerts_allowed(app, pk):
+            acc.set_list_alerts(pk, lid, True, cap)
+    except acct_mod.AccountError as e:
+        return _jerr(str(e))
+    a = acc.load(pk)
+    on = sum(1 for r in lst["rows"] if ((a.get("wallets") or {}).get(r["wallet"]) or {}).get("alert"))
+    app["events"].add(pk, "list_follow", slug=slug, n=added, alerts=on)
+    return web.json_response({"ok": True, "list": lid, "name": lst["title"], "added": added, "alerts_on": on, "cap": cap,
+                              "alerts_ok": _alerts_allowed(app, pk), "telegram": bool((a.get("telegram") or {}).get("chat"))})
 
 
 async def live_json(request):
@@ -3643,7 +3813,7 @@ async def index(request):
     if s.get("fresh_on") and f["ok_at"] and now_ms - f["ok_at"] < float(s.get("fresh_stale_hours", 3)) * 3_600_000:
         # вік рахується зараз, а не в момент оновлення; список, старший за кілька годин, не показується зовсім (рев'ю 30.09)
         fresh = [dict(r, age_h=max(0.0, (now_ms - r["created_ms"]) / 3_600_000) if r.get("created_ms") else None) for r in f["rows"]]
-    return render("index.html", request, live=_live_feed(app), demo_card=_demo_card(app),
+    return render("index.html", request, live=_live_feed(app), demo_card=_demo_card(app), ready=_ready_view(app),
                   totals=totals, sample=sample, bg_lines=lines, my_n=my_n,
                   fresh=fresh, fresh_min=int((now_ms - f["ok_at"]) / 60_000) if f["ok_at"] else None)
 
@@ -4646,6 +4816,8 @@ async def wallet_profile_json(request):
     if job is not None:
         if wallet not in {r.get("wallet") for r in job.result.get("rows") or []}:
             raise web.HTTPNotFound(text="That wallet is not in this analysis.")
+    elif wallet in _ready_wallets(app):
+        pass                                                     # гаманець готового списку: картку відкриває будь-хто
     elif not request.get("acct"):
         raise ConnectRequired(message="Connect a wallet to load this wallet's last 30 days.")
     elif wallet not in (app["accounts"].load(request["acct"]).get("wallets") or {}):

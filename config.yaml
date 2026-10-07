@@ -35,6 +35,7 @@ early:
   runs_per_day: 10              # per person (owner, 07.10: stays 10, «10 analyses a day for active wallets»): the wallet and the
                                 # browser both count, so another wallet adds nothing
   runs_per_ip_per_day: 20       # per network: incognito plus a fresh wallet stops here; twice the person's, as an office or a phone carrier shares one address
+  ready_lists_on: true          # owner, 07.10: ready lists on the home page, from Solana Tracker's rankings (~11 requests twice a day)
   token_images_backfill: true   # owner, 07.10: token pictures in the home feed; older analyses read theirs once (1 request each)
   alerts_open: true             # owner, 05.10: Telegram alerts for every connected wallet, no longer a closed test
   runs_per_day_new_wallet: 1    # owner, 05.10: someone rotated fresh wallets to reset the count. A wallet younger than

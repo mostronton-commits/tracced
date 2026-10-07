@@ -18,6 +18,22 @@ Tokens created in the last {{ s.fresh_hours|int }} hours that reached a real mar
 Clones with huge caps and no trading, and charts bought by one bot, are filtered out. Biggest peak first; the list
 is refreshed at most every {{ s.fresh_refresh_min|int }} minutes. A click opens the chart, where you mark the range.
 
+## Ready lists
+
+Two lists of ten wallets on the home page, for when you have no token to start from:
+
+- **KOLs · 30 days**: known traders with a public X account, by the profit they realized in the last 30 days.
+- **Top traders · 30 days**: the most profitable wallets of the last 30 days that trade at a human pace. The top of
+  Solana Tracker's board is bots and market makers, so a wallet stays only with up to 1,500 trades a month, 10 or more
+  active days, a win rate between 30 and 90 %, and a profit at most twenty times what it put in (beyond that, the
+  profit comes from tokens it never bought).
+
+The rankings and their sums are Solana Tracker's, from each wallet's own trades, refreshed every
+{{ s.ready_lists_refresh_hours|int }} hours. A row opens the wallet's card, which counts its 30 days with tracced's own
+ledger, so the two can differ a little. **Follow 10 wallets** puts the ten in your watchlist, in a list of the same
+name, with their bells on while your account has bells left. Your copy keeps the wallets you took; the ranking moves
+on without it. Past results, not advice.
+
 ## The numbers under the chart
 
 One strip under the chart, a number and a word each. A click on a number shows exactly those wallets, or sorts by it.

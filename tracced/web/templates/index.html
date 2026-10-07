@@ -25,8 +25,6 @@
       <div><b data-count="{{ totals.tokens }}" data-fmt="int">0</b><span>tokens analyzed</span></div>
       <div><b data-count="{{ totals.trades }}" data-fmt="int">0</b><span>trades processed</span></div>
     </div>
-    {# owner, 07.10: free while in development; a follow on X is the only payment we ask #}
-    <p class="herofree">tracced is free while we build it. If it saves you time, <a href="https://x.com/intent/follow?screen_name=tracced_xyz" target="_blank" rel="noopener" data-umami-event="home-follow">follow us on X</a>, that's all we ask.</p>
   </div>
   {% if fresh %}
   {# the fresh pumps of the last 48 hours run along the bottom of the hero, right to left, and stop under the pointer: always a full
@@ -126,5 +124,37 @@
 })();
 </script>
 {% endif %}
+
+
+{% if ready %}
+{# owner, 07.10: lists a person can take in one click, made from Solana Tracker's rankings; ten wallets each, as many as
+   one account's alert bells, so following a list turns on alerts for all of it. A card: the sum the ten realized, the
+   first three as a podium, the other seven as faces that lead to the list, one key to follow #}
+{% macro face(r, cls='') %}<span class="limg{{ cls }}" data-l="{{ r.letter }}" style="--h: {{ r.hue }}" aria-hidden="true">{% if r.avatar %}<img src="{{ r.avatar }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span>{% endmacro %}
+<section class="ready" id="ready" aria-labelledby="readyh">
+  <div class="ready-head">
+    <div><h2 id="readyh">Ready lists</h2><p class="muted">Follow proven traders in one click. Their buys and sells come to your Telegram.</p></div>
+    <ul class="ready-why"><li>{{ icon('time') }}No hours of searching</li><li>{{ icon('chart') }}Ranked by their own trades</li><li>{{ icon('bell') }}Alerts in one click</li></ul>
+  </div>
+  <div class="ready-grid">
+  {% for l in ready %}
+    <article class="rcard">
+      <div class="rc-head"><h3><a href="/lists/{{ l.slug }}">{{ l.title }}</a></h3><span class="mono muted">{{ l.summary.n }} wallets{% if l.ago %} · updated {{ l.ago }}{% endif %}</span></div>
+      <div class="rc-big"><b class="mono pos">+{{ l.summary.realized|usd3 }}</b><span>realized together in 30 days</span></div>
+      <ol class="rc-top">{% for r in l.top %}<li><span class="rk">{{ r.rank }}</span>{{ face(r) }}<span class="nm"><b{% if not r.name %} class="mono"{% endif %}>{{ r.label }}</b>{% if r.x %}<small>@{{ r.x }}</small>{% elif r.win_rate %}<small>{{ r.win_rate|round|int }}% win rate · {{ '{:,}'.format(r.trades) }} trades</small>{% endif %}</span><b class="mono pos">+{{ r.realized|usd3 }}</b></li>{% endfor %}</ol>
+      {% if l.rest %}<a class="rc-rest" href="/lists/{{ l.slug }}"><span class="rc-stack">{% for r in l.rest %}{{ face(r) }}{% endfor %}</span><span>and {{ l.rest|length }} more</span></a>{% endif %}
+      <div class="rc-act"><button type="button" class="primary" data-follow="{{ l.slug }}" data-n="{{ l.summary.n }}">{{ icon('bell') }}Follow {{ l.summary.n }} wallets</button></div>
+    </article>
+  {% endfor %}
+  </div>
+  <p class="muted small rc-note">Rankings by Solana Tracker, from each wallet's own trades. Past results, not advice.</p>
+</section>
+{% endif %}
+
+{# owner, 07.10: free while in development; a follow on X is the only payment we ask, in its own quiet block below #}
+<section class="freebar" aria-label="Free while we build it">
+  <div><b>Free while we build it</b><span>If tracced saves you time, follow us on X. That's all we ask.</span></div>
+  <a class="button" href="https://x.com/intent/follow?screen_name=tracced_xyz" target="_blank" rel="noopener" data-umami-event="home-follow"><svg class="xmark" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>Follow @tracced_xyz</a>
+</section>
 
 {% endblock %}

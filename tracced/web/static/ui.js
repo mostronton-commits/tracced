@@ -260,3 +260,36 @@ window.EarlyTags = (function () {
   }
   return { ICON, BRANDS, chip, iconify, idMarks, isKol, handle, platforms, displayName, esc };
 })();
+/* Ready lists (owner, 07.10): «Follow N wallets» puts a list's wallets in the person's watchlist, under the list's own
+   name, with their bells on while the account has bells left. A guest connects first, and the follow goes on by itself. */
+(function () {
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  function said(d, n) {
+    const name = '<b>' + esc(d.name) + '</b> is in your watchlist';
+    if (!d.alerts_ok) return name + '.';
+    if (!d.alerts_on) return name + '. Its alerts are off: all ' + d.cap + ' of your bells are in use.';
+    return name + (d.alerts_on >= n ? ', alerts on for all ' + n + '.' : ', alerts on for ' + d.alerts_on + ' of ' + n + ': an account rings for ' + d.cap + ' wallets.')
+      + (d.telegram ? '' : ' Connect Telegram to get them.');
+  }
+  async function follow(b) {
+    if (b.disabled) return;
+    b.disabled = true; b.setAttribute('aria-busy', 'true');
+    try {
+      const d = await EarlyWallet.post('/me/ready/follow', { slug: b.dataset.follow });
+      try { localStorage.setItem('early:list', d.list); } catch (e) {}       // the watchlist opens on this list
+      EarlyUI.toast(said(d, +b.dataset.n || d.added) + ' <a href="/me#list">Open the watchlist</a>', 8000);
+      EarlyUI.track('list-follow', { list: b.dataset.follow });
+      const a = document.createElement('a'); a.className = 'button'; a.href = '/me#list'; a.textContent = 'In your watchlist';
+      b.replaceWith(a);
+    } catch (e) {
+      b.disabled = false; b.removeAttribute('aria-busy');
+      EarlyUI.toast(esc((e && e.message) || 'Could not follow this list. Try again.'));
+    }
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest('button[data-follow]'); if (!b) return;
+    e.preventDefault();
+    if (document.documentElement.dataset.acct === '1') follow(b);
+    else EarlyWallet.open(() => follow(b), 'Connect a wallet: the list goes to your watchlist, with Telegram alerts.');
+  });
+})();

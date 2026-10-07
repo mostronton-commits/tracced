@@ -219,6 +219,26 @@ class EarlyST(SolanaTracker):
                 partial = True                          # сторінки скінчились, а до потрібної дати ще не дійшли
         return out, partial
 
+    def kol_leaderboard(self, days=30, limit=10):
+        """KOL roster by realized profit over the last `days` (1 request): rows with wallet, period, identity."""
+        d = self._get(f"/v2/pnl/leaderboard/kols/period?period={int(days)}d&sort=realized&direction=desc&limit={int(limit)}")
+        return d.get("traders") or []
+
+    def top_traders(self, days=30, pages=10, per_page=100):
+        """All-wallet leaderboard by realized profit, `pages` cursor pages (1 request each). The board's own filters
+        drop thin and one-token wallets; whether a person is behind the rest is ready.is_person's job."""
+        base = (f"/v2/pnl/leaderboard/top?days={int(days)}&sort=realized&direction=desc&limit={int(per_page)}"
+                "&minTrades=40&minDays=10&maxSingleTokenPct=35&minInvested=10000&minClosedTokens=15")
+        out, cursor = [], None
+        for _ in range(int(pages)):
+            d = self._get(base + (f"&cursor={urllib.parse.quote(str(cursor))}" if cursor else ""))
+            out.extend(d.get("traders") or [])
+            p = d.get("pagination") or {}
+            cursor = p.get("nextCursor")
+            if not p.get("hasMore") or not cursor:
+                break
+        return out
+
     def flush(self):
         super().flush()
         for c in (self.chart_cache, self.stats_cache, self.identity_cache):

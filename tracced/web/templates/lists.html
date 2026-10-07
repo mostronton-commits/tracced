@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}{{ lst.title }} · tracced{% endblock %}
+{% block main_class %}withcard{% endblock %}
+{% block head %}<script src="/static/vendor/lightweight-charts.standalone.production.js?v={{ v }}"></script><script src="/static/chart.js?v={{ v }}"></script><script src="/static/card.js?v={{ v }}"></script>{% endblock %}
+{% block body %}
+{# a ready list (owner, 07.10): who is in it, by which rule, and one key to take all of it with alerts. A row opens the
+   wallet's card. The ranking and its sums are Solana Tracker's; the card's 30 days are counted by tracced from swaps #}
+{% macro face(r) %}<span class="limg" data-l="{{ r.letter }}" style="--h: {{ r.hue }}" aria-hidden="true">{% if r.avatar %}<img src="{{ r.avatar }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span>{% endmacro %}
+<section class="card lpage">
+  <a class="lp-back small" href="/#ready">Ready lists</a>
+  <div class="lp-top">
+    <div class="lp-id">
+      <h1>{{ lst.title }}</h1>
+      <p class="muted lp-rule">{{ lst.rule }}</p>
+    </div>
+    <div class="lp-bar">
+      {% if following %}<a class="button" href="/me#list">In your watchlist</a><span class="muted small">All {{ lst.summary.n }} are in your list “{{ lst.title }}”.</span>
+      {% else %}<button type="button" class="primary" data-follow="{{ lst.slug }}" data-n="{{ lst.summary.n }}">{{ icon('bell') }}Follow {{ lst.summary.n }} wallets</button><span class="muted small">To your watchlist{% if alerts_ok %}, with Telegram alerts{% endif %}</span>{% endif %}
+    </div>
+  </div>
+  <div class="lp-tally">
+    <div><b class="mono pos">+{{ lst.summary.realized|usd3 }}</b><span>Realized</span></div>
+    <div><b class="mono pos">+{{ lst.summary.best|usd3 }}</b><span>Best</span></div>
+    <div><b class="mono">{{ lst.summary.n }}</b><span>Wallets</span></div>
+    {% if ago %}<div><b class="mono">{{ ago }}</b><span>Updated</span></div>{% endif %}
+  </div>
+  <ol class="lp-rows">
+  {% for r in rows %}
+    <li data-w="{{ r.wallet }}" tabindex="0" title="Open this wallet's card">
+      <span class="rk">{{ r.rank }}</span>{{ face(r) }}
+      <span class="nm"><b{% if not r.name %} class="mono"{% endif %}>{{ r.label }}</b><small>{% if r.x %}@{{ r.x }}{% if r.days %} · {{ r.days }} active days{% endif %}{% elif r.win_rate %}{{ r.win_rate|round|int }}% win rate · {{ '{:,}'.format(r.trades) }} trades{% elif r.days %}{{ r.days }} active days{% endif %}</small></span>
+      <b class="mono pos rv">+{{ r.realized|usd3 }}</b>
+    </li>
+  {% endfor %}
+  </ol>
+  <p class="muted small lp-note">Ranked by Solana Tracker from each wallet's own trades, updated twice a day. Past results, not advice.</p>
+  {% for o in others %}<p class="lp-other small">Also: <a href="/lists/{{ o.slug }}">{{ o.title }}</a></p>{% endfor %}
+</section>
+<aside class="drawer wcard" id="drawer" hidden aria-label="Wallet card">
+  <div class="drawer-scroll">
+    <div class="drawer-head">
+      <div class="dh-id">
+        <span class="wav" id="dav" aria-hidden="true"></span>
+        <div class="dh-names">
+          <div class="dh-top"><b id="dname">Wallet</b><span class="ids" id="dids"></span></div>
+          <div class="dh-addr"><button type="button" class="dwc mono" id="dw" data-copy="" title="Copy the address" aria-label="Copy the address"></button><a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan" aria-label="This wallet on Solscan">{{ icon('launch') }}</a></div>
+        </div>
+      </div>
+      <div class="dh-act"><button type="button" class="ghost x" id="dclose" title="Close" aria-label="Close">×</button></div>
+    </div>
+    <section class="dsec dperf">
+      <div class="dsec-h"><h4>All tokens <span class="dinfo" id="dprofi" hidden>i</span></h4>
+        <div class="seg" id="dper" role="tablist" aria-label="Period"><button type="button" data-p="7">7D</button><button type="button" data-p="30" class="on">30D</button></div></div>
+      <div id="dprof"></div>
+    </section>
+  </div>
+</aside>
+<script type="application/json" id="lprows">{{ rows|tojson }}</script>
+<script>
+(function () {
+  const rows = JSON.parse(document.getElementById('lprows').textContent), byW = {};
+  rows.forEach(r => { byW[r.wallet] = r; });
+  const drawer = document.getElementById('drawer'), box = document.getElementById('dprof'), info = document.getElementById('dprofi');
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const list = document.querySelector('.lp-rows'), cache = new Map(); let period = '30';
+  function paint(d) { EarlyCard.render(d, period, box, info); document.querySelectorAll('#dper [data-p]').forEach(b => b.classList.toggle('on', b.dataset.p === period)); }
+  async function load(w) {
+    if (cache.has(w)) { paint(cache.get(w)); return; }
+    box.innerHTML = '<div class="dskel"><i></i><i></i><i></i></div>'; info.hidden = true;
+    let r, d = {};
+    try { r = await fetch('/wallet_profile.json?' + new URLSearchParams({ wallet: w }), { credentials: 'same-origin' }); d = await r.json(); }
+    catch (e) { if (drawer.dataset.w === w) box.innerHTML = '<p class="dline muted small">Could not reach the server.</p>'; return; }
+    if (drawer.dataset.w !== w) return;
+    if (!r.ok) {                                   // a guest sees a card someone already opened; a new one needs a wallet
+      box.innerHTML = '<p class="dline muted small">' + esc(d.error || 'Could not load this wallet.') + '</p>'
+        + (r.status === 401 ? '<p class="dline"><button type="button" class="primary" id="dconnect">Connect a wallet</button></p>' : '');
+      const c = document.getElementById('dconnect');
+      if (c) c.addEventListener('click', () => EarlyWallet.open(() => load(w), 'Connect a wallet to see this trader’s last 30 days.'));
+      return;
+    }
+    cache.set(w, d); paint(d);
+  }
+  function open(w) {
+    const r = byW[w] || {};
+    drawer.dataset.w = w; drawer.hidden = false; document.body.classList.add('drawer-open');
+    list.querySelectorAll('li.on').forEach(x => x.classList.remove('on'));
+    const li = list.querySelector('li[data-w="' + w + '"]'); if (li) li.classList.add('on');
+    document.getElementById('dav').innerHTML = r.avatar ? '<img src="' + esc(r.avatar) + '" alt="" referrerpolicy="no-referrer">' : EarlyCard.identicon(w);
+    document.getElementById('dname').textContent = r.name || 'Wallet';
+    document.getElementById('dids').innerHTML = r.x ? '<a class="ext small" href="https://x.com/' + encodeURIComponent(r.x) + '" target="_blank" rel="noopener">@' + esc(r.x) + '</a>' : '';
+    const dw = document.getElementById('dw'); dw.textContent = w.slice(0, 4) + '…' + w.slice(-4); dw.dataset.copy = w; dw.title = w + ' · click to copy';
+    document.getElementById('dsol').href = 'https://solscan.io/account/' + w;
+    document.getElementById('dclose').focus({ preventScroll: true });
+    EarlyUI.use('card-open', { src: 'list' });
+    load(w);
+  }
+  function close() {
+    const w = drawer.dataset.w; drawer.hidden = true; document.body.classList.remove('drawer-open');
+    const li = w && list.querySelector('li[data-w="' + w + '"]'); if (li) { li.classList.remove('on'); li.focus({ preventScroll: true }); }
+  }
+  list.addEventListener('click', e => { const li = e.target.closest('li[data-w]'); if (li) open(li.dataset.w); });
+  list.addEventListener('keydown', e => { const li = e.target.closest('li[data-w]'); if (li && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(li.dataset.w); } });
+  document.getElementById('dclose').addEventListener('click', close);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !drawer.hidden) close(); });
+  document.getElementById('dper').addEventListener('click', e => {
+    const b = e.target.closest('[data-p]'); if (!b) return;
+    period = b.dataset.p; EarlyUI.use('card-period', { p: period });
+    const d = cache.get(drawer.dataset.w); if (d) paint(d);
+  });
+})();
+</script>
+{% endblock %}
