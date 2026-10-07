@@ -13,6 +13,7 @@
     <div class="lp-id">
       <h1>{{ lst.title }}</h1>
       <p class="muted lp-rule">{{ lst.rule }}</p>
+      {% if lst.funnel %}<p class="small lp-funnel"><b class="mono">{{ '{:,}'.format(lst.funnel.checked) }}</b> wallets checked for {{ lst.label }}, <b class="mono">{{ lst.funnel.listed }}</b> made the list.</p>{% endif %}
     </div>
     <div class="lp-bar">
       {% if following %}<a class="button" href="/me#list">In your watchlist</a><span class="muted small">All {{ lst.summary.n }} are in your list “{{ lst.title }}”.</span>

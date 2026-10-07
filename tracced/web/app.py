@@ -3588,7 +3588,7 @@ def _saved_counts(app, now=None):
     return counts
 
 
-READY_ORDER = ("kols-30d", "top-traders-30d")
+READY_ORDER = ("top-traders",)            # власник, 08.10: один список; друга картка на головній пояснює, що це і навіщо
 
 
 def _ready_load(path):
@@ -3602,7 +3602,7 @@ def _ready_load(path):
     return {"lists": {}, "at": 0, "busy": False}
 
 
-READY_FORMAT = 3             # 08.10: календарний місяць, наш леджер, відсів не-людей; файл старого вигляду не читаємо
+READY_FORMAT = 4             # 08.10: один список з KOL і рейтингу, за місяць, наш леджер, лише люди; старі файли не читаємо
 
 
 def _ready_month(app, wallet, month):
@@ -3687,31 +3687,37 @@ async def _ready_refresh(app):
         n, month = int(s.get("ready_candidates", 40)), ready_mod.prev_month(time.time() * 1000)
 
         def work():
-            got, dropped = {}, {}
+            got = {}
             with st.meter():
                 n0 = st.requests_here()
                 try:
-                    for slug, fetch in (("kols-30d", lambda: ready_mod.kols(st.kol_leaderboard(30, n), n)),
-                                        ("top-traders-30d", lambda: ready_mod.traders(st.top_traders(30, int(s.get("ready_top_pages", 10))), n))):
+                    groups = []
+                    for name, fetch in (("kols", lambda: ready_mod.kols(st.kol_leaderboard(30, n), n)),
+                                        ("board", lambda: ready_mod.traders(st.top_traders(30, int(s.get("ready_top_pages", 10))), n))):
                         try:
-                            cands = fetch()
-                            facts = st.wallet_summaries([c["wallet"] for c in cands]) if hasattr(st, "wallet_summaries") else {}
-                        except Exception as ex:  # noqa: BLE001 — цей список лишається попереднім
-                            log.warning("ready list %s: %s", slug, ex)
-                            continue
-                        rows, dropped[slug] = _ready_count(app, cands, month, facts)
-                        got[slug] = ready_mod.rank(rows, min_pnl=float(s.get("ready_min_pnl", 10_000)))
-                        log.info("ready list %s %s: %s of %s candidates, dropped %s", slug, month["key"], len(got[slug]), len(cands), dropped[slug])
+                            groups.append(fetch())
+                        except Exception as ex:  # noqa: BLE001 — другий рейтинг усе одно дасть кандидатів
+                            log.warning("ready candidates %s: %s", name, ex)
+                    cands = ready_mod.merged(*groups)
+                    if not cands:
+                        return got
+                    facts = st.wallet_summaries([c["wallet"] for c in cands]) if hasattr(st, "wallet_summaries") else {}
+                    people, dropped = _ready_count(app, cands, month, facts)
+                    rows = ready_mod.rank(people, min_pnl=float(s.get("ready_min_pnl", 10_000)))
+                    pool = [{k: v for k, v in r.items() if k != "month"} for r in sorted(people, key=lambda r: -r["pnl"])]
+                    got["top-traders"] = {"rows": rows, "funnel": ready_mod.funnel(len(cands), dropped, len(people), len(rows)),
+                                          "pool": pool[:200]}
+                    log.info("ready list %s: %s of %s candidates, %s people, dropped %s", month["key"], len(rows), len(cands), len(people), dropped)
                 finally:
                     _spend(app, "system", "ready", st=st.requests_here() - n0)
-            return got, dropped
-        got, dropped = await asyncio.to_thread(work)
+            return got
+        got = await asyncio.to_thread(work)
         now = int(time.time() * 1000)
         lists = dict(r.get("lists") or {})
-        for slug, rows in got.items():
-            lists[slug] = dict(ready_mod.titled(slug, month), slug=slug, rows=rows, summary=ready_mod.summary(rows), at=now,
+        for slug, d in got.items():
+            lists[slug] = dict(ready_mod.titled(slug, month), slug=slug, rows=d["rows"], summary=ready_mod.summary(d["rows"]), at=now,
                                month=month["key"], label=month["label"], short=month["short"], next=month["next"],
-                               next_label=month["next_label"], dropped=dropped.get(slug) or {})
+                               next_label=month["next_label"], funnel=d["funnel"], pool=d["pool"])
         data = {"v": READY_FORMAT, "lists": lists, "at": now if got else r.get("at") or 0}
         path = app["ready_path"]
         tmp = str(path) + ".tmp"
@@ -3752,14 +3758,14 @@ def _ready_rows(lst):
 
 
 def _ready_view(app):
-    """Готові списки для головної: у кожного — назва з місяцем, підсумок і троє перших. Список коротший за
+    """Готові списки для головної: у кожного — назва з місяцем, підсумок і п'ятеро перших. Список коротший за
     ready_min_rows не показується. Рахує їх фон сервера раз на місяць."""
     lists, out = app["ready"].get("lists") or {}, []
     for k in READY_ORDER:
         if len((lists.get(k) or {}).get("rows") or []) < int(app["s"].get("ready_min_rows", 3)):
             continue
         rows = _ready_rows(lists[k])
-        out.append(dict(lists[k], top=rows[:3]))
+        out.append(dict(lists[k], top=rows[:5]))      # п'ятеро: поруч картка-пояснення вища; телефон показує трьох
     return out
 
 

@@ -127,9 +127,9 @@
 
 
 {% if ready %}
-{# owner, 07.10–08.10: lists a person can take in one click, for last month, changed once a month. Solana Tracker names
-   the candidates; what each one made in the month is counted by tracced from its own swaps, and only people stay. A
-   card: the sum, the first three, two keys #}
+{# owner, 07.10–08.10: a list a person can take in one click, for last month, changed once a month. Solana Tracker names
+   the candidates (KOLs and its board); what each one made in the month is counted by tracced from its own swaps, and
+   only people stay. A card: the sum, the first three, two keys; beside it, how the list was made and why it helps #}
 {% macro face(r) %}<span class="limg" data-l="{{ r.letter }}" style="--h: {{ r.hue }}" aria-hidden="true">{% if r.avatar %}<img src="{{ r.avatar }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span>{% endmacro %}
 {% macro sub(r) %}{% if r.x %}@{{ r.x }}{% if r.win_rate is not none %} · {{ r.win_rate|round|int }}% win rate{% endif %}{% elif r.win_rate is not none %}{{ r.win_rate|round|int }}% win rate · {{ r.tokens }} tokens{% else %}{{ r.tokens }} tokens{% endif %}{% endmacro %}
 <section class="ready" id="ready" aria-labelledby="readyh">
@@ -142,6 +142,20 @@
       <ol class="rc-top">{% for r in l.top %}<li><span class="rk">{{ r.rank }}</span>{{ face(r) }}<span class="nm"><b{% if not r.name %} class="mono"{% endif %}>{{ r.label }}</b><small>{{ sub(r) }}</small></span><b class="mono pos">+{{ r.rv }}</b></li>{% endfor %}</ol>
       <div class="rc-act"><button type="button" class="primary" data-follow="{{ l.slug }}" data-n="{{ l.summary.n }}">{{ icon('bell') }}Follow {{ l.summary.n }} wallets</button><a class="button" href="/lists/{{ l.slug }}">See all {{ l.summary.n }}</a></div>
     </article>
+    {% if l.funnel %}
+    {# owner, 08.10: one list, and beside it what the list is and why it is worth following — with its own numbers #}
+    <article class="rcard rexplain" aria-labelledby="rxh">
+      <h3 id="rxh">How the list is made</h3>
+      <div class="rx-tally"><div><b>{{ '{:,}'.format(l.funnel.checked) }}</b><span>wallets checked</span></div><div><b class="pos">{{ l.funnel.listed }}</b><span>made the list</span></div></div>
+      {% if l.funnel.reasons %}<ul class="rx-drop">{% for why, n in l.funnel.reasons %}<li><span>{{ why }}</span><b class="mono">{{ n }}</b></li>{% endfor %}</ul>{% endif %}
+      <ul class="rx-why">
+        <li><b>Hours of searching, done.</b> We read every candidate's own swaps for {{ l.label }} and kept the ones that made the most.</li>
+        <li><b>People, not machines.</b> Bots, fresh wallets, snipers and thousand-trade accounts stay out.</li>
+        <li><b>Alerts in one click.</b> Follow puts them in your watchlist, and their trades come to your Telegram.</li>
+        <li><b>A new list every month.</b> On {{ l.next_label }} it is counted again; the wallets you took stay yours.</li>
+      </ul>
+    </article>
+    {% endif %}
   {% endfor %}
   </div>
 </section>

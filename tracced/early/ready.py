@@ -5,10 +5,11 @@ swaps, the same way its card counts it (owner, 08.10: the list said +$2.31M wher
 count as profit the tokens that came from another wallet with no purchase: Dolo sold $2.31M of RARI, $1.85M of it
 moved in from elsewhere. So:
 
-- KOLs: Solana Tracker's KOL roster, named wallets with an X account;
-- Top traders: its board of all wallets, kept to where a person could be behind it;
-- each candidate's month is read in full and counted by tracced's ledger; a list keeps the people (below) that made more
-  than a floor, best first.
+- the candidates: Solana Tracker's KOL roster (named wallets with an X account) and its board of all wallets, kept to a
+  human pace; one list of both (owner, 08.10: «просто одну картку топ трейдери за вересень» — the board alone left three
+  people for September);
+- each candidate's month is read in full and counted by tracced's ledger; the list keeps the people (below) that made
+  more than a floor, best first.
 
 A list is a calendar month, the one before this (owner, 08.10: «топ трейдери за попередній місяць»): it changes once a
 month, on the 1st (UTC), and says which month it is.
@@ -28,13 +29,14 @@ import time
 SIZE = 10
 DAY = 86_400_000
 LISTS = {
-    "kols-30d": {"title": "KOLs · {month}", "kind": "kols",
-                 "rule": "Known traders with a public X account who trade like people, ranked by the profit on what they "
-                         "sold in {month}. tracced counts it from each wallet's own swaps, the same way as its card."},
-    "top-traders-30d": {"title": "Top traders · {month}", "kind": "top",
-                        "rule": "The most profitable wallets of {month} that trade like people, ranked by the profit on "
-                                "what they sold. tracced counts it from each wallet's own swaps, the same way as its card."},
+    "top-traders": {"title": "Top traders · {month}", "kind": "top",
+                    "rule": "The wallets that made the most in {month} and trade like people: known KOLs and the best of "
+                            "the market, each counted by tracced from its own swaps, the same way as its card."},
 }
+# why a candidate is not in the list, as the explaining card says it (owner, 08.10: «розписав що це за список і навіщо»)
+DROPPED = {"pace": "trade at a machine's pace", "fresh": "fresh wallets", "bot": "bots, exchanges, arbitrage",
+           "sniper": "snipers", "win rate": "win rate outside 30–90 %", "few": "too few closed trades",
+           "error": "could not be read", "small": "people who made less"}
 MAX_TRADES = 1500             # the board's pace: a month of about fifty trades a day
 NOT_PEOPLE = {"bot", "exchange", "pool", "hacker", "spam_dusting"}
 HUMAN = {"max_swaps": 1500, "max_tokens": 300, "min_closed": 5, "win_rate": [30.0, 90.0], "min_hold_min": 2.0,
@@ -91,6 +93,17 @@ def kols(raw, n=SIZE):
     return out[:n]
 
 
+def merged(*groups):
+    """Candidates from several boards, each wallet once; the first board's identity wins (a KOL's name and X)."""
+    out, seen = [], set()
+    for g in groups:
+        for r in g or []:
+            if r.get("wallet") and r["wallet"] not in seen:
+                seen.add(r["wallet"])
+                out.append(r)
+    return out
+
+
 def is_person(t):
     """One row of /v2/pnl/leaderboard/top: worth counting at all? The board's top is bots (08.10: 763 of its 802 rows
     traded over 1,500 times in 30 days), so the pace goes first; the win rate and where the profit came from are checked
@@ -126,7 +139,9 @@ def counted(row, month):
     month = month or {}
     wr = month.get("win_rate")
     who = {k: row.get(k) for k in ("wallet", "name", "x", "avatar")}
-    return dict(who, pnl=float(month.get("pnl_usd") or 0.0), win_rate=None if wr is None else round(float(wr) * 100, 1),
+    pnl, invested = float(month.get("pnl_usd") or 0.0), float(month.get("invested_usd") or 0.0)
+    return dict(who, pnl=pnl, invested=invested, roi=pnl / invested if invested >= 1 else None,
+                win_rate=None if wr is None else round(float(wr) * 100, 1),
                 wins=int(month.get("wins") or 0), losses=int(month.get("losses") or 0), closed=int(month.get("closed") or 0),
                 tokens=int(month.get("tokens") or 0), swaps=int(month.get("swaps") or 0), quick=int(month.get("quick") or 0),
                 avg_hold=month.get("avg_hold_min"), partial=bool(month.get("partial")),
@@ -172,6 +187,16 @@ def rank(rows, n=SIZE, min_pnl=0.0):
     keep = [r for r in rows or [] if not r.get("partial") and (r.get("pnl") or 0) > max(0.0, float(min_pnl or 0))]
     keep.sort(key=lambda r: -r["pnl"])
     return keep[:n]
+
+
+def funnel(checked, dropped, people, listed):
+    """How the list was made, for the card that explains it: how many were checked and why the rest are not in it,
+    largest reason first. {"checked", "listed", "reasons": [[label, n], …]}"""
+    why = dict(dropped or {})
+    if people > listed:
+        why["small"] = people - listed
+    reasons = sorted(((DROPPED.get(k, k), n) for k, n in why.items() if n), key=lambda x: -x[1])
+    return {"checked": int(checked), "listed": int(listed), "reasons": [[k, n] for k, n in reasons]}
 
 
 def summary(rows):

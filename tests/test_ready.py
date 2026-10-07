@@ -117,6 +117,29 @@ class TestOwnCount(unittest.TestCase):
         self.assertEqual(len(ready.rank([dict(rows[0], wallet=str(i)) for i in range(15)])), ready.SIZE)
 
 
+class TestOneList(unittest.TestCase):
+    """Власник, 08.10: «просто одну картку топ трейдери за вересень» — KOL і рейтинг разом, і поруч — як її склали."""
+
+    def test_both_boards_once_each_the_kol_name_first(self):
+        k = ready.kols([kol(1, 5.0, name="Dolo")])
+        t = ready.traders([dict(top(9, 1e5), wallet=k[0]["wallet"]), top(8, 9e4)])
+        out = ready.merged(k, t)
+        self.assertEqual([r["wallet"] for r in out], [k[0]["wallet"], addr("T", 8)])
+        self.assertEqual(out[0]["name"], "Dolo")
+
+    def test_how_the_list_was_made(self):
+        f = ready.funnel(141, {"pace": 81, "fresh": 24, "bot": 2, "win rate": 9, "few": 6}, 19, 10)
+        self.assertEqual(f["checked"], 141)
+        self.assertEqual(f["reasons"][:3], [["trade at a machine's pace", 81], ["fresh wallets", 24], ["win rate outside 30–90 %", 9]])
+        self.assertIn(["people who made less", 9], f["reasons"])                   # люди, що не ввійшли в десятку
+        self.assertEqual(ready.funnel(5, {}, 3, 3)["reasons"], [])
+
+    def test_roi_is_the_profit_on_what_went_in(self):
+        row = ready.counted({"wallet": "W"}, {"pnl_usd": 30_000.0, "invested_usd": 10_000.0, "win_rate": 0.5})
+        self.assertEqual((row["roi"], row["invested"]), (3.0, 10_000.0))
+        self.assertIsNone(ready.counted({"wallet": "W"}, {"pnl_usd": 5.0, "invested_usd": 0})["roi"])
+
+
 class TestMonth(unittest.TestCase):
     """Власник, 08.10: «топ трейдери за попередній місяць» — список змінюється раз на місяць і каже, за який."""
 
@@ -130,7 +153,7 @@ class TestMonth(unittest.TestCase):
         self.assertEqual((jan["key"], jan["label"], jan["days"], jan["next_label"]), ("2026-12", "December", 31, "Feb 1"))
         dec = ready.prev_month(1_796_000_000_000)                                  # 2026-11-29 → жовтень, наступний — 1 грудня
         self.assertEqual((dec["key"], dec["next_label"]), ("2026-10", "Dec 1"))
-        self.assertEqual(ready.titled("top-traders-30d", m)["title"], "Top traders · September")
+        self.assertEqual(ready.titled("top-traders", m)["title"], "Top traders · September")
 
 
 class TestHuman(unittest.TestCase):
@@ -215,6 +238,7 @@ if AioHTTPTestCase:
 
     GUEST = {"Cookie": ""}
     OTHER = acct_mod.b58encode(b"\x09" * 32)                      # звичайний гаманець, не власник
+    SLUG = "top-traders"
 
     class ReadyST(FakeWebST):
         def kol_leaderboard(self, days=30, limit=10):
@@ -233,8 +257,7 @@ if AioHTTPTestCase:
 
         def wallet_swaps(self, owner, since_ms, max_pages=5):
             """Одна купівля і продаж з прибутком $50 — у минулому місяці, хоч би яке сьогодні число."""
-            raw, partial = super().wallet_swaps(owner, ready.prev_month(time.time() * 1000)["from"], max_pages)
-            return raw, partial
+            return super().wallet_swaps(owner, ready.prev_month(time.time() * 1000)["from"], max_pages)
 
     class TestReadyWeb(AioHTTPTestCase):
         async def get_application(self):
@@ -261,143 +284,145 @@ if AioHTTPTestCase:
         def origin(self):
             return {"Origin": f"http://{self.client.host}:{self.client.port}"}
 
-        async def refresh(self):
-            await _ready_refresh(self.app)
-            return self.app["ready"]["lists"]
-
         @property
         def month(self):
             return ready.prev_month(time.time() * 1000)
 
-        async def test_the_lists_are_last_month_counted_once_and_kept_in_a_file(self):
+        async def refresh(self):
+            await _ready_refresh(self.app)
+            return self.app["ready"]["lists"]
+
+        async def test_one_list_of_last_month_counted_once_and_kept_in_a_file(self):
             self.app["s"]["ready_lists_on"] = False
             self.assertNotIn('id="ready"', await (await self.client.get("/")).text())     # вимкнено — ні блоку, ні запитів
             await self.refresh()
             self.assertEqual(self.st.requests, 0)
             self.app["s"]["ready_lists_on"] = True
             lists = await self.refresh()
-            # KOL — 1 запит, дошка — 4 сторінки, перші угоди — по 1 на список, і кожен кандидат своїми обмінами, крім
+            # KOL — 1 запит, дошка — 4 сторінки, перші угоди — 1 на всіх, і кожен кандидат (24) своїми обмінами, крім
             # свіжого KOL і арбітражного бота: їх відсіяно до запиту
-            self.assertEqual(self.st.requests, 1 + 4 + 2 + 11 + 11)
-            k, t = lists["kols-30d"], lists["top-traders-30d"]
-            self.assertEqual((k["title"], k["month"], k["label"], k["next_label"]), ("KOLs · " + self.month["label"], self.month["key"], self.month["label"], self.month["next_label"]))
-            self.assertEqual((k["dropped"], t["dropped"]), ({"fresh": 1}, {"bot": 1}))
-            self.assertNotIn(addr("K", 2), [r["wallet"] for r in k["rows"]])
-            first = k["rows"][0]
+            self.assertEqual(self.st.requests, 1 + 4 + 1 + 22)
+            self.assertEqual(set(lists), {SLUG})                                           # власник, 08.10: один список
+            t = lists[SLUG]
+            self.assertEqual((t["title"], t["month"], t["next_label"]), ("Top traders · " + self.month["label"], self.month["key"], self.month["next_label"]))
+            self.assertEqual(t["funnel"], {"checked": 24, "listed": 10, "reasons": [["people who made less", 12], ["fresh wallets", 1], ["bots, exchanges, arbitrage", 1]]})
+            self.assertEqual(len(t["pool"]), 22)                                           # усі люди — на випадок списку за ROI
+            first = t["rows"][0]
             self.assertEqual((first["name"], first["pnl"], first["win_rate"], first["month"]["label"]), ("Kol 1", 50.0, 100.0, self.month["label"]))
             self.assertNotIn("realized", first)
-            self.assertEqual(t["summary"], {"n": 10, "pnl": 500.0, "best": 50.0})
+            self.assertNotIn(addr("K", 2), [r["wallet"] for r in t["rows"]])
             self.app["ready"]["tried_at"] = 0
             await self.refresh()
-            self.assertEqual(self.st.requests, 29)                                         # місяць уже пораховано: до 1-го — ні запиту
+            self.assertEqual(self.st.requests, 28)                                         # місяць уже пораховано: до 1-го — ні запиту
             with open(self.tmp.name + "/ready_lists.json") as f:
                 saved = json.load(f)
-            self.assertEqual((saved["v"], set(saved["lists"])), (3, set(lists)))            # після перезапуску — з файлу
+            self.assertEqual((saved["v"], set(saved["lists"])), (4, {SLUG}))                 # після перезапуску — з файлу
 
         async def test_a_new_month_counts_again_but_not_after_every_failure(self):
             await self.refresh()
-            for v in self.app["ready"]["lists"].values():
-                v["month"] = "2000-01"                                                     # минулий місяць змінився
+            self.app["ready"]["lists"][SLUG]["month"] = "2000-01"                          # минулий місяць змінився
             n = self.st.requests
             await self.refresh()
             self.assertEqual(self.st.requests, n)                                          # щойно пробували — чекає ready_retry_hours
             self.app["ready"]["tried_at"] = 0
             await self.refresh()
             self.assertGreater(self.st.requests, n)
-            self.assertEqual(self.app["ready"]["lists"]["kols-30d"]["month"], self.month["key"])
+            self.assertEqual(self.app["ready"]["lists"][SLUG]["month"], self.month["key"])
 
         async def test_a_file_of_an_older_kind_is_not_read(self):
             from tracced.web.app import _ready_load
             path = self.tmp.name + "/old.json"
-            for v in (None, 2):
+            for v in (None, 2, 3):
                 with open(path, "w") as f:
                     json.dump({"v": v, "lists": {"kols-30d": {"rows": [{"wallet": "W", "pnl": 1.0}]}}, "at": 1}, f)
-                self.assertEqual(_ready_load(path)["lists"], {})                            # 07.10 рейтингові, 08.10 «30 днів»
+                self.assertEqual(_ready_load(path)["lists"], {})                            # 07.10 рейтингові, «30 днів», два списки
 
-        async def test_a_failed_list_keeps_its_last_month(self):
+        async def test_one_board_down_still_makes_the_list_both_down_keep_the_last_month(self):
             await self.refresh()
-            was = self.app["ready"]["lists"]["kols-30d"]["rows"]
+            was = self.app["ready"]["lists"][SLUG]["rows"]
 
             def down(*a, **k):
                 raise RuntimeError("board down")
             self.st.kol_leaderboard = down
-            for v in self.app["ready"]["lists"].values():
-                v["month"] = "2000-01"
-            self.app["ready"]["tried_at"] = 0
+            self.app["ready"]["lists"][SLUG]["month"], self.app["ready"]["tried_at"] = "2000-01", 0
             lists = await self.refresh()
-            self.assertEqual((lists["kols-30d"]["rows"], lists["kols-30d"]["month"]), (was, "2000-01"))   # той, що був
-            self.assertEqual(lists["top-traders-30d"]["month"], self.month["key"])          # другий — новий
+            self.assertEqual(lists[SLUG]["month"], self.month["key"])                        # з одного рейтингу
+            self.assertTrue(all(r["wallet"].startswith("T") for r in lists[SLUG]["rows"]))
+            self.st.top_traders = down
+            self.app["ready"]["lists"][SLUG]["month"], self.app["ready"]["tried_at"] = "2000-01", 0
+            kept = self.app["ready"]["lists"][SLUG]["rows"]
+            lists = await self.refresh()
+            self.assertEqual((lists[SLUG]["rows"], lists[SLUG]["month"]), (kept, "2000-01"))   # обидва впали — той, що був
             self.assertFalse(self.app["ready"]["busy"])
+            self.assertNotEqual(was, [])
 
-        async def test_home_shows_two_cards_with_a_podium_and_one_key_each(self):
+        async def test_home_shows_the_list_and_beside_it_how_it_is_made(self):
             await self.refresh()
             html = await (await self.client.get("/", headers=GUEST)).text()
             self.assertIn('id="ready"', html)
-            self.assertIn("KOLs · " + self.month["label"], html)
             self.assertIn("Top traders · " + self.month["label"], html)
             self.assertIn("profit together in " + self.month["label"], html)
             self.assertIn("next list " + self.month["next_label"], html)                       # змінюється раз на місяць
-            self.assertIn('data-follow="kols-30d"', html)
+            self.assertEqual(html.count('class="rcard"'), 1)                                # один список (власник, 08.10)
+            self.assertIn("How the list is made", html)                                    # і поруч — що це і навіщо
+            self.assertIn("<b>24</b><span>wallets checked</span>", html)
+            self.assertIn("<li><span>fresh wallets</span><b class=\"mono\">1</b></li>", html)
+            self.assertIn("Hours of searching, done.", html)
+            self.assertIn('data-follow="top-traders"', html)
             self.assertIn("Follow 10 wallets", html)
-            self.assertIn('href="/lists/kols-30d">See all 10</a>', html)                    # троє рядками і дві кнопки (власник, 08.10)
+            self.assertIn('href="/lists/top-traders">See all 10</a>', html)
             self.assertIn('src="https://pbs.example/1.jpg"', html)
             self.assertIn("@kol1 · 100% win rate", html)
             self.assertIn("Their trades come to your Telegram.", html)
-            for gone in ("and 7 more", "Past results", "Rankings by", "No hours of searching", "rc-stack"):
+            for gone in ("and 7 more", "Past results", "Rankings by", "rc-stack", "KOLs · "):
                 self.assertNotIn(gone, html)
             self.assertLess(html.index('id="ready"'), html.index('class="freebar"'))          # «Free while we build it» — нижче, окремо
-            self.assertNotIn("herofree", html)
             self.assertIsNone(CYRILLIC.search(html))
 
         async def test_the_list_page_is_open_to_anyone_and_unknown_lists_are_404(self):
             await self.refresh()
-            r = await self.client.get("/lists/top-traders-30d", headers=GUEST)
+            r = await self.client.get("/lists/top-traders", headers=GUEST)
             self.assertEqual(r.status, 200)
             html = await r.text()
             self.assertIn("trade like people", html)                                       # правило відбору на сторінці
-            self.assertIn("100% win rate · 1W 0L · 1 tokens", html)
+            self.assertIn("wallets checked for " + self.month["label"], html)
+            self.assertIn("100% win rate · 1W 0L", html)
             self.assertIn('data-p="M" class="on">' + self.month["label"][:3], html)          # картка відкривається на місяці списку
             self.assertIn("Next list", html)
-            self.assertIn('href="/lists/kols-30d"', html)                                   # інший список
-            self.assertNotIn("Ranked by Solana Tracker", html)
-            self.assertIn('data-follow="top-traders-30d"', html)
+            self.assertIn('data-follow="top-traders"', html)
             self.assertIsNone(CYRILLIC.search(html))
-            self.assertEqual((await self.client.get("/lists/nope", headers=GUEST)).status, 404)
+            for gone in ("nope", "kols-30d", "top-traders-30d"):
+                self.assertEqual((await self.client.get("/lists/" + gone, headers=GUEST)).status, 404)
 
-        async def test_follow_takes_the_list_with_its_bells_once(self):
+        async def test_follow_takes_a_copy_of_the_list_with_its_bells_once(self):
             await self.refresh()
-            r = await self.client.post("/me/ready/follow", json={"slug": "kols-30d"}, headers=GUEST | self.origin)
+            r = await self.client.post("/me/ready/follow", json={"slug": SLUG}, headers=GUEST | self.origin)
             self.assertEqual(r.status, 401)                                                # гість спершу підключається
-            r = await self.client.post("/me/ready/follow", json={"slug": "kols-30d"})
+            r = await self.client.post("/me/ready/follow", json={"slug": SLUG})
             self.assertEqual(r.status, 403)                                                # лише з цього сайту
-            r = await self.client.post("/me/ready/follow", json={"slug": "kols-30d"}, headers=self.origin)
+            r = await self.client.post("/me/ready/follow", json={"slug": SLUG}, headers=self.origin)
             d = await r.json()
             self.assertEqual(r.status, 200, d)
-            self.assertEqual((d["name"], d["added"], d["alerts_on"], d["alerts_ok"], d["telegram"]), ("KOLs · " + self.month["label"], 10, 10, True, False))
+            name = "Top traders · " + self.month["label"]
+            self.assertEqual((d["name"], d["added"], d["alerts_on"], d["cap"], d["alerts_ok"], d["telegram"]), (name, 10, 10, 20, True, False))
             a = self.app["accounts"].load(TEST_PK)
-            self.assertEqual(a["lists"][d["list"]]["name"], "KOLs · " + self.month["label"])
-            rows = self.app["ready"]["lists"]["kols-30d"]["rows"]
+            self.assertEqual(a["lists"][d["list"]]["name"], name)
+            rows = self.app["ready"]["lists"][SLUG]["rows"]
             self.assertTrue(all(d["list"] in a["wallets"][x["wallet"]]["lists"] and a["wallets"][x["wallet"]]["alert"] for x in rows))
-            again = await (await self.client.post("/me/ready/follow", json={"slug": "kols-30d"}, headers=self.origin)).json()
+            again = await (await self.client.post("/me/ready/follow", json={"slug": SLUG}, headers=self.origin)).json()
             self.assertEqual((again["list"], again["added"]), (d["list"], 0))              # той самий список, без дублів
-            html = await (await self.client.get("/lists/kols-30d")).text()
+            html = await (await self.client.get("/lists/top-traders")).text()
             self.assertIn("In your watchlist", html)
-            self.assertNotIn('data-follow="kols-30d"', html)
+            self.assertNotIn('data-follow="top-traders"', html)
             r = await self.client.post("/me/ready/follow", json={"slug": "nope"}, headers=self.origin)
             self.assertEqual(r.status, 404)
-            tail = [e["event"] for e in self.app["events"].tail(10)]
-            self.assertIn("list_follow", tail)
-
-        async def test_twenty_bells_hold_both_lists_and_more_waits(self):
+            self.assertIn("list_follow", [e["event"] for e in self.app["events"].tail(10)])
+            # наступного місяця — новий список з новою назвою; узятий раніше лишається як був (копія)
+            self.app["ready"]["lists"][SLUG]["month"], self.app["ready"]["tried_at"] = "2000-01", 0
+            self.app["ready"]["lists"][SLUG]["title"] = "Top traders · Old"
             await self.refresh()
-            self.assertEqual(self.app["s"]["alerts_max_wallets"], 20)                        # власник, 08.10: 10 → 20
-            await self.client.post("/me/ready/follow", json={"slug": "kols-30d"}, headers=self.origin)
-            d = await (await self.client.post("/me/ready/follow", json={"slug": "top-traders-30d"}, headers=self.origin)).json()
-            self.assertEqual((d["added"], d["alerts_on"], d["cap"]), (10, 10, 20))
-            self.app["s"]["alerts_max_wallets"] = 15
-            await self.client.post("/me/ready/follow", json={"slug": "kols-30d"}, headers=self.origin)
             a = self.app["accounts"].load(TEST_PK)
-            self.assertEqual(sum(1 for x in a["wallets"].values() if x.get("alert")), 20)    # нижча стеля не гасить уже ввімкнені
+            self.assertEqual(sorted(w for w, m in a["wallets"].items() if d["list"] in m["lists"]), sorted(x["wallet"] for x in rows))
 
         async def test_the_result_head_shows_the_tokens_picture_and_each_row_its_phone_line(self):
             seed_demo(self.tmp.name, self.app)
@@ -412,9 +437,9 @@ if AioHTTPTestCase:
             self.assertIn('aria-label="Save analysis"', html)                              # на телефоні кнопка — лише зірка
             self.assertIsNone(CYRILLIC.search(html))
 
-        async def test_a_ready_wallets_card_opens_without_a_watchlist(self):
+        async def test_a_listed_wallets_card_opens_without_a_watchlist(self):
             await self.refresh()
-            w = self.app["ready"]["lists"]["kols-30d"]["rows"][0]["wallet"]
+            w = self.app["ready"]["lists"][SLUG]["rows"][0]["wallet"]
             before = self.st.requests
             r = await self.client.get(f"/wallet_profile.json?wallet={w}", headers=GUEST)
             self.assertEqual(r.status, 200)                                                # список уже порахував картку: і гостю
@@ -426,8 +451,6 @@ if AioHTTPTestCase:
             self.client.session.headers["Cookie"] = wallet_cookie(OTHER)
             r = await self.client.get(f"/wallet_profile.json?wallet={w}")
             self.assertEqual(r.status, 200, await r.text())                                # не у вотчлісті — і все одно відкривається
-            r = await self.client.get(f"/wallet_profile.json?wallet={w}", headers=GUEST)
-            self.assertEqual(r.status, 200)                                                # з кешу — і гостю
             stranger = acct_mod.b58encode(b"\x0b" * 32)
             r = await self.client.get(f"/wallet_profile.json?wallet={stranger}")
             self.assertEqual(r.status, 404)                                                # чужа адреса — ні

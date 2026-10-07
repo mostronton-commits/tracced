@@ -381,16 +381,18 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   letter while it loads or when it has none), symbol, one fact, how long ago. The fact is "saved N wallets" with the
   star when people really saved wallets from that analysis, otherwise "found N wallets". Never a made-up number. The
   demo is no row: a guest gets a demo card under the token field (the token, its wallets and 2×+, Open the demo).
-- **Ready lists** (owner, 07.10: «цікаво, зрозуміло і привабливо»; 08.10) sit on the home page under the live feed:
-  two cards side by side, one column on a phone. Each is last month's and says so ("KOLs · September"), and changes
-  once a month: the card reads "N wallets · next list Nov 1". A card is a small leaderboard: the sum they made in the
-  month in mono at 24 px 700, green as profit is, the first three as rows (navy rank mark, face, name with @X or win
-  rate, the profit), then two keys: *Follow N wallets* with the bell (mint) and *See all N* (white). The two cards are
-  one choice, so each carries its own mint key. No stack of faces, no "and 7 more", no line of selling points and no
-  note under the cards (owner, 08.10: they looked cheap). Profits show three significant figures ($6.77M, $583K):
-  with fewer, neighbours look alike. Every number is tracced's own count of the month, the same as the wallet's card
-  on that month; the board that names the candidates is never quoted.
-- **A ready list's page**: the title and its rule in one paragraph, the key on top (on a phone a bar fixed at the
+- **Ready lists** (owner, 07.10: «цікаво, зрозуміло і привабливо»; 08.10: one list) sit on the home page under the
+  live feed: two cards side by side, one column on a phone. The first is the list, last month's, and says so ("Top
+  traders · September", "10 wallets · next list Nov 1"): the sum they made in the month in mono at 24 px 700, green as
+  profit is, the first five as rows (three on a phone; navy rank marks for the first three; face, name with @X or win
+  rate, the profit), then two keys: *Follow N wallets* with the bell (mint) and *See all N* (white). The second card
+  says how the list is made (owner, 08.10: «розписав що це за список і навіщо він»): a tally of wallets checked and
+  made the list, the reasons the rest are out with their counts (hidden on a phone), then four points with a bold lead
+  each: hours of searching done, people not machines, alerts in one click, a new list every month. No stack of faces,
+  no "and 7 more", no note under the cards. Profits show three significant figures ($6.77M, $583K). Every number is
+  tracced's own count of the month, the same as the wallet's card on that month; the ranking that names the
+  candidates is never quoted.
+- **A ready list's page**: the title and its rule in one paragraph with "N wallets checked, 10 made the list", the key on top (on a phone a bar fixed at the
   bottom of the screen), a tally strip (Profit, Best, Wallets, Next list), then the wallets as a leaderboard with @X,
   win rate, wins and losses. A row opens the wallet card on the list's month (its tab first, then 7D and 30D), the
   same numbers as the row. Once the person follows the list, the key becomes "In your watchlist".
