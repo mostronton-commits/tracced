@@ -77,13 +77,13 @@
     const day = x => x ? '<b class="' + (x.usd >= 0 ? 'pos' : 'neg') + '">' + money(x.usd) + '</b><small>' + utcDay(x.ms) + '</small>' : '<b>—</b>';
     if (info) {                                  // short (custdev 01.10: too much text in the tooltips)
       // owner, 07.10: profit counts on the day of the sale, at what the wallet paid, even for a token bought earlier
-      info.title = 'PnL counts every sale in these ' + p.days + ' days at what the wallet paid, even if it bought earlier. From '
+      info.title = 'PnL counts every sale ' + (p.label ? 'in ' + p.label : 'in these ' + p.days + ' days') + ' at what the wallet paid, even if it bought earlier. From '
         + nf(p.swaps) + ' swaps on every token' + (all.partial ? ', latest only, since ' + EarlyTZ.fmt(all.oldest_ms || p.since_ms, false) : '')
         + '. Closed = 99% sold.' + (p.unbacked_tokens ? ' ' + plural(p.unbacked_tokens, 'token') + ' sold with no buy found left out.' : '');
       info.hidden = !p.swaps;
       info.classList.toggle('warn', !!(all.partial || p.unbacked_tokens));
     }
-    box.innerHTML = !p.swaps ? '<p class="dline muted small">No swaps in ' + p.days + ' days.</p>' :
+    box.innerHTML = !p.swaps ? '<p class="dline muted small">No swaps ' + (p.label ? 'in ' + p.label : 'in ' + p.days + ' days') + '.</p>' :
       '<div class="dhero"><div><span class="lbl">PnL</span><b class="big ' + cls + '">' + (sol ? EarlyCur.solHtml(p.pnl_sol) : money(p.pnl_usd)) + '</b></div>'
       + '<div class="r" title="' + plural(p.closed, 'closed position') + '"><span class="lbl">Win rate</span><b class="big">' + (p.win_rate == null ? '—' : Math.round(p.win_rate * 100) + '%') + '</b>'
       + '<span class="sub"><span class="pos">' + p.wins + 'W</span> <span class="neg">' + p.losses + 'L</span></span></div></div>'

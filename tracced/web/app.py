@@ -695,6 +695,7 @@ ONCHAIN_FIRST_S, ONCHAIN_EVERY_S = 600, 6 * 3600
 async def _start_background(app):
     loop = asyncio.get_running_loop()
     app["bg"]["usage"] = loop.create_task(_usage_loop(app))
+    app["bg"]["ready"] = loop.create_task(_ready_loop(app))
     fresh_age = time.time() * 1000 - app["fresh"]["at"]
     if app["s"].get("fresh_on") and fresh_age > float(app["s"].get("fresh_refresh_min", 10)) * 60_000:
         app["bg"]["fresh"] = loop.create_task(_fresh_refresh(app))       # головна не чекає; свіжий список з файла — не питаємо знову
@@ -3601,49 +3602,92 @@ def _ready_load(path):
     return {"lists": {}, "at": 0, "busy": False}
 
 
-def _ready_due(app):
-    s, r = app["s"], app["ready"]
-    return bool(s.get("ready_lists_on")) and not r.get("busy") and \
-        time.time() * 1000 - (r.get("at") or 0) >= float(s.get("ready_lists_refresh_hours", 12)) * 3_600_000
+READY_FORMAT = 3             # 08.10: календарний місяць, наш леджер, відсів не-людей; файл старого вигляду не читаємо
 
 
-READY_FORMAT = 2             # 08.10: суми — наш леджер, не рейтинг Solana Tracker; файл старого вигляду не читаємо
+def _ready_month(app, wallet, month):
+    """Місяць кандидата нашим леджером (власник, 08.10). Обміни — від сьогодні назад до початку місяця, не більше
+    ready_profile_pages сторінок: хто їх переповнює, торгує тисячами угод і далі не рахується. Хто проходить темп, тому
+    дочитуються старі купівлі (для місяця і для 30 днів картки разом), і його картка лягає в кеш: зі списку вона
+    відкривається одразу, і гостю теж. → підсумок місяця (profile.summary)."""
+    st, s = app["st"], app["s"]
+    now = int(time.time() * 1000)
+    raw, partial = st.wallet_swaps(wallet, min(month["from"], now - 30 * 86_400_000), int(s.get("ready_profile_pages", 3)))
+    if partial:
+        return {"partial": True}
+    evs = [ev for r in reversed(raw) for ev in profile.normalize_wallet_swap(r, wallet)]   # джерело віддає новіші першими
+    pre = profile.summary(evs, wallet, month["to"], month["days"])
+    rules = dict(ready_mod.HUMAN, **(s.get("ready_human") or {}))
+    if pre["swaps"] > int(rules["max_swaps"]) or pre["tokens"] > int(rules["max_tokens"]):
+        return pre                               # темп машини: старі купівлі не дочитуємо, відсів скаже «pace»
+    need = list(dict.fromkeys(profile.needs_history(evs, month["to"], month["days"]) + profile.needs_history(evs, now, 30)))
+    hist, used = _profile_history(app, wallet, evs, now, 30, key="ready-history",
+                                  cap=int(s.get("ready_history_per_day", 3000)), need=need)
+    card = profile.card(evs, wallet, now, False, history=hist)
+    card["computed_ms"], card["history_requests"] = now, used
+    app["profile_cache"].put(f"v{profile.VERSION}:{wallet}", card)
+    out = profile.summary(evs, wallet, month["to"], month["days"], False, history=hist)
+    out["label"] = month["label"]                # картка на сторінці списку пише «in September», а не «in these 30 days»
+    return out
 
 
-def _ready_count(app, cands):
-    """Кожен кандидат готового списку — нашим леджером, як його картка (власник, 08.10: список казав +$2.31M, картка
-    $463K): усі 30 днів, до ready_profile_pages сторінок обмінів, старі купівлі — з окремої добової стелі списків.
-    Картка лягає в кеш, тож зі списку вона відкривається одразу, і гостю теж."""
+def _ready_count(app, cands, month, facts):
+    """Кожен кандидат — його місяць нашим леджером і перевірка «схожий на людину». → (рядки, {причина відсіву: скільки})."""
     s = app["s"]
-    pages, cap = int(s.get("ready_profile_pages", 12)), int(s.get("ready_history_per_day", 1500))
+    rules = dict(ready_mod.HUMAN, **(s.get("ready_human") or {}))
 
     def one(row):
+        f = dict(facts.get(row["wallet"]) or {})
+        f["type"] = f.get("type") or row.get("type")
+        why = ready_mod.by_facts(f, month["from"], rules)
+        if why:
+            return None, why                     # бот чи свіжий — до жодного запиту
         try:
-            return ready_mod.counted(row, _profile_now(app, row["wallet"], pages=pages, history_key="ready-history", history_cap=cap))
+            c = ready_mod.counted(row, _ready_month(app, row["wallet"], month))
         except Exception as ex:  # noqa: BLE001 — без цього гаманця список лише коротший
             log.info("ready count %s: %s", row["wallet"][:8], ex)
-            return None
+            return None, "error"
+        why = ready_mod.not_human(c, month["from"], f, rules)
+        return (None, why) if why else (c, None)
     with ThreadPoolExecutor(max_workers=4) as pool:      # лічильник запитів живе в контексті: копія на кожен
-        futs = [pool.submit(contextvars.copy_context().run, one, r) for r in cands]
-        return [x for x in (f.result() for f in futs) if x]
+        got = [f.result() for f in [pool.submit(contextvars.copy_context().run, one, r) for r in cands]]
+    dropped = {}
+    for _, why in got:
+        if why:
+            dropped[why] = dropped.get(why, 0) + 1
+    return [c for c, _ in got if c], dropped
+
+
+def _ready_due(app):
+    """Час рахувати: настав новий місяць, а списки ще за попередній (чи їх нема), і остання спроба була не щойно."""
+    s, r = app["s"], app["ready"]
+    if not s.get("ready_lists_on") or r.get("busy"):
+        return False
+    now = time.time() * 1000
+    key = ready_mod.prev_month(now)["key"]
+    lists = r.get("lists") or {}
+    if all((lists.get(k) or {}).get("month") == key for k in READY_ORDER):
+        return False
+    return now - (r.get("tried_at") or 0) >= float(s.get("ready_retry_hours", 3)) * 3_600_000
 
 
 async def _ready_refresh(app):
-    """Готові списки: не частіше ніж раз на ready_lists_refresh_hours і лише коли хтось відкриває головну чи сторінку
-    списку. Хто може бути в списку — каже Solana Tracker (його KOL і загальний рейтинг, ~11 запитів); скільки кожен
-    заробив — рахуємо самі, його картку (до ~40 запитів на гаманець). Кожен список оновлюється сам по собі: збій одного
-    лишає його попередню версію."""
+    """Готові списки за минулий календарний місяць (власник, 08.10): раз на місяць, першого числа (UTC) — з фону
+    сервера, а не з чийогось перегляду. Кандидатів називає Solana Tracker (KOL і загальний рейтинг, ~11 запитів), коли
+    почав торгувати кожен — його пакетний запит (1 на 100); прибуток рахуємо самі. ~1 500 запитів за раз. Кожен список
+    оновлюється сам по собі: збій лишає попередній місяць, і причина йде в журнал."""
     s, st, r = app["s"], app["st"], app["ready"]
     if not _ready_due(app) or not hasattr(st, "kol_leaderboard"):
         return
-    r["busy"] = True
+    r["busy"], r["tried_at"] = True, int(time.time() * 1000)
     try:
         if not await _st_open(app):
+            log.warning("ready lists: the Solana Tracker balance is under the reserve, next try in %s h", s.get("ready_retry_hours", 3))
             return
-        n = int(s.get("ready_candidates", 20))
+        n, month = int(s.get("ready_candidates", 40)), ready_mod.prev_month(time.time() * 1000)
 
         def work():
-            got = {}
+            got, dropped = {}, {}
             with st.meter():
                 n0 = st.requests_here()
                 try:
@@ -3651,29 +3695,49 @@ async def _ready_refresh(app):
                                         ("top-traders-30d", lambda: ready_mod.traders(st.top_traders(30, int(s.get("ready_top_pages", 10))), n))):
                         try:
                             cands = fetch()
-                        except Exception as ex:  # noqa: BLE001 — цей список лишається вчорашнім
+                            facts = st.wallet_summaries([c["wallet"] for c in cands]) if hasattr(st, "wallet_summaries") else {}
+                        except Exception as ex:  # noqa: BLE001 — цей список лишається попереднім
                             log.warning("ready list %s: %s", slug, ex)
                             continue
-                        got[slug] = ready_mod.rank(_ready_count(app, cands), min_pnl=float(s.get("ready_min_pnl", 10_000)))
+                        rows, dropped[slug] = _ready_count(app, cands, month, facts)
+                        got[slug] = ready_mod.rank(rows, min_pnl=float(s.get("ready_min_pnl", 10_000)))
+                        log.info("ready list %s %s: %s of %s candidates, dropped %s", slug, month["key"], len(got[slug]), len(cands), dropped[slug])
                 finally:
                     _spend(app, "system", "ready", st=st.requests_here() - n0)
-            return got
-        got = await asyncio.to_thread(work)
+            return got, dropped
+        got, dropped = await asyncio.to_thread(work)
         now = int(time.time() * 1000)
         lists = dict(r.get("lists") or {})
         for slug, rows in got.items():
-            lists[slug] = dict(ready_mod.LISTS[slug], slug=slug, rows=rows, summary=ready_mod.summary(rows), at=now)
+            lists[slug] = dict(ready_mod.titled(slug, month), slug=slug, rows=rows, summary=ready_mod.summary(rows), at=now,
+                               month=month["key"], label=month["label"], short=month["short"], next=month["next"],
+                               next_label=month["next_label"], dropped=dropped.get(slug) or {})
         data = {"v": READY_FORMAT, "lists": lists, "at": now if got else r.get("at") or 0}
         path = app["ready_path"]
         tmp = str(path) + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f)
         os.replace(tmp, path)
-        app["ready"] = dict(data, busy=False)
+        app["ready"] = dict(data, busy=False, tried_at=r["tried_at"])
     except Exception as e:  # noqa: BLE001 — сторінки показують попередні списки
         log.warning("ready lists: %s", e)
     finally:
         r["busy"] = False
+
+
+async def _ready_loop(app):
+    """Готові списки рахує фон сервера: за хвилину після старту (деплой) і далі щогодини дивиться, чи не настав новий
+    місяць. Сторінки не чекають і самі нічого не запускають."""
+    await asyncio.sleep(READY_FIRST_S)
+    while True:
+        try:
+            await _ready_refresh(app)
+        except Exception as e:  # noqa: BLE001
+            log.warning("ready loop: %s", e)
+        await asyncio.sleep(3600)
+
+
+READY_FIRST_S = 60
 
 
 def _ready_rows(lst):
@@ -3687,18 +3751,15 @@ def _ready_rows(lst):
     return out
 
 
-def _ready_view(app, now_ms=None):
-    """Готові списки для головної: у кожного — назва, підсумок і троє перших. Список коротший за ready_min_rows не
-    показується. Оновлення — фоном."""
-    if _ready_due(app):
-        asyncio.get_running_loop().create_task(_ready_refresh(app))
-    now_ms = int(time.time() * 1000) if now_ms is None else now_ms
+def _ready_view(app):
+    """Готові списки для головної: у кожного — назва з місяцем, підсумок і троє перших. Список коротший за
+    ready_min_rows не показується. Рахує їх фон сервера раз на місяць."""
     lists, out = app["ready"].get("lists") or {}, []
     for k in READY_ORDER:
         if len((lists.get(k) or {}).get("rows") or []) < int(app["s"].get("ready_min_rows", 3)):
             continue
         rows = _ready_rows(lists[k])
-        out.append(dict(lists[k], top=rows[:3], ago=_live_ago(lists[k]["at"], now_ms) if lists[k].get("at") else None))
+        out.append(dict(lists[k], top=rows[:3]))
     return out
 
 
@@ -3748,8 +3809,6 @@ def _live_feed(app, now_ms=None):
 async def list_page(request):
     """Готовий список гаманців: хто в ньому, за яким правилом, і кнопка взяти його собі разом зі сповіщеннями."""
     app = request.app
-    if _ready_due(app):
-        asyncio.get_running_loop().create_task(_ready_refresh(app))
     slug = request.match_info.get("slug", "")
     lst = (app["ready"].get("lists") or {}).get(slug)
     if not lst or not lst.get("rows"):
@@ -3761,7 +3820,6 @@ async def list_page(request):
         following = bool(lid) and all(lid in ((a.get("wallets") or {}).get(r["wallet"]) or {}).get("lists", []) for r in lst["rows"])
     _view(request, "list", ref=slug)
     return render("lists.html", request, lst=lst, rows=_ready_rows(lst), following=following,
-                  ago=_live_ago(lst["at"], int(time.time() * 1000)) if lst.get("at") else None,
                   others=[dict(v, slug=k) for k, v in (app["ready"].get("lists") or {}).items() if k != slug and v.get("rows")],
                   alerts_ok=_alerts_allowed(app, request.get("acct")))
 
@@ -4882,14 +4940,14 @@ async def wallet_profile_json(request):
     return web.json_response(out)
 
 
-def _profile_history(app, wallet, evs, now, days, key="profile-history", cap=None):
+def _profile_history(app, wallet, evs, now, days, key="profile-history", cap=None, need=None):
     """Власник, 07.10: прибуток у картці — за датою продажу. Токен, проданий у вікні, але куплений раніше, бере
     собівартість зі своєї повної історії: `/trades/{mint}/by-wallet/{wallet}`, 1 запит на сторінку, свіжа (у кеші
     може бракувати останніх продажів). Не більше `profile_history_tokens` токенів на картку, від найбільших продажів,
     і не більше `profile_history_per_day` таких запитів на весь сайт за добу; решта лишається «без купівлі» і в PnL не
     входить. Повертає (історії по токенах, скільки запитів пішло)."""
     st, s = app["st"], app["s"]
-    need = profile.needs_history(evs, now, days)
+    need = profile.needs_history(evs, now, days) if need is None else need
     if not need or not hasattr(st, "wallet_token_trades"):
         return {}, 0
     daily = app["browse_daily"]

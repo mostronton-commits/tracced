@@ -348,6 +348,7 @@ def summary(events, wallet, now_ms, days=30, partial=False, history=None):
         "open": open_,
         "win_rate": (wins / closed) if closed else None,
         "avg_hold_min": (sum(holds) / len(holds)) if holds else None,
+        "quick": sum(1 for h in holds if h < 1),       # закриті за хвилину: так торгують снайпери й боти (готові списки, 08.10)
         "unbacked_tokens": unbacked,
         "bought_earlier_tokens": from_history,
         "best": [t for t in per_token if t["realized_usd"] > 0][:3],

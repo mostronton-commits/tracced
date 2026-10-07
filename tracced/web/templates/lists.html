@@ -23,7 +23,7 @@
     <div><b class="mono pos">+{{ lst.summary.pnl|usd3 }}</b><span>Profit</span></div>
     <div><b class="mono pos">+{{ lst.summary.best|usd3 }}</b><span>Best</span></div>
     <div><b class="mono">{{ lst.summary.n }}</b><span>Wallets</span></div>
-    {% if ago %}<div><b class="mono">{{ ago }}</b><span>Updated</span></div>{% endif %}
+    <div><b class="mono">{{ lst.next_label }}</b><span>Next list</span></div>
   </div>
   <ol class="lp-rows">
   {% for r in rows %}
@@ -50,7 +50,7 @@
     </div>
     <section class="dsec dperf">
       <div class="dsec-h"><h4>All tokens <span class="dinfo" id="dprofi" hidden>i</span></h4>
-        <div class="seg" id="dper" role="tablist" aria-label="Period"><button type="button" data-p="7">7D</button><button type="button" data-p="30" class="on">30D</button></div></div>
+        <div class="seg" id="dper" role="tablist" aria-label="Period"><button type="button" data-p="M" class="on">{{ (lst.label or '')[:3] }}</button><button type="button" data-p="7">7D</button><button type="button" data-p="30">30D</button></div></div>
       <div id="dprof"></div>
     </section>
   </div>
@@ -62,23 +62,34 @@
   rows.forEach(r => { byW[r.wallet] = r; });
   const drawer = document.getElementById('drawer'), box = document.getElementById('dprof'), info = document.getElementById('dprofi');
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const list = document.querySelector('.lp-rows'), cache = new Map(); let period = '30';
-  function paint(d) { EarlyCard.render(d, period, box, info); document.querySelectorAll('#dper [data-p]').forEach(b => b.classList.toggle('on', b.dataset.p === period)); }
+  // the list's month comes with the page, the same numbers as the row; 7D and 30D are the wallet's card, cached when
+  // the list was counted (a guest sees them too until the cache ages out, then a wallet is needed)
+  const list = document.querySelector('.lp-rows'), cache = new Map(), failed = new Map(); let period = 'M';
+  function data(w) {
+    const r = byW[w] || {}, c = cache.get(w), m = r.month ? { M: r.month } : {};
+    return c ? Object.assign({}, c, { periods: Object.assign({}, c.periods, m) }) : { periods: m };
+  }
+  function paint(w) {
+    const all = data(w);
+    document.querySelectorAll('#dper [data-p]').forEach(b => b.classList.toggle('on', b.dataset.p === period));
+    if (all.periods[period]) { EarlyCard.render(all, period, box, info); return; }
+    info.hidden = true;
+    const why = failed.get(w);
+    if (!why) { box.innerHTML = '<div class="dskel"><i></i><i></i><i></i></div>'; return; }
+    box.innerHTML = '<p class="dline muted small">' + esc(why.text) + '</p>'
+      + (why.connect ? '<p class="dline"><button type="button" class="primary" id="dconnect">Connect a wallet</button></p>' : '');
+    const c = document.getElementById('dconnect');
+    if (c) c.addEventListener('click', () => EarlyWallet.open(() => { failed.delete(w); load(w); }, 'Connect a wallet to see this trader’s last 7 and 30 days.'));
+  }
   async function load(w) {
-    if (cache.has(w)) { paint(cache.get(w)); return; }
-    box.innerHTML = '<div class="dskel"><i></i><i></i><i></i></div>'; info.hidden = true;
+    paint(w);
+    if (cache.has(w) || failed.has(w)) return;
     let r, d = {};
     try { r = await fetch('/wallet_profile.json?' + new URLSearchParams({ wallet: w }), { credentials: 'same-origin' }); d = await r.json(); }
-    catch (e) { if (drawer.dataset.w === w) box.innerHTML = '<p class="dline muted small">Could not reach the server.</p>'; return; }
-    if (drawer.dataset.w !== w) return;
-    if (!r.ok) {                                   // a guest sees a card someone already opened; a new one needs a wallet
-      box.innerHTML = '<p class="dline muted small">' + esc(d.error || 'Could not load this wallet.') + '</p>'
-        + (r.status === 401 ? '<p class="dline"><button type="button" class="primary" id="dconnect">Connect a wallet</button></p>' : '');
-      const c = document.getElementById('dconnect');
-      if (c) c.addEventListener('click', () => EarlyWallet.open(() => load(w), 'Connect a wallet to see this trader’s last 30 days.'));
-      return;
-    }
-    cache.set(w, d); paint(d);
+    catch (e) { failed.set(w, { text: 'Could not reach the server.' }); if (drawer.dataset.w === w) paint(w); return; }
+    if (!r.ok) failed.set(w, { text: d.error || 'Could not load this wallet.', connect: r.status === 401 });
+    else cache.set(w, d);
+    if (drawer.dataset.w === w) paint(w);
   }
   function open(w) {
     const r = byW[w] || {};
@@ -105,7 +116,7 @@
   document.getElementById('dper').addEventListener('click', e => {
     const b = e.target.closest('[data-p]'); if (!b) return;
     period = b.dataset.p; EarlyUI.use('card-period', { p: period });
-    const d = cache.get(drawer.dataset.w); if (d) paint(d);
+    if (drawer.dataset.w) paint(drawer.dataset.w);
   });
 })();
 </script>

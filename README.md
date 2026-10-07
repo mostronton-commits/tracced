@@ -60,8 +60,8 @@ app it trades through.
 
 Keep what you find in your watchlist, in several named lists, tag wallets in your own words, and export a list as CSV or TXT. A bell
 on a wallet, or on a whole list, sends its buys and sells to Telegram about two seconds after the block, and each row
-counts the wallet's trades of the last 7 days. No token to start from? The home page has ready lists of KOLs and top traders of the last 30 days, each wallet's
-profit counted by tracced from its own swaps, to follow in one click with their alerts.
+counts the wallet's trades of the last 7 days. No token to start from? The home page has last month's ready lists of KOLs and top traders who trade like people,
+each wallet's profit counted by tracced from its own swaps, to follow in one click with their alerts.
 [Your account →](https://tracced.xyz/docs/account)
 
 A busy token takes seconds, not minutes. The result page stays light with thousands of wallets: the table arrives

@@ -68,12 +68,8 @@ class TestTopTraders(unittest.TestCase):
         self.assertTrue(ready.is_person(top(1, 100_000.0)))
         self.assertFalse(ready.is_person(top(1, 100_000.0, trades=ready.MAX_TRADES + 1)))   # сотні тисяч угод — машина
         self.assertTrue(ready.is_person(top(1, 100_000.0, trades=ready.MAX_TRADES)))
-        self.assertFalse(ready.is_person(top(1, 23e6, invested=61.0)))                     # $61 у вхід, $23M на виході
-        self.assertTrue(ready.is_person(top(1, 20 * 5000.0, invested=5000.0)))             # рівно 20× — ще людина
-        self.assertFalse(ready.is_person(top(1, 100_000.0, win=98.0)))                     # бот або wash
-        self.assertFalse(ready.is_person(top(1, 100_000.0, win=29.9)))
-        self.assertTrue(ready.is_person(top(1, 100_000.0, win=30.0)))
-        self.assertTrue(ready.is_person(top(1, 100_000.0, win=90.0)))
+        self.assertTrue(ready.is_person(top(1, 23e6, invested=61.0)))                      # «прибуток з повітря» відсіє наш підрахунок
+        self.assertTrue(ready.is_person(top(1, 100_000.0, win=98.0)))                      # і win rate — теж наш, за місяць
         self.assertFalse(ready.is_person(top(1, 100_000.0, kind="bot")))
         self.assertFalse(ready.is_person(top(1, 100_000.0, kind="exchange")))
         self.assertFalse(ready.is_person(top(1, 100_000.0, trades=0)))
@@ -81,7 +77,7 @@ class TestTopTraders(unittest.TestCase):
         self.assertFalse(ready.is_person(top(1, 100.0, invested=0)))
 
     def test_ten_people_best_first_without_repeats(self):
-        raw = [top(i, 1e6 - i * 1000, win=99.0) for i in range(30)]                 # боти зверху
+        raw = [top(i, 1e6 - i * 1000, trades=50_000) for i in range(30)]           # боти зверху
         raw += [top(100 + i, 5e5 - i * 1000) for i in range(15)]
         raw.append(dict(raw[30]))                                                     # той самий гаманець з другої сторінки
         rows = ready.traders(raw)
@@ -98,27 +94,72 @@ class TestTopTraders(unittest.TestCase):
 
 
 class TestOwnCount(unittest.TestCase):
-    """Власник, 08.10: список казав +$2.31M, картка $463K. Тепер у списку — той самий підрахунок, що в картці."""
+    """Власник, 08.10: список казав +$2.31M, картка $463K. Тепер у списку — той самий підрахунок, що в картці, за місяць."""
 
-    def card(self, pnl, partial=False, wr=0.41):
-        p = {"pnl_usd": pnl, "win_rate": wr, "wins": 7, "losses": 10, "tokens": 22, "swaps": 81}
-        return dict(p, partial=partial, periods={"7": dict(p, pnl_usd=1.0), "30": p})
+    def month(self, pnl, partial=False, wr=0.41, **kw):
+        return dict({"pnl_usd": pnl, "win_rate": wr, "wins": 7, "losses": 10, "closed": 17, "tokens": 22, "swaps": 81,
+                     "quick": 2, "avg_hold_min": 190.0, "partial": partial}, **kw)
 
-    def test_the_card_gives_the_number_and_the_board_only_the_name(self):
-        row = ready.counted(ready.kols([kol(1, 2_309_458.4, name="Dolo")])[0], self.card(463_143.0))
-        self.assertEqual(row["pnl"], 463_143.0)                                   # 30 днів, не 7
-        self.assertEqual((row["win_rate"], row["wins"], row["losses"], row["tokens"]), (41.0, 7, 10, 22))
-        self.assertEqual((row["name"], row["x"]), ("Dolo", "kol1"))
+    def test_the_count_gives_the_number_and_the_board_only_the_name(self):
+        row = ready.counted(ready.kols([kol(1, 2_309_458.4, name="Dolo")])[0], self.month(463_143.0))
+        self.assertEqual(row["pnl"], 463_143.0)
+        self.assertEqual((row["win_rate"], row["wins"], row["losses"], row["tokens"], row["closed"]), (41.0, 7, 10, 22, 17))
+        self.assertEqual((row["name"], row["x"], row["month"]["pnl_usd"]), ("Dolo", "kol1", 463_143.0))   # місяць — і для картки
         self.assertNotIn("realized", row)                                          # суми рейтингу не показуються ніде
-        self.assertIsNone(ready.counted(ready.kols([kol(2, 1.0)])[0], dict(self.card(5.0), win_rate=None, periods={}))["win_rate"])
+        self.assertIsNone(ready.counted(ready.kols([kol(2, 1.0)])[0], self.month(5.0, wr=None))["win_rate"])
 
     def test_a_list_keeps_whole_months_in_profit_best_first(self):
-        rows = [ready.counted(ready.kols([kol(i, 1.0)])[0], self.card(pnl, partial)) for i, (pnl, partial) in
+        rows = [ready.counted(ready.kols([kol(i, 1.0)])[0], self.month(pnl, partial)) for i, (pnl, partial) in
                 enumerate([(100.0, False), (-5.0, False), (900.0, True), (0.0, False), (300.0, False)], 1)]
         out = ready.rank(rows)
         self.assertEqual([r["pnl"] for r in out], [300.0, 100.0])                 # збиток, нуль і неповний місяць — поза
         self.assertEqual([r["pnl"] for r in ready.rank(rows, min_pnl=150)], [300.0])   # поріг «топу»
         self.assertEqual(len(ready.rank([dict(rows[0], wallet=str(i)) for i in range(15)])), ready.SIZE)
+
+
+class TestMonth(unittest.TestCase):
+    """Власник, 08.10: «топ трейдери за попередній місяць» — список змінюється раз на місяць і каже, за який."""
+
+    def test_the_month_before_this_one(self):
+        oct8 = 1_791_417_600_000                                                    # 2026-10-08 UTC
+        m = ready.prev_month(oct8)
+        self.assertEqual((m["key"], m["label"], m["short"], m["days"], m["next_label"]), ("2026-09", "September", "Sep 2026", 30, "Nov 1"))
+        self.assertEqual(time.strftime("%Y-%m-%d %H:%M", time.gmtime(m["from"] / 1000)), "2026-09-01 00:00")
+        self.assertEqual(time.strftime("%Y-%m-%d %H:%M", time.gmtime(m["to"] / 1000)), "2026-10-01 00:00")
+        jan = ready.prev_month(1_799_000_000_000)                                  # 2027-01-03: грудень минулого року
+        self.assertEqual((jan["key"], jan["label"], jan["days"], jan["next_label"]), ("2026-12", "December", 31, "Feb 1"))
+        dec = ready.prev_month(1_796_000_000_000)                                  # 2026-11-29 → жовтень, наступний — 1 грудня
+        self.assertEqual((dec["key"], dec["next_label"]), ("2026-10", "Dec 1"))
+        self.assertEqual(ready.titled("top-traders-30d", m)["title"], "Top traders · September")
+
+
+class TestHuman(unittest.TestCase):
+    """Власник, 08.10: боти, свіжі гаманці, снайпери й тисячі угод — поза списками; лише ті, хто торгує як людина."""
+    SEP1 = 1_788_220_800_000                                                      # 2026-09-01 UTC
+
+    def row(self, **kw):
+        base = {"pnl_usd": 50_000.0, "win_rate": 0.55, "wins": 11, "losses": 9, "closed": 20, "tokens": 60, "swaps": 300,
+                "quick": 2, "avg_hold_min": 45.0}
+        return ready.counted({"wallet": "W"}, dict(base, **kw))
+
+    def test_a_person(self):
+        self.assertIsNone(ready.not_human(self.row(), self.SEP1, {"first_trade": self.SEP1 - 400 * ready.DAY}))
+        self.assertIsNone(ready.not_human(self.row(), self.SEP1, {}))               # Solana Tracker не знає — не причина
+
+    def test_what_is_not(self):
+        cases = {
+            "pace": [self.row(swaps=1501), self.row(tokens=301), self.row(partial=True)],
+            "few": [self.row(closed=4)],
+            "win rate": [self.row(win_rate=0.97), self.row(win_rate=0.29), self.row(win_rate=None)],
+            "sniper": [self.row(avg_hold_min=1.5), self.row(quick=11)],          # півхвилини на позицію, більше половини — за хвилину
+        }
+        for why, rows in cases.items():
+            for r in rows:
+                self.assertEqual(ready.not_human(r, self.SEP1, {}), why, r)
+        self.assertEqual(ready.not_human(self.row(), self.SEP1, {"first_trade": self.SEP1 - 10 * ready.DAY}), "fresh")
+        self.assertEqual(ready.not_human(self.row(), self.SEP1, {"arbitrage": True}), "bot")
+        self.assertEqual(ready.not_human(self.row(), self.SEP1, {"type": "exchange"}), "bot")
+        self.assertIsNone(ready.not_human(self.row(swaps=1501), self.SEP1, {}, {"max_swaps": 2000}))   # межі — з налаштувань
 
 
 class TestClientPaging(unittest.TestCase):
@@ -147,6 +188,22 @@ class TestClientPaging(unittest.TestCase):
         self.assertEqual(len(st.kol_leaderboard(30, 20)), 1)
         self.assertIn("/v2/pnl/leaderboard/kols/period?period=30d&sort=realized&direction=desc&limit=20", st.paths[0])
 
+    def test_first_trades_come_a_hundred_at_a_time(self):
+        st = EarlyST("k", pause=0)
+        st.bodies = []
+
+        def fake(path, body=None):
+            st.bodies.append((path, body))
+            return {"wallets": [{"wallet": w, "summary": {"timing": {"firstTrade": 1_700_000_000_000}},
+                                 "tags": {"isArbitrage": w.endswith("9")}, "identity": {"type": "trader"}} for w in body["wallets"]]}
+        st._get = fake
+        ws = [f"W{i:03d}" for i in range(150)]
+        out = st.wallet_summaries(ws + ws[:5])                                       # повтори не питаються двічі
+        self.assertEqual([len(b["wallets"]) for _, b in st.bodies], [100, 50])
+        self.assertEqual(st.bodies[0][0], "/v2/pnl/wallets/batch")
+        self.assertEqual(out["W000"], {"first_trade": 1_700_000_000_000, "arbitrage": False, "type": "trader"})
+        self.assertTrue(out["W009"]["arbitrage"])
+
 
 if AioHTTPTestCase:
     try:
@@ -168,12 +225,24 @@ if AioHTTPTestCase:
             self.requests += pages
             return [top(i, 9e5 - i * 1000) for i in range(12)]
 
+        def wallet_summaries(self, wallets):
+            self.requests += 1
+            now = int(time.time() * 1000)
+            return {addr("K", 2): {"first_trade": now - ready.DAY, "arbitrage": False, "type": "kol"},     # свіжий
+                    addr("T", 3): {"first_trade": now - 900 * ready.DAY, "arbitrage": True, "type": None}}  # арбітражний бот
+
+        def wallet_swaps(self, owner, since_ms, max_pages=5):
+            """Одна купівля і продаж з прибутком $50 — у минулому місяці, хоч би яке сьогодні число."""
+            raw, partial = super().wallet_swaps(owner, ready.prev_month(time.time() * 1000)["from"], max_pages)
+            return raw, partial
+
     class TestReadyWeb(AioHTTPTestCase):
         async def get_application(self):
             self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
             self.st = ReadyST(TRADES)
             s = settings.load()
             s["ready_lists_on"], s["ready_top_pages"], s["ready_min_pnl"] = True, 4, 0   # у фейку кожен гаманець заробляє $50
+            s["ready_human"] = {"min_closed": 1, "win_rate": [0, 100]}                     # одна закрита позиція на гаманець
             app = create_app(self.st, s, {}, out_dir=self.tmp.name + "/web", store_dir=self.tmp.name + "/cache")
             app["admins"] = {TEST_PK}
             return app
@@ -196,51 +265,78 @@ if AioHTTPTestCase:
             await _ready_refresh(self.app)
             return self.app["ready"]["lists"]
 
-        async def test_the_lists_are_counted_once_a_day_and_kept_in_a_file(self):
+        @property
+        def month(self):
+            return ready.prev_month(time.time() * 1000)
+
+        async def test_the_lists_are_last_month_counted_once_and_kept_in_a_file(self):
             self.app["s"]["ready_lists_on"] = False
             self.assertNotIn('id="ready"', await (await self.client.get("/")).text())     # вимкнено — ні блоку, ні запитів
+            await self.refresh()
             self.assertEqual(self.st.requests, 0)
             self.app["s"]["ready_lists_on"] = True
             lists = await self.refresh()
-            # KOL — один запит, дошка — 4 сторінки, і кожен кандидат (12 + 12) — своїми обмінами, як у картці
-            self.assertEqual(self.st.requests, 1 + 4 + 24)
-            self.assertEqual(set(lists), {"kols-30d", "top-traders-30d"})
-            self.assertEqual(len(lists["kols-30d"]["rows"]), 10)
-            first = lists["kols-30d"]["rows"][0]
-            self.assertEqual((first["name"], first["pnl"], first["win_rate"]), ("Kol 1", 50.0, 100.0))   # наш леджер: +$50 у фейку
+            # KOL — 1 запит, дошка — 4 сторінки, перші угоди — по 1 на список, і кожен кандидат своїми обмінами, крім
+            # свіжого KOL і арбітражного бота: їх відсіяно до запиту
+            self.assertEqual(self.st.requests, 1 + 4 + 2 + 11 + 11)
+            k, t = lists["kols-30d"], lists["top-traders-30d"]
+            self.assertEqual((k["title"], k["month"], k["label"], k["next_label"]), ("KOLs · " + self.month["label"], self.month["key"], self.month["label"], self.month["next_label"]))
+            self.assertEqual((k["dropped"], t["dropped"]), ({"fresh": 1}, {"bot": 1}))
+            self.assertNotIn(addr("K", 2), [r["wallet"] for r in k["rows"]])
+            first = k["rows"][0]
+            self.assertEqual((first["name"], first["pnl"], first["win_rate"], first["month"]["label"]), ("Kol 1", 50.0, 100.0, self.month["label"]))
             self.assertNotIn("realized", first)
-            self.assertEqual(lists["top-traders-30d"]["summary"], {"n": 10, "pnl": 500.0, "best": 50.0})
+            self.assertEqual(t["summary"], {"n": 10, "pnl": 500.0, "best": 50.0})
+            self.app["ready"]["tried_at"] = 0
             await self.refresh()
-            self.assertEqual(self.st.requests, 29)                                         # за добу — не раніше
+            self.assertEqual(self.st.requests, 29)                                         # місяць уже пораховано: до 1-го — ні запиту
             with open(self.tmp.name + "/ready_lists.json") as f:
                 saved = json.load(f)
-            self.assertEqual((saved["v"], set(saved["lists"])), (2, set(lists)))            # після перезапуску — з файлу
+            self.assertEqual((saved["v"], set(saved["lists"])), (3, set(lists)))            # після перезапуску — з файлу
 
-        async def test_a_file_of_the_old_kind_is_not_read(self):
+        async def test_a_new_month_counts_again_but_not_after_every_failure(self):
+            await self.refresh()
+            for v in self.app["ready"]["lists"].values():
+                v["month"] = "2000-01"                                                     # минулий місяць змінився
+            n = self.st.requests
+            await self.refresh()
+            self.assertEqual(self.st.requests, n)                                          # щойно пробували — чекає ready_retry_hours
+            self.app["ready"]["tried_at"] = 0
+            await self.refresh()
+            self.assertGreater(self.st.requests, n)
+            self.assertEqual(self.app["ready"]["lists"]["kols-30d"]["month"], self.month["key"])
+
+        async def test_a_file_of_an_older_kind_is_not_read(self):
             from tracced.web.app import _ready_load
             path = self.tmp.name + "/old.json"
-            with open(path, "w") as f:
-                json.dump({"lists": {"kols-30d": {"rows": [{"wallet": "W", "realized": 1.0}]}}, "at": 1}, f)
-            self.assertEqual(_ready_load(path)["lists"], {})                                # рейтингові суми 07.10 не показуються
+            for v in (None, 2):
+                with open(path, "w") as f:
+                    json.dump({"v": v, "lists": {"kols-30d": {"rows": [{"wallet": "W", "pnl": 1.0}]}}, "at": 1}, f)
+                self.assertEqual(_ready_load(path)["lists"], {})                            # 07.10 рейтингові, 08.10 «30 днів»
 
-        async def test_a_failed_list_keeps_its_last_version(self):
+        async def test_a_failed_list_keeps_its_last_month(self):
             await self.refresh()
             was = self.app["ready"]["lists"]["kols-30d"]["rows"]
 
             def down(*a, **k):
                 raise RuntimeError("board down")
             self.st.kol_leaderboard = down
-            self.app["ready"]["at"] = 0
+            for v in self.app["ready"]["lists"].values():
+                v["month"] = "2000-01"
+            self.app["ready"]["tried_at"] = 0
             lists = await self.refresh()
-            self.assertEqual(lists["kols-30d"]["rows"], was)
+            self.assertEqual((lists["kols-30d"]["rows"], lists["kols-30d"]["month"]), (was, "2000-01"))   # той, що був
+            self.assertEqual(lists["top-traders-30d"]["month"], self.month["key"])          # другий — новий
             self.assertFalse(self.app["ready"]["busy"])
 
         async def test_home_shows_two_cards_with_a_podium_and_one_key_each(self):
             await self.refresh()
             html = await (await self.client.get("/", headers=GUEST)).text()
             self.assertIn('id="ready"', html)
-            self.assertIn("KOLs · 30 days", html)
-            self.assertIn("Top traders · 30 days", html)
+            self.assertIn("KOLs · " + self.month["label"], html)
+            self.assertIn("Top traders · " + self.month["label"], html)
+            self.assertIn("profit together in " + self.month["label"], html)
+            self.assertIn("next list " + self.month["next_label"], html)                       # змінюється раз на місяць
             self.assertIn('data-follow="kols-30d"', html)
             self.assertIn("Follow 10 wallets", html)
             self.assertIn('href="/lists/kols-30d">See all 10</a>', html)                    # троє рядками і дві кнопки (власник, 08.10)
@@ -258,8 +354,10 @@ if AioHTTPTestCase:
             r = await self.client.get("/lists/top-traders-30d", headers=GUEST)
             self.assertEqual(r.status, 200)
             html = await r.text()
-            self.assertIn("human pace", html)                                              # правило відбору на сторінці
+            self.assertIn("trade like people", html)                                       # правило відбору на сторінці
             self.assertIn("100% win rate · 1W 0L · 1 tokens", html)
+            self.assertIn('data-p="M" class="on">' + self.month["label"][:3], html)          # картка відкривається на місяці списку
+            self.assertIn("Next list", html)
             self.assertIn('href="/lists/kols-30d"', html)                                   # інший список
             self.assertNotIn("Ranked by Solana Tracker", html)
             self.assertIn('data-follow="top-traders-30d"', html)
@@ -275,9 +373,9 @@ if AioHTTPTestCase:
             r = await self.client.post("/me/ready/follow", json={"slug": "kols-30d"}, headers=self.origin)
             d = await r.json()
             self.assertEqual(r.status, 200, d)
-            self.assertEqual((d["name"], d["added"], d["alerts_on"], d["alerts_ok"], d["telegram"]), ("KOLs · 30 days", 10, 10, True, False))
+            self.assertEqual((d["name"], d["added"], d["alerts_on"], d["alerts_ok"], d["telegram"]), ("KOLs · " + self.month["label"], 10, 10, True, False))
             a = self.app["accounts"].load(TEST_PK)
-            self.assertEqual(a["lists"][d["list"]]["name"], "KOLs · 30 days")
+            self.assertEqual(a["lists"][d["list"]]["name"], "KOLs · " + self.month["label"])
             rows = self.app["ready"]["lists"]["kols-30d"]["rows"]
             self.assertTrue(all(d["list"] in a["wallets"][x["wallet"]]["lists"] and a["wallets"][x["wallet"]]["alert"] for x in rows))
             again = await (await self.client.post("/me/ready/follow", json={"slug": "kols-30d"}, headers=self.origin)).json()
@@ -320,7 +418,7 @@ if AioHTTPTestCase:
             before = self.st.requests
             r = await self.client.get(f"/wallet_profile.json?wallet={w}", headers=GUEST)
             self.assertEqual(r.status, 200)                                                # список уже порахував картку: і гостю
-            self.assertEqual(((await r.json())["periods"]["30"]["pnl_usd"], self.st.requests), (50.0, before))   # те саме число, 0 запитів
+            self.assertEqual(self.st.requests, before)                                     # з кешу, 0 запитів
             from tracced.early import profile as profile_mod
             self.app["profile_cache"].put(f"v{profile_mod.VERSION}:{w}", None)
             r = await self.client.get(f"/wallet_profile.json?wallet={w}", headers=GUEST)

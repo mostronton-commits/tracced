@@ -382,17 +382,18 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   star when people really saved wallets from that analysis, otherwise "found N wallets". Never a made-up number. The
   demo is no row: a guest gets a demo card under the token field (the token, its wallets and 2×+, Open the demo).
 - **Ready lists** (owner, 07.10: «цікаво, зрозуміло і привабливо»; 08.10) sit on the home page under the live feed:
-  two cards side by side, one column on a phone. A card is a small leaderboard: the title with "N wallets · updated …",
-  the sum they made in 30 days in mono at 24 px 700, green as profit is, the first three as rows (navy rank mark,
-  face, name with @X or win rate, the profit), then two keys: *Follow N wallets* with the bell (mint) and *See all
-  N* (white). The two cards are one choice, so each carries its own mint key. No stack of faces, no "and 7 more", no
-  line of selling points and no note under the cards (owner, 08.10: they looked cheap). Profits show three
-  significant figures ($6.77M, $583K): with fewer, neighbours look alike. Every number is tracced's own count, the
-  same as the wallet's card; the board that names the candidates is never quoted.
+  two cards side by side, one column on a phone. Each is last month's and says so ("KOLs · September"), and changes
+  once a month: the card reads "N wallets · next list Nov 1". A card is a small leaderboard: the sum they made in the
+  month in mono at 24 px 700, green as profit is, the first three as rows (navy rank mark, face, name with @X or win
+  rate, the profit), then two keys: *Follow N wallets* with the bell (mint) and *See all N* (white). The two cards are
+  one choice, so each carries its own mint key. No stack of faces, no "and 7 more", no line of selling points and no
+  note under the cards (owner, 08.10: they looked cheap). Profits show three significant figures ($6.77M, $583K):
+  with fewer, neighbours look alike. Every number is tracced's own count of the month, the same as the wallet's card
+  on that month; the board that names the candidates is never quoted.
 - **A ready list's page**: the title and its rule in one paragraph, the key on top (on a phone a bar fixed at the
-  bottom of the screen), a tally strip (Profit, Best, Wallets, Updated), then the wallets as a leaderboard with
-  @X, win rate, wins and losses. A row opens the wallet card, which shows the same number. Once the person follows
-  the list, the key becomes "In your watchlist".
+  bottom of the screen), a tally strip (Profit, Best, Wallets, Next list), then the wallets as a leaderboard with @X,
+  win rate, wins and losses. A row opens the wallet card on the list's month (its tab first, then 7D and 30D), the
+  same numbers as the row. Once the person follows the list, the key becomes "In your watchlist".
 - **Free while we build it** (owner, 07.10: out of the hero): its own quiet block at the end of the home page, above
   the footer: the line, and *Follow @tracced_xyz* with the X mark, instead of payment.
 - **Phones get less text, not fewer facts** (owner, 07.10, «like FOMO»): a short lead in the hero, no 01/02/03 steps,

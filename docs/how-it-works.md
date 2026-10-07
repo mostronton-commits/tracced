@@ -20,22 +20,28 @@ is refreshed at most every {{ s.fresh_refresh_min|int }} minutes. A click opens 
 
 ## Ready lists
 
-Two lists of up to ten wallets on the home page, for when you have no token to start from:
+Two lists of up to ten wallets on the home page, for when you have no token to start from. Each is last month's: the
+September lists stay the same all October, and on the 1st of the month (UTC) they are counted again.
 
-- **KOLs · 30 days**: known traders with a public X account.
-- **Top traders · 30 days**: profitable wallets that trade at a human pace: up to 1,500 trades a month, 10 or more
-  active days and a win rate between 30 and 90 % on Solana Tracker's board, where the top is bots and market makers.
+- **KOLs**: known traders with a public X account.
+- **Top traders**: the most profitable wallets of the month.
 
 Solana Tracker only names the candidates. How much each one made, tracced counts itself, from the wallet's own swaps
-over the whole 30 days, the same way as its card, so the list and the card always show the same number. Its board
-counts as profit the tokens that came with no purchase (moved from another wallet, an airdrop) and token-for-token
-swaps at the new token's paper price; we leave out a sale with no purchase found under it. A swap of a memecoin into a
-tokenized stock (RACE, SKHY, SPCX) is a real exit and counts at the stock's price. A list keeps the wallets that made
-more than ${{ '{:,}'.format(s.ready_min_pnl|int) }} by that count, best first; a wallet that trades so much that its 30 days
-do not fit {{ '{:,}'.format(s.ready_profile_pages * 1000) }} swaps is left out. Refreshed every {{ s.ready_lists_refresh_hours|int }} hours.
+over the whole month, the same way as its card. Its boards count as profit the tokens that came from another wallet
+with no purchase; we leave out a sale with no purchase found under it. A swap of a memecoin into a tokenized stock
+(RACE, SKHY, SPCX) is a real exit and counts at the stock's price.
 
-**Follow** puts the wallets in your watchlist, in a list of the same name, with their bells on while your account has
-bells left. Your copy keeps the wallets you took; the list moves on without it.
+Only people stay, not machines. A wallet is left out when, in the month, it made more than
+{{ '{:,}'.format(s.ready_human.max_swaps) }} swaps or traded more than {{ s.ready_human.max_tokens }} tokens, closed fewer than
+{{ s.ready_human.min_closed }} positions, won less than {{ s.ready_human.win_rate[0] }} % or more than {{ s.ready_human.win_rate[1] }} % of
+them, held a position less than {{ s.ready_human.min_hold_min }} minutes on average or closed most of them within a minute (a
+sniper's pace), started trading less than {{ s.ready_human.min_age_days }} days before the month began (a fresh wallet), or is
+marked a bot, an exchange or an arbitrageur. Of the rest, a list keeps the ones
+that made more than ${{ '{:,}'.format(s.ready_min_pnl|int) }} in the month, best first.
+
+On a list's page a wallet's card opens on that month, the same numbers as the row; 7D and 30D beside it are its latest
+days. **Follow** puts the wallets in your watchlist, in a list of the same name, with their bells on while your account
+has bells left. Your copy keeps the wallets you took; next month's list is a new one.
 
 ## The numbers under the chart
 
