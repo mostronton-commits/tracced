@@ -32,10 +32,13 @@ early:
   credits_renew_day: 24         # the plan renews on this day of the month (bought on 24.09.2026); the owner's dashboard
                                 # shows the date and whether the balance lasts until then. The API gives only the balance
   st_eur_per_million: 200       # Pro costs €200 a month for 1,000,000 requests: the dashboard turns requests per analysis into euros
-  runs_per_day: 10              # per person (owner, 04.10: 5 → 10): the wallet and the browser both count, so another wallet adds nothing
-  runs_per_ip_per_day: 20       # per network: incognito plus a fresh wallet stops here; twice the person's, as an office or a phone carrier shares one address
+  runs_per_day: 3               # per person (owner, 07.10: 10 → 3, «3 analyses a day for active wallets»): the wallet and the browser
+                                # both count, so another wallet adds nothing
+  runs_per_ip_per_day: 6        # per network: incognito plus a fresh wallet stops here; twice the person's, as an office or a phone carrier shares one address
   alerts_open: true             # owner, 05.10: Telegram alerts for every connected wallet, no longer a closed test
   runs_per_day_new_wallet: 1    # owner, 05.10: someone rotated fresh wallets to reset the count. A wallet younger than
+                                # (owner, 07.10: the pages say only «for active wallets», never the exact rule, so nobody
+                                # learns to farm one analysis per fresh wallet)
   new_wallet_days: 7            # new_wallet_days or holding under new_wallet_min_sol SOL gets this many a day; its age and
   new_wallet_min_sol: 0.01      # balance are read when it presses Analyze. Need more: the limit window offers the contact form
   refund_below_requests: 50     # a failed run gives its analysis back only if it spent fewer requests than this

@@ -6,7 +6,7 @@
 
 - Telegram alerts for everyone
 - The agent says first who a wallet is
-- New wallets get one analysis a day
+- Fairer daily limits
 - Need more? Ask us from the limit window
 - Home counters that only grow
 - A shorter list of recent analyses

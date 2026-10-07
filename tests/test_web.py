@@ -796,7 +796,10 @@ if AioHTTPTestCase:
                 # вікно: чому один, і запрошення написати, щоб підняли ліміт
                 html = await (await self.client.get(f"/token?mint={MINT}&notice=newwallet", headers={"Cookie": wallet_cookie(young)})).text()
                 self.assertIn("openLimit('newwallet')", html)
-                self.assertIn("A new wallet gets 1 free analysis a day", html)
+                self.assertIn("This wallet's free analysis for today is used", html)
+                self.assertIn("3 analyses a day for active wallets", html)
+                self.assertNotIn("younger than", html)                     # власник, 07.10: точне правило ніде не пишемо
+                self.assertNotIn("under 0.01 SOL", html)
                 self.assertIn('href="/feedback?kind=limits"', html)
                 self.assertIn("None left today", html)
                 html = await (await self.client.get(f"/token?mint={MINT}", headers={"Cookie": wallet_cookie(old)})).text()
