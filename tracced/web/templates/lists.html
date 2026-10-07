@@ -48,6 +48,7 @@
       </div>
       <div class="dh-act"><button type="button" class="ghost x" id="dclose" title="Close" aria-label="Close">×</button></div>
     </div>
+    <section class="dsec dlistsec" id="dlist"></section>
     <section class="dsec dperf">
       <div class="dsec-h"><h4>All tokens <span class="dinfo" id="dprofi" hidden>i</span></h4>
         <div class="seg" id="dper" role="tablist" aria-label="Period"><button type="button" data-p="7">7D</button><button type="button" data-p="30" class="on">30D</button></div></div>
@@ -58,7 +59,7 @@
 <script type="application/json" id="lprows">{{ rows|tojson }}</script>
 <script>
 (function () {
-  const rows = JSON.parse(document.getElementById('lprows').textContent), byW = {};
+  const rows = JSON.parse(document.getElementById('lprows').textContent), byW = {}, LIST = {{ lst.title|tojson }};
   rows.forEach(r => { byW[r.wallet] = r; });
   const drawer = document.getElementById('drawer'), box = document.getElementById('dprof'), info = document.getElementById('dprofi');
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -90,6 +91,11 @@
     document.getElementById('dids').innerHTML = r.x ? '<a class="ext small" href="https://x.com/' + encodeURIComponent(r.x) + '" target="_blank" rel="noopener">@' + esc(r.x) + '</a>' : '';
     const dw = document.getElementById('dw'); dw.textContent = w.slice(0, 4) + '…' + w.slice(-4); dw.dataset.copy = w; dw.title = w + ' · click to copy';
     document.getElementById('dsol').href = 'https://solscan.io/account/' + w;
+    // the list's own numbers first: a guest sees them before any card is loaded, with whose ranking they are
+    document.getElementById('dlist').innerHTML = '<div class="dsec-h"><h4>#' + r.rank + ' in ' + esc(LIST) + '</h4></div>'
+      + '<div class="dl-big"><b class="mono pos">+' + esc(r.rv) + '</b><span>realized in 30 days'
+      + (r.win_rate ? ' · ' + Math.round(r.win_rate) + '% win rate · ' + Number(r.trades || 0).toLocaleString('en-US') + ' trades' : r.days ? ' · ' + r.days + ' active days' : '')
+      + '</span></div><p class="muted small dline">By Solana Tracker, from its own trades. Below: tracced counts its swaps itself.</p>';
     document.getElementById('dclose').focus({ preventScroll: true });
     EarlyUI.use('card-open', { src: 'list' });
     load(w);

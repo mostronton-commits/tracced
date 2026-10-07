@@ -7,13 +7,13 @@
 <section class="card">
   <div class="tokenhead">
     <div>
-      <h1 class="h-title">{{ job.symbol }}</h1>
+      <div class="h-tok"><span class="limg h-img" data-l="{{ (job.symbol or '?')[:1]|upper }}" style="--h: {{ thue }}" aria-hidden="true">{% if timg %}<img src="{{ timg }}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span><h1 class="h-title">{{ job.symbol }}</h1></div>
       <div class="h-addr mono"><button type="button" class="dwc mono" data-copy="{{ job.mint }}" title="Copy the token address: {{ job.mint }}" aria-label="Copy the token address">{{ job.mint[:6] }}…{{ job.mint[-5:] }}</button><a class="ext" href="https://solscan.io/token/{{ job.mint }}" target="_blank" rel="noopener" title="Token on Solscan" aria-label="Token on Solscan">{{ icon('launch') }}</a></div>
       <div class="h-sub mono muted">Range <span class="dtc" data-ms="{{ job.t_from }}">{{ job.t_from|dt }}</span> → <span class="dtc" data-ms="{{ job.t_to }}">{{ job.t_to|dt }}</span>{% if result %} · Trades up to <span class="dtc" data-ms="{{ result.window.end or job.t_exit or now }}">{{ (result.window.end or job.t_exit or now)|dt }}</span>{% endif %}</div>
     </div>
     <div class="h-right">
       {% if jstatus != 'done' or not result %}<span class="chip st-{{ jstatus }}">{{ {'queued':'Queued','running':'Running','done':'Done','error':'Error'}[jstatus] }}</span>{% endif %}
-      {% if jstatus == 'done' and result %}<button type="button" class="ghost savejob" id="savejob" title="Keep this analysis under My analyses">{{ icon('star') }}<span>Save analysis</span></button>{% endif %}
+      {% if jstatus == 'done' and result %}<button type="button" class="ghost savejob" id="savejob" title="Keep this analysis under My analyses" aria-label="Save analysis">{{ icon('star') }}<span>Save analysis</span></button>{% endif %}
       {% if is_admin and jstatus == 'done' and result and not is_demo %}<button type="button" class="ghost" id="mkdemo" data-job="{{ job.id }}" title="Replace the demo token with this analysis (owner only)">Make it the demo</button>{% endif %}
       <a class="button" href="{{ back }}" title="The token's chart: this range stays as it is, a new one is marked beside it"><span class="long">← Back to the chart</span><span class="short">← Chart</span></a>
     </div>
@@ -316,6 +316,13 @@
       const STAR = w => { const on = inList(w); return '<button type="button" class="star' + (on ? ' on' : '') + '" aria-pressed="' + on + '" title="'
         + (on ? 'In your watchlist · click to change' : 'Add to your watchlist') + '" aria-label="' + (on ? 'In your watchlist' : 'Add to your watchlist') + '">' + EarlyIcon(on ? 'star-on' : 'star') + '</button>'; };
       const CHARTIC = EarlyIcon('chart');
+      // a phone shows a wallet as one line, like a trading app's list (owner, 07.10, «like FOMO»): its picture, the
+      // address and its marks, under them what it put in and how much it sold; PnL and ROI on the right. The picture is
+      // drawn from the address once; the line is hidden on a wider screen, where the columns say the same
+      const FACES = new Map(), face = w => { let f = FACES.get(w); if (!f) { f = EarlyCard.identicon(w); FACES.set(w, f); } return f; };
+      const msub = o => (SOLON && o.invsol != null ? '<span class="insol">' + EarlyCur.sol(o.invsol) + '</span>' : money(o.inv))
+        + ' at ' + (o.entry ? fm(o.entry) : '—') + ' cap'
+        + (o.sells == null ? '' : o.sold >= 99 ? ' · sold out' : o.sold > 0 ? ' · sold ' + soldPct(o.sold) : ' · holding all');
       function rowHtml(o, n, i) {
         const oc = onChart.find(x => x.wallet === o.w), tg = tagsHtml(o);
         cells.set(o.w, { tg });
@@ -327,10 +334,10 @@
         const cl = [oc && 'onchart', cd && 'carded', out && 'outside'].filter(Boolean).join(' ');
         const unk = o.sells == null, UNK = 'Its sells were not read: only the largest buyers\' are';   // entry-only, beyond the cap
         return '<tr data-w="' + o.w + '"' + (cl ? ' class="' + cl + '"' : '') + (out ? ' title="On the chart; the filters would hide it"' : '') + (style ? ' style="' + style + '"' : '') + '>'
-          + '<td class="wcell"><span class="wid">' + STAR(o.w)
+          + '<td class="wcell"><span class="wid">' + STAR(o.w) + '<span class="wface" aria-hidden="true">' + face(o.w) + '</span>'
           + '<button type="button" class="mk" title="Show its buys and sells on the chart" aria-label="Show on the chart">' + CHARTIC + '</button>'
           + '<button type="button" class="wname" title="Open the wallet\'s card: its trades here, its PnL on every token, its funder"><span class="mono">' + short(o.w) + '</span></button>'
-          + '</span><span class="tags">' + tg + '</span></td>'
+          + '</span><span class="tags">' + tg + '</span><span class="msub">' + msub(o) + '</span></td>'
           + '<td class="num two c-inv" data-h="Bought" title="Bought in the range at a ' + cap(o.entry) + ' market cap'
           + (o.tot > o.inv + 0.01 ? ' · ' + money(o.tot) + ' in total on this token' : '') + '">' + amount(o.inv, o.invsol, '')
           + '<small>' + cap(o.entry) + '</small></td>'
@@ -817,7 +824,7 @@
           const n = seen(); if (n >= 3 || !a.isConnected) return;
           try { localStorage.setItem('early:cardhint', String(n + 1)); } catch (e) {}
           const h = document.createElement('span'); h.className = 'chint'; h.setAttribute('aria-hidden', 'true');
-          h.innerHTML = '<svg class="chint-cur" viewBox="0 0 16 22"><path d="M1.5 1.5v16.2l4.3-4.1 2.8 6.4 2.8-1.2-2.8-6.3h5.9z"/></svg><span class="chint-tip">Click an address: its card opens</span>';
+          h.innerHTML = '<svg class="chint-cur" viewBox="0 0 16 22"><path d="M1.5 1.5v16.2l4.3-4.1 2.8 6.4 2.8-1.2-2.8-6.3h5.9z"/></svg><span class="chint-tip">' + (matchMedia('(max-width: 640px)').matches ? 'Tap a wallet: its card opens' : 'Click an address: its card opens') + '</span>';
           a.classList.add('hinted'); a.appendChild(h);
           const done = () => { h.remove(); a.classList.remove('hinted'); document.removeEventListener('pointerdown', done, true); };
           document.addEventListener('pointerdown', done, true); setTimeout(done, 7000);

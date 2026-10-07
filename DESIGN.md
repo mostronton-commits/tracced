@@ -274,8 +274,8 @@ from 04.10, owner; they pair with the Carbon icons. Geist stays in `static/fonts
   - laptop: 961 to 1399 px;
   - wide: 1400 px and up.
   
-  Older rules at 380, 560, 720, 860 and 1000 px stay until someone touches them. On a phone and a tablet the
-  result table turns into one card per wallet. Before a change counts as done, check it
+  Older rules at 380, 560, 720, 860 and 1000 px stay until someone touches them. On a tablet the result table turns
+  into one card per wallet, on a phone into a list, one line per wallet (see Phones). Before a change counts as done, check it
   at 1920, 1440, 1280, 768 and 390 px. Nothing scrolls the page sideways, wide tables scroll inside their own frame,
   and the footer sits at the bottom.
 - **The result page** runs top to bottom: the chart, the tally (the counts and the insights in one strip), the
@@ -342,7 +342,7 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   holds a switch, "Alerts for this list", with "k of N on" beside it: on rings every wallet in the list, the newest
   first while the cap leaves room; off silences them all. On the draft site no bot runs, so the alerts are a preview:
   the bells and the switch save, and the Telegram card says that nothing is sent.
-- **The wallet card** is a right-hand sheet, 420–440 px wide and full width on a phone, with a sticky head: identity,
+- **The wallet card** is a right-hand sheet, 420–440 px wide (on a phone a sheet from the bottom, see Phones), with a sticky head: identity,
   then the Performance block (7D/30D, 30D by default), always there, then the trades with a switch, "<symbol> token"
   (its numbers here as a small tally, then its trades) and "All tokens" (its recent tokens); the last choice stays for
   the next card (owner, 04.10). A wallet's address in the table opens the card, never copies: it is underlined like a
@@ -396,6 +396,19 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   the footer: the line, and *Follow @tracced_xyz* with the X mark, instead of payment.
 - **Phones get less text, not fewer facts** (owner, 07.10, «like FOMO»): a short lead in the hero, no 01/02/03 steps,
   no captions under section titles; numbers and actions stay.
+- **Phones read like a trading app's lists** (owner, 07.10: «Сторінку результату й картку гаманця як у FOMO»), in
+  tracced's own colours:
+  - a result's wallet is one line: the star, the wallet's picture (drawn from its address, round), the address with up
+    to three marks, under it what it put in, at which cap and how much it sold ("$1.2K at 263K cap · sold out"); PnL
+    and ROI on the right. Seven to nine wallets fit a screen. The chart mark leaves the line: the card puts the
+    wallet on the chart when it opens;
+  - the toolbar is two lines: Filters, Sort and the money unit; then the count, Export and the agent;
+  - the result's head keeps the star and "Chart" beside the title, the range under it across the width;
+  - the wallet card rises from the bottom as a sheet (12 px corners, a handle, the page dimmed behind it) and closes
+    by ×, a tap above it or pulling its head down. In it, this token's PnL is large like a position, ROI beside it,
+    then bought, sold and held.
+- **The token's picture** stands before its symbol in a result's head, as in the home feed: its letter on its hue while
+  it loads or when it has none.
 - **Toasts** sit at the bottom centre, one at a time. They name the result and can carry one link ("Lists →") or one
   Undo.
 - **Menus and popovers** are white with a 1 px border. Menus have an 8 px radius, popovers 10 px. Escape or a click
@@ -414,8 +427,10 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
 - **The fresh-pumps tape** moves slowly all the time and stops under the pointer.
 - **The live feed does not roll**: a new row slides in at the top (300 ms, `ease-out`) and the seventh fades out
   at the bottom.
-- All of these stop under `prefers-reduced-motion: reduce`: the tape then scrolls by hand, and new feed rows appear
-  without sliding.
+- **The phone's wallet card** rises in 260 ms (`ease-out`) and follows the finger when its head is pulled down; past
+  90 px it closes, short of it it goes back.
+- All of these stop under `prefers-reduced-motion: reduce`: the tape then scrolls by hand, new feed rows appear
+  without sliding, and the card's sheet appears without rising.
 
 ## Do's and Don'ts
 

@@ -3658,7 +3658,7 @@ def _ready_rows(lst):
     for i, row in enumerate(lst.get("rows") or [], 1):
         w = row["wallet"]
         label = row.get("name") or (w[:4] + "…" + w[-4:])
-        out.append(dict(row, rank=i, label=label, short=w[:4] + "…" + w[-4:], letter=label[:1].upper(),
+        out.append(dict(row, rank=i, label=label, short=w[:4] + "…" + w[-4:], letter=label[:1].upper(), rv=_usd3(row["realized"]),
                         hue=int(hashlib.sha1(w.encode()).hexdigest()[:4], 16) % 360))
     return out
 
@@ -4328,7 +4328,11 @@ async def job_page(request):
             or (app.get("ages") is not None and jr.get("dormant_at") is None)):
         app["jobs"].resume_enrich(job)
     exch, flab = _labels_for_page(job.result if result else None, _ix_names(request))
+    timg = _token_image(app, job.mint, (result or {}).get("info") or {})   # the token's picture by its name, as the home feed has it
+    if not timg:
+        _images_backfill(app, [job.mint])
     return render("job.html", request, job=job, save_id=job.canon or job.id, jstatus=status, result=result, s=app["s"], back=_back_link(job),
+                  timg=timg, thue=int(hashlib.sha1(job.mint.encode()).hexdigest()[:4], 16) % 360,
                   rows_json=_json_script(_table(result["rows"])) if result else "", bundle_min=tags.BUNDLE_MIN, burst_ms=tags.BURST_MS,
                   max_my_tags=acct_mod.MAX_MY_TAGS, is_admin=bool(request.get("acct")) and request.get("acct") in app["admins"],
                   age_read=wallet_age_mod.MAX_PAGES * wallet_age_mod.LIMIT,   # скільки транзакцій гаманця читає перевірка віку

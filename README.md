@@ -65,8 +65,8 @@ ten top traders of the last 30 days ranked by Solana Tracker, to follow in one c
 [Your account →](https://tracced.xyz/docs/account)
 
 A busy token takes seconds, not minutes. The result page stays light with thousands of wallets: the table arrives
-as numbers and the page draws the first hundred rows, more on request, on a phone too, where each wallet becomes a
-card.
+as numbers and the page draws the first hundred rows, more on request, on a phone too, where each wallet is one line
+of a list, like a trading app's, and its card rises from the bottom.
 
 ## Documentation
 

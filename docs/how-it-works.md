@@ -148,7 +148,8 @@ that were checked. When the check is paused, the page says so.
 
 Click a wallet's address, or anywhere else in its row. The chart mark before it, which comes out with the star when the
 pointer is over the row, puts its buys and sells on the chart instead, in the wallet's own colour. In the card, a click on
-the address copies it. The card shows, top to bottom:
+the address copies it. On a phone each wallet is one line, its PnL and ROI on the right; a tap opens the card from the
+bottom of the screen, and a tap above it or pulling it down closes it. The card shows, top to bottom:
 
 1. who it is, when the wallet is publicly identified (a star for a KOL, its X account, the app it trades through),
    and next to the address its age, like `94d old`, and who sent it its first SOL (`funded by …`); hover either for

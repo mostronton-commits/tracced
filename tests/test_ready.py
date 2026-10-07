@@ -126,9 +126,9 @@ class TestClientPaging(unittest.TestCase):
 
 if AioHTTPTestCase:
     try:
-        from tests.test_web import FakeWebST, TEST_PK, wallet_cookie, CYRILLIC
+        from tests.test_web import FakeWebST, TEST_PK, wallet_cookie, CYRILLIC, seed_demo, OTHER_JID, OTHER_MINT
     except ImportError:
-        from test_web import FakeWebST, TEST_PK, wallet_cookie, CYRILLIC
+        from test_web import FakeWebST, TEST_PK, wallet_cookie, CYRILLIC, seed_demo, OTHER_JID, OTHER_MINT
     from tracced.web import accounts as acct_mod
     from tracced.web.app import create_app, _ready_refresh
 
@@ -224,6 +224,7 @@ if AioHTTPTestCase:
             self.assertIn("human pace", html)                                              # правило відбору на сторінці
             self.assertIn("% win rate", html)
             self.assertIn('href="/lists/kols-30d"', html)                                   # інший список
+            self.assertIn('id="dlist"', html)                                              # у картці — цифри списку, і гостю
             self.assertIn('data-follow="top-traders-30d"', html)
             self.assertIsNone(CYRILLIC.search(html))
             self.assertEqual((await self.client.get("/lists/nope", headers=GUEST)).status, 404)
@@ -257,6 +258,19 @@ if AioHTTPTestCase:
             await self.client.post("/me/ready/follow", json={"slug": "kols-30d"}, headers=self.origin)
             d = await (await self.client.post("/me/ready/follow", json={"slug": "top-traders-30d"}, headers=self.origin)).json()
             self.assertEqual((d["added"], d["alerts_on"], d["cap"]), (10, 0, 10))         # усі 10 дзвіночків уже зайняті
+
+        async def test_the_result_head_shows_the_tokens_picture_and_each_row_its_phone_line(self):
+            seed_demo(self.tmp.name, self.app)
+            html = await (await self.client.get(f"/job/{OTHER_JID}")).text()
+            self.assertIn('class="limg h-img" data-l="', html)                             # літера, поки картинки нема
+            self.assertNotIn("https://img.example/t.png", html)
+            self.app["token_images"].put(OTHER_MINT, "https://img.example/t.png")
+            html = await (await self.client.get(f"/job/{OTHER_JID}")).text()
+            self.assertIn('<img src="https://img.example/t.png"', html)
+            self.assertIn('class="msub"', html)                                            # рядок гаманця на телефоні (власник, 07.10)
+            self.assertIn('class="wface"', html)
+            self.assertIn('aria-label="Save analysis"', html)                              # на телефоні кнопка — лише зірка
+            self.assertIsNone(CYRILLIC.search(html))
 
         async def test_a_ready_wallets_card_opens_without_a_watchlist(self):
             await self.refresh()

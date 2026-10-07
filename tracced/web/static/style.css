@@ -735,6 +735,9 @@ button.ghost.xbtn { padding: 0; color: #475569; }
 .lp-rows .limg { width: 36px; height: 36px; font-size: 14px; }
 .lp-rows .rv { font-size: 14px; font-weight: 600; white-space: nowrap; }
 .lp-note { margin: 12px 0 0; }
+.dl-big { display: flex; flex-direction: column; gap: 2px; }
+.dl-big b { font: 700 24px/1.1 var(--mono); letter-spacing: -.02em; }
+.dl-big span { font-size: 12.5px; color: var(--muted); }
 .lp-other { margin: 6px 0 0; color: var(--muted); }
 @media (max-width: 640px) {
   .lpage { padding: 16px; }
@@ -1796,3 +1799,71 @@ input.ltabedit { flex: none; width: 150px; min-width: 0; height: 30px; padding: 
 /* the wallet pill keeps one line when the bell sits beside it on a phone (04.10) */
 .acct-pill { white-space: nowrap; flex: none; } .top-in .acct-slot { flex: none; } .topsearch { min-width: 0; }
 @media (max-width: 400px) { .top-in { gap: 8px; } .newsmark { width: 28px; } }
+
+/* ── phones like a trading app (owner, 07.10: «Сторінку результату й картку гаманця як у FOMO»): a wallet is one line of
+   a list — its picture, the address and its marks, what it put in and how much it sold; PnL and ROI on the right — so
+   seven or eight fit a screen where two cards did. The wallet card rises from the bottom as a sheet over the dimmed
+   page, closed by ×, a tap outside it or a swipe down on its head. Wider screens keep the table and the side card ── */
+.wface, .msub { display: none; }
+.h-tok { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.h-img { width: 28px; height: 28px; font-size: 13px; }
+@media (max-width: 640px) {
+  .tokenhead { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "tok act" "addr act" "sub sub"; gap: 2px 8px; }
+  .tokenhead > div:not(.h-right) { display: contents; }
+  .tokenhead .h-tok { grid-area: tok; } .tokenhead .h-addr { grid-area: addr; }
+  .tokenhead .h-sub { grid-area: sub; font-size: 11.5px; }
+  .tokenhead .h-right { grid-area: act; align-self: start; width: auto; gap: 4px; }
+  .savejob span { display: none; }
+  .savejob { min-width: 36px; min-height: 36px; justify-content: center; }
+  /* two short lines instead of three: the controls, then the count and the agent */
+  .toolbar { column-gap: 8px; row-gap: 8px; }
+  .toolbar::before { content: ""; order: 5; flex-basis: 100%; height: 0; }
+  .toolbar #ftoggle, .toolbar #freset { order: 1; }
+  .toolbar .sortby { order: 2; flex: 1 1 0; min-width: 0; font-size: 0; gap: 0; }
+  .toolbar .sortby select { width: 100%; min-width: 0; height: 34px; font: 500 13px var(--sans); }
+  .toolbar #cur { order: 3; }
+  .toolbar #shown, .toolbar #factive { order: 6; }
+  .toolbar > .menu { order: 7; margin-left: auto; }
+  .toolbar #aiwrap { order: 8; margin-left: 0; }
+  /* the list */
+  #facts tbody { border-top: 1px solid var(--line); }
+  #facts tbody tr { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "w pnl" "w roi"; gap: 0 12px; align-items: center;
+    padding: 10px 2px; margin: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: var(--surface); }
+  #facts td[data-h]::before { content: none; }
+  #facts td.wcell { grid-area: w; display: grid; grid-template-columns: 30px 36px auto minmax(0, 1fr); grid-template-areas: "star face addr tags" "star face sub sub";
+    align-items: center; column-gap: 6px; row-gap: 3px; }
+  #facts td.wcell .wid { display: contents; }
+  #facts .star { grid-area: star; min-width: 30px; min-height: 30px; }
+  #facts .wface { grid-area: face; display: block; width: 36px; height: 36px; border-radius: 50%; overflow: hidden; background: var(--hover); }
+  #facts .wface svg { display: block; width: 100%; height: 100%; }
+  #facts .mk { display: none; }                         /* the card puts the wallet on the chart when it opens */
+  #facts .wname { grid-area: addr; min-height: 0; padding: 0; }
+  #facts .wname .mono { font-size: 13.5px; font-weight: 600; }
+  #facts td.wcell .tags { grid-area: tags; display: flex; flex-wrap: nowrap; align-items: center; gap: 3px; min-width: 0; margin: 0; overflow: hidden; }
+  #facts td.wcell .tags > :nth-child(n+4) { display: none; }   /* three marks in the line; the card shows them all */
+  #facts td.wcell .tags .tag { margin: 0; }
+  #facts .msub { grid-area: sub; display: block; min-width: 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #facts td.c-inv, #facts td.c-sold, #facts td.c-held { display: none; }
+  #facts td.c-pnl { grid-area: pnl; align-self: end; text-align: right; }
+  #facts td.c-pnl b { font-size: 14.5px; font-weight: 600; }
+  #facts td.c-pnl small { display: none; }
+  #facts td.c-roi { grid-area: roi; align-self: start; text-align: right; }
+  #facts td.c-roi b { font-size: 12px; font-weight: 500; }
+  #facts tbody tr.carded { background: var(--sage); }
+  /* the wallet card as a sheet from the bottom */
+  body.drawer-open:has(.drawer.wcard:not([hidden]))::before { content: ""; position: fixed; inset: 0; z-index: 48; background: rgba(9, 13, 22, .45); }
+  .drawer.wcard { top: max(48px, 7vh); bottom: 0; border: 0; border-top: 1px solid var(--line); border-radius: 12px 12px 0 0; overflow: hidden;
+    box-shadow: 0 -12px 32px -12px rgba(15, 23, 42, .35); }
+  .drawer.wcard:not([hidden]) { animation: sheet-in .26s ease-out; }
+  .wcard .drawer-head { padding-top: 18px; touch-action: none; }
+  .wcard .drawer-head::before { content: ""; position: absolute; top: 7px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: var(--line-strong, #CBD5E1); }
+  .wcard .wav { width: 44px; height: 44px; border-radius: 50%; }
+  .wcard .dh-id b { font-size: 15px; }
+  /* this token in the card: the PnL large like a position, ROI beside it, then bought, sold and held */
+  .wcard .dtally { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .wcard .dtally .tc:nth-child(3) { order: -2; grid-column: 1 / 3; }
+  .wcard .dtally .tc:nth-child(3) b { font: 700 24px/1.1 var(--mono); letter-spacing: -.02em; }
+  .wcard .dtally .tc:nth-child(4) { order: -1; align-items: flex-end; text-align: right; }
+}
+@keyframes sheet-in { from { transform: translateY(100%); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .drawer.wcard:not([hidden]) { animation: none; } }

@@ -162,5 +162,35 @@
   }
   document.addEventListener('click', e => { const r = e.target.closest('table.drecent tr.rt'); if (r && !e.target.closest('a')) toggleToken(r); });
   document.addEventListener('keydown', e => { const r = e.target.closest && e.target.closest('table.drecent tr.rt'); if (r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleToken(r); } });
+  /* On a phone the card is a sheet from the bottom (owner, 07.10, «like FOMO»): a tap on the dimmed page above it closes
+     it, and so does pulling its head down. Whatever closes it goes through its own ×, so each page keeps one way out */
+  const PHONE = () => innerWidth <= 640;
+  const openSheet = () => document.querySelector('.drawer.wcard:not([hidden])');
+  document.addEventListener('click', e => {
+    const s = PHONE() && e.target === document.body && openSheet();
+    const x = s && s.querySelector('#dclose'); if (x) x.click();
+  });
+  let drag = null;
+  document.addEventListener('touchstart', e => {
+    const h = PHONE() && e.target.closest && e.target.closest('.wcard .drawer-head');
+    if (!h || e.target.closest('button, a, input')) return;
+    drag = { s: h.closest('.wcard'), y: e.touches[0].clientY, dy: 0 };
+    drag.s.style.transition = 'none';
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (!drag) return;
+    drag.dy = Math.max(0, e.touches[0].clientY - drag.y);
+    drag.s.style.transform = drag.dy ? 'translateY(' + drag.dy + 'px)' : '';
+  }, { passive: true });
+  const dropDrag = () => {
+    if (!drag) return;
+    const { s, dy } = drag; drag = null;
+    s.style.transition = 'transform .2s ease-out';
+    const done = () => { s.style.transition = ''; s.style.transform = ''; };
+    if (dy > 90) { s.style.transform = 'translateY(100%)'; setTimeout(() => { const x = s.querySelector('#dclose'); if (x) x.click(); done(); }, 200); }
+    else { s.style.transform = ''; setTimeout(done, 200); }
+  };
+  document.addEventListener('touchend', dropDrag);
+  document.addEventListener('touchcancel', dropDrag);
   window.EarlyCard = { render, identicon, recent: all => (all && all.recent && all.recent.length ? recentHtml(all.recent) : '') };
 })();
