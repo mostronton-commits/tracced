@@ -19,7 +19,7 @@ Built for the Colosseum Crypto World's Fair, 2026. [Why it exists →](https://t
 
 Looking is free: the demo, every finished result, the chart of any token. A new analysis needs a connected wallet:
 Phantom, Backpack or Solflare, a signed message, no transaction, no fee. It counts against a daily allowance per person:
-3 a day for active wallets, the wallet and the browser counting together, one network with its own count, and all of
+10 a day for active wallets, the wallet and the browser counting together, one network with its own count, and all of
 them reset at midnight UTC. Need more? The limit window has a button to ask.
 [Limits →](https://tracced.xyz/docs/limits)
 
