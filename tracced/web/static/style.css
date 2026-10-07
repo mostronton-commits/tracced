@@ -636,7 +636,7 @@ button.ghost.xbtn { padding: 0; color: #475569; }
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent 100%);
           mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent 100%); }
 .lfeed.few { height: auto; -webkit-mask-image: none; mask-image: none; }
-.lrow { display: grid; grid-template-columns: 26px minmax(80px, 160px) 1fr auto auto; align-items: center; gap: 12px; height: 44px;
+.lrow { display: grid; grid-template-columns: 26px minmax(80px, 180px) 1fr auto; align-items: center; gap: 12px; height: 44px;
   padding: 0 6px; border-bottom: 1px solid var(--line); font-size: 13px; cursor: default; overflow: hidden;
   transition: height .3s ease-out, opacity .3s ease-out; }
 .lrow.lin { height: 0; opacity: 0; border-bottom-color: transparent; }
@@ -644,7 +644,7 @@ button.ghost.xbtn { padding: 0; color: #475569; }
 .lrow .lstat { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lrow .lstat small { color: var(--muted); font-size: 12px; }
 .lrow .lt { font-size: 12px; text-align: right; white-space: nowrap; }
-.lsaved { display: inline-flex; align-items: center; gap: 4px; font: 12px/1 var(--mono); color: var(--muted); }
+.lrow .lsaved { display: inline-flex; align-items: center; gap: 6px; }
 .lsaved svg.ci { width: 14px; height: 14px; color: #D97706; }
 .limg { position: relative; flex: none; width: 26px; height: 26px; border-radius: 50%; overflow: hidden; display: grid; place-items: center;
   font: 600 12px/1 var(--mono); background: hsl(var(--h, 160) 55% 93%); color: hsl(var(--h, 160) 45% 30%); }
@@ -652,8 +652,6 @@ button.ghost.xbtn { padding: 0; color: #475569; }
 .limg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .lnow { display: inline-flex; align-items: center; gap: 8px; color: #047857; font-size: 12.5px; }
 .lnow .flive { width: 7px; height: 7px; }
-.herodemo { margin: 12px 0 0; font-size: 13px; color: #94A3B8; }
-.herodemo a { color: var(--mint); }
 /* owner, 07.10: a guest gets one finished analysis to open, named and counted, under the token field */
 .herodemo-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 14px 0 0; }
 .herodemo-lead { font-size: 13px; color: #94A3B8; }
@@ -666,8 +664,14 @@ button.ghost.xbtn { padding: 0; color: #475569; }
 .herodemo-card b { color: #fff; }
 .herodemo-card .mono { color: #94A3B8; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .herodemo-card .hd-go { padding: 4px 10px; border-radius: 999px; background: var(--mint); color: var(--navy); font-weight: 600; white-space: nowrap; }
-@media (max-width: 560px) { .lrow { grid-template-columns: 26px minmax(0, 1fr) auto auto auto; gap: 10px; } .lrow .lstat small { display: none; }
-  .herodemo-card .mono { display: none; } }
+.hero-dark .lead-short { display: none; }
+.herofree { margin: 14px 0 0; font-size: 13px; color: #94A3B8; max-width: 640px; }
+.herofree a { color: var(--mint); }
+/* phones (owner, 07.10, «like FOMO»): less text, the same facts — a short lead, no steps, no captions */
+@media (max-width: 560px) { .lrow { grid-template-columns: 26px minmax(0, 1fr) auto auto; gap: 10px; }
+  .herodemo-card .mono, .herodemo-lead { display: none; }
+  .hero-dark .lead-long, .steps3, .livefeed > p.muted { display: none; }
+  .hero-dark .lead-short { display: inline; } }
 @media (prefers-reduced-motion: reduce) { .lrow { transition: none; } }
 
 /* ── iteration 9: assistant ── */

@@ -9,7 +9,7 @@
     <div class="hero-top"><div class="hero-acct">{% include "_acct.html" %}</div>{% include "_news.html" %}</div>
     <h1 class="brandline">tracced</h1>
     <p class="tagline mono">every wallet <em>on the record</em><span class="cursor">_</span></p>
-    <p class="lead">Paste a token, choose the pump range — see every wallet that bought there and what it did next.</p>
+    <p class="lead"><span class="lead-long">Paste a token, choose the pump range — see every wallet that bought there and what it did next.</span><span class="lead-short">Every wallet that bought before a pump, and what it did next.</span></p>
     <form method="get" action="/token" class="row herof">
       <input type="text" name="mint" placeholder="Paste a token address" data-type-address
              required pattern="[1-9A-HJ-NP-Za-km-z]{32,44}" spellcheck="false" autocomplete="off" aria-label="Token address">
@@ -19,12 +19,14 @@
     {# owner, 07.10: whoever has not connected a wallet gets one finished analysis to open, named and counted #}
     <div class="herodemo-row"><span class="herodemo-lead">No wallet? Open a finished analysis</span>
       <a class="herodemo-card" href="/token?mint={{ demo_card.mint }}" data-umami-event="home-demo"><span class="limg" data-l="{{ demo_card.letter }}" style="--h: {{ demo_card.hue }}" aria-hidden="true">{% if demo_card.image %}<img src="{{ demo_card.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span><b>{{ demo_card.symbol }}</b><span class="mono">{{ '{:,}'.format(demo_card.wallets) }} wallets{% if demo_card.made2x %} · {{ '{:,}'.format(demo_card.made2x) }} made 2×+{% endif %}</span><span class="hd-go">Open the demo</span></a></div>
-    {% elif demo_token %}<p class="herodemo">No token at hand? <a href="/token?mint={{ demo_token }}">Open the demo</a></p>{% endif %}
+    {% endif %}
     <div class="counters">
       <div><b data-count="{{ totals.wallets }}" data-fmt="int">0</b><span>wallets on the record</span></div>
       <div><b data-count="{{ totals.tokens }}" data-fmt="int">0</b><span>tokens analyzed</span></div>
       <div><b data-count="{{ totals.trades }}" data-fmt="int">0</b><span>trades processed</span></div>
     </div>
+    {# owner, 07.10: free while in development; a follow on X is the only payment we ask #}
+    <p class="herofree">tracced is free while we build it. If it saves you time, <a href="https://x.com/intent/follow?screen_name=tracced_xyz" target="_blank" rel="noopener" data-umami-event="home-follow">follow us on X</a>, that's all we ask.</p>
   </div>
   {% if fresh %}
   {# the fresh pumps of the last 48 hours run along the bottom of the hero, right to left, and stop under the pointer: always a full
@@ -49,7 +51,7 @@
   <em aria-hidden="true">→</em>
   <div><i>03</i><b>Get wallets</b></div>
 </section>
-{% macro lrow(r) %}<div class="lrow" data-id="{{ r.id }}" data-at="{{ r.at }}"><span class="limg" data-l="{{ r.letter }}" style="--h: {{ r.hue }}" aria-hidden="true">{% if r.image %}<img src="{{ r.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span><b class="sym">{{ r.symbol }}</b>{% if r.running %}<span class="lnow"><i class="flive" aria-hidden="true"></i>analyzing now</span>{% else %}<span class="mono lstat">{% if r.wallets is not none %}{{ '{:,}'.format(r.wallets) }} wallet{{ '' if r.wallets == 1 else 's' }}{% else %}done{% endif %}{% if r.made2x %}<small title="Wallets that sold at 2× their entry or more"> · {{ '{:,}'.format(r.made2x) }} made 2×+</small>{% endif %}</span>{% endif %}<span class="lsaved"{% if r.saved %} title="Saved to watchlists {{ r.saved }} {{ 'time' if r.saved == 1 else 'times' }}">{{ icon('i-star-on') }}{{ r.saved }}{% else %}>{% endif %}</span><span class="mono muted lt" data-ago="{{ r.at }}">{{ r.ago }}</span></div>{% endmacro %}
+{% macro lrow(r) %}<div class="lrow" data-id="{{ r.id }}" data-at="{{ r.at }}"><span class="limg" data-l="{{ r.letter }}" style="--h: {{ r.hue }}" aria-hidden="true">{% if r.image %}<img src="{{ r.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span><b class="sym">{{ r.symbol }}</b>{% if r.running %}<span class="lnow"><i class="flive" aria-hidden="true"></i>analyzing now</span>{% elif r.saved %}<span class="lstat lsaved" title="Wallets from this analysis that people saved to their watchlists">{{ icon('star-on') }}saved {{ '{:,}'.format(r.saved) }} wallet{{ '' if r.saved == 1 else 's' }}</span>{% elif r.wallets is not none %}<span class="lstat">found {{ '{:,}'.format(r.wallets) }} wallet{{ '' if r.wallets == 1 else 's' }}</span>{% else %}<span class="lstat">done</span>{% endif %}<span class="mono muted lt" data-ago="{{ r.at }}">{{ r.ago }}</span></div>{% endmacro %}
 {% if live.rows %}
 {# «Live on tracced» (owner, 05.10, 07.10): people opened others' finished analyses from a clickable list and took them for
    our verdicts. Now everyone's latest analyses lead nowhere, and they arrive the way they happened: the newest few slide
@@ -87,16 +89,12 @@
     if (r.image) { const im = new Image(); im.alt = ''; im.loading = 'lazy'; im.referrerPolicy = 'no-referrer'; im.onerror = () => im.remove(); im.src = r.image; pic.appendChild(im); }
     row.append(pic, el('b', 'sym', r.symbol));
     if (r.running) { const now = el('span', 'lnow'); const dot = el('i', 'flive'); dot.setAttribute('aria-hidden', 'true'); now.append(dot, 'analyzing now'); row.appendChild(now); }
-    else {
-      const st = el('span', 'mono lstat', r.wallets == null ? 'done' : fmt(r.wallets) + (r.wallets === 1 ? ' wallet' : ' wallets'));
-      if (r.made2x) { const m = el('small', null, ' · ' + fmt(r.made2x) + ' made 2×+'); m.title = 'Wallets that sold at 2× their entry or more'; st.appendChild(m); }
-      row.appendChild(st);
-    }
-    const sv = el('span', 'lsaved');
-    if (r.saved) { sv.title = 'Saved to watchlists ' + r.saved + (r.saved === 1 ? ' time' : ' times');
-      sv.innerHTML = '<svg class="ci" aria-hidden="true"><use href="' + (document.querySelector('use[href*="#i-"]') || { getAttribute: () => '/static/icons.svg#i-star-on' }).getAttribute('href').replace(/#.*/, '#i-star-on') + '"/></svg>';
-      sv.appendChild(document.createTextNode(String(r.saved))); }
-    row.appendChild(sv);
+    else if (r.saved) {
+      const sv = el('span', 'lstat lsaved'); sv.title = 'Wallets from this analysis that people saved to their watchlists';
+      const use = document.querySelector('use[href*="#i-"]');
+      sv.innerHTML = '<svg class="ci" aria-hidden="true"><use href="' + (use ? use.getAttribute('href').replace(/#.*/, '#i-star-on') : '/static/icons.svg#i-star-on') + '"/></svg>';
+      sv.appendChild(document.createTextNode('saved ' + fmt(r.saved) + (r.saved === 1 ? ' wallet' : ' wallets'))); row.appendChild(sv);
+    } else row.appendChild(el('span', 'lstat', r.wallets == null ? 'done' : 'found ' + fmt(r.wallets) + (r.wallets === 1 ? ' wallet' : ' wallets')));
     const t = el('span', 'mono muted lt', ago(r.at)); t.dataset.ago = r.at; row.appendChild(t);
     return row;
   }

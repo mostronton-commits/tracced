@@ -377,9 +377,12 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   ago. Never who ran them. Rows lead nowhere; the one action is "paste it above" in the caption, which focuses the
   token field. Seven rows show at once (owner, 07.10): the newest arrive one at a time at the top, 3–10 s apart, as
   they happened, and real new ones come every 20 s from `/live.json`. Nothing loops. A row: the token's picture (its
-  letter while it loads or when it has none), symbol, wallets found and how many made 2×+, a star with how many
-  times its wallets were saved, how long ago. No "best ×": it said nothing. The demo is no row: a guest gets a demo
-  card under the token field (the token, its wallets and 2×+, Open the demo); a connected person gets a one-line link.
+  letter while it loads or when it has none), symbol, one fact, how long ago. The fact is "saved N wallets" with the
+  star when people really saved wallets from that analysis, otherwise "found N wallets". Never a made-up number. The
+  demo is no row: a guest gets a demo card under the token field (the token, its wallets and 2×+, Open the demo).
+- **Free while we build it**: one quiet line under the hero counters asks for a follow on X instead of payment.
+- **Phones get less text, not fewer facts** (owner, 07.10, «like FOMO»): a short lead in the hero, no 01/02/03 steps,
+  no captions under section titles; numbers and actions stay.
 - **Toasts** sit at the bottom centre, one at a time. They name the result and can carry one link ("Lists →") or one
   Undo.
 - **Menus and popovers** are white with a 1 px border. Menus have an 8 px radius, popovers 10 px. Escape or a click

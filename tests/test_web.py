@@ -396,8 +396,9 @@ if AioHTTPTestCase:
             self.assertEqual(d["rows"][0]["id"][:6], newest)
             self.assertEqual(set(d["rows"][0]) >= {"id", "symbol", "letter", "image", "hue", "running", "wallets", "made2x", "saved", "at"}, True)
 
-        async def test_home_feed_counts_made_2x_and_saved_wallets(self):
-            # рядок стрічки: скільки гаманців знайдено, скільки з них продали 2×+ і скільки разів їх зберегли в списки
+        async def test_home_feed_row_says_saved_wallets_or_wallets_found(self):
+            # власник, 07.10: рядок — тікер і одна фраза. Збережені гаманці, коли їх справді зберегли; інакше — скільки знайдено.
+            # Вигаданих чисел нема: лічильник — за `from_job` збережених у списках
             import time as _time
             jid, mint = "FEEDFE_20010909-0146_0206", "F" * 40
             rows = [{"wallet": f"W{i}", "sells": 1, "multiple": m} for i, m in enumerate((2.5, 1.2, 9.0))] + [{"wallet": "W9", "sells": 0, "multiple": 5.0}]
@@ -413,9 +414,15 @@ if AioHTTPTestCase:
             self.app.pop("saved_counts", None)
             html = await (await self.client.get("/")).text()
             feed = html[html.index('id="live"'):html.index("</section>", html.index('id="live"'))]
-            self.assertIn("4 wallets", feed)
-            self.assertIn("2 made 2×+", feed)                          # W0 і W2; W9 не продавав
-            self.assertIn("Saved to watchlists 2 times", feed)
+            self.assertIn("saved 2 wallets", feed)
+            self.assertIn("#i-star-on", feed)                          # зірка зі спрайта, а не порожнє місце
+            self.assertNotIn("#i-i-", feed)
+            self.assertNotIn("found 4 wallets", feed)                  # одна фраза на рядок
+            self.assertNotIn("made 2×+", feed)
+            self.app["accounts"]._update(TEST_PK, lambda a: a["wallets"].clear())
+            self.app.pop("saved_counts", None)
+            feed = (await (await self.client.get("/")).text()).split('id="live"', 1)[1]
+            self.assertIn("found 4 wallets", feed)                     # ніхто не зберіг — скільки знайдено
             self.assertIn('src="https://image.solanatracker.io/proxy?url=x"', feed)   # картинка токена з аналізу
 
         async def test_home_feed_and_token_page_list_the_analyses(self):
@@ -479,7 +486,8 @@ if AioHTTPTestCase:
             self.assertIn("No wallet? Open a finished analysis", home)
             self.assertEqual(self.st.requests, before)                  # і жодного запиту за неї
             home = await (await self.client.get("/")).text()
-            self.assertIn(f'<a href="/token?mint={MINT}">Open the demo</a>', home)   # з гаманцем — короткий рядок
+            self.assertNotIn("No token at hand", home)                 # власник, 07.10: з гаманцем — без цього рядка
+            self.assertIn("x.com/intent/follow?screen_name=tracced_xyz", home)   # безкоштовно, поки будуємо: підписка на X
             r = await self.client.get(f"/token?mint={other}", headers=GUEST)
             html = await r.text()
             self.assertEqual(r.status, 200)                             # гість бачить голий графік і ставить межі
