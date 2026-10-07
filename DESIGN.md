@@ -375,8 +375,11 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   analyses and took them for our verdicts, not seeing they could run their own). It shows the latest twenty analyses by
   anyone, one row each: a letter mark, the symbol, the wallets found and the best ×, or "analyzing now", and how long
   ago. Never who ran them. Rows lead nowhere; the one action is "paste it above" in the caption, which focuses the
-  token field. Six rows or more roll slowly upward in a loop, fewer stand still. The demo is no row: it has its own
-  link under the token field.
+  token field. Seven rows show at once (owner, 07.10): the newest arrive one at a time at the top, 3–10 s apart, as
+  they happened, and real new ones come every 20 s from `/live.json`. Nothing loops. A row: the token's picture (its
+  letter while it loads or when it has none), symbol, wallets found and how many made 2×+, a star with how many
+  times its wallets were saved, how long ago. No "best ×": it said nothing. The demo is no row: a guest gets a demo
+  card under the token field (the token, its wallets and 2×+, Open the demo); a connected person gets a one-line link.
 - **Toasts** sit at the bottom centre, one at a time. They name the result and can carry one link ("Lists →") or one
   Undo.
 - **Menus and popovers** are white with a 1 px border. Menus have an 8 px radius, popovers 10 px. Escape or a click
@@ -392,8 +395,11 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
 - **Nothing jumps on hover.** No `translateY` on buttons, rows, chips or cards; a chip in a clipped strip gets cut.
 - **Name the properties being animated.** Never write `transition: all`.
 - **Decorative loops** (the agent button's sheen, the live dot) run briefly or only under the pointer.
-- **The two rolls**, the fresh-pumps tape and the live feed, move slowly all the time and stop under the pointer.
-- All of these stop under `prefers-reduced-motion: reduce`; the rolls then scroll by hand.
+- **The fresh-pumps tape** moves slowly all the time and stops under the pointer.
+- **The live feed does not roll**: a new row slides in at the top (300 ms, `ease-out`) and the seventh fades out
+  at the bottom.
+- All of these stop under `prefers-reduced-motion: reduce`: the tape then scrolls by hand, and new feed rows appear
+  without sliding.
 
 ## Do's and Don'ts
 

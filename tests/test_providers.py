@@ -65,8 +65,8 @@ class TestDexscreenerOrders(unittest.TestCase):
             got = dexscreener.orders("M" * 40)
         finally:
             urllib.request.urlopen = real
-        self.assertEqual([x["ms"] for x in got], [1789500257012, 1789500329864])   # неоплачене не рахуємо
-        self.assertEqual(got[0]["kind"], "profile")
+        self.assertEqual([x["ms"] for x in got], [1789500257012])   # неоплачене не рахуємо; два профілі за хвилину — одна позначка
+        self.assertEqual((got[0]["kind"], got[0]["n"]), ("profile", 2))
 
     def test_a_dead_service_is_an_empty_list_not_an_error(self):
         import urllib.request
@@ -157,6 +157,25 @@ class TestTokenInfoText(unittest.TestCase):
         st._get = lambda path: {"token": {"symbol": 420, "name": None}, "pools": []}
         info = st.token_info("M" * 40)
         self.assertEqual((info["symbol"], info["name"]), ("420", None))
+
+    def test_the_picture_is_a_plain_https_address_or_nothing(self):
+        st = SolanaTracker("k", pause=0)
+        ok = "https://image.solanatracker.io/proxy?url=https%3A%2F%2Fipfs-forward.solanatracker.io%2Fipfs%2FQm1"
+        for img, want in ((ok, ok), ("http://x.io/a.png", None), ('https://x.io/a.png" onerror="alert(1)', None),
+                          ("https://x.io/" + "a" * 700, None), (None, None), (42, None)):
+            st._get = lambda path, img=img: {"token": {"symbol": "A", "image": img}, "pools": []}
+            self.assertEqual(st.token_info("M" * 40)["image"], want)
+
+
+class TestDexScreenerMerge(unittest.TestCase):
+    def test_repeat_payments_of_one_kind_are_one_mark(self):
+        """Власник, 07.10: профіль PAID оплатили двічі за 1,2 хвилини — на графіку були дві однакові позначки."""
+        m = 60_000
+        got = dexscreener.merge([{"ms": 10 * m, "kind": "profile"}, {"ms": 11 * m, "kind": "profile"},
+                                 {"ms": 12 * m, "kind": "takeover"}, {"ms": 100 * m, "kind": "profile"}])
+        self.assertEqual([(o["ms"] // m, o["kind"], o.get("n", 1)) for o in got],
+                         [(10, "profile", 2), (12, "takeover", 1), (100, "profile", 1)])
+        self.assertEqual(dexscreener.merge([]), [])
 
 
 if __name__ == "__main__":

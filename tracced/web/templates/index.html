@@ -15,7 +15,11 @@
              required pattern="[1-9A-HJ-NP-Za-km-z]{32,44}" spellcheck="false" autocomplete="off" aria-label="Token address">
       <button type="submit" class="primary">Analyze</button>
     </form>
-    {% if demo_token %}<p class="herodemo">No token at hand? <a href="/token?mint={{ demo_token }}">Open the demo</a></p>{% endif %}
+    {% if demo_card and not acct %}
+    {# owner, 07.10: whoever has not connected a wallet gets one finished analysis to open, named and counted #}
+    <div class="herodemo-row"><span class="herodemo-lead">No wallet? Open a finished analysis</span>
+      <a class="herodemo-card" href="/token?mint={{ demo_card.mint }}" data-umami-event="home-demo"><span class="limg" data-l="{{ demo_card.letter }}" style="--h: {{ demo_card.hue }}" aria-hidden="true">{% if demo_card.image %}<img src="{{ demo_card.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span><b>{{ demo_card.symbol }}</b><span class="mono">{{ '{:,}'.format(demo_card.wallets) }} wallets{% if demo_card.made2x %} · {{ '{:,}'.format(demo_card.made2x) }} made 2×+{% endif %}</span><span class="hd-go">Open the demo</span></a></div>
+    {% elif demo_token %}<p class="herodemo">No token at hand? <a href="/token?mint={{ demo_token }}">Open the demo</a></p>{% endif %}
     <div class="counters">
       <div><b data-count="{{ totals.wallets }}" data-fmt="int">0</b><span>wallets on the record</span></div>
       <div><b data-count="{{ totals.tokens }}" data-fmt="int">0</b><span>tokens analyzed</span></div>
@@ -45,26 +49,18 @@
   <em aria-hidden="true">→</em>
   <div><i>03</i><b>Get wallets</b></div>
 </section>
+{% macro lrow(r) %}<div class="lrow" data-id="{{ r.id }}" data-at="{{ r.at }}"><span class="limg" data-l="{{ r.letter }}" style="--h: {{ r.hue }}" aria-hidden="true">{% if r.image %}<img src="{{ r.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span><b class="sym">{{ r.symbol }}</b>{% if r.running %}<span class="lnow"><i class="flive" aria-hidden="true"></i>analyzing now</span>{% else %}<span class="mono lstat">{% if r.wallets is not none %}{{ '{:,}'.format(r.wallets) }} wallet{{ '' if r.wallets == 1 else 's' }}{% else %}done{% endif %}{% if r.made2x %}<small title="Wallets that sold at 2× their entry or more"> · {{ '{:,}'.format(r.made2x) }} made 2×+</small>{% endif %}</span>{% endif %}<span class="lsaved"{% if r.saved %} title="Saved to watchlists {{ r.saved }} {{ 'time' if r.saved == 1 else 'times' }}">{{ icon('i-star-on') }}{{ r.saved }}{% else %}>{% endif %}</span><span class="mono muted lt" data-ago="{{ r.at }}">{{ r.ago }}</span></div>{% endmacro %}
 {% if live.rows %}
-{# «Live on tracced» (owner, 05.10): people opened others' finished analyses from a clickable list and took them for our
-   own verdicts, not seeing they could run one. Now everyone's latest analyses roll slowly upward and lead nowhere: the
-   one action on this page is pasting a token. The demo stays one click away under the field. #}
+{# «Live on tracced» (owner, 05.10, 07.10): people opened others' finished analyses from a clickable list and took them for
+   our verdicts. Now everyone's latest analyses lead nowhere, and they arrive the way they happened: the newest few slide
+   in one at a time, 3–10 s apart, then the page asks /live.json for real new ones every 20 s. Nothing loops, nothing is
+   made up: every row is an analysis someone ran, with its time. The one action here is pasting a token. #}
+{% set q = [3, [0, live.rows|length - 4]|max]|min %}
 <section class="card livefeed" id="live" aria-label="Live on tracced">
-  <div class="row mehead"><h2><i class="flive" aria-hidden="true"></i>Live on tracced</h2><span class="muted small mono lday">{{ live.day }} {{ 'analysis' if live.day == 1 else 'analyses' }} in the last 24 h</span>{% if acct %}<a class="right small" href="/me#analyses">My analyses ({{ my_n }}) →</a>{% endif %}</div>
+  <div class="row mehead"><h2><i class="flive" aria-hidden="true"></i>Live on tracced</h2><span class="muted small mono lday" data-live-day>{{ live.day }} {{ 'analysis' if live.day == 1 else 'analyses' }} in the last 24 h</span>{% if acct %}<a class="right small" href="/me#analyses">My analyses ({{ my_n }}) →</a>{% endif %}</div>
   <p class="muted small">What traders are analyzing right now. Who ran them is never shown. To see a token's early wallets, <a href="#" data-focus-mint>paste it above</a> and mark its pump.</p>
-  {% set loop_it = live.rows|length >= 6 %}
-  <div class="lfeed-win{{ ' still' if not loop_it }}">
-    <div class="lfeed-track" style="--dur: {{ [live.rows|length * 4, 30]|max }}s">
-      {% for half in ([0, 1] if loop_it else [0]) %}{% for r in live.rows %}
-      <div class="lrow"{% if half %} aria-hidden="true"{% endif %}>
-        <span class="limg" data-l="{{ r.letter }}" style="--h: {{ r.hue }}" aria-hidden="true"></span>
-        <b class="sym">{{ r.symbol }}</b>
-        {% if r.running %}<span class="lnow"><i class="flive" aria-hidden="true"></i>analyzing now</span>
-        {% else %}<span class="mono lstat">{% if r.wallets is not none %}{{ '{:,}'.format(r.wallets) }} wallet{{ '' if r.wallets == 1 else 's' }}{% else %}done{% endif %}{% if r.best %}<small> · best {{ r.best|round(1) }}×</small>{% endif %}</span>{% endif %}
-        <span class="mono muted lt" data-ago="{{ r.at }}">{{ r.ago }}</span>
-      </div>{% endfor %}{% endfor %}
-    </div>
-  </div>
+  <div class="lfeed{{ ' few' if live.rows|length < 7 }}" id="lfeed">{% for r in live.rows[q:q + 7] %}{{ lrow(r) }}{% endfor %}</div>
+  {% if q %}<template id="liveq">{% for r in live.rows[:q] %}{{ lrow(r) }}{% endfor %}</template>{% endif %}
 </section>
 <script>
 (function () {
@@ -78,6 +74,57 @@
     i.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
     i.focus({ preventScroll: true });
   }));
+  const box = document.getElementById('lfeed'); if (!box) return;
+  const MAX = 7, reduced = matchMedia('(prefers-reduced-motion: reduce)').matches, tpl = document.getElementById('liveq');
+  const queue = tpl ? Array.from(tpl.content.children).reverse() : [];      // the newest arrives last
+  const ids = new Set([...box.children, ...queue].map(r => r.dataset.id));
+  let newest = Math.max(0, ...[...box.children, ...queue].map(r => +r.dataset.at || 0)), timer = null;
+  const fmt = n => Number(n).toLocaleString('en-US');
+  function el(tag, cls, text) { const x = document.createElement(tag); if (cls) x.className = cls; if (text != null) x.textContent = text; return x; }
+  function build(r) {                                     // a row from /live.json, text only through textContent
+    const row = el('div', 'lrow'); row.dataset.id = r.id; row.dataset.at = r.at;
+    const pic = el('span', 'limg'); pic.dataset.l = r.letter || '?'; pic.style.setProperty('--h', r.hue || 160); pic.setAttribute('aria-hidden', 'true');
+    if (r.image) { const im = new Image(); im.alt = ''; im.loading = 'lazy'; im.referrerPolicy = 'no-referrer'; im.onerror = () => im.remove(); im.src = r.image; pic.appendChild(im); }
+    row.append(pic, el('b', 'sym', r.symbol));
+    if (r.running) { const now = el('span', 'lnow'); const dot = el('i', 'flive'); dot.setAttribute('aria-hidden', 'true'); now.append(dot, 'analyzing now'); row.appendChild(now); }
+    else {
+      const st = el('span', 'mono lstat', r.wallets == null ? 'done' : fmt(r.wallets) + (r.wallets === 1 ? ' wallet' : ' wallets'));
+      if (r.made2x) { const m = el('small', null, ' · ' + fmt(r.made2x) + ' made 2×+'); m.title = 'Wallets that sold at 2× their entry or more'; st.appendChild(m); }
+      row.appendChild(st);
+    }
+    const sv = el('span', 'lsaved');
+    if (r.saved) { sv.title = 'Saved to watchlists ' + r.saved + (r.saved === 1 ? ' time' : ' times');
+      sv.innerHTML = '<svg class="ci" aria-hidden="true"><use href="' + (document.querySelector('use[href*="#i-"]') || { getAttribute: () => '/static/icons.svg#i-star-on' }).getAttribute('href').replace(/#.*/, '#i-star-on') + '"/></svg>';
+      sv.appendChild(document.createTextNode(String(r.saved))); }
+    row.appendChild(sv);
+    const t = el('span', 'mono muted lt', ago(r.at)); t.dataset.ago = r.at; row.appendChild(t);
+    return row;
+  }
+  function show(row) {
+    if (!reduced) row.classList.add('lin');
+    box.prepend(row);
+    if (!reduced) { void row.offsetHeight; row.classList.remove('lin'); }
+    while (box.children.length > MAX) box.lastElementChild.remove();
+    box.classList.toggle('few', box.children.length < MAX);
+  }
+  function step() { timer = null; if (!queue.length) return; if (document.hidden) return plan(); show(queue.shift()); plan(); }
+  function plan() { if (!timer && queue.length) timer = setTimeout(step, 3000 + Math.random() * 7000); }
+  async function poll() {
+    if (document.hidden) return;
+    try {
+      const d = await (await fetch('/live.json', { cache: 'no-store' })).json();
+      (d.rows || []).slice().reverse().forEach(r => {      // oldest first, so they arrive in the order they happened
+        const shown = box.querySelector('[data-id="' + CSS.escape(r.id) + '"]');
+        if (shown) { if ((shown.querySelector('.lnow') != null) !== !!r.running) shown.replaceWith(build(r)); return; }
+        if (ids.has(r.id) || r.at <= newest) return;       // already queued, or older than what is on screen
+        ids.add(r.id); newest = Math.max(newest, r.at); queue.push(build(r));
+      });
+      const day = document.querySelector('[data-live-day]');
+      if (day && d.day != null) day.textContent = d.day + (d.day === 1 ? ' analysis' : ' analyses') + ' in the last 24 h';
+      plan();
+    } catch (e) {}
+  }
+  plan(); setInterval(poll, 20000);
 })();
 </script>
 {% endif %}

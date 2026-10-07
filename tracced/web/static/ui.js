@@ -44,8 +44,9 @@
     if (d && d.migration && d.migration.ms) out.push({ ms: d.migration.ms, kind: 'mig', badge: 'M',
       label: 'Migrated to ' + (d.migration.market || 'a DEX'),
       title: 'Migration: trading moved from ' + (d.migration.from || 'the launchpad') + ' to ' + (d.migration.market || 'a DEX') + when(d.migration.ms) });
-    ((d && d.paid) || []).forEach(p => out.push({ ms: p.ms, kind: 'paid', html: DEX, label: 'DexScreener ' + (p.kind || 'profile') + ' paid',
-      title: 'DexScreener ' + (p.kind || 'profile') + ' paid' + when(p.ms) + ' (anyone can pay, not only the team)' }));
+    const times = n => n === 2 ? ' twice' : n > 2 ? ' ' + n + ' times' : '';      // one mark for repeat payments (owner, 07.10)
+    ((d && d.paid) || []).forEach(p => out.push({ ms: p.ms, kind: 'paid', html: DEX, label: 'DexScreener ' + (p.kind || 'profile') + ' paid' + times(p.n),
+      title: 'DexScreener ' + (p.kind || 'profile') + ' paid' + times(p.n) + when(p.ms) + ' (anyone can pay, not only the team)' }));
     return out;
   }
   /* <div class="menu"><button data-menu>…</button><div class="menu-panel" hidden>…</div></div> */

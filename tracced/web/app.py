@@ -491,6 +491,9 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["st_slots"] = threading.BoundedSemaphore(max(1, int(s.get("st_concurrency", 1) or 1)) + 1)   # +1: сторінка не чекає за прогоном
     app["overview_cache"], app["overview_pending"] = {}, {}
     app["dex_cache"] = JsonCache(str(Path(store_dir) / "dexscreener.json"), ttl_hours=24)   # чужий безкоштовний ендпоінт: добу тримаємо відповідь
+    # картинки токенів для головної: у нових аналізів вона в info, старшим дочитується раз (1 запит) і живе місяць
+    app["token_images"] = JsonCache(str(Path(store_dir) / "token_images.json"), ttl_hours=24 * 30)
+    app["images_busy"] = False
     app["profile_cache"] = JsonCache(str(Path(store_dir) / "wallet_profile.json"),             # картка гаманця: 1-5 запитів, добу з кешу
                                      ttl_hours=float(s.get("wallet_profile_ttl_hours", 24)), flush_every=25)   # решту допише зупинка сервера
     app["accounts"] = acct_mod.AccountStore(Path(out_dir).parent / "accounts")   # поруч з web/ і demo/ у output/early
@@ -587,6 +590,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
                            enrich_upto=(lambda r: enrich_target(r, s)) if ages else 0,
                            namer=make_namer(identify, st, spend) if identify else None, on_finish=on_finish)
     app.router.add_get("/", index)
+    app.router.add_get("/live.json", live_json)
     app.router.add_get("/how", how)
     app.router.add_get("/docs", docs_page)
     app.router.add_get("/docs/{slug}", docs_page)
@@ -3498,7 +3502,72 @@ def _demo(app):
     return app["demo"]
 
 
-LIVE_ROWS = 20            # «Live on tracced»: скільки останніх аналізів котиться на головній
+LIVE_ROWS = 20            # «Live on tracced»: скільки останніх аналізів знає головна (на екрані — сім)
+IMAGES_PER_PASS = 10      # картинок токенів, які дочитуються за один фоновий прохід
+
+
+def _token_image(app, mint, info=None):
+    """Картинка токена: з аналізу, а ні — з кешу картинок (порожній рядок у кеші: у токена її нема, не питаємо знову)."""
+    img = (info or {}).get("image")
+    if img:
+        return img
+    hit = app["token_images"].get(mint) if app.get("token_images") is not None else None
+    return hit or None
+
+
+def _images_backfill(app, mints):
+    """Картинки токенів, аналізованих до того, як аналіз почав їх зберігати: фоном, по одному запиту на токен, не
+    більше IMAGES_PER_PASS за раз і лише коли ввімкнено (`token_images_backfill`). Сторінка не чекає: покаже наступному."""
+    cache = app.get("token_images")
+    if cache is None or app.get("images_busy") or not app["s"].get("token_images_backfill"):
+        return
+    todo = [m for m in dict.fromkeys(mints) if cache.get(m) is None][:IMAGES_PER_PASS]
+    if not todo:
+        return
+    app["images_busy"] = True
+
+    async def run():
+        st = app["st"]
+        try:
+            def work():
+                with st.meter():
+                    req0 = st.requests_here()
+                    for m in todo:
+                        try:
+                            cache.put(m, (st.token_info(m) or {}).get("image") or "")
+                        except Exception as ex:  # noqa: BLE001 — без картинки лишається літера
+                            log.info("token image %s: %s", m[:8], ex)
+                    cache.flush()
+                    return st.requests_here() - req0
+            n = await asyncio.to_thread(work)
+            _spend(app, "system", "images", st=n, bg=1)
+        finally:
+            app["images_busy"] = False
+    asyncio.get_running_loop().create_task(run())
+
+
+def _saved_counts(app, now=None):
+    """Скільки разів гаманці з кожного аналізу зберегли в списки (за `from_job` збереженого), раз на хвилину."""
+    now = time.time() if now is None else now
+    hit = app.get("saved_counts")
+    if hit and now - hit[0] < 60:
+        return hit[1]
+    counts = {}
+    try:
+        for a in app["accounts"].all():
+            for v in (a.get("wallets") or {}).values():
+                j = (v or {}).get("from_job")
+                if j:
+                    counts[j] = counts.get(j, 0) + 1
+    except Exception as ex:  # noqa: BLE001 — лічильник прикраса, сторінка відкривається без нього
+        log.info("saved counts: %s", ex)
+    app["saved_counts"] = (now, counts)
+    return counts
+
+
+def _made_2x(result):
+    """Гаманці аналізу, що продали щонайменше вдвічі дорожче за вхід (ROI ≥ 2× з продажами)."""
+    return sum(1 for r in (result or {}).get("rows") or [] if (r.get("sells") or 0) > 0 and (r.get("multiple") or 0) >= 2)
 
 
 def _live_ago(ms, now_ms):
@@ -3513,20 +3582,49 @@ def _live_feed(app, now_ms=None):
     видно, що й як часто аналізують, а дія на сторінці одна — вставити свій токен. Програвання демо сюди не потрапляють
     (recent() їх не бачить), у демо своє посилання під полем."""
     now_ms = int(time.time() * 1000) if now_ms is None else now_ms
-    rows = []
+    rows, saved, missing = [], _saved_counts(app), []
     for j in app["jobs"].recent(60):
         if j.status == "error":
             continue
         r = j.result or {}
-        sym = str(j.symbol or (r.get("info") or {}).get("symbol") or j.mint[:6])[:16]
-        rows.append({"symbol": sym, "letter": sym[:1].upper(), "hue": int(hashlib.sha1(j.mint.encode()).hexdigest()[:4], 16) % 360,
+        info = r.get("info") or {}
+        sym = str(j.symbol or info.get("symbol") or j.mint[:6])[:16]
+        img = _token_image(app, j.mint, info)
+        if not img:
+            missing.append(j.mint)
+        rows.append({"id": j.id, "symbol": sym, "letter": sym[:1].upper(), "image": img,
+                     "hue": int(hashlib.sha1(j.mint.encode()).hexdigest()[:4], 16) % 360,
                      "running": j.status in ("queued", "running"), "wallets": (r.get("counts") or {}).get("n_early"),
-                     "best": (r.get("summary") or {}).get("best_multiple"), "at": j.created_ms or 0, "ago": _live_ago(j.created_ms, now_ms)})
+                     "made2x": _made_2x(r), "saved": saved.get(j.id, 0), "at": j.created_ms or 0, "ago": _live_ago(j.created_ms, now_ms)})
         if len(rows) >= LIVE_ROWS:
             break
+    _images_backfill(app, missing)
     day = sum(1 for j in list(app["jobs"].jobs.values()) if not j.replay and j.status != "error"
               and now_ms - (j.created_ms or 0) < 86_400_000)
     return {"rows": rows, "day": day}
+
+
+async def live_json(request):
+    """Стрічка «Live on tracced» для сторінки, яка вже відкрита: нові аналізи додаються по одному. Без жодного запиту
+    назовні — лише те, що сервер і так тримає в пам'яті."""
+    live = _live_feed(request.app)
+    return web.json_response({"rows": live["rows"][:12], "day": live["day"]}, headers={"Cache-Control": "public, max-age=10"})
+
+
+def _demo_card(app):
+    """Картка демо на головній для тих, хто ще без гаманця: токен, скільки гаманців і скільки з них продали 2×+."""
+    demo = _demo(app)
+    if not demo or not demo.get("ranges"):
+        return None
+    res = demo["ranges"][0].get("result") or {}
+    info = demo.get("info") or {}
+    sym = str(info.get("symbol") or demo["mint"][:6])[:16]
+    img = _token_image(app, demo["mint"], info)
+    if not img:
+        _images_backfill(app, [demo["mint"]])
+    return {"mint": demo["mint"], "symbol": sym, "letter": sym[:1].upper(), "image": img,
+            "hue": int(hashlib.sha1(demo["mint"].encode()).hexdigest()[:4], 16) % 360,
+            "wallets": (res.get("counts") or {}).get("n_early") or len(res.get("rows") or []), "made2x": _made_2x(res)}
 
 
 async def index(request):
@@ -3545,7 +3643,7 @@ async def index(request):
     if s.get("fresh_on") and f["ok_at"] and now_ms - f["ok_at"] < float(s.get("fresh_stale_hours", 3)) * 3_600_000:
         # вік рахується зараз, а не в момент оновлення; список, старший за кілька годин, не показується зовсім (рев'ю 30.09)
         fresh = [dict(r, age_h=max(0.0, (now_ms - r["created_ms"]) / 3_600_000) if r.get("created_ms") else None) for r in f["rows"]]
-    return render("index.html", request, live=_live_feed(app),
+    return render("index.html", request, live=_live_feed(app), demo_card=_demo_card(app),
                   totals=totals, sample=sample, bg_lines=lines, my_n=my_n,
                   fresh=fresh, fresh_min=int((now_ms - f["ok_at"]) / 60_000) if f["ok_at"] else None)
 

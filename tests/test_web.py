@@ -360,10 +360,10 @@ if AioHTTPTestCase:
             self.assertIn(f'data-count="{100 * len(done)}"', html)
             self.assertTrue(_re.search(r'data-count="\d+" data-fmt="int">0</b><span>wallets on the record', html))
 
-        async def test_home_live_feed_rolls_the_latest_analyses_and_leads_nowhere(self):
-            # власник, 05.10: чужі готові аналізи зі списку приймали за наші висновки. Тепер «Live on tracced» — стрічка
-            # останніх аналізів без посилань; шість і більше рядків котяться (список двічі, друга копія схована від
-            # читалок екрана), менше — стоять; демо-приклад має своє посилання під полем
+        async def test_home_live_feed_brings_the_newest_one_by_one_and_leads_nowhere(self):
+            # власник, 05.10 і 07.10: чужі готові аналізи зі списку приймали за наші висновки. Тепер «Live on tracced» —
+            # стрічка без посилань: на екрані сім, троє найновіших чекають у шаблоні й заходять по одному; далі сторінка
+            # питає /live.json. Нічого не крутиться по колу
             import re as _re
             q = self.app["jobs"]
             mints = [chr(ord("B") + i) * 40 for i in range(12)]
@@ -372,16 +372,51 @@ if AioHTTPTestCase:
                 await asyncio.to_thread(q.q.join)
             html = await (await self.client.get("/")).text()
             feed = html[html.index('id="live"'):html.index("</section>", html.index('id="live"'))]
-            self.assertEqual(feed.count('class="lrow"'), 24)
-            self.assertEqual(feed.count('class="lrow" aria-hidden="true"'), 12)
+            shown = feed[:feed.index("<template")]
+            queued = feed[feed.index("<template"):]
+            self.assertEqual(shown.count('class="lrow"'), 7)
+            self.assertEqual(queued.count('class="lrow"'), 3)
+            newest = mints[-1][:6]
+            self.assertIn(f'data-id="{newest}', queued)                # найновіший прийде з черги, а не стоїть одразу
+            self.assertNotIn(f'data-id="{newest}', shown)
             self.assertNotIn("<a ", feed.split("<p", 2)[-1].split("</p>", 1)[-1])   # жоден рядок не посилання
             for m in mints:
                 self.assertNotIn(f'href="/token?mint={m}"', feed)
-            self.assertIn("Live on tracced", html)
+            self.assertNotIn("lfeed-track", html)                      # без каруселі по колу
             self.assertIn("12 analyses in the last 24 h", html)
             self.assertIn("data-focus-mint", html)
             self.assertTrue(_re.search(r'data-ago="\d+">just now<', feed))
             self.assertNotIn("Recently analyzed", html)
+            self.assertNotIn("best ", feed)                            # «best 11×» ні про що не говорив
+            r = await self.client.get("/live.json")
+            self.assertEqual(r.status, 200)
+            d = await r.json()
+            self.assertEqual(d["day"], 12)
+            self.assertEqual(len(d["rows"]), 12)
+            self.assertEqual(d["rows"][0]["id"][:6], newest)
+            self.assertEqual(set(d["rows"][0]) >= {"id", "symbol", "letter", "image", "hue", "running", "wallets", "made2x", "saved", "at"}, True)
+
+        async def test_home_feed_counts_made_2x_and_saved_wallets(self):
+            # рядок стрічки: скільки гаманців знайдено, скільки з них продали 2×+ і скільки разів їх зберегли в списки
+            import time as _time
+            jid, mint = "FEEDFE_20010909-0146_0206", "F" * 40
+            rows = [{"wallet": f"W{i}", "sells": 1, "multiple": m} for i, m in enumerate((2.5, 1.2, 9.0))] + [{"wallet": "W9", "sells": 0, "multiple": 5.0}]
+            stored = {"id": jid, "mint": mint, "t_from": 999999960000, "t_to": 1000001160000, "t_exit": None, "status": "done", "error": None,
+                      "created_ms": int(_time.time() * 1000), "started_ms": 1, "finished_ms": 2, "symbol_hint": "FED",
+                      "progress": {"phase": "done", "done": 1, "total": 1}, "log": [],
+                      "result": {"info": {"mint": mint, "symbol": "FED", "image": "https://image.solanatracker.io/proxy?url=x"},
+                                 "counts": {"n_early": 4}, "rows": rows, "window": {"from": 999999960000, "to": 1000001160000}}}
+            with open(f"{self.tmp.name}/web/{jid}.json", "w") as f:
+                json.dump(stored, f)
+            self.app["jobs"]._load()
+            self.app["accounts"]._update(TEST_PK, lambda a: a.setdefault("wallets", {}).update({"W0": {"from_job": jid}, "W2": {"from_job": jid}}))
+            self.app.pop("saved_counts", None)
+            html = await (await self.client.get("/")).text()
+            feed = html[html.index('id="live"'):html.index("</section>", html.index('id="live"'))]
+            self.assertIn("4 wallets", feed)
+            self.assertIn("2 made 2×+", feed)                          # W0 і W2; W9 не продавав
+            self.assertIn("Saved to watchlists 2 times", feed)
+            self.assertIn('src="https://image.solanatracker.io/proxy?url=x"', feed)   # картинка токена з аналізу
 
         async def test_home_feed_and_token_page_list_the_analyses(self):
             # стрічка — один рядок на аналіз; сторінка токена показує його готові діапазони з сервера
@@ -391,8 +426,9 @@ if AioHTTPTestCase:
             await asyncio.to_thread(self.app["jobs"].q.join)
             html = await (await self.client.get("/")).text()
             feed = html[html.index('id="live"'):html.index("</section>", html.index('id="live"'))]
-            self.assertEqual(feed.count('class="lrow"'), 2)                # менше шести — стоять, без другої копії
-            self.assertIn('lfeed-win still', feed)
+            self.assertEqual(feed.count('class="lrow"'), 2)                # мало — усі одразу, без черги
+            self.assertIn('class="lfeed few"', feed)
+            self.assertNotIn("<template", feed)
             import re as _re, json as _json, html as _html
             page = await (await self.client.get(f"/token?mint={MINT}")).text()
             rows = _json.loads(_html.unescape(_re.search(r"data-rows='([^']*)'", page).group(1)))
@@ -439,7 +475,11 @@ if AioHTTPTestCase:
             self.assertEqual((r.status, r.headers["Location"]), (302, "/docs/project"))   # стара адреса сторінки проєкту жива
             self.assertEqual(self.st.requests, before)                  # сторінки й демо — без запитів
             home = await (await self.client.get("/", headers=GUEST)).text()
-            self.assertIn(f'<a href="/token?mint={MINT}">Open the demo</a>', home)   # демо — окреме посилання під полем, не рядок стрічки
+            self.assertIn(f'class="herodemo-card" href="/token?mint={MINT}"', home)   # власник, 07.10: гостю — картка демо під полем
+            self.assertIn("No wallet? Open a finished analysis", home)
+            self.assertEqual(self.st.requests, before)                  # і жодного запиту за неї
+            home = await (await self.client.get("/")).text()
+            self.assertIn(f'<a href="/token?mint={MINT}">Open the demo</a>', home)   # з гаманцем — короткий рядок
             r = await self.client.get(f"/token?mint={other}", headers=GUEST)
             html = await r.text()
             self.assertEqual(r.status, 200)                             # гість бачить голий графік і ставить межі
@@ -1403,7 +1443,7 @@ if AioHTTPTestCase:
             r = await self.client.get("/")                               # home with a finished analysis: counters, sample, bg lines
             self.assertEqual(r.status, 200)
             home = await r.text()
-            self.assertIn('<div class="lrow">', home)                     # the finished analysis rolls in the live feed, not as a link
+            self.assertIn('class="lrow" data-id="', home)                # the finished analysis is in the live feed, not as a link
             self.assertNotIn(">Example<", home)
             self.assertIn("TST", home)
             r = await self.client.get(loc + ".csv")

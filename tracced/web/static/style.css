@@ -626,35 +626,49 @@ button.ghost.xbtn { padding: 0; color: #475569; }
 .ph b { display: block; margin-bottom: 4px; } .ph p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .ph.later { border-style: dashed; }
 @media (max-width: 720px) { .phases { grid-template-columns: 1fr; } .phases::before { display: none; } }
-/* «Live on tracced» (owner, 05.10): everyone's latest analyses roll slowly upward and lead nowhere, so nobody takes
-   them for our verdicts; the action on the page is pasting a token. Fewer than six rows stand still; the pointer stops the
-   roll for reading. The top fade is thin so the newest row reads in full before it starts to move. */
+/* «Live on tracced» (owner, 05.10, 07.10): everyone's latest analyses lead nowhere, so nobody takes them for our verdicts;
+   the action on the page is pasting a token. The newest slide in at the top one at a time, 3–10 s apart, as they
+   happened; the seventh row fades at the bottom. Nothing loops. */
 .livefeed .mehead { align-items: baseline; }
 .livefeed h2 { display: inline-flex; align-items: center; gap: 10px; }
 .livefeed .lday { margin-left: 4px; }
-.lfeed-win { position: relative; height: 308px; overflow: hidden; margin-top: 10px;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 44px), transparent 100%);
-          mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 44px), transparent 100%); }
-.lfeed-win.still { height: auto; -webkit-mask-image: none; mask-image: none; }
-.lfeed-track { animation: lfeed var(--dur, 60s) linear infinite; }
-.lfeed-win.still .lfeed-track { animation: none; }
-.lfeed-win:hover .lfeed-track { animation-play-state: paused; }
-@keyframes lfeed { to { transform: translateY(-50%); } }
-.lrow { display: grid; grid-template-columns: 26px minmax(80px, 160px) 1fr auto; align-items: center; gap: 12px; height: 44px;
-  padding: 0 6px; border-bottom: 1px solid var(--line); font-size: 13px; cursor: default; }
+.lfeed { height: 308px; overflow: hidden; margin-top: 10px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent 100%);
+          mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent 100%); }
+.lfeed.few { height: auto; -webkit-mask-image: none; mask-image: none; }
+.lrow { display: grid; grid-template-columns: 26px minmax(80px, 160px) 1fr auto auto; align-items: center; gap: 12px; height: 44px;
+  padding: 0 6px; border-bottom: 1px solid var(--line); font-size: 13px; cursor: default; overflow: hidden;
+  transition: height .3s ease-out, opacity .3s ease-out; }
+.lrow.lin { height: 0; opacity: 0; border-bottom-color: transparent; }
 .lrow .sym { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lrow .lstat { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lrow .lstat small { color: var(--muted); font-size: 12px; }
 .lrow .lt { font-size: 12px; text-align: right; white-space: nowrap; }
-.limg { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 600 12px/1 var(--mono);
-  background: hsl(var(--h, 160) 55% 93%); color: hsl(var(--h, 160) 45% 30%); }
+.lsaved { display: inline-flex; align-items: center; gap: 4px; font: 12px/1 var(--mono); color: var(--muted); }
+.lsaved svg.ci { width: 14px; height: 14px; color: #D97706; }
+.limg { position: relative; flex: none; width: 26px; height: 26px; border-radius: 50%; overflow: hidden; display: grid; place-items: center;
+  font: 600 12px/1 var(--mono); background: hsl(var(--h, 160) 55% 93%); color: hsl(var(--h, 160) 45% 30%); }
 .limg::before { content: attr(data-l); }
+.limg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .lnow { display: inline-flex; align-items: center; gap: 8px; color: #047857; font-size: 12.5px; }
 .lnow .flive { width: 7px; height: 7px; }
 .herodemo { margin: 12px 0 0; font-size: 13px; color: #94A3B8; }
 .herodemo a { color: var(--mint); }
-@media (max-width: 560px) { .lrow { grid-template-columns: 26px minmax(0, 1fr) auto auto; gap: 10px; } .lrow .lstat small { display: none; } }
-@media (prefers-reduced-motion: reduce) { .lfeed-track { animation: none; } .lfeed-track .lrow[aria-hidden] { display: none; }
-  .lfeed-win { height: auto; max-height: 440px; overflow: auto; -webkit-mask-image: none; mask-image: none; } }
+/* owner, 07.10: a guest gets one finished analysis to open, named and counted, under the token field */
+.herodemo-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 14px 0 0; }
+.herodemo-lead { font-size: 13px; color: #94A3B8; }
+.herodemo-card { display: inline-flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; padding: 6px 6px 6px 8px;
+  border: 1px solid rgba(255, 255, 255, .14); border-radius: 999px; background: rgba(255, 255, 255, .04); color: #E2E8F0;
+  font-size: 13px; text-decoration: none; transition: border-color .15s ease, background-color .15s ease; }
+.herodemo-card:hover { border-color: rgba(167, 243, 208, .5); background: rgba(167, 243, 208, .06); }
+.herodemo-card:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
+.herodemo-card .limg { width: 24px; height: 24px; }
+.herodemo-card b { color: #fff; }
+.herodemo-card .mono { color: #94A3B8; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.herodemo-card .hd-go { padding: 4px 10px; border-radius: 999px; background: var(--mint); color: var(--navy); font-weight: 600; white-space: nowrap; }
+@media (max-width: 560px) { .lrow { grid-template-columns: 26px minmax(0, 1fr) auto auto auto; gap: 10px; } .lrow .lstat small { display: none; }
+  .herodemo-card .mono { display: none; } }
+@media (prefers-reduced-motion: reduce) { .lrow { transition: none; } }
 
 /* ── iteration 9: assistant ── */
 .ask { border-color: #C4B5FD; background: linear-gradient(115deg, #F5F3FF, #ECFEFF); }

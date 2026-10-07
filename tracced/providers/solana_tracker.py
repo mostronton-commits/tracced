@@ -19,6 +19,14 @@ def _text(v, n):
     return None if v is None else str(v)[:n]
 
 
+def _image(v):
+    """Картинка токена — від його творця, тож у сторінку йде лише https-адреса без лапок і пробілів, не довша за 600.
+    Solana Tracker віддає її через свій проксі (image.solanatracker.io)."""
+    if not isinstance(v, str) or not v.startswith("https://") or len(v) > 600 or any(c in v for c in "\"'<> \t\n"):
+        return None
+    return v
+
+
 def _usd(v):
     """Поля ST вида {usd, quote} → берём usd; если уже число — как есть."""
     if isinstance(v, dict):
@@ -118,6 +126,7 @@ class SolanaTracker(PumpDataSource):
             "mint": mint,
             "symbol": _text(tok.get("symbol"), SYMBOL_MAX),
             "name": _text(tok.get("name"), NAME_MAX),
+            "image": _image(tok.get("image")),         # стрічка «Live on tracced» і картка демо на головній
             "created_time": to_ms((tok.get("creation") or {}).get("created_time")),
             "supply": (p.get("tokenSupply") or 0) or None,
             "price_usd": (p.get("price") or {}).get("usd"),

@@ -18,6 +18,25 @@ TIMEOUT = 3                  # прикраса графіка: довше тр�
 FAIL_TTL_S = 600             # збій теж кешуємо: лежачий сервіс не питаємо на кожен перегляд
 LABELS = {"tokenProfile": "profile", "tokenAd": "ad", "trendingBarAd": "trending ad",
           "communityTakeover": "takeover"}
+SAME_GAP_MS = 30 * 60_000    # дві оплати одного виду ближче за це — одна позначка (власник, 07.10: профіль PAID оплатили двічі за 1,2 хв)
+
+
+def merge(orders, gap_ms=SAME_GAP_MS):
+    """Оплати одного виду, що йдуть одна за одною ближче за gap_ms, — одна позначка: час першої і `n` — скільки їх.
+    Різні види (профіль, реклама, takeover) лишаються окремо: це різні події."""
+    out, last = [], {}
+    for o in sorted(orders or [], key=lambda x: x.get("ms") or 0):
+        prev = last.get(o.get("kind"))
+        if prev is not None and (o.get("ms") or 0) - prev["_end"] < gap_ms:
+            prev["n"] = prev.get("n", 1) + 1
+            prev["_end"] = o.get("ms") or prev["_end"]
+            continue
+        cur = dict(o, _end=o.get("ms") or 0)
+        last[o.get("kind")] = cur
+        out.append(cur)
+    for o in out:
+        o.pop("_end", None)
+    return out
 
 
 def orders(mint, cache=None):
@@ -31,7 +50,7 @@ def orders(mint, cache=None):
             if time.time() - (hit.get("failed") or 0) < FAIL_TTL_S:
                 return []
         elif hit is not None:
-            return hit
+            return merge(hit)
     out = []
     try:
         req = urllib.request.Request(API + mint, headers={"Accept": "application/json",
@@ -51,4 +70,4 @@ def orders(mint, cache=None):
         return []
     if cache is not None:
         cache.put(mint, out)
-    return out
+    return merge(out)
