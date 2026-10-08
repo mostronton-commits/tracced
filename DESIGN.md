@@ -281,6 +281,22 @@ from 04.10, owner; they pair with the Carbon icons. Geist stays in `static/fonts
 - **The result page** runs top to bottom: the chart, the tally (the counts and the insights in one strip), the
   toolbar, the table with its filters in its head. The wallet card slides in from the right.
 
+## The dark theme
+
+Light is the default and stays it (owner, 08.10: «не втративши свій акцент, щоб не стати ще одним Axiom, GMGN і другим
+терміналом, який темний по дефолту»). Dark is a choice, on the status bar or in the footer, kept in the browser and
+applied before the page paints.
+
+- **Not black: the hero's navy carried over the whole page.** Page #0B111C, cards #101827, a step lighter for hover
+  (#18243A), lines #1E2A3D and #2E3D55, text #E6EDF5 and #8E9CB2. The top bar and the footer sit a step darker (#070B13).
+- **Mint stays the one accent**, on the primary key, the switches that are on, the live dot; its text on mint stays
+  dark ink in both themes.
+- **Meanings keep their hue and lose their glare:** profit is #34D399, loss #F87171; a tag's pale fill becomes its hue
+  at 16 % on the dark, its border at about 40 %, its glyph lighter; amber warnings, green bells and medals likewise.
+- **The chart does not change**: it was navy in the light theme already.
+- Every colour comes from the tokens (`--bg`, `--surface`, `--subtle`, `--hover`, `--ink`, `--muted`, `--line`,
+  `--line-strong`, `--gain`, `--on-primary`); a new rule that hard-codes a light fill needs its dark line too.
+
 ## Elevation & Depth
 
 The pages are flat. Depth comes from the light layers (page, card, hover) and from 1 px borders, not from shadows.
@@ -375,11 +391,12 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
 - **Live on tracced** on the home page is a feed, not a list of links (owner, 05.10: people opened others' finished
   analyses and took them for our verdicts, not seeing they could run their own). It shows the latest twenty analyses by
   anyone, one row each: a letter mark, the symbol, the wallets found and the best ×, or "analyzing now", and how long
-  ago. Never who ran them. Rows lead nowhere; the one action is "paste it above" in the caption, which focuses the
-  token field. Seven rows show at once (owner, 07.10): the newest arrive one at a time at the top, 3–10 s apart, as
+  ago. Never who ran them. Rows lead nowhere. No caption and no day count above it (owner, 08.10). Seven rows show at once (owner, 07.10): the newest arrive one at a time at the top, 3–10 s apart, as
   they happened, and real new ones come every 20 s from `/live.json`. Nothing loops. A row: the token's picture (its
   letter while it loads or when it has none), symbol, one fact, how long ago. The fact is "saved N wallets" with the
-  star when people really saved wallets from that analysis, otherwise "found N wallets". Never a made-up number. The
+  star when people really saved wallets from that analysis, otherwise the token's market cap when it was analyzed
+  (owner, 08.10: "found 180 wallets" said nothing). Never a made-up number: the owner asked for random saved counts
+  twice and they stay out, as they would show activity that never happened. The
   demo is no row: a guest gets a demo card under the token field (the token, its wallets and 2×+, Open the demo).
 - **Ready lists** (owner, 07.10: «цікаво, зрозуміло і привабливо»; 08.10: one list, simpler) sit on the home page under
   the live feed, under "Follow the best traders and get their trades in Telegram.": two cards side by side, one column
@@ -399,8 +416,15 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   for comparison: ROI is the main number there). A row opens the wallet card on the list's month (its tab first, then
   7D and 30D). Under the card's numbers its tokens switch between Recent and Best (owner, 08.10, «як на FOMO»): Best is
   where the PnL was made, the most profitable first.
-- **Free while we build it** (owner, 07.10: out of the hero): its own quiet block at the end of the home page, above
-  the footer: the line, and *Follow @tracced_xyz* with the X mark, instead of payment.
+- **Free during beta** (owner, 07.10: out of the hero; 08.10: the words): its own quiet block at the end of the home
+  page, above the footer: "Pay with a follow on X, and be the first to see what's new." and *Follow @tracced_xyz* with
+  the X mark, instead of payment.
+- **Chips under a token's title** (owner, 08.10, like OpenSea): on the token page and a result, under the symbol and the
+  token's picture: SOLANA, its age ("3 weeks old"), NEW in green for its first day, the launchpad; mono capitals in a
+  thin outline, then the short address that copies itself, Solscan and the project's X.
+- **The status bar** (owner, 08.10, like OpenSea): on a wide screen a thin line fixed along the bottom of the window:
+  "Live on Solana" with the live dot, Docs, What's new, Contact; on the right the version and three switches, UTC/Local,
+  USD/SOL and Light/Dark, then X and Telegram. Phones and tablets have no bar: the switches stay in the footer.
 - **Phones get less text, not fewer facts** (owner, 07.10, «like FOMO»): a short lead in the hero, no 01/02/03 steps,
   no captions under section titles; numbers and actions stay.
 - **Phones read like a trading app's lists** (owner, 07.10: «Сторінку результату й картку гаманця як у FOMO»), in

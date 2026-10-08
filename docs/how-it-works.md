@@ -22,7 +22,7 @@ is refreshed at most every {{ s.fresh_refresh_min|int }} minutes. A click opens 
 
 **Top traders** on the home page: up to ten wallets that made the most last month and trade like people, for when
 you have no token to start from. The September list stays the same all October; on the 1st of the month (UTC) the
-next one is counted. Beside it, a card says how it was made: how many wallets were checked and why the rest are out.
+next one is counted. Beside it, a card says why it is worth following.
 
 The candidates are known KOLs and the best of the market from Solana Tracker's rankings. How much each one made,
 tracced counts itself, from the wallet's own swaps over the whole month, the same way as its card. The rankings count

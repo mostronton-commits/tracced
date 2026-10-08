@@ -90,6 +90,23 @@ def _usd3(v):
     return f"{sign}${v:.0f}"
 
 
+def _age(ms, now_ms=None):
+    """«2 days old» під назвою токена (власник, 08.10, як на OpenSea): скільки токену від створення, грубо."""
+    try:
+        ms = float(ms)
+    except (TypeError, ValueError):
+        return ""
+    if ms <= 0:
+        return ""
+    m = max(0.0, ((now_ms or time.time() * 1000) - ms) / 60_000)
+    for lim, div, word in ((60, 1, "min"), (1440, 60, "h"), (14 * 1440, 1440, "day"), (61 * 1440, 7 * 1440, "week"),
+                           (730 * 1440, 30 * 1440, "month"), (float("inf"), 365 * 1440, "year")):
+        if m < lim:
+            n = max(1, int(m // div))
+            return f"{n} {word}{'' if n == 1 or word in ('min', 'h') else 's'} old"
+    return ""
+
+
 def _num(v, digits=0):
     try:
         return f"{float(v):,.{digits}f}"
@@ -132,6 +149,7 @@ env.filters["mcap"] = chart.fmt_mcap
 env.filters["usd"] = _usd
 env.filters["num"] = _num
 env.filters["usd3"] = _usd3
+env.filters["age"] = _age
 env.filters["per_day"] = lambda n: "one live analysis a day" if int(n or 0) == 1 else f"{int(n or 0)} live analyses a day"
 env.filters["log10"] = lambda v: math.log10(v) if (v and float(v) > 0) else 0.0
 
@@ -4081,7 +4099,9 @@ async def token_page(request):
                 last.clear()
             last[gkey] = now_ms
             request.app["events"].add("guest", "view", page="token", ref=mint, src=src, dev=_device(request))
+    timg = _token_image(app, mint, info)
     return render("token.html", request, info=info, mint=mint, s=s, is_demo=bool(demo and demo["mint"] == mint), beta=beta,
+                  timg=timg, thue=int(hashlib.sha1(mint.encode()).hexdigest()[:4], 16) % 360,
                   runs_left=runs_left, runs_cap=runs_cap, notice=notice, limit_kind=limit_kind, reset_ms=_next_midnight_ms(), demo_mint=(demo or {}).get("mint"),
                   n_demo=len(demo["ranges"]) if demo and demo["mint"] == mint else 0, bounced=q.get("notice") == "demo", created=info.get("created_time") or 0, now=int(time.time() * 1000),
                   rows_json=json.dumps(rows), jobs_json=json.dumps(jobs_done), preset_json=json.dumps(preset))

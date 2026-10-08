@@ -1343,8 +1343,11 @@ if AioHTTPTestCase:
             self.assertNotRegex(html.split("<footer")[0], r'<svg(?! class="ci)')   # the chart library draws the page; inline SVG only for icons
             self.assertIn("/static/icons.svg?v=", html)                  # the icons come from the Carbon sprite
             # owner, 04.10: the token's address copies itself on a click, with no copy mark beside it
-            self.assertIn(f'<button type="button" class="dwc mono" data-copy="{MINT}"', html)
-            self.assertNotIn("#i-copy", html.split('class="contract')[1].split("</div>")[0])
+            self.assertIn(f'<button type="button" class="dwc mono tc-addr" data-copy="{MINT}"', html)
+            self.assertNotIn("#i-copy", html.split('class="tchips')[1].split("</div>")[0])
+            # owner, 08.10, like OpenSea: chips under the title — the chain, the token's age, where it was launched
+            self.assertIn('<span class="tchip">Solana</span>', html)
+            self.assertRegex(html, r'<span class="tchip" title="Created [^"]+">\d+ (min|h|days?|weeks?|months?|years?) old</span>')
 
         async def test_token_page_preset_from_result(self):
             r = await self.client.get(f"/token?mint={MINT}&from=2001-09-09T01:46&to=2001-09-09T02:06&exit=2001-09-09T02:46")

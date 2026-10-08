@@ -416,7 +416,18 @@ if AioHTTPTestCase:
             for gone in ("and 7 more", "Past results", "Rankings by", "rc-stack", "How the list is made"):
                 self.assertNotIn(gone, html)
             self.assertLess(html.index('id="ready"'), html.index('class="freebar"'))
+            self.assertIn("<b>Free during beta</b>", html)                                  # власник, 08.10
             self.assertIsNone(CYRILLIC.search(html))
+
+        async def test_every_page_has_the_status_bar_and_dark_is_a_choice(self):
+            # owner, 08.10, like OpenSea: a status bar with the switches; dark by choice, light by default
+            for path in ("/", f"/token?mint={'A' * 40}", "/docs/how-it-works"):
+                html = await (await self.client.get(path, headers=GUEST)).text()
+                self.assertIn('class="sbar"', html, path)
+                self.assertIn('id="sbtheme"', html, path)
+                self.assertIn("Live on Solana", html, path)
+                self.assertIn("localStorage.getItem('early:theme') === 'dark'", html, path)   # до першого кадру, без блимання
+                self.assertNotIn('data-theme="dark"', html.split("<head>")[0], path)           # світла — за замовчуванням
 
         async def test_the_list_page_is_for_connected_wallets_only(self):
             await self.refresh()
