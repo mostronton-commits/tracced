@@ -383,8 +383,9 @@ if AioHTTPTestCase:
             for m in mints:
                 self.assertNotIn(f'href="/token?mint={m}"', feed)
             self.assertNotIn("lfeed-track", html)                      # без каруселі по колу
-            self.assertIn("12 analyses in the last 24 h", html)
-            self.assertIn("data-focus-mint", html)
+            self.assertNotIn("in the last 24 h", html)                 # власник, 08.10: лічильник і підпис стрічки — зайві
+            self.assertNotIn("What traders are analyzing", html)
+            self.assertNotIn("My analyses (", html)
             self.assertTrue(_re.search(r'data-ago="\d+">just now<', feed))
             self.assertNotIn("Recently analyzed", html)
             self.assertNotIn("best ", feed)                            # «best 11×» ні про що не говорив
@@ -396,7 +397,7 @@ if AioHTTPTestCase:
             self.assertEqual(d["rows"][0]["id"][:6], newest)
             self.assertEqual(set(d["rows"][0]) >= {"id", "symbol", "letter", "image", "hue", "running", "wallets", "made2x", "saved", "at"}, True)
 
-        async def test_home_feed_row_says_saved_wallets_or_wallets_found(self):
+        async def test_home_feed_row_says_saved_wallets_or_the_tokens_cap(self):
             # власник, 07.10: рядок — тікер і одна фраза. Збережені гаманці, коли їх справді зберегли; інакше — скільки знайдено.
             # Вигаданих чисел нема: лічильник — за `from_job` збережених у списках
             import time as _time
@@ -405,7 +406,7 @@ if AioHTTPTestCase:
             stored = {"id": jid, "mint": mint, "t_from": 999999960000, "t_to": 1000001160000, "t_exit": None, "status": "done", "error": None,
                       "created_ms": int(_time.time() * 1000), "started_ms": 1, "finished_ms": 2, "symbol_hint": "FED",
                       "progress": {"phase": "done", "done": 1, "total": 1}, "log": [],
-                      "result": {"info": {"mint": mint, "symbol": "FED", "image": "https://image.solanatracker.io/proxy?url=x"},
+                      "result": {"info": {"mint": mint, "symbol": "FED", "image": "https://image.solanatracker.io/proxy?url=x", "mcap": 2_500_000},
                                  "counts": {"n_early": 4}, "rows": rows, "window": {"from": 999999960000, "to": 1000001160000}}}
             with open(f"{self.tmp.name}/web/{jid}.json", "w") as f:
                 json.dump(stored, f)
@@ -417,12 +418,13 @@ if AioHTTPTestCase:
             self.assertIn("saved 2 wallets", feed)
             self.assertIn("#i-star-on", feed)                          # зірка зі спрайта, а не порожнє місце
             self.assertNotIn("#i-i-", feed)
-            self.assertNotIn("found 4 wallets", feed)                  # одна фраза на рядок
+            self.assertNotIn("$2.5M cap", feed)                        # одна фраза на рядок
             self.assertNotIn("made 2×+", feed)
             self.app["accounts"]._update(TEST_PK, lambda a: a["wallets"].clear())
             self.app.pop("saved_counts", None)
             feed = (await (await self.client.get("/")).text()).split('id="live"', 1)[1]
-            self.assertIn("found 4 wallets", feed)                     # ніхто не зберіг — скільки знайдено
+            self.assertIn("$2.5M cap", feed)                           # ніхто не зберіг — капа токена, коли його аналізували
+            self.assertNotIn("found ", feed)                           # власник, 08.10: «found 180 wallets» ні про що не каже
             self.assertIn('src="https://image.solanatracker.io/proxy?url=x"', feed)   # картинка токена з аналізу
 
         async def test_home_feed_and_token_page_list_the_analyses(self):

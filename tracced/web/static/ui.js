@@ -287,6 +287,11 @@ window.EarlyTags = (function () {
       EarlyUI.toast(esc((e && e.message) || 'Could not follow this list. Try again.'));
     }
   }
+  document.addEventListener('click', e => {             // a link that needs a wallet: a guest connects, then goes on
+    const a = e.target.closest('a[data-need-wallet]'); if (!a || document.documentElement.dataset.acct === '1') return;
+    e.preventDefault();
+    EarlyWallet.open(() => { location.href = a.href; }, a.dataset.needWallet);
+  });
   document.addEventListener('click', e => {             // «Open in your watchlist» opens on that list
     const a = e.target.closest('a[data-open-list]'); if (a) { try { localStorage.setItem('early:list', a.dataset.openList); } catch (x) {} }
   });

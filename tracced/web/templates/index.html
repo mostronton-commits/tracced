@@ -49,7 +49,7 @@
   <em aria-hidden="true">→</em>
   <div><i>03</i><b>Get wallets</b></div>
 </section>
-{% macro lrow(r) %}<div class="lrow" data-id="{{ r.id }}" data-at="{{ r.at }}"><span class="limg" data-l="{{ r.letter }}" style="--h: {{ r.hue }}" aria-hidden="true">{% if r.image %}<img src="{{ r.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span><b class="sym">{{ r.symbol }}</b>{% if r.running %}<span class="lnow"><i class="flive" aria-hidden="true"></i>analyzing now</span>{% elif r.saved %}<span class="lstat lsaved" title="Wallets from this analysis that people saved to their watchlists">{{ icon('star-on') }}saved {{ '{:,}'.format(r.saved) }} wallet{{ '' if r.saved == 1 else 's' }}</span>{% elif r.wallets is not none %}<span class="lstat">found {{ '{:,}'.format(r.wallets) }} wallet{{ '' if r.wallets == 1 else 's' }}</span>{% else %}<span class="lstat">done</span>{% endif %}<span class="mono muted lt" data-ago="{{ r.at }}">{{ r.ago }}</span></div>{% endmacro %}
+{% macro lrow(r) %}<div class="lrow" data-id="{{ r.id }}" data-at="{{ r.at }}"><span class="limg" data-l="{{ r.letter }}" style="--h: {{ r.hue }}" aria-hidden="true">{% if r.image %}<img src="{{ r.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span><b class="sym">{{ r.symbol }}</b>{% if r.running %}<span class="lnow"><i class="flive" aria-hidden="true"></i>analyzing now</span>{% elif r.saved %}<span class="lstat lsaved" title="Wallets from this analysis that people saved to their watchlists">{{ icon('star-on') }}saved {{ '{:,}'.format(r.saved) }} wallet{{ '' if r.saved == 1 else 's' }}</span>{% elif r.cap %}<span class="lstat mono" title="The token's market cap when it was analyzed">${{ r.cap|mcap }} cap</span>{% else %}<span class="lstat"></span>{% endif %}<span class="mono muted lt" data-ago="{{ r.at }}">{{ r.ago }}</span></div>{% endmacro %}
 {% if live.rows %}
 {# «Live on tracced» (owner, 05.10, 07.10): people opened others' finished analyses from a clickable list and took them for
    our verdicts. Now everyone's latest analyses lead nowhere, and they arrive the way they happened: the newest few slide
@@ -57,8 +57,7 @@
    made up: every row is an analysis someone ran, with its time. The one action here is pasting a token. #}
 {% set q = [3, [0, live.rows|length - 4]|max]|min %}
 <section class="card livefeed" id="live" aria-label="Live on tracced">
-  <div class="row mehead"><h2><i class="flive" aria-hidden="true"></i>Live on tracced</h2><span class="muted small mono lday" data-live-day>{{ live.day }} {{ 'analysis' if live.day == 1 else 'analyses' }} in the last 24 h</span>{% if acct %}<a class="right small" href="/me#analyses">My analyses ({{ my_n }}) →</a>{% endif %}</div>
-  <p class="muted small">What traders are analyzing right now. Who ran them is never shown. To see a token's early wallets, <a href="#" data-focus-mint>paste it above</a> and mark its pump.</p>
+  <div class="row mehead"><h2><i class="flive" aria-hidden="true"></i>Live on tracced</h2></div>
   <div class="lfeed{{ ' few' if live.rows|length < 7 }}" id="lfeed">{% for r in live.rows[q:q + 7] %}{{ lrow(r) }}{% endfor %}</div>
   {% if q %}<template id="liveq">{% for r in live.rows[:q] %}{{ lrow(r) }}{% endfor %}</template>{% endif %}
 </section>
@@ -92,7 +91,7 @@
       const use = document.querySelector('use[href*="#i-"]');
       sv.innerHTML = '<svg class="ci" aria-hidden="true"><use href="' + (use ? use.getAttribute('href').replace(/#.*/, '#i-star-on') : '/static/icons.svg#i-star-on') + '"/></svg>';
       sv.appendChild(document.createTextNode('saved ' + fmt(r.saved) + (r.saved === 1 ? ' wallet' : ' wallets'))); row.appendChild(sv);
-    } else row.appendChild(el('span', 'lstat', r.wallets == null ? 'done' : 'found ' + fmt(r.wallets) + (r.wallets === 1 ? ' wallet' : ' wallets')));
+    } else { const c = el('span', 'lstat mono', r.cap ? '$' + EarlyUI.fmtShort(r.cap) + ' cap' : ''); c.title = 'The token\'s market cap when it was analyzed'; row.appendChild(c); }
     const t = el('span', 'mono muted lt', ago(r.at)); t.dataset.ago = r.at; row.appendChild(t);
     return row;
   }
@@ -115,8 +114,6 @@
         if (ids.has(r.id) || r.at <= newest) return;       // already queued, or older than what is on screen
         ids.add(r.id); newest = Math.max(newest, r.at); queue.push(build(r));
       });
-      const day = document.querySelector('[data-live-day]');
-      if (day && d.day != null) day.textContent = d.day + (d.day === 1 ? ' analysis' : ' analyses') + ' in the last 24 h';
       plan();
     } catch (e) {}
   }
@@ -141,7 +138,8 @@
       <div class="rc-head"><h3><a href="/lists/{{ l.slug }}">{{ l.title }}</a></h3><span class="mono muted">{{ l.summary.n }} wallets · next update {{ l.next_label }}</span></div>
       <div class="rc-big"><b class="mono pos">+{{ l.summary.pnl|usd3 }}</b><span>profit together in {{ l.label }}</span></div>
       <ol class="rc-top">{% for r in l.top %}{{ row(r) }}{% endfor %}{% if l.peek %}{{ row(l.peek, 'peek') }}{% endif %}</ol>
-      <div class="rc-act">{% if l.following %}<a class="button" href="/me#list" data-open-list="{{ l.following }}">Open in your watchlist</a>{% else %}<button type="button" class="primary" data-follow="{{ l.slug }}" data-n="{{ l.summary.n }}" data-go="1">{{ icon('bell') }}Follow {{ l.summary.n }} wallets</button>{% endif %}</div>
+      {# owner, 08.10: the key opens the list and its numbers; following is done there. A guest connects first #}
+      <div class="rc-act"><a class="button primary" href="/lists/{{ l.slug }}" data-need-wallet="Connect a wallet to see the list.">Open the list</a></div>
     </article>
     {# owner, 08.10: beside the list, a few theses on why follow it — no numbers, few words #}
     <article class="rcard rexplain" aria-labelledby="rxh">
@@ -159,8 +157,8 @@
 {% endif %}
 
 {# owner, 07.10: free while in development; a follow on X is the only payment we ask, in its own quiet block below #}
-<section class="freebar" aria-label="Free while we build it">
-  <div><b>Free while we build it</b><span>If tracced saves you time, follow us on X. That's all we ask.</span></div>
+<section class="freebar" aria-label="Free during beta">
+  <div><b>Free during beta</b><span>Pay with a follow on X, and be the first to see what's new.</span></div>
   <a class="button" href="https://x.com/intent/follow?screen_name=tracced_xyz" target="_blank" rel="noopener" data-umami-event="home-follow"><svg class="xmark" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>Follow @tracced_xyz</a>
 </section>
 

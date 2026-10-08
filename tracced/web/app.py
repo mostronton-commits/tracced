@@ -3826,6 +3826,7 @@ def _live_feed(app, now_ms=None):
         rows.append({"id": j.id, "symbol": sym, "letter": sym[:1].upper(), "image": img,
                      "hue": int(hashlib.sha1(j.mint.encode()).hexdigest()[:4], 16) % 360,
                      "running": j.status in ("queued", "running"), "wallets": (r.get("counts") or {}).get("n_early"),
+                     "cap": info.get("mcap") if isinstance(info.get("mcap"), (int, float)) and info.get("mcap") > 0 else None,
                      "made2x": _made_2x(r), "saved": saved.get(j.id, 0), "at": j.created_ms or 0, "ago": _live_ago(j.created_ms, now_ms)})
         if len(rows) >= LIVE_ROWS:
             break

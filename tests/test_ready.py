@@ -406,8 +406,9 @@ if AioHTTPTestCase:
             self.assertIn("No hours of searching", html)
             self.assertNotIn("wallets checked", html)
             self.assertEqual(html.count('class="peek" aria-hidden="true"'), 1)               # шостий — у розмитті
-            self.assertIn('data-follow="top-traders"', html)                               # одна кнопка, яка веде у вотчліст
-            self.assertIn('data-go="1"', html)
+            self.assertIn('href="/lists/top-traders" data-need-wallet=', html)              # власник, 08.10: кнопка відкриває список
+            self.assertIn(">Open the list</a>", html)
+            self.assertNotIn('data-follow="top-traders"', html)                            # стежити — уже на сторінці списку
             self.assertNotIn("See all", html)
             self.assertIn('src="https://pbs.example/1.jpg"', html)
             self.assertIn("@kol1 · 100% win rate", html)
@@ -459,7 +460,7 @@ if AioHTTPTestCase:
             html = await (await self.client.get("/lists/top-traders")).text()
             self.assertIn("Open in your watchlist", html)
             self.assertNotIn('data-follow="top-traders"', html)
-            self.assertIn(f'data-open-list="{d["list"]}"', await (await self.client.get("/")).text())   # і на головній
+
             r = await self.client.post("/me/ready/follow", json={"slug": "nope"}, headers=self.origin)
             self.assertEqual(r.status, 404)
             self.assertIn("list_follow", [e["event"] for e in self.app["events"].tail(10)])
