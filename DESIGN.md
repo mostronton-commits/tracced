@@ -399,8 +399,8 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   star when people really saved wallets from that analysis, otherwise nothing (owner, 08.10: "found 180 wallets" said
   nothing, the market cap neither, and "made 2×+" left unclear who made it). Never a made-up number: the owner asked
   for random saved counts three times and they stay out, as they would show activity that never happened. The demo is
-  no row: everyone, with a wallet or not (owner, 08.10), gets a demo card under the token field (the token, its
-  wallets, Open the demo), and the status bar starts with Demo.
+  neither a row nor a card on the home page (owner, 08.10): it is a link, Demo, first in the status bar and in the
+  footer's Product.
 - **Ready lists** (owner, 07.10: «цікаво, зрозуміло і привабливо»; 08.10: one list, simpler) sit on the home page under
   the live feed, under "Follow the best traders" (owner, 08.10: no subtitle, no word twice): two cards side by side, one
   column on a phone. The first is the list, last month's, and says so ("September's top 10", "next list Nov 1"): the

@@ -3982,22 +3982,6 @@ async def live_json(request):
     return web.json_response({"rows": live["rows"][:12], "day": live["day"]}, headers={"Cache-Control": "public, max-age=10"})
 
 
-def _demo_card(app):
-    """Картка демо на головній для тих, хто ще без гаманця: токен, скільки гаманців і скільки з них продали 2×+."""
-    demo = _demo(app)
-    if not demo or not demo.get("ranges"):
-        return None
-    res = demo["ranges"][0].get("result") or {}
-    info = demo.get("info") or {}
-    sym = str(info.get("symbol") or demo["mint"][:6])[:16]
-    img = _token_image(app, demo["mint"], info)
-    if not img:
-        _images_backfill(app, [demo["mint"]])
-    return {"mint": demo["mint"], "symbol": sym, "letter": sym[:1].upper(), "image": img,
-            "hue": int(hashlib.sha1(demo["mint"].encode()).hexdigest()[:4], 16) % 360,
-            "wallets": (res.get("counts") or {}).get("n_early") or len(res.get("rows") or []), "made2x": _made_2x(res)}
-
-
 async def index(request):
     app = request.app
     jobs = app["jobs"].recent(60)
@@ -4014,7 +3998,7 @@ async def index(request):
     if s.get("fresh_on") and f["ok_at"] and now_ms - f["ok_at"] < float(s.get("fresh_stale_hours", 3)) * 3_600_000:
         # вік рахується зараз, а не в момент оновлення; список, старший за кілька годин, не показується зовсім (рев'ю 30.09)
         fresh = [dict(r, age_h=max(0.0, (now_ms - r["created_ms"]) / 3_600_000) if r.get("created_ms") else None) for r in f["rows"]]
-    return render("index.html", request, live=_live_feed(app), demo_card=_demo_card(app), ready=_ready_view(app, request.get("acct")),
+    return render("index.html", request, live=_live_feed(app), ready=_ready_view(app, request.get("acct")),
                   totals=totals, sample=sample, bg_lines=lines, my_n=my_n,
                   fresh=fresh, fresh_min=int((now_ms - f["ok_at"]) / 60_000) if f["ok_at"] else None)
 

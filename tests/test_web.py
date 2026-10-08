@@ -486,13 +486,12 @@ if AioHTTPTestCase:
             self.assertEqual((r.status, r.headers["Location"]), (302, "/docs/project"))   # стара адреса сторінки проєкту жива
             self.assertEqual(self.st.requests, before)                  # сторінки й демо — без запитів
             home = await (await self.client.get("/", headers=GUEST)).text()
-            self.assertIn(f'class="herodemo-card" href="/token?mint={MINT}"', home)   # власник, 07.10: гостю — картка демо під полем
-            self.assertIn("No wallet? Open a finished analysis", home)
+            # власник, 08.10 (реліз 0.7.3): демо — лише посиланням унизу (рядок стану й підвал), не карткою під полем
+            self.assertNotIn("herodemo", home)
+            self.assertIn(f'<a href="/token?mint={MINT}">Demo</a>', home)
             self.assertEqual(self.st.requests, before)                  # і жодного запиту за неї
             home = await (await self.client.get("/")).text()
-            self.assertIn(f'class="herodemo-card" href="/token?mint={MINT}"', home)   # власник, 08.10: демо — і з гаманцем
-            self.assertIn("Open a finished analysis", home)
-            self.assertNotIn("No wallet?", home)
+            self.assertNotIn("herodemo", home)
             self.assertIn(f'<span class="sb-links"><a href="/token?mint={MINT}">Demo</a>', home)
             self.assertNotIn("No token at hand", home)                 # власник, 07.10: з гаманцем — без цього рядка
             self.assertIn("x.com/intent/follow?screen_name=tracced_xyz", home)   # безкоштовно, поки будуємо: підписка на X

@@ -653,19 +653,7 @@ button.ghost.xbtn { padding: 0; color: #475569; }
 .limg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .lnow { display: inline-flex; align-items: center; gap: 8px; color: #047857; font-size: 12.5px; }
 .lnow .flive { width: 7px; height: 7px; }
-/* owner, 07.10: a guest gets one finished analysis to open, named and counted, under the token field */
-.herodemo-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 14px 0 0; }
-.herodemo-lead { font-size: 13px; color: #94A3B8; }
-.herodemo-card { display: inline-flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; padding: 6px 6px 6px 8px;
-  border: 1px solid rgba(255, 255, 255, .14); border-radius: 999px; background: rgba(255, 255, 255, .04); color: #E2E8F0;
-  font-size: 13px; text-decoration: none; transition: border-color .15s ease, background-color .15s ease; }
-.herodemo-card:hover { border-color: rgba(167, 243, 208, .5); background: rgba(167, 243, 208, .06); }
-.herodemo-card:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
-.herodemo-card .limg { width: 24px; height: 24px; }
-.herodemo-card b { color: #fff; }
-.herodemo-card .mono { color: #94A3B8; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .hero-dark .lead-short { display: none; }
-.herodemo-card .hd-go { padding: 4px 10px; border-radius: 999px; background: var(--mint); color: var(--navy); font-weight: 600; white-space: nowrap; }
 /* Ready lists (owner, 07.10–08.10): proven wallets a person takes in one click. A card is a small leaderboard: the sum
    they made in 30 days by tracced's own count, the first three on navy marks, then Follow and See all */
 .ready { margin: 8px 0 16px; }
@@ -752,7 +740,6 @@ button.ghost.xbtn { padding: 0; color: #475569; }
 }
 /* phones (owner, 07.10, «like FOMO»): less text, the same facts — a short lead, no steps, no captions */
 @media (max-width: 560px) { .lrow { grid-template-columns: 26px minmax(0, 1fr) auto auto; gap: 10px; }
-  .herodemo-card .mono, .herodemo-lead { display: none; }
   .hero-dark .lead-long, .steps3, .livefeed > p.muted, .ready-head p { display: none; }
   .hero-dark .lead-short { display: inline; }
   .rcard, .freebar { padding: 16px; }

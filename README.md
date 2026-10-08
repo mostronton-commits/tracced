@@ -42,8 +42,9 @@ uses the cost basis of what was actually sold in both units. [Where the numbers 
 Click a wallet and its card shows the last 7 or 30 days on every token it traded: PnL counted on the day of each
 sale at what the wallet really paid, win rate over closed positions, average hold, counted by tracced from the
 wallet's own swaps. When the wallet is publicly identified,
-small marks say so: a star for a KOL, its X account, the app it trades through. Any of its recent tokens opens
-its own chart right in the card, with the wallet's buys and sells on it.
+small marks say so: a star for a KOL, its X account, the app it trades through. Its tokens switch between Recent and
+Best, where it made its profit, and any of them opens its own chart right in the card, with the wallet's buys and
+sells on it. It is the same card on a result, where it adds that token's trades on top, and on a ready list.
 [The wallet card →](https://tracced.xyz/docs/how-it-works#the-wallet-card)
 
 ![Wallet card](docs/img/card.png)
