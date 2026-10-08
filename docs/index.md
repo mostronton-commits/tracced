@@ -9,7 +9,8 @@ took out, how long it held. No scores, no "smart money" labels. Raw swaps only, 
 
 1. **Paste the address.** The chart loads with the token's whole life on it.
 2. **Mark the range.** Two clicks on the chart: where buying starts, where it takes off.
-3. **Press Analyze.** A terminal shows the run. The result is a table of everyone who bought in that range.
+3. **Press Get wallets.** A line under the chart fills as the run goes, and the table of everyone who bought in that
+   range appears below it, on the same page. Each range you analyze becomes a tab: switch between them in a click.
 
 !!! tip "🎬 Nothing to sign to look around"
     The demo token replays a real analysis for anyone, no account. A wallet is asked for only when you analyze

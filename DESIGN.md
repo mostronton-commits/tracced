@@ -264,7 +264,7 @@ from 04.10, owner; they pair with the Carbon icons. Geist stays in `static/fonts
 
 ## Layout
 
-- **Width:** the content is at most 1280 px wide, 1600 px on a result page, centred. The page side gutter is 24 px,
+- **Width:** the content is at most 1280 px wide, 1600 px on a token's page (its results are on it), centred. The page side gutter is 24 px,
   16 px on a phone.
 - **Spacing** follows a 4 px base: 2, 4, 8, 12, 16, 24 and 32 px. Odd steps of 6, 10, 14 and 18 px exist only inside
   dense controls. Space groups with `gap` in flex and grid, not with margins on each element.
@@ -278,8 +278,26 @@ from 04.10, owner; they pair with the Carbon icons. Geist stays in `static/fonts
   into one card per wallet, on a phone into a list, one line per wallet (see Phones). Before a change counts as done, check it
   at 1920, 1440, 1280, 768 and 390 px. Nothing scrolls the page sideways, wide tables scroll inside their own frame,
   and the footer sits at the bottom.
-- **The result page** runs top to bottom: the chart, the tally (the counts and the insights in one strip), the
-  toolbar, the table with its filters in its head. The wallet card slides in from the right.
+- **A token's page is one page from the token to its wallets** (owner, 09.10: «юзер вводить токен і на тій самій
+  сторінці виділяє діапазон і отримує результат»). Top to bottom: the token's head with its chips, the chart, the
+  token's analyses as tabs (each in its band's shade: «Pump 1 · 765 wallets», a dashed «+ New range»), then the bar of
+  a marked range (its times, ✎ for exact minutes, Cancel, *Get wallets*), the run's line while it goes, and the chosen
+  result: the tally (the counts and the insights in one strip), the toolbar, the table with its filters in its head.
+  The wallet card slides in from the right.
+  - The chart is the control: two clicks mark a range and the bar with *Get wallets* appears under the chart. Nothing
+    runs until it is pressed (owner, 09.10: variant A). A result on screen stays while a new range is marked.
+  - The run (owner, 09.10: «бігуча строка»): a navy line under the chart fills with the run's own steps — Token,
+    Trades, Exits, Checks, Wallets — its phase and count in words («Checking where they sold · 329 / 765 wallets»), a
+    light passing along the filled part, and the range's band on the chart glows with a light moving left to right.
+    Full, it says how many wallets were found, then the result rises in below. No page reload anywhere.
+  - Tabs (owner, 09.10: variant A of two): one result on the page at a time; the others wait as fetched markup (three
+    at most), so a tab opens at once; the band's label on the chart opens its tab too. Up to `ranges_per_token`
+    analyses per token; the demo's tabs are its recorded pumps, each replayed once per browser.
+  - The address follows the tab: /job/<id> for a result (shareable, opens this page with that tab chosen), /token?mint=
+    for the bare token; Back and Forward move between tabs.
+  - Weak computers (owner, 09.10): one result mounted, its listeners, timers and pop-ups gone when another tab opens
+    (static/result.js); motion in CSS only, none with reduced motion; the table draws a hundred rows at a time. On a 4×
+    slower processor a tab switch stays under 200 ms of blocking.
 
 ## The dark theme
 

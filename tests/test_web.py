@@ -19,6 +19,13 @@ except ImportError:                       # discover -s tests without -t: module
     from test_early_pipeline import TRADES, FakeST, T0, MIN, H
 
 CYRILLIC = re.compile("[Ѐ-ӿ]")
+
+
+def static_js(name):
+    """A script of the pages (owner, 09.10: the token's page and its result are static files now, not inline)."""
+    from pathlib import Path
+    import tracced.web
+    return (Path(tracced.web.__file__).parent / "static" / name).read_text(encoding="utf-8")
 MINT = "A" * 40
 
 
@@ -274,7 +281,7 @@ if AioHTTPTestCase:
                 self.assertIn(el, html)                                    # картка гаманця: секції, на які спирається скрипт
             self.assertNotIn('id="dfacts"', html)                          # цифри цього токена — у таблиці, картка їх не повторює
             self.assertNotIn('id="watchbtn"', html)                        # no bulk «+ Add to list»: the star in each row
-            self.assertIn("starWallet(w, s)", html)
+            self.assertIn("starWallet(w, s)", static_js("result.js"))
             m = re.search(r'<script type="application/json" id="rowsdata">(.*?)</script>', html, re.S)
             table = json.loads(m.group(1))                                 # рядки йдуть даними, малює їх браузер
             first = dict(zip(table["f"], table["r"][0]))
@@ -442,10 +449,78 @@ if AioHTTPTestCase:
             self.assertNotIn("<template", feed)
             import re as _re, json as _json, html as _html
             page = await (await self.client.get(f"/token?mint={MINT}")).text()
-            rows = _json.loads(_html.unescape(_re.search(r"data-rows='([^']*)'", page).group(1)))
-            analysed = [r for r in rows if r.get("job")]
+            rows = _json.loads(_html.unescape(_re.search(r"data-tabs='([^']*)'", page).group(1)))
+            analysed = [r for r in rows if r.get("status") == "done"]
             self.assertEqual(len(analysed), 2)                             # обидва аналізи видно без пам'яті браузера
             self.assertEqual({r["from"] for r in analysed}, {"2001-09-09T01:46", "2001-09-09T02:20"})
+
+        async def test_one_page_starts_a_run_and_brings_its_result_without_leaving(self):
+            # owner, 09.10: «токен → діапазон → результат на одній сторінці». Get wallets answers in JSON, the page stays;
+            # the result comes as a part of the page; /job/<id> is the same page with that analysis chosen
+            import json as _json
+            rng = {"mint": MINT, "from": "2001-09-09T01:46", "to": "2001-09-09T02:06"}
+            r = await self.client.post("/analyze.json", data=rng, headers=GUEST)
+            self.assertEqual(r.status, 401)                                  # a guest connects first; the range stays on the page
+            self.assertIn("Connect a wallet", (await r.json())["error"])
+            r = await self.client.post("/analyze.json", data=rng)
+            d = await r.json()
+            self.assertEqual(r.status, 200)
+            self.assertTrue(d["ok"])
+            jid = d["id"]
+            self.assertEqual(d["url"], "/job/" + jid)
+            await asyncio.to_thread(self.app["jobs"].q.join)
+            d2 = await (await self.client.post("/analyze.json", data=rng)).json()
+            self.assertEqual((d2["id"], d2["status"]), (jid, "done"))        # the same range again opens it: no second run
+            r = await self.client.get(f"/job/{jid}/view")
+            frag = await r.text()
+            self.assertEqual(r.status, 200)
+            self.assertNotIn("<html", frag)                                  # a part of the page, not a page
+            self.assertIn('id="resultroot"', frag)
+            self.assertIn('id="facts"', frag)
+            cfg = _json.loads(frag.split('id="rcfg">', 1)[1].split("</script>", 1)[0])
+            self.assertEqual((cfg["job"], cfg["mint"]), (jid, MINT))
+            self.assertIsNone(CYRILLIC.search(frag))
+            job = self.app["jobs"].get(jid)
+            job.status = "running"                                           # a result still running has no part yet
+            try:
+                r = await self.client.get(f"/job/{jid}/view")
+                self.assertEqual((r.status, (await r.json())["status"]), (409, "running"))
+            finally:
+                job.status = "done"
+            self.assertEqual((await self.client.get("/job/nope/view")).status, 404)
+            page = await (await self.client.get(f"/job/{jid}")).text()
+            for el in ('id="chart"', 'id="tabs"', 'id="getw"', 'id="run"', 'id="resultroot"', "/static/result.js", "/static/tokenpage.js"):
+                self.assertIn(el, page)
+            self.assertIn('"id": "' + jid + '"', page)                      # its tab, chosen
+            self.assertIn('"status": "done"', page)
+            tok = await (await self.client.get(f"/token?mint={MINT}")).text()
+            self.assertNotIn('id="resultroot"', tok)                         # the bare token: a result opens with its tab
+            self.assertIn('"id": "' + jid + '"', tok)
+            self.assertIsNone(CYRILLIC.search(page))
+            js = static_js("tokenpage.js")
+            self.assertIn("'/analyze.json'", js)
+            self.assertIn("'/view'", js)
+            self.assertIn("history[replace ? 'replaceState' : 'pushState']", js)   # the address follows the tab
+            self.assertIn("frags.size > 3", js)                              # three results' markup at most in memory
+            res = static_js("result.js")
+            self.assertIn("return function unmount()", res)                  # one result at a time: the last one stops
+            self.assertNotIn("EarlyChart(", res)                             # the page's chart, not one per result
+
+        async def test_one_page_says_the_cap_and_the_demo_in_json(self):
+            self.app["admins"] = set()
+            gcap = self.app["s"].get("runs_global_per_day")
+            self.app["s"]["runs_global_per_day"] = 0
+            try:
+                r = await self.client.post("/analyze.json", data={"mint": MINT, "from": "2001-09-09T01:46", "to": "2001-09-09T02:06"})
+                self.assertEqual((r.status, await r.json()), (200, {"ok": False, "notice": "sitecap"}))   # the page opens its window
+            finally:
+                self.app["s"]["runs_global_per_day"] = gcap
+                self.app["admins"] = {TEST_PK}
+            seed_demo(self.tmp.name, self.app)
+            r = await self.client.post("/analyze.json", data={"mint": MINT, "from": "2001-09-09T03:00", "to": "2001-09-09T03:20"})
+            self.assertEqual((await r.json())["notice"], "demo")             # the demo replays only its recorded ranges
+            tok = await (await self.client.get(f"/token?mint={MINT}")).text()
+            self.assertIn('"demo": true', tok)
 
         def _seed_one_demo(self):
             import os
@@ -498,11 +573,12 @@ if AioHTTPTestCase:
             r = await self.client.get(f"/token?mint={other}", headers=GUEST)
             html = await r.text()
             self.assertEqual(r.status, 200)                             # гість бачить голий графік і ставить межі
-            self.assertIn("ch.setDemo(", html)                           # the clicks shown on the chart, no bands, no button
-            self.assertIn('id="add"', html)
+            self.assertIn("ch.setDemo(", static_js("tokenpage.js"))     # the clicks shown on the chart, no bands, no button
+            self.assertIn('id="tabs"', html)                             # owner, 09.10: one page — tabs, Get wallets, the result
+            self.assertIn('id="getw"', html)
             self.assertIn('data-acct="0"', html)
-            self.assertIn("Analyze asks for a wallet", html)
-            self.assertIn("&#34;label&#34;: &#34;Range 1&#34;, &#34;from&#34;: &#34;&#34;", html)   # жодного готового діапазону
+            self.assertIn("Free in beta · a wallet signature, no transaction", html)
+            self.assertIn("data-tabs='[]'", html)                         # жодного готового діапазону
             self.assertIsNone(CYRILLIC.search(html))
             spent = self.st.requests - before
             self.assertGreater(spent, 0)                                # огляд живого токена коштує запитів…
@@ -830,8 +906,8 @@ if AioHTTPTestCase:
             self.assertIn("notice=netcap", r.headers["Location"])          # …і три мережі витрачено: c свої ще має, вікно — про мережу
             html = await (await self.client.get(r.headers["Location"], headers={"Cookie": wallet_cookie(c)})).text()
             self.assertIn('id="limitsheet"', html)
-            self.assertIn("openLimit('netcap')", html)
-            self.assertIn("Your range", html)                               # позначений діапазон на місці
+            self.assertIn('data-notice="netcap"', html)
+            self.assertIn('data-preset=\'{"from": "2001-09-09T', html)    # позначений діапазон на місці
             self.assertIsNone(r.cookies.get("early_dev"))                   # відмова нічого не ставить і не рахує
             self.assertEqual(self.app["runs_daily"].left(_ip_key("127.0.0.1"), 3), 0)
             html = await (await self.client.get(f"/token?mint={MINT}", headers={"Cookie": wallet_cookie(a) + f"; early_dev={dev}"})).text()
@@ -897,7 +973,7 @@ if AioHTTPTestCase:
                 self.assertEqual(ages.calls, calls)                       # перевірка з пам'яті: нода вдруге не питається
                 # вікно: чому один, і запрошення написати, щоб підняли ліміт
                 html = await (await self.client.get(f"/token?mint={MINT}&notice=newwallet", headers={"Cookie": wallet_cookie(young)})).text()
-                self.assertIn("openLimit('newwallet')", html)
+                self.assertIn('data-notice="newwallet"', html)
                 self.assertIn("This wallet's free analysis for today is used", html)
                 self.assertIn("3 analyses a day for active wallets", html)
                 self.assertNotIn("younger than", html)                     # власник, 07.10: точне правило ніде не пишемо
@@ -905,7 +981,7 @@ if AioHTTPTestCase:
                 self.assertIn('href="/feedback?kind=limits"', html)
                 self.assertIn("None left today", html)
                 html = await (await self.client.get(f"/token?mint={MINT}", headers={"Cookie": wallet_cookie(old)})).text()
-                self.assertIn('<span class="runsleft">1 of 3</span>', html)   # звичайний гаманець: звичайна стеля
+                self.assertIn("1 of 3 left today", html)                   # звичайний гаманець: звичайна стеля
                 fb = await (await self.client.get("/feedback?kind=limits")).text()
                 self.assertIn("More analyses", fb)
                 self.assertIn("how many analyses a day would you need", fb)
@@ -939,8 +1015,8 @@ if AioHTTPTestCase:
                 if 'aria-label="Export"' in html: break
                 await asyncio.sleep(0.1)
             self.assertIn('id="xpanel"', html)
-            self.assertIn("getElementById('xpanel')", html)
-            self.assertNotIn("querySelector('.menu-panel')", html)
+            self.assertIn("getElementById('xpanel')", static_js("result.js"))
+            self.assertNotIn("querySelector('.menu-panel')", static_js("result.js"))
             # мережа вичерпала свою стелю: вікно каже саме це, а не «ви використали свої п'ять»
             self.app["admins"] = set()
             self.app["s"]["runs_per_ip_per_day"] = 0
@@ -949,7 +1025,7 @@ if AioHTTPTestCase:
             self.assertNotIn("Come back tomorrow", html)
             self.app["s"]["runs_per_ip_per_day"] = 10
             html = await (await self.client.get(f"/token?mint={MINT}&notice=limit")).text()
-            self.assertNotIn('id="limitsheet"', html)                        # спроби є: старе повідомлення в адресі вікна не відкриває
+            self.assertIn('data-notice=""', html)                            # спроби є: старе повідомлення в адресі вікна не відкриває
             self.app["admins"] = {TEST_PK}
 
         async def test_a_failed_run_gives_the_browser_and_the_network_their_run_back(self):
@@ -1250,10 +1326,10 @@ if AioHTTPTestCase:
             r = await self.client.post("/analyze", data=rng(4), allow_redirects=False, headers=me)
             self.assertEqual(r.status, 302)                              # місце звільнилось
             html = await (await self.client.get(f"/token?mint={MINT}", headers=me)).text()
-            self.assertIn("&#34;deletable&#34;: true", html)              # свої аналізи можна прибрати зі сторінки
+            self.assertIn('"deletable": true', html)                       # свої аналізи можна прибрати зі сторінки
             html = await (await self.client.get(f"/token?mint={MINT}", headers=other)).text()
-            self.assertIn("&#34;deletable&#34;: false", html)
-            self.assertNotIn("&#34;deletable&#34;: true", html)
+            self.assertIn('"deletable": false', html)
+            self.assertNotIn('"deletable": true', html)
             self.assertEqual(self.app["events"].tail()[0]["event"], "analyze")
             r = await self.client.post("/job/nope/delete", headers=me)
             self.assertEqual(r.status, 404)
@@ -1332,20 +1408,20 @@ if AioHTTPTestCase:
             html = await r.text()
             self.assertEqual(r.status, 200)
             self.assertIsNone(CYRILLIC.search(html))
-            self.assertIn('id="rows"', html)
-            self.assertIn('data-rows=', html)
+            self.assertIn('id="tabs"', html)                                # owner, 09.10: the analyses are tabs under the chart
+            self.assertIn('data-tabs=', html)
             self.assertNotIn('data-hints=', html)                          # no bands the page picks by itself (owner, 30.09)
             self.assertNotIn("setGhosts", html)
-            self.assertIn("ch.setDemo(", html)                              # the clicks shown on the chart instead of a line of text
+            self.assertIn("ch.setDemo(", static_js("tokenpage.js"))        # the clicks shown on the chart instead of a line of text
             self.assertNotIn("Click the chart twice", html)
             self.assertNotIn("Let AI choose", html)
             self.assertNotIn("Coming next", html)
-            self.assertIn("&#34;label&#34;: &#34;Range 1&#34;, &#34;from&#34;: &#34;&#34;", html)   # a bare chart: hints wait for the button
+            self.assertIn("data-tabs='[]'", html)                           # a bare chart: no ranges the page picks by itself
             self.assertNotIn("&#34;label&#34;: &#34;Pump 1", html)
             self.assertIn('id="chart"', html)
             self.assertIn("lightweight-charts", html)
             self.assertIn("static/chart.js", html)
-            self.assertIn("<b>Analyze</b>", html)
+            self.assertIn('<button type="button" class="primary" id="getw">Get wallets</button>', html)   # owner, 09.10
             self.assertNotRegex(html.split("<footer")[0], r'<svg(?! class="ci)')   # the chart library draws the page; inline SVG only for icons
             self.assertIn("/static/icons.svg?v=", html)                  # the icons come from the Carbon sprite
             # owner, 04.10: the token's address copies itself on a click, with no copy mark beside it
@@ -1359,7 +1435,7 @@ if AioHTTPTestCase:
             r = await self.client.get(f"/token?mint={MINT}&from=2001-09-09T01:46&to=2001-09-09T02:06&exit=2001-09-09T02:46")
             html = await r.text()
             self.assertEqual(r.status, 200)
-            self.assertIn("From the result", html)
+            self.assertIn('data-preset=\'{"from": "2001-09-09T01:46", "to": "2001-09-09T02:06"}\'', html)   # an old «Back to the chart» link: its range
 
         async def test_candles_json(self):
             a, b = (T0 - H) // 1000, (T0 + 2 * H) // 1000
@@ -1397,7 +1473,8 @@ if AioHTTPTestCase:
             self.assertIn("TST trades", html)
             self.assertLess(html.index('class="dsec dtrades"'), html.index('class="dsec dperf"'))
             self.assertIn('id="finds"', html)
-            self.assertIn("Back to the chart", html)
+            self.assertNotIn("Back to the chart", html)                   # owner, 09.10: one page, the chart is always on it
+            self.assertIn('id="tabs"', html)
             self.assertIn('id="chart"', html)
             self.assertIsNone(CYRILLIC.search(html))
             self.assertNotIn('id="filters"', html)                     # no filter panel: a funnel in each column's head (owner, 02.10)
@@ -1407,14 +1484,13 @@ if AioHTTPTestCase:
             self.assertNotIn("Copy addresses", html)
             self.assertIn('class="num sortable"', html)                   # the numbers sort; the address does not (owner, 02.10)
             self.assertIn('data-count=', html)                          # count-up tiles
-            self.assertIn("Hide wallets tagged", html)                  # the tags live in the Filters menu (owner, 02.10)
+            self.assertIn("Hide wallets tagged", static_js("result.js"))   # the tags live in the Filters menu (owner, 02.10)
             self.assertNotIn('data-fil="w"', html)                       # funnels only by the numbers
             self.assertIn('id="freset"', html)                           # Reset beside Filters
             self.assertIn("Exits known for", html)                       # coverage line
             self.assertNotIn("Only:", html)                              # the "Only" chips are gone (owner, 25.09)
-            self.assertIn("Trades up to", html)
+            self.assertIn("trades up to", html)
             self.assertNotIn("Select all", html)                         # no checkboxes (owner, 02.10): the star does it
-            self.assertNotIn('class="pick"', html)
             self.assertIn("Add to your watchlist", html)                  # the star in every row
             self.assertIn('id="fpanel"', html)                           # the filters as a panel over the table (owner, 04.10)
             self.assertIn('data-fil="hold"', html)                       # Held: from and to, buys too
@@ -1440,13 +1516,13 @@ if AioHTTPTestCase:
             self.assertEqual(r.status, 200)
             page48 = await r.text()
             self.assertNotIn("Numbers for", page48)                      # the scope switch is gone; an old ?scope= link still opens
-            self.assertIn("/me/wallets", page48)                         # the real save to a list, no placeholder
+            self.assertIn("/me/wallets", static_js("result.js"))         # the real save to a list, no placeholder
             self.assertIn('id="aform"', page48)                          # the agent: cards, suggested questions and a question line
             self.assertIn("Save analysis", page48)
             self.assertNotIn("Add to watchlist", page48)
             self.assertNotIn("soon-badge", page48)
             self.assertIn("sold out", page48)                           # counts line, with hints
-            self.assertIn("← Back to the chart", page48)                # an analyzed range stays as it is: the header goes back to the chart
+            self.assertNotIn("Back to the chart", page48)               # owner, 09.10: the chart is on the same page
             r = await self.client.get("/wallet_trades.json?job=" + loc.split("/")[-1] + "&wallet=A")
             self.assertEqual(r.status, 400)                              # not a base58 wallet in tests → readable error
             o = {"Origin": f"http://{self.client.host}:{self.client.port}"}
@@ -1693,8 +1769,7 @@ if AioHTTPTestCase:
                 for h in (GUEST, fresh):
                     for kind in ("limit", "netcap"):
                         html = await (await self.client.get(f"/token?mint={MINT}&notice={kind}", headers=h)).text()
-                        self.assertNotIn('id="limitsheet"', html, (h, kind))
-                        self.assertNotIn("openLimit('", html)
+                        self.assertIn('data-notice=""', html, (h, kind))
             finally:
                 self.app["admins"] = {TEST_PK}
 
@@ -2641,7 +2716,7 @@ if AioHTTPTestCase:
             self.assertEqual(r.status, 200)
             self.assertIn(">Connect</button>", html)
             self.assertIn('data-acct="0"', html)
-            self.assertIn("Analyze asks for a wallet", html)
+            self.assertIn("Free in beta · a wallet signature, no transaction", html)
             self.assertIsNone(CYRILLIC.search(html))
             r, pk, _, _ = await self._sign_in()
             r = await self.client.get("/", headers=self._hdr(r))
@@ -2654,15 +2729,16 @@ if AioHTTPTestCase:
             seed_demo(self.tmp.name, self.app)
             html = await (await self.client.get(f"/token?mint={MINT}")).text()
             self.assertNotIn("Recorded ranges are fixed here", html)           # no standing note: a click on a field says it
-            self.assertIn("Demo ranges are fixed", html)
+            self.assertIn("Demo ranges are fixed", static_js("tokenpage.js"))
+            self.assertIn('data-demo="1"', html)
             self.assertIn("data-wallet-signin", html)                          # the nudge points to Connect, not a password
             self.assertNotIn('id="add"', html)                                 # no new ranges on the demo
             self.assertNotIn('id="reset"', html)
             self.assertIsNone(CYRILLIC.search(html))
             r_in, pk, _, _ = await self._sign_in()
             html = await (await self.client.get(f"/token?mint={OTHER_MINT}", headers=self._hdr(r_in))).text()
-            self.assertIn('id="add"', html)                                    # a live token keeps the full editor
-            self.assertIn('data-max-rows="3"', html)
+            self.assertIn('data-demo="0"', html)                              # a live token: new ranges on the chart
+            self.assertIn('data-max-tabs="3"', html)
 
         async def test_the_agent_needs_a_wallet_and_keeps_its_limits(self):
             seed_demo(self.tmp.name, self.app)
@@ -2768,10 +2844,10 @@ if AioHTTPTestCase:
                 self.assertIn("<b>Beta, free for now.</b>", html, path)
                 self.assertNotIn('class="wdemo"', html, path)                     # already on the demo
             html = await (await self.client.get(f"/job/{DEMO_JID}", headers=GUEST)).text()
-            self.assertIn("const EXCH = {", html)                                   # the exchange names come from a file outside the repo
-            self.assertIn("'Bundled'", html)                              # the verdict's word follows the top
+            self.assertIn('"exch": {', html)                                        # the exchange names come from a file outside the repo
+            self.assertIn("'Bundled'", static_js("result.js"))            # the verdict's word follows the top
             self.assertIn("Beta, free for now. Connect a wallet to ask.", html)   # the agent's line for a guest
-            self.assertIn("Connect wallet for more data", html)                   # the card's step is a real button
+            self.assertIn("Connect wallet for more data", static_js("result.js"))   # the card's step is a real button
 
         async def test_admin_sees_accounts_and_actions(self):
             seed_demo(self.tmp.name, self.app)

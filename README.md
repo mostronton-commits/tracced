@@ -15,7 +15,8 @@ Built for the Colosseum Crypto World's Fair, 2026. [Why it exists →](https://t
 1. **Paste a token.** Its whole life loads as a market-cap chart.
 2. **Mark the range.** Two clicks: where buying starts, where the pump takes off. A first visit shows the two clicks on
    the chart itself. The home page runs the last two days' fresh pumps to start from.
-3. **Read the wallets.** Everyone who bought inside it, with what they paid, sold and still hold. Export CSV, TXT or JSON.
+3. **Get wallets.** The run fills a line under the chart, and everyone who bought inside the range appears below it on
+   the same page, with what they paid, sold and still hold. Each analyzed range is a tab. Export CSV, TXT or JSON.
 
 Looking is free: the demo, every finished result, the chart of any token. A new analysis needs a connected wallet:
 Phantom, Backpack or Solflare, a signed message, no transaction, no fee. It counts against a daily allowance per person:

@@ -640,6 +640,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_get("/candles.json", candles_json)
     app.router.add_get("/marks.json", marks_json)
     app.router.add_post("/analyze", analyze)
+    app.router.add_post("/analyze.json", analyze_json)              # the token's page starts a run and stays (owner, 09.10)
     app.router.add_get("/wallet_trades.json", wallet_trades_json)
     app.router.add_get("/wallet_profile.json", wallet_profile_json)
     app.router.add_get("/job/{id}.state.json", job_state_json)     # before .json: {id} would swallow ".state"
@@ -648,6 +649,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_get("/job/{id}.json", job_json)
     app.router.add_post("/job/{id}/agent/cards", job_agent_cards)
     app.router.add_post("/job/{id}/agent/ask", job_agent_ask)
+    app.router.add_get("/job/{id}/view", job_view)                   # the result under the chart, without a reload
     app.router.add_get("/job/{id}", job_page)
     app.router.add_get("/health", health)
     app.router.add_get("/robots.txt", robots_txt)
@@ -3378,6 +3380,11 @@ async def me_wallets_csv(request, pk):
 # ───────────────────────── helpers ─────────────────────────
 
 def render(name, request, status=200, **ctx):
+    return web.Response(text=_render_html(name, request, **ctx), content_type="text/html", status=status)
+
+
+def _render_html(name, request, **ctx):
+    """A template with the site's own context, as text: a page, or a part of one (the result under the chart)."""
     ctx.setdefault("request", request)
     acct = request.get("acct") if request is not None else None
     ctx.setdefault("acct", acct)
@@ -3394,8 +3401,7 @@ def render(name, request, status=200, **ctx):
     admin_page = request is not None and request.path.startswith("/admin")
     ctx.setdefault("umami_id", "" if admin_page else os.getenv("UMAMI_WEBSITE_ID", ""))
     ctx.setdefault("umami_domains", os.getenv("UMAMI_DOMAINS", "tracced.xyz,www.tracced.xyz"))   # і лише на цих доменах: локальні запуски з тим самим id не рахуються
-    html = env.get_template(name).render(**ctx)
-    return web.Response(text=html, content_type="text/html", status=status)
+    return env.get_template(name).render(**ctx)
 
 
 def _mint(v):
@@ -4099,49 +4105,70 @@ async def project(request):
     raise web.HTTPFound("/docs/project")      # сторінка проєкту живе в документації, а не окремим островом
 
 
-async def token_page(request):
-    app = request.app
-    mint = _mint(request.query.get("mint"))
-    s = app["s"]
-    demo = _demo(app)
-    pk = request.get("acct")                                            # гість бачить графік і ставить межі; гаманець потрібен для Analyze
-    if demo and demo["mint"] == mint:                                   # демо-токен: усе зі знімка, 0 запитів
-        info = demo["info"]
-        rows = [{"n": i + 1, "label": r.get("label") or f"Demo range {i + 1}", "job": r.get("job"),
-                 "from": chart.to_input(r["from"]), "to": chart.to_input(r["to"])}
-                for i, r in enumerate(demo["ranges"])]
-    else:
-        # огляд ≈2 запити, кеш — 0; підказок детектора сторінка більше не показує (30.09), свічки він кладе в кеш графіка
-        info, _ = await _overview(app, mint, _browse_budget(request, 2) if not _overview_cached(app, mint) else None, pk)
-        rows = []                                                       # голий графік: діапазони ставить людина
-    q = request.query
-    preset = None
-    admin = bool(pk) and pk in app["admins"]
-    beta = bool(pk) and not admin and pk in _beta(app)
-    runs_left, runs_why = _runs_left(app, pk, _device_id(request), _client_ip(request)) if pk and not admin and not beta else (None, None)
-    notice = q.get("notice") if q.get("notice") in ("limit", "netcap", "sitecap", "newwallet") else None   # Analyze bounced off a daily cap
-    if notice in ("limit", "netcap", "newwallet") and not runs_left == 0:
-        notice = None                                   # стара адреса, чуже посилання чи гість: вікно лише тому, кому справді нема
-    # яке вікно показати: людина вичерпала свої, новий гаманець — свій один, мережа — спільні, чи сайт — день
-    limit_kind = notice or (({"network": "netcap", "newwallet": "newwallet"}.get(runs_why, "limit")) if runs_left == 0 else None)
-    runs_cap = _person_cap(app, pk) if pk else None
-    if chart.from_input(q.get("from")) and chart.from_input(q.get("to")):
-        preset = {"n": None, "label": "Your range" if notice else "From the result", "from": q.get("from"), "to": q.get("to")}
-    done_jobs = sorted((j for j in app["jobs"].jobs.values() if j.mint == mint and j.status == "done"),
-                       key=lambda j: j.t_from or 0)
-    jobs_done = [j.id for j in done_jobs]
-    seen = {(r["from"], r["to"]) for r in rows}
-    for j in done_jobs:                                 # готові аналізи видно на будь-якому пристрої, не лише там, де їх робили
+def _tabs_for(app, mint, pk, demo):
+    """The token's analyses as the page's tabs (owner, 09.10): the demo's recorded ranges, every finished analysis of
+    the token on any device, and the ones still running, oldest range first. [{id, from, to, label, n, status,
+    deletable, demo}]"""
+    out, seen = [], set()
+    if demo and demo["mint"] == mint:
+        for i, r in enumerate(demo["ranges"]):
+            key = (chart.to_input(r["from"]), chart.to_input(r["to"]))
+            seen.add(key)
+            n = ((r.get("result") or {}).get("counts") or {}).get("n_early")
+            out.append({"id": r.get("job"), "from": key[0], "to": key[1], "label": r.get("label") or f"Pump {i + 1}",
+                        "n": n, "status": "done", "deletable": False, "demo": True})
+        return out
+    jobs = sorted((j for j in list(app["jobs"].jobs.values()) if j.mint == mint and not j.replay
+                   and (j.status in ("queued", "running") or (j.status == "done" and j.result))), key=lambda j: j.t_from or 0)
+    for j in jobs:
         key = (chart.to_input(j.t_from), chart.to_input(j.t_to))
         if key in seen:
             continue
         seen.add(key)
-        n = ((j.result or {}).get("counts") or {}).get("n_early")
-        rows.append({"n": len(rows) + 1, "label": f"Analyzed · {n:,} wallets" if n else "Analyzed",
-                     "job": j.id, "from": key[0], "to": key[1],
-                     "deletable": bool(pk) and (j.owner == pk or pk in app["admins"])})
-    if not rows:
-        rows = [{"n": 1, "label": "Range 1", "from": "", "to": ""}]
+        n = ((j.result or {}).get("counts") or {}).get("n_early") if j.status == "done" else None
+        out.append({"id": j.id, "from": key[0], "to": key[1], "label": f"Pump {len(out) + 1}", "n": n, "status": j.status,
+                    "deletable": bool(pk) and (j.owner == pk or pk in app["admins"]) and j.status == "done", "demo": False})
+    return out
+
+
+def _token_ctx(request, mint, info):
+    """What the token's page needs around the chart, the same for /token and for /job/<id>: the tabs, the day's
+    limits and which window to show when one ran out."""
+    app, s = request.app, request.app["s"]
+    demo = _demo(app)
+    is_demo = bool(demo and demo["mint"] == mint)
+    pk = request.get("acct")
+    admin = bool(pk) and pk in app["admins"]
+    beta = bool(pk) and not admin and pk in _beta(app)
+    runs_left, runs_why = _runs_left(app, pk, _device_id(request), _client_ip(request)) if pk and not admin and not beta else (None, None)
+    q = request.query
+    notice = q.get("notice") if q.get("notice") in ("limit", "netcap", "sitecap", "newwallet") else None   # Analyze bounced off a daily cap
+    if notice in ("limit", "netcap", "newwallet") and not runs_left == 0:
+        notice = None                                   # стара адреса, чуже посилання чи гість: вікно лише тому, кому справді нема
+    limit_kind = notice or (({"network": "netcap", "newwallet": "newwallet"}.get(runs_why, "limit")) if runs_left == 0 else None)
+    preset = None
+    if chart.from_input(q.get("from")) and chart.from_input(q.get("to")):
+        preset = {"from": q.get("from"), "to": q.get("to")}      # an old «Back to the chart» link or a capped run: its range
+    tabs = _tabs_for(app, mint, pk, demo)
+    return dict(info=info, mint=mint, s=s, is_demo=is_demo, beta=beta, runs_left=runs_left,
+                runs_cap=_person_cap(app, pk) if pk else None, notice=notice, limit_kind=limit_kind,
+                reset_ms=_next_midnight_ms(), demo_mint=(demo or {}).get("mint"), bounced=q.get("notice") == "demo",
+                n_demo=len(demo["ranges"]) if is_demo else 0, created=info.get("created_time") or 0, now=int(time.time() * 1000),
+                timg=_token_image(app, mint, info), thue=int(hashlib.sha1(mint.encode()).hexdigest()[:4], 16) % 360,
+                tabs=tabs, preset=preset,
+                taken=sum(1 for t in tabs if not t["demo"]), max_tabs=int(s.get("ranges_per_token", 3)))
+
+
+async def token_page(request):
+    app = request.app
+    mint = _mint(request.query.get("mint"))
+    demo = _demo(app)
+    pk = request.get("acct")                                            # гість бачить графік і ставить межі; гаманець потрібен для Get wallets
+    if demo and demo["mint"] == mint:                                   # демо-токен: усе зі знімка, 0 запитів
+        info = demo["info"]
+    else:
+        # огляд ≈2 запити, кеш — 0; підказок детектора сторінка більше не показує (30.09), свічки він кладе в кеш графіка
+        info, _ = await _overview(app, mint, _browse_budget(request, 2) if not _overview_cached(app, mint) else None, pk)
     src = request.query.get("src")
     src = src if src in ("alert", "fresh") else None               # звідки прийшли: алерт у Telegram чи стрічка пампів
     _view(request, "token", mint, demo=1 if demo and demo["mint"] == mint else None, src=src)
@@ -4155,12 +4182,7 @@ async def token_page(request):
                 last.clear()
             last[gkey] = now_ms
             request.app["events"].add("guest", "view", page="token", ref=mint, src=src, dev=_device(request))
-    timg = _token_image(app, mint, info)
-    return render("token.html", request, info=info, mint=mint, s=s, is_demo=bool(demo and demo["mint"] == mint), beta=beta,
-                  timg=timg, thue=int(hashlib.sha1(mint.encode()).hexdigest()[:4], 16) % 360,
-                  runs_left=runs_left, runs_cap=runs_cap, notice=notice, limit_kind=limit_kind, reset_ms=_next_midnight_ms(), demo_mint=(demo or {}).get("mint"),
-                  n_demo=len(demo["ranges"]) if demo and demo["mint"] == mint else 0, bounced=q.get("notice") == "demo", created=info.get("created_time") or 0, now=int(time.time() * 1000),
-                  rows_json=json.dumps(rows), jobs_json=json.dumps(jobs_done), preset_json=json.dumps(preset))
+    return render("token.html", request, active=None, result_html=None, **_token_ctx(request, mint, info))
 
 
 async def marks_json(request):
@@ -4474,62 +4496,110 @@ def _hours_text(ms):
     return f"{h:.1f}" if h < 1 else f"{h:.0f}"
 
 
-def _back_link(job):
-    return f"/token?mint={job.mint}&from={chart.to_input(job.t_from)}&to={chart.to_input(job.t_to)}"
-
-
-async def job_page(request):
+async def _result_ctx(request, job):
+    """What the result under the chart needs (owner, 09.10: one page — the token's chart, the result below it), or None
+    while the analysis has none. Buys nothing: the rows and the labels are what the result already holds."""
     app = request.app
-    if _heavy(request):                                 # сторінка на тисячі гаманців: скрипт, що їх перебирає, не тримає процесор
-        raise WebError("Too many result pages from your network in a minute. Try again shortly.", 429)
-    jid = request.match_info["id"]
+    status, result = job.status, job.result             # знімок: статус міняється з робочого потоку
+    if status != "done" or not result:
+        return None
+    sc = _scope(request, app["s"])
+    rows, sm = await _rows_async(app, result, sc)
+    result = dict(result, rows=rows)
+    jr = job.result
+    # a result checked before the labels or «dormant» (owner, 04.10): once, in the background; what is checked is
+    # skipped. Only when the owner opens it, or on the draft: on the public site guests and crawlers would queue every
+    # old result, and a new analysis would wait behind them for its ages and bundles (release check, 04.10)
+    if not job.replay and (jr.get("enrich") or {}).get("funders_done") and (
+            request.get("acct") in app["admins"] or _private_host(request)) and (
+            (app.get("labels") is not None and jr.get("funders") and jr.get("labels_at") is None)
+            or (app.get("ages") is not None and jr.get("dormant_at") is None)):
+        app["jobs"].resume_enrich(job)
+    exch, flab = _labels_for_page(jr, _ix_names(request))
+    is_demo = job.id in _demo_job_ids(app) or (job.canon or "") in _demo_job_ids(app)
+    return dict(job=job, save_id=job.canon or job.id, result=result, sm=sm, rows_json=_json_script(_table(rows)),
+                bundle_min=tags.BUNDLE_MIN, burst_ms=tags.BURST_MS, max_my_tags=acct_mod.MAX_MY_TAGS,
+                is_admin=bool(request.get("acct")) and request.get("acct") in app["admins"],
+                age_read=wallet_age_mod.MAX_PAGES * wallet_age_mod.LIMIT,   # скільки транзакцій гаманця читає перевірка віку
+                is_demo=is_demo, agent_chips=app["agent_store"].config()["chips"][:3],   # the agent's quick questions, drawn before any call
+                TAGS=tags.DEFS, cov_text=report.coverage_text(result.get("coverage")), exchanges=exch, flabels=flab,
+                assistant_on=app.get("assistant") is not None, scope=sc,
+                scope_end=scope.end_for(sc, job.t_to, (result.get("window") or {}).get("end", 0)))
+
+
+def _job_or_404(app, jid):
     job = app["jobs"].get(jid)
     if not job:
         canon = app["jobs"].get(jid[:-8]) if re.search(r"_r[0-9a-f]{6}$", jid) else None
         if canon:
             raise web.HTTPFound(f"/job/{canon.id}")                     # програвання демо вже прибране: показуємо збережений аналіз
         raise web.HTTPNotFound(text="No such analysis.")
-    created = ((job.result or {}).get("info") or {}).get("created_time") or 0
-    if not created and job.status == "done" and _overview_cached(app, job.mint):   # лише з кешу: сторінка результату нічого не купує
+    return job
+
+
+async def job_page(request):
+    """A result's address opens the token's page with this analysis chosen (owner, 09.10): the chart with every range of
+    the token, the tabs, and this result under them (or its run in progress)."""
+    app = request.app
+    if _heavy(request):                                 # сторінка на тисячі гаманців: скрипт, що їх перебирає, не тримає процесор
+        raise WebError("Too many result pages from your network in a minute. Try again shortly.", 429)
+    job = _job_or_404(app, request.match_info["id"])
+    demo = _demo(app)
+    info = ((job.result or {}).get("info") or {}) if job.status == "done" else {}
+    if demo and demo["mint"] == job.mint:
+        info = demo["info"]
+    elif not info.get("supply") and _overview_cached(app, job.mint):    # лише з кешу: сторінка результату нічого не купує
         try:
             info, _ = await _overview(app, job.mint)
-            created = info.get("created_time") or 0
         except WebError:
-            created = 0
-    status, result = job.status, job.result             # знімок: статус міняється з робочого потоку
-    sm, sc = None, _scope(request, app["s"])
-    if status == "done" and result:
-        rows, sm = await _rows_async(app, result, sc)
-        result = dict(result, rows=rows)
-    else:
-        result = None
+            pass
+    info = dict(info or {})
+    info.setdefault("symbol", job.symbol)
+    if not info.get("created_time"):
+        info["created_time"] = job.t_from - 24 * HOUR
+    rc = await _result_ctx(request, job)
     is_demo = job.id in _demo_job_ids(app) or (job.canon or "") in _demo_job_ids(app)
-    _view(request, "job", job.canon or job.id, state={"done": "done", "error": "err"}.get(status, "run"), demo=1 if is_demo else None)
-    jr = job.result if result else {}
-    # a result checked before the labels or «dormant» (owner, 04.10): once, in the background; what is checked is
-    # skipped. Only when the owner opens it, or on the draft: on the public site guests and crawlers would queue every
-    # old result, and a new analysis would wait behind them for its ages and bundles (release check, 04.10)
-    if result and not job.replay and (jr.get("enrich") or {}).get("funders_done") and (
-            request.get("acct") in app["admins"] or _private_host(request)) and (
-            (app.get("labels") is not None and jr.get("funders") and jr.get("labels_at") is None)
-            or (app.get("ages") is not None and jr.get("dormant_at") is None)):
-        app["jobs"].resume_enrich(job)
-    exch, flab = _labels_for_page(job.result if result else None, _ix_names(request))
-    timg = _token_image(app, job.mint, (result or {}).get("info") or {})   # the token's picture by its name, as the home feed has it
-    if not timg:
+    _view(request, "job", job.canon or job.id, state={"done": "done", "error": "err"}.get(job.status, "run"), demo=1 if is_demo else None)
+    if not _token_image(app, job.mint, info):
         _images_backfill(app, [job.mint])
-    return render("job.html", request, job=job, save_id=job.canon or job.id, jstatus=status, result=result, s=app["s"], back=_back_link(job),
-                  timg=timg, thue=int(hashlib.sha1(job.mint.encode()).hexdigest()[:4], 16) % 360,
-                  rows_json=_json_script(_table(result["rows"])) if result else "", bundle_min=tags.BUNDLE_MIN, burst_ms=tags.BURST_MS,
-                  max_my_tags=acct_mod.MAX_MY_TAGS, is_admin=bool(request.get("acct")) and request.get("acct") in app["admins"],
-                  age_read=wallet_age_mod.MAX_PAGES * wallet_age_mod.LIMIT,   # скільки транзакцій гаманця читає перевірка віку
-                  is_demo=is_demo, agent_chips=app["agent_store"].config()["chips"][:3],   # the agent's quick questions, drawn before any call
-                  sm=sm, TAGS=tags.DEFS, created=created or (job.t_from - 24 * HOUR), now=int(time.time() * 1000),
-                  cov_text=report.coverage_text((result or {}).get("coverage")), exchanges=exch, flabels=flab,
-                 
-                  assistant_on=app.get("assistant") is not None,
-                  scope=sc, scopes=scope.scopes_for(app["s"]), has_scopes=bool((result or {}).get("wallet_trades")),
-                  scope_end=(scope.end_for(sc, job.t_to, (result or {}).get("window", {}).get("end", 0)) if result else None))
+    active = {"id": job.canon or job.id, "status": job.status if job.status != "done" or job.result else "error",
+              "from": chart.to_input(job.t_from), "to": chart.to_input(job.t_to), "error": job.error, "run": job.id}
+    result_html = Markup(_render_html("_result.html", request, **rc)) if rc else None
+    return render("token.html", request, active=active, result_html=result_html, **_token_ctx(request, job.mint, info))
+
+
+async def job_view(request):
+    """The result's part of the page alone (owner, 09.10): the token's page fetches it when a run ends or a tab opens, and
+    puts it under the chart without a reload. 409 while the analysis has no result yet."""
+    app = request.app
+    if _heavy(request):
+        raise WebError("Too many result pages from your network in a minute. Try again shortly.", 429)
+    job = _job_or_404(app, request.match_info["id"])
+    rc = await _result_ctx(request, job)
+    if rc is None:
+        return web.json_response({"status": job.status, "error": job.error}, status=409)
+    return render("_result.html", request, **rc)
+
+
+async def analyze_json(request):
+    """Get wallets on the token's page (owner, 09.10): the same checks as /analyze, answered in JSON so the page stays
+    where it is — the result's address, a daily cap to show, or an error with its reason (errors_mw answers those)."""
+    try:
+        await analyze(request)
+    except web.HTTPFound as e:
+        loc = e.location or ""
+        m = re.fullmatch(r"/job/([^/?#]+)", loc)
+        if m:
+            job = request.app["jobs"].get(m.group(1))
+            resp = web.json_response({"ok": True, "id": m.group(1), "url": loc,
+                                      "status": job.status if job else "queued", "canon": (job.canon if job else None)})
+        else:
+            notice = (urllib.parse.parse_qs(urllib.parse.urlparse(loc).query).get("notice") or [None])[0]
+            resp = web.json_response({"ok": False, "notice": notice})
+        for name, morsel in e.cookies.items():                          # the device cookie of a first run goes along
+            resp.cookies[name] = morsel
+        return resp
+    return _jerr("Nothing to start.")
 
 
 def _ix_names(request):

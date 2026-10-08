@@ -257,9 +257,9 @@ class TestClientPaging(unittest.TestCase):
 
 if AioHTTPTestCase:
     try:
-        from tests.test_web import FakeWebST, TEST_PK, wallet_cookie, CYRILLIC, seed_demo, OTHER_JID, OTHER_MINT
+        from tests.test_web import FakeWebST, TEST_PK, wallet_cookie, CYRILLIC, seed_demo, OTHER_JID, OTHER_MINT, static_js
     except ImportError:
-        from test_web import FakeWebST, TEST_PK, wallet_cookie, CYRILLIC, seed_demo, OTHER_JID, OTHER_MINT
+        from test_web import FakeWebST, TEST_PK, wallet_cookie, CYRILLIC, seed_demo, OTHER_JID, OTHER_MINT, static_js
     from tracced.web import accounts as acct_mod
     from tracced.web.app import create_app, _ready_refresh, _ready_example
 
@@ -578,8 +578,8 @@ if AioHTTPTestCase:
             self.app["token_images"].put(OTHER_MINT, "https://img.example/t.png")
             html = await (await self.client.get(f"/job/{OTHER_JID}")).text()
             self.assertIn('<img src="https://img.example/t.png"', html)
-            self.assertIn('class="msub"', html)                                            # рядок гаманця на телефоні (власник, 07.10)
-            self.assertIn('class="wface"', html)
+            self.assertIn('class="msub"', static_js("result.js"))                         # рядок гаманця на телефоні (власник, 07.10)
+            self.assertIn('class="wface"', static_js("result.js"))
             self.assertIn('aria-label="Save analysis"', html)                              # на телефоні кнопка — лише зірка
             self.assertIsNone(CYRILLIC.search(html))
 
