@@ -430,10 +430,10 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
 - **The status bar** (owner, 08.10, like OpenSea): on a wide screen a thin line fixed along the bottom of the window:
   "Live on Solana" with the live dot, Docs, What's new, Contact; on the right the version and three switches, UTC/Local,
   USD/SOL and Light/Dark, then X and Telegram. Phones and tablets have no bar: the switches stay in the footer.
-- **The hero says the idea in one line** (owner, 08.10): under the big *tracced*, in mono at 26 px (18 on a phone),
-  balanced over two lines, "Find who bought before the pump — and catch their next move", the second half in mint and
-  the cursor after it; under it one line of how, "Paste a token and mark the pump on the chart." The same line is the
-  description a shared link shows. "every wallet on the record" stays the signature in the footer and the counters.
+- **The hero line stays "every wallet on the record_"** (owner, 08.10: "Find who bought before the pump — and catch
+  their next move" was tried and is too long): under the big *tracced*, in mono at 26 px (18 on a phone), "on the
+  record" in mint, the cursor after it; under it the lead. A shared link shows "Every wallet that bought before a pump,
+  and what it did next." (description and og tags).
 - **Phones get less text, not fewer facts** (owner, 07.10, «like FOMO»): a short lead in the hero, no 01/02/03 steps,
   no captions under section titles; numbers and actions stay.
 - **Phones read like a trading app's lists** (owner, 07.10: «Сторінку результату й картку гаманця як у FOMO»), in

@@ -1301,8 +1301,8 @@ if AioHTTPTestCase:
             html = await r.text()
             self.assertEqual(r.status, 200)
             self.assertIn('<h1 class="brandline">tracced</h1>', html)   # brand line
-            self.assertIn("Find who bought before the pump — <em>and catch their next move</em>", html)   # власник, 08.10
-            self.assertIn('<meta property="og:description" content="Find who bought before the pump — and catch their next move.">', html)
+            self.assertIn("every wallet <em>on the record</em>", html)        # власник, 08.10: нова фраза задовга, повернули
+            self.assertIn('<meta property="og:description" content="Every wallet that bought before a pump, and what it did next.">', html)
             self.assertIn("tracced", html)
             self.assertNotIn('class="top"', html)                       # no top bar on the home page
             self.assertIn('data-count=', html)                          # live counters

@@ -1,8 +1,8 @@
 # tracced
 
-**Find who bought before the pump — and catch their next move.** Paste a Solana token, mark the pump on the chart,
-and read every wallet that bought inside that range. Entry and exit market cap, invested, realized, hold time, who
-funded it. Every number is a swap you can open on Solscan. No scores, no "smart money" labels.
+**Every wallet on the record.** Paste a Solana token, mark the pump on the chart, and read every wallet that
+bought inside that range. Entry and exit market cap, invested, realized, hold time, who funded it. Every number is
+a swap you can open on Solscan. No scores, no "smart money" labels.
 
 Live, no sign-up: **[tracced.xyz](https://tracced.xyz)** · Docs: **[tracced.xyz/docs](https://tracced.xyz/docs)**
 
