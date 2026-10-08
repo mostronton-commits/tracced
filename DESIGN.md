@@ -402,9 +402,9 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   no row: everyone, with a wallet or not (owner, 08.10), gets a demo card under the token field (the token, its
   wallets, Open the demo), and the status bar starts with Demo.
 - **Ready lists** (owner, 07.10: «цікаво, зрозуміло і привабливо»; 08.10: one list, simpler) sit on the home page under
-  the live feed, under "Follow the best traders and get their trades in Telegram.": two cards side by side, one column
-  on a phone. The first is the list, last month's, and says so ("Top traders · September", "10 wallets · next update
-  Nov 1"): the sum they made in the month in mono at 24 px 700, green as profit is, five leaders as rows (three on a
+  the live feed, under "Follow the best traders" (owner, 08.10: no subtitle, no word twice): two cards side by side, one
+  column on a phone. The first is the list, last month's, and says so ("September's top 10", "next list Nov 1"): the
+  sum they made in the month in mono at 24 px 700, green as profit is, "combined profit" under it, five leaders as rows (three on a
   phone) and the next one blurred, as the old list of analyses did, then one full-width key: *Open the list*, which
   asks for a wallet first and then opens the list's page (owner, 08.10). The first three ranks are medals, quietly
   (owner, 08.10): a pale gold, silver and bronze disc with a deeper digit, never a bright fill. Beside the list, three
@@ -438,8 +438,9 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   the footer stays, with the switches.
 - **The hero line stays "every wallet on the record_"** (owner, 08.10: "Find who bought before the pump — and catch
   their next move" was tried and is too long): under the big *tracced*, in mono at 26 px (18 on a phone), "on the
-  record" in mint, the cursor after it; under it the lead. A shared link shows "Every wallet that bought before a pump,
-  and what it did next." (description and og tags).
+  record" in mint, the cursor after it; under it the lead, "Paste a token, mark the pump — see who bought before it and
+  what they did next." (owner, 08.10: not "every wallet" twice). A shared link shows "See who bought before the pump,
+  and what they did next." (description and og tags).
 - **Phones get less text, not fewer facts** (owner, 07.10, «like FOMO»): a short lead in the hero, no 01/02/03 steps,
   no captions under section titles; numbers and actions stay.
 - **Phones read like a trading app's lists** (owner, 07.10: «Сторінку результату й картку гаманця як у FOMO»), in

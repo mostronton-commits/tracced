@@ -9,7 +9,7 @@
     <div class="hero-top"><div class="hero-acct">{% include "_acct.html" %}</div>{% include "_news.html" %}</div>
     <h1 class="brandline">tracced</h1>
     <p class="tagline mono">every wallet <em>on the record</em><span class="cursor">_</span></p>
-    <p class="lead"><span class="lead-long">Paste a token, choose the pump range — see every wallet that bought there and what it did next.</span><span class="lead-short">Every wallet that bought before a pump, and what it did next.</span></p>
+    <p class="lead"><span class="lead-long">Paste a token, mark the pump — see who bought before it and what they did next.</span><span class="lead-short">See who bought before the pump, and what they did next.</span></p>
     <form method="get" action="/token" class="row herof">
       <input type="text" name="mint" placeholder="Paste a token address" data-type-address
              required pattern="[1-9A-HJ-NP-Za-km-z]{32,44}" spellcheck="false" autocomplete="off" aria-label="Token address">
@@ -131,12 +131,12 @@
 {% macro sub(r) %}{% if r.x %}@{{ r.x }}{% if r.win_rate is not none %} · {{ r.win_rate|round|int }}% win rate{% endif %}{% elif r.win_rate is not none %}{{ r.win_rate|round|int }}% win rate · {{ r.tokens }} tokens{% else %}{{ r.tokens }} tokens{% endif %}{% endmacro %}
 {% macro row(r, cls='') %}<li{% if cls %} class="{{ cls }}" aria-hidden="true"{% endif %}><span class="rk">{{ r.rank }}</span>{{ face(r) }}<span class="nm"><b{% if not r.name %} class="mono"{% endif %}>{{ r.label }}</b><small>{{ sub(r) }}</small></span><b class="mono pos">+{{ r.rv }}</b></li>{% endmacro %}
 <section class="ready" id="ready" aria-labelledby="readyh">
-  <div class="ready-head"><h2 id="readyh">Ready lists</h2><p class="muted">Follow the best traders and get their trades in Telegram.</p></div>
+  <div class="ready-head"><h2 id="readyh">Follow the best traders</h2></div>
   <div class="ready-grid">
   {% for l in ready %}
     <article class="rcard">
-      <div class="rc-head"><h3><a href="/lists/{{ l.slug }}">{{ l.title }}</a></h3><span class="mono muted">{{ l.summary.n }} wallets · next update {{ l.next_label }}</span></div>
-      <div class="rc-big"><b class="mono pos">+{{ l.summary.pnl|usd3 }}</b><span>profit together in {{ l.label }}</span></div>
+      <div class="rc-head"><h3><a href="/lists/{{ l.slug }}">{{ l.label }}'s top {{ l.summary.n }}</a></h3><span class="mono muted">next list {{ l.next_label }}</span></div>
+      <div class="rc-big"><b class="mono pos">+{{ l.summary.pnl|usd3 }}</b><span>combined profit</span></div>
       <ol class="rc-top">{% for r in l.top %}{{ row(r) }}{% endfor %}{% if l.peek %}{{ row(l.peek, 'peek') }}{% endif %}</ol>
       {# owner, 08.10: the key opens the list and its numbers; following is done there. A guest connects first #}
       <div class="rc-act"><a class="button primary" href="/lists/{{ l.slug }}" data-need-wallet="Connect a wallet to see the list.">Open the list</a></div>
@@ -156,10 +156,10 @@
           </div>
         </div>
         <h3>Their trades, in your Telegram</h3>
-        <p>Follow the list once. Every buy and sell of these {{ l.summary.n }} traders comes to your chat as it happens.</p>
+        <p>Follow the list. You'll know each time one of them buys or sells.</p>
       </article>
       {% else %}
-      <article class="rtile rt-mini rt-wide"><span class="rt-ic">{{ icon('bell') }}</span><span><h3>Their trades, in your Telegram</h3><p>Follow the list once. Every buy and sell of these {{ l.summary.n }} traders comes to your chat as it happens.</p></span></article>
+      <article class="rtile rt-mini rt-wide"><span class="rt-ic">{{ icon('bell') }}</span><span><h3>Their trades, in your Telegram</h3><p>Follow the list. You'll know each time one of them buys or sells.</p></span></article>
       {% endif %}
       <article class="rtile rt-mini"><span class="rt-ic">{{ icon('chart') }}</span><span><h3>Real traders only</h3><p>No bots, snipers or fresh wallets: we checked every wallet's trades.</p></span></article>
       <article class="rtile rt-mini"><span class="rt-ic">{{ icon('renew') }}</span><span><h3>A new list every month</h3><p>{{ l.label }}'s list is in. The next one lands {{ l.next_label }}.</p></span></article>

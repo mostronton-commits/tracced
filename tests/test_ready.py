@@ -446,11 +446,14 @@ if AioHTTPTestCase:
             await self.refresh()
             html = await (await self.client.get("/", headers=GUEST)).text()
             self.assertIn('id="ready"', html)
-            self.assertIn("Follow the best traders and get their trades in Telegram.", html)
-            self.assertIn("Top traders · " + self.month["label"], html)
+            # власник, 08.10 (1B): без повторів — «Follow the best traders», «September's top 10», «next list», «combined profit»
+            self.assertIn('<h2 id="readyh">Follow the best traders</h2>', html)
+            self.assertIn(self.month["label"] + "'s top 10</a>", html)
+            self.assertNotIn("get their trades in Telegram", html)
             self.assertNotIn("Best ROI", html)                                            # ROI — лише для порівняння, на сторінці списку
-            self.assertIn("profit together in " + self.month["label"], html)
-            self.assertIn("next update " + self.month["next_label"], html)
+            self.assertIn("combined profit", html)
+            self.assertIn("next list " + self.month["next_label"], html)
+            self.assertIn("Follow the list. You'll know each time one of them buys or sells.", html)       # 2C
             self.assertEqual(html.count('class="rcard"'), 1)
             # власник, 08.10 («text»): поруч три плитки — велика з двома справжніми алертами трейдера зі списку як сповіщення
             # (текст тим самим кодом, що шле алерти, новіше вгорі) і дві тихі, значок і два рядки
