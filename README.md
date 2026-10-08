@@ -65,6 +65,8 @@ counts the wallet's trades of the last 7 days. No token to start from? The home 
 people, each wallet's profit counted by tracced from its own swaps, to follow in one click with their alerts.
 [Your account →](https://tracced.xyz/docs/account)
 
+![Top traders to follow](docs/img/ready.png)
+
 A busy token takes seconds, not minutes. The result page stays light with thousands of wallets: the table arrives
 as numbers and the page draws the first hundred rows, more on request, on a phone too, where each wallet is one line
 of a list, like a trading app's, and its card rises from the bottom.
