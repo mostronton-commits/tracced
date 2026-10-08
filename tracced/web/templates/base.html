@@ -121,7 +121,7 @@ window.EarlyTheme = (function () {
    бути лише один»), so it carries the footer's links; phones and tablets keep the footer and its switches #}
 <div class="sbar" role="region" aria-label="Status and settings">
   <span class="sb-live" title="tracced reads Solana mainnet as it happens"><i class="flive" aria-hidden="true"></i>Live on Solana</span>
-  <span class="sb-links"><a href="/docs">Docs</a><a href="/docs/how-it-works">How it works</a><a href="/docs/project">The project</a><a href="/docs/updates">What's new</a><a href="/feedback">Contact</a></span>
+  <span class="sb-links">{% if demo_token %}<a href="/token?mint={{ demo_token }}">Demo</a>{% endif %}<a href="/docs">Docs</a><a href="/docs/how-it-works">How it works</a><a href="/docs/project">The project</a><a href="/docs/updates">What's new</a><a href="/feedback">Contact</a></span>
   <span class="sb-right">
     <span class="mono" title="assets {{ v }}">v{{ version }}</span>
     <button type="button" class="sbseg" id="sbtz" title="Time zone for all dates" aria-label="Time zone for all dates" onclick="EarlyTZ.toggle()"><b class="on">UTC</b><b>Local</b></button>

@@ -396,10 +396,11 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   ago. Never who ran them. Rows lead nowhere. No caption and no day count above it (owner, 08.10). Seven rows show at once (owner, 07.10): the newest arrive one at a time at the top, 3–10 s apart, as
   they happened, and real new ones come every 20 s from `/live.json`. Nothing loops. A row: the token's picture (its
   letter while it loads or when it has none), symbol, one fact, how long ago. The fact is "saved N wallets" with the
-  star when people really saved wallets from that analysis, otherwise how many of its wallets made 2× or more, in
-  green mono (owner, 08.10: "found 180 wallets" said nothing, the market cap neither). Never a made-up number: the owner
-  asked for random saved counts three times and they stay out, as they would show activity that never happened. The
-  demo is no row: a guest gets a demo card under the token field (the token, its wallets and 2×+, Open the demo).
+  star when people really saved wallets from that analysis, otherwise nothing (owner, 08.10: "found 180 wallets" said
+  nothing, the market cap neither, and "made 2×+" left unclear who made it). Never a made-up number: the owner asked
+  for random saved counts three times and they stay out, as they would show activity that never happened. The demo is
+  no row: everyone, with a wallet or not (owner, 08.10), gets a demo card under the token field (the token, its
+  wallets, Open the demo), and the status bar starts with Demo.
 - **Ready lists** (owner, 07.10: «цікаво, зрозуміло і привабливо»; 08.10: one list, simpler) sit on the home page under
   the live feed, under "Follow the best traders and get their trades in Telegram.": two cards side by side, one column
   on a phone. The first is the list, last month's, and says so ("Top traders · September", "10 wallets · next update
@@ -430,8 +431,9 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   token's picture: SOLANA, its age ("3 weeks old"), NEW in green for its first day, the launchpad; mono capitals in a
   thin outline, then the short address that copies itself, Solscan and the project's X.
 - **The status bar** (owner, 08.10, like OpenSea): on a wide screen a thin line fixed along the bottom of the window,
-  and there the only footer (owner, 08.10: «має бути лише один»; the dark footer hides above 960 px): "Live on Solana"
-  with the live dot, Docs, How it works, The project, What's new, Contact; on the right the version and the switches,
+  on the hero's navy in both themes (owner, 08.10: «темним, у наших кольорах»), and there the only footer (owner,
+  08.10: «має бути лише один»; the dark footer hides above 960 px): "Live on Solana" with the live dot, Demo, Docs,
+  How it works, The project, What's new, Contact; on the right the version and the switches,
   UTC/Local, USD/SOL (and Light/Dark where dark is on), then X, Telegram and GitHub. Phones and tablets have no bar:
   the footer stays, with the switches.
 - **The hero line stays "every wallet on the record_"** (owner, 08.10: "Find who bought before the pump — and catch

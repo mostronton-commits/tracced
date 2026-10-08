@@ -15,10 +15,10 @@
              required pattern="[1-9A-HJ-NP-Za-km-z]{32,44}" spellcheck="false" autocomplete="off" aria-label="Token address">
       <button type="submit" class="primary">Analyze</button>
     </form>
-    {% if demo_card and not acct %}
-    {# owner, 07.10: whoever has not connected a wallet gets one finished analysis to open, named and counted #}
-    <div class="herodemo-row"><span class="herodemo-lead">No wallet? Open a finished analysis</span>
-      <a class="herodemo-card" href="/token?mint={{ demo_card.mint }}" data-umami-event="home-demo"><span class="limg" data-l="{{ demo_card.letter }}" style="--h: {{ demo_card.hue }}" aria-hidden="true">{% if demo_card.image %}<img src="{{ demo_card.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span><b>{{ demo_card.symbol }}</b><span class="mono">{{ '{:,}'.format(demo_card.wallets) }} wallets{% if demo_card.made2x %} · {{ '{:,}'.format(demo_card.made2x) }} made 2×+{% endif %}</span><span class="hd-go">Open the demo</span></a></div>
+    {% if demo_card %}
+    {# owner, 07.10: one finished analysis to open under the field, named and counted; 08.10: for everyone, wallet or not #}
+    <div class="herodemo-row"><span class="herodemo-lead">{{ 'Open a finished analysis' if acct else 'No wallet? Open a finished analysis' }}</span>
+      <a class="herodemo-card" href="/token?mint={{ demo_card.mint }}" data-umami-event="home-demo"><span class="limg" data-l="{{ demo_card.letter }}" style="--h: {{ demo_card.hue }}" aria-hidden="true">{% if demo_card.image %}<img src="{{ demo_card.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span><b>{{ demo_card.symbol }}</b><span class="mono">{{ '{:,}'.format(demo_card.wallets) }} wallets</span><span class="hd-go">Open the demo</span></a></div>
     {% endif %}
     <div class="counters">
       <div><b data-count="{{ totals.wallets }}" data-fmt="int">0</b><span>wallets on the record</span></div>
@@ -49,7 +49,7 @@
   <em aria-hidden="true">→</em>
   <div><i>03</i><b>Get wallets</b></div>
 </section>
-{% macro lrow(r) %}<div class="lrow" data-id="{{ r.id }}" data-at="{{ r.at }}"><span class="limg" data-l="{{ r.letter }}" style="--h: {{ r.hue }}" aria-hidden="true">{% if r.image %}<img src="{{ r.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span><b class="sym">{{ r.symbol }}</b>{% if r.running %}<span class="lnow"><i class="flive" aria-hidden="true"></i>analyzing now</span>{% elif r.saved %}<span class="lstat lsaved" title="Wallets from this analysis that people saved to their watchlists">{{ icon('star-on') }}saved {{ '{:,}'.format(r.saved) }} wallet{{ '' if r.saved == 1 else 's' }}</span>{% elif r.made2x %}<span class="lstat lmade mono" title="Wallets from this analysis that made 2× or more on the token">{{ '{:,}'.format(r.made2x) }} made 2×+</span>{% else %}<span class="lstat"></span>{% endif %}<span class="mono muted lt" data-ago="{{ r.at }}">{{ r.ago }}</span></div>{% endmacro %}
+{% macro lrow(r) %}<div class="lrow" data-id="{{ r.id }}" data-at="{{ r.at }}"><span class="limg" data-l="{{ r.letter }}" style="--h: {{ r.hue }}" aria-hidden="true">{% if r.image %}<img src="{{ r.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span><b class="sym">{{ r.symbol }}</b>{% if r.running %}<span class="lnow"><i class="flive" aria-hidden="true"></i>analyzing now</span>{% elif r.saved %}<span class="lstat lsaved" title="Wallets from this analysis that people saved to their watchlists">{{ icon('star-on') }}saved {{ '{:,}'.format(r.saved) }} wallet{{ '' if r.saved == 1 else 's' }}</span>{% else %}<span class="lstat"></span>{% endif %}<span class="mono muted lt" data-ago="{{ r.at }}">{{ r.ago }}</span></div>{% endmacro %}
 {% if live.rows %}
 {# «Live on tracced» (owner, 05.10, 07.10): people opened others' finished analyses from a clickable list and took them for
    our verdicts. Now everyone's latest analyses lead nowhere, and they arrive the way they happened: the newest few slide
@@ -91,7 +91,7 @@
       const use = document.querySelector('use[href*="#i-"]');
       sv.innerHTML = '<svg class="ci" aria-hidden="true"><use href="' + (use ? use.getAttribute('href').replace(/#.*/, '#i-star-on') : '/static/icons.svg#i-star-on') + '"/></svg>';
       sv.appendChild(document.createTextNode('saved ' + fmt(r.saved) + (r.saved === 1 ? ' wallet' : ' wallets'))); row.appendChild(sv);
-    } else { const c = el('span', 'lstat lmade mono', r.made2x ? fmt(r.made2x) + ' made 2×+' : ''); c.title = 'Wallets from this analysis that made 2× or more on the token'; row.appendChild(c); }
+    } else row.appendChild(el('span', 'lstat', ''));
     const t = el('span', 'mono muted lt', ago(r.at)); t.dataset.ago = r.at; row.appendChild(t);
     return row;
   }

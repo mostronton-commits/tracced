@@ -647,7 +647,6 @@ button.ghost.xbtn { padding: 0; color: #475569; }
 .lrow .lt { font-size: 12px; text-align: right; white-space: nowrap; }
 .lrow .lsaved { display: inline-flex; align-items: center; gap: 6px; }
 .lsaved svg.ci { width: 14px; height: 14px; color: #D97706; }
-.lrow .lmade { color: var(--gain); }               /* how many made 2×+ (owner, 08.10), a real fact, in profit's green */
 .limg { position: relative; flex: none; width: 26px; height: 26px; border-radius: 50%; overflow: hidden; display: grid; place-items: center;
   font: 600 12px/1 var(--mono); background: hsl(var(--h, 160) 55% 93%); color: hsl(var(--h, 160) 45% 30%); }
 .limg::before { content: attr(data-l); }
@@ -1910,16 +1909,17 @@ input.ltabedit { flex: none; width: 150px; min-width: 0; height: 30px; padding: 
    the live mark, a few links and the switches — time zone, money, light or dark. Phones keep them in the footer ── */
 .sbar { display: none; }
 @media (min-width: 961px) {
+  /* on the hero's navy, as the footer it replaced was (owner, 08.10: «темним, у наших кольорах»), in both themes */
   .sbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 35; display: flex; align-items: center; gap: 16px; height: 32px; padding: 0 20px;
-    background: var(--surface); border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
-  .sbar a { border: 0; color: var(--muted); } .sbar a:hover { color: var(--ink); }
-  .sb-live { display: inline-flex; align-items: center; gap: 7px; color: var(--ink); font-weight: 500; }
+    background: var(--navy); border-top: 1px solid #1E293B; font-size: 12px; color: #94A3B8; }
+  .sbar a { border: 0; color: #94A3B8; } .sbar a:hover { color: #F8FAFC; }
+  .sb-live { display: inline-flex; align-items: center; gap: 7px; color: #E2E8F0; font-weight: 500; }
   .sb-live .flive { width: 7px; height: 7px; }
   .sb-links, .sb-right { display: inline-flex; align-items: center; gap: 14px; }
   .sb-right { margin-left: auto; }
-  .sbseg { display: inline-flex; height: 22px; padding: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: transparent; cursor: pointer; }
-  .sbseg b { display: inline-flex; align-items: center; padding: 0 8px; font: 500 11px/1 var(--mono); color: var(--muted); }
-  .sbseg b.on { background: var(--navy); color: var(--mint); }
+  .sbseg, [data-theme="dark"] .sbseg { display: inline-flex; height: 22px; padding: 0; border: 1px solid #1E293B; border-radius: 6px; overflow: hidden; background: transparent; cursor: pointer; }
+  .sbseg b { display: inline-flex; align-items: center; padding: 0 8px; font: 500 11px/1 var(--mono); color: #94A3B8; }
+  .sbseg b.on, [data-theme="dark"] .sbseg b.on { background: #1E293B; color: var(--mint); }
   body { padding-bottom: 32px; }
   .foot { display: none; }                     /* the bar is the footer here (owner, 08.10: «має бути лише один») */
   .foot-meta .tzseg, .foot-meta .ftheme { display: none; }
