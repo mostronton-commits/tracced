@@ -665,7 +665,6 @@ button.ghost.xbtn { padding: 0; color: #475569; }
 .herodemo-card b { color: #fff; }
 .herodemo-card .mono { color: #94A3B8; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .herodemo-card .hd-go { padding: 4px 10px; border-radius: 999px; background: var(--mint); color: var(--navy); font-weight: 600; white-space: nowrap; }
-.hero-dark .lead-short { display: none; }
 /* Ready lists (owner, 07.10–08.10): proven wallets a person takes in one click. A card is a small leaderboard: the sum
    they made in 30 days by tracced's own count, the first three on navy marks, then Follow and See all */
 .ready { margin: 8px 0 16px; }
@@ -753,8 +752,7 @@ button.ghost.xbtn { padding: 0; color: #475569; }
 /* phones (owner, 07.10, «like FOMO»): less text, the same facts — a short lead, no steps, no captions */
 @media (max-width: 560px) { .lrow { grid-template-columns: 26px minmax(0, 1fr) auto auto; gap: 10px; }
   .herodemo-card .mono, .herodemo-lead { display: none; }
-  .hero-dark .lead-long, .steps3, .livefeed > p.muted, .ready-head p { display: none; }
-  .hero-dark .lead-short { display: inline; }
+  .steps3, .livefeed > p.muted, .ready-head p { display: none; }
   .rcard, .freebar { padding: 16px; }
   .rc-act .primary, .rc-act .button { flex: 1 1 0; height: 44px; padding: 0 10px; }
   .freebar .button { width: 100%; height: 44px; } }
@@ -872,7 +870,7 @@ button.tzseg { background: transparent; padding: 0; height: auto; font: inherit;
 
 /* ── hero: brand line + tagline ── */
 .hero-dark h1.brandline { font-size: 64px; letter-spacing: -.02em; font-weight: 700; margin: 0 0 6px; color: #F8FAFC; }
-.hero-dark .tagline { font-size: 26px; letter-spacing: .01em; color: #F8FAFC; margin: 0 0 14px; }
+.hero-dark .tagline { max-width: 760px; font-size: 26px; line-height: 1.3; letter-spacing: .01em; color: #F8FAFC; margin: 0 0 14px; text-wrap: balance; }
 .hero-dark .tagline em { font-style: normal; color: var(--mint); }
 @media (max-width: 640px) { .hero-dark h1.brandline { font-size: 40px; } .hero-dark .tagline { font-size: 18px; } .hero-dark .lead { font-size: 13.5px; } }
 

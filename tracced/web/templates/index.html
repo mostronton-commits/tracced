@@ -8,8 +8,10 @@
   <div class="hero-in">
     <div class="hero-top"><div class="hero-acct">{% include "_acct.html" %}</div>{% include "_news.html" %}</div>
     <h1 class="brandline">tracced</h1>
-    <p class="tagline mono">every wallet <em>on the record</em><span class="cursor">_</span></p>
-    <p class="lead"><span class="lead-long">Paste a token, choose the pump range — see every wallet that bought there and what it did next.</span><span class="lead-short">Every wallet that bought before a pump, and what it did next.</span></p>
+    {# owner, 08.10: the main idea in one line — who bought before the pump, and their next move (the alerts); "every
+       wallet on the record" stays the brand's signature in the footer and the counters #}
+    <p class="tagline mono">Find who bought before the pump — <em>and catch their next move</em><span class="cursor">_</span></p>
+    <p class="lead">Paste a token and mark the pump on the chart.</p>
     <form method="get" action="/token" class="row herof">
       <input type="text" name="mint" placeholder="Paste a token address" data-type-address
              required pattern="[1-9A-HJ-NP-Za-km-z]{32,44}" spellcheck="false" autocomplete="off" aria-label="Token address">
