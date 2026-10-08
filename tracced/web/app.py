@@ -150,6 +150,9 @@ env.filters["usd"] = _usd
 env.filters["num"] = _num
 env.filters["usd3"] = _usd3
 env.filters["age"] = _age
+env.filters["dayfull"] = lambda ms: time.strftime("%B %d", time.gmtime((ms or 0) / 1000)).replace(" 0", " ")   # «September 11»
+env.filters["hm"] = lambda ms: time.strftime("%H:%M", time.gmtime((ms or 0) / 1000))      # час повідомлення, як у Telegram
+env.filters["tg"] = lambda h: Markup("".join(f"<p>{part}</p>" for part in str(h or "").split("\n\n")))   # alerts.message escapes what it quotes
 env.filters["per_day"] = lambda n: "one live analysis a day" if int(n or 0) == 1 else f"{int(n or 0)} live analyses a day"
 env.filters["log10"] = lambda v: math.log10(v) if (v and float(v) > 0) else 0.0
 
@@ -3624,7 +3627,8 @@ def _ready_load(path):
     return {"lists": {}, "at": 0, "busy": False}
 
 
-READY_FORMAT = 4             # 08.10: один список з KOL і рейтингу, за місяць, наш леджер, лише люди; старі файли не читаємо
+READY_FORMAT = 5             # 08.10: один список з KOL і рейтингу, за місяць, наш леджер, лише люди; v5 — з прикладом алерту
+                              # для картки поруч; старі файли не читаємо: після деплою список рахується заново (~1 800 запитів)
 
 
 def _ready_month(app, wallet, month):
@@ -3650,8 +3654,66 @@ def _ready_month(app, wallet, month):
     app["profile_cache"].put(f"v{profile.VERSION}:{wallet}", card)
     out = profile.summary(evs, wallet, month["to"], month["days"], False, history=hist)
     out["label"] = month["label"]                # картка на сторінці списку пише «in September», а не «in these 30 days»
-    out["best_tokens"] = profile.best_tokens(evs, month["to"], month["days"], history=hist)   # на чому заробив за місяць
+    out["best_tokens"] = profile.best_tokens(evs, month["to"], month["days"], history=hist, tx=True)   # на чому заробив за місяць
     return out
+
+
+def _ready_example(app, rows):
+    """Як алерт від трейдера зі списку виглядає в Telegram (власник, 08.10: «щоб було схоже на справжній телеграм, а не на
+    пародію»): дві його справжні угоди за місяць — перша купівля позиції і найбільший продаж з неї — тим самим кодом, що
+    шле справжні алерти (alerts.message). «🆕» — лише коли вся історія гаманця в токені (1 запит) починається з цієї
+    купівлі. Капа на момент угоди — ціна угоди × пропозиція токена (1 запит). Спершу трейдер з іменем; None, коли ні в
+    кого позиція не видна від першої купівлі."""
+    st, s = app["st"], app["s"]
+    if not hasattr(st, "wallet_token_trades"):
+        return None
+    for r in sorted(rows, key=lambda r: (not r.get("x"), -r["pnl"])):
+        for tok in ((r.get("month") or {}).get("best_tokens") or [])[:3]:
+            trs = sorted((x for x in tok.get("trades") or [] if len(x) >= 6 and x[5]), key=lambda x: x[0])
+            sells = [x for x in trs if x[1] == "s"]
+            if not trs or trs[0][1] != "b" or not sells:
+                continue                                         # початок позиції не видно: «🆕» був би вигадкою
+            buy, sell = trs[0], max(sells, key=lambda x: x[2])
+            bought = sum(float(x[3] or 0) for x in trs if x[1] == "b" and x[0] <= sell[0])
+            before = sum(float(x[3] or 0) for x in trs if x[1] == "s" and x[0] < sell[0])
+            if bought <= 0:
+                continue
+            try:
+                full = [e for e in (profile.history_event(t, tok["mint"]) for t in
+                                    st.wallet_token_trades(r["wallet"], tok["mint"], 2, fresh=True, store=False) or []) if e]
+            except Exception as ex:  # noqa: BLE001 — не перевірили, то й не показуємо
+                log.info("ready example %s: %s", tok["mint"][:8], ex)
+                continue
+            if not full or any(e["time"] < buy[0] for e in full):
+                continue                                         # тримав токен і до цієї купівлі: позиція не нова
+            total, step = round(100 * (before + float(sell[3] or 0)) / bought), round(100 * float(sell[3] or 0) / bought)
+            try:
+                supply = float((st.token_info(tok["mint"]) or {}).get("supply") or 0)
+            except Exception as ex:  # noqa: BLE001 — без пропозиції капа просто не пишеться
+                log.info("ready example %s: %s", tok["mint"][:8], ex)
+                supply = 0.0
+            cap = lambda price: float(price) * supply if price and supply else None
+            sizes = s.get("alerts_size_usd")
+            evb = {"side": "buy", "mint": tok["mint"], "usd": float(buy[2]), "new": True, "sig": buy[5]}
+            evs = {"side": "sell", "mint": tok["mint"], "usd": float(sell[2]), "all": total >= 99, "sig": sell[5],
+                   "total": min(total, 100), "step": step if before > 0 else None}
+            # без посилань: головну бачить і гість, а повна адреса гаманця і tx (у ньому той самий гаманець) віддали б
+            # трейдера зі списку, закритого для гостей (власник, 08.10); на вигляд нічого не змінюється
+            msg = lambda ev, price, ca: _A_HREF.sub("<a>", alerts_mod.message(ev, r["wallet"], {"tags": []},
+                                                                               {"symbol": tok.get("symbol"), "mcap": cap(price)}, ca=ca, sizes=sizes))
+            return {"msgs": [{"t": buy[0], "html": msg(evb, buy[4], True)}, {"t": sell[0], "html": msg(evs, sell[4], False)}]}
+    return None
+
+
+_A_HREF = re.compile(r'<a href="[^"]*">')
+
+
+def _ready_slim(rows):
+    """tx угод був потрібен лише прикладу алерту: у файл і на сторінку списку угоди йдуть без нього (~90 знаків на угоду)."""
+    for r in rows:
+        for t in ((r.get("month") or {}).get("best_tokens") or []):
+            t["trades"] = [x[:5] for x in t.get("trades") or []]
+    return rows
 
 
 def _ready_count(app, cands, month, facts):
@@ -3730,7 +3792,14 @@ async def _ready_refresh(app):
                     people, dropped = _ready_count(app, cands, month, facts)
                     pool = [{k: v for k, v in r.items() if k != "month"} for r in sorted(people, key=lambda r: -r["pnl"])]
                     rows = ready_mod.rank(people, min_pnl=float(s.get("ready_min_pnl", 10_000)))
-                    got["top-traders"] = {"rows": rows, "funnel": ready_mod.funnel(len(cands), dropped, len(people), len(rows)), "pool": pool[:200]}
+                    try:
+                        example = _ready_example(app, rows)
+                    except Exception as ex:  # noqa: BLE001 — без приклада картка покаже лише тези
+                        log.warning("ready example: %s", ex)
+                        example = None
+                    _ready_slim(people)                  # рядки обох списків — ті самі об'єкти
+                    got["top-traders"] = {"rows": rows, "funnel": ready_mod.funnel(len(cands), dropped, len(people), len(rows)),
+                                          "pool": pool[:200], "example": example}
                     roi = ready_mod.rank_roi(people, min_invested=float(s.get("ready_roi_min_invested", 2000)),
                                              min_pnl=float(s.get("ready_roi_min_pnl", 5000)))
                     got["top-roi"] = {"rows": roi, "funnel": ready_mod.funnel(len(cands), dropped, len(people), len(roi)), "pool": []}
@@ -3745,7 +3814,7 @@ async def _ready_refresh(app):
         for slug, d in got.items():
             lists[slug] = dict(ready_mod.titled(slug, month), slug=slug, rows=d["rows"], summary=ready_mod.summary(d["rows"]), at=now,
                                month=month["key"], label=month["label"], short=month["short"], next=month["next"],
-                               next_label=month["next_label"], funnel=d["funnel"], pool=d["pool"])
+                               next_label=month["next_label"], funnel=d["funnel"], pool=d["pool"], example=d.get("example"))
         data = {"v": READY_FORMAT, "lists": lists, "at": now if got else r.get("at") or 0}
         path = app["ready_path"]
         tmp = str(path) + ".tmp"

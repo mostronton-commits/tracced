@@ -148,6 +148,7 @@ class TestCardExtras(unittest.TestCase):
         self.assertEqual([x[1] for x in tok["trades"]], ["b", "s"])                 # oldest first
         t0, side, usd, qty, px = tok["trades"][0]
         self.assertEqual((t0, side, usd, qty, px), (NOW - 2 * DAY, "b", 100.0, 1000, 0.1))
+        self.assertEqual(profile.best_tokens(events(raws), NOW, tx=True)[0]["trades"][0][5], "b1")   # tx — лише для приклада алерту
         many = [swap(1 + i / 1000, SOL, 0.1, "TOKB", 10, 10.0, get_px=1.0, tx=f"m{i}") for i in range(60)]
         self.assertEqual(len(profile.recent_tokens(events(many), NOW)[0]["trades"]), profile.RECENT_TRADES)
 

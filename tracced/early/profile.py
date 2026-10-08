@@ -377,17 +377,18 @@ def heatmap(events, now_ms, days=30):
     return grid
 
 
-def _trades_by_mint(evs):
-    """Угоди вікна по токенах: [час, b|s, $, кількість, ціна] — мітки графіка того токена в картці."""
+def _trades_by_mint(evs, tx=False):
+    """Угоди вікна по токенах: [час, b|s, $, кількість, ціна] — мітки графіка того токена в картці; з tx шостим — лише для
+    приклада алерту на головній (власник, 08.10): у картці він не потрібен, а це ~90 знаків на угоду."""
     trades = {}
     for e in evs:
         if e.get("type") in ("buy", "sell") and e.get("mint"):
-            trades.setdefault(e["mint"], []).append([e["time"], "b" if e["type"] == "buy" else "s", round(float(e.get("usd") or 0), 2),
-                                                     e.get("qty"), e.get("price")])
+            row = [e["time"], "b" if e["type"] == "buy" else "s", round(float(e.get("usd") or 0), 2), e.get("qty"), e.get("price")]
+            trades.setdefault(e["mint"], []).append(row + [e.get("tx")] if tx else row)
     return trades
 
 
-def best_tokens(events, now_ms, days=30, n=10, history=None):
+def best_tokens(events, now_ms, days=30, n=10, history=None, tx=False):
     """На чому гаманець заробив (власник, 08.10, «як на FOMO, кращі трейди»): токени з найбільшим прибутком з продажів у
     вікні — та сама собівартість, що в PnL картки, — від більшого, лише в плюсі. Вигляд рядка — як у recent_tokens."""
     since = now_ms - days * DAY
@@ -397,7 +398,7 @@ def best_tokens(events, now_ms, days=30, n=10, history=None):
     for t, d, mint, _ in deltas:
         if since <= t <= now_ms:
             real[mint] = real.get(mint, 0.0) + d
-    trades = _trades_by_mint(evs)
+    trades = _trades_by_mint(evs, tx)
     out = []
     for mint, r in sorted(real.items(), key=lambda kv: -kv[1])[:n]:
         if r <= 0:

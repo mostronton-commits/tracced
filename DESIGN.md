@@ -402,13 +402,19 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   the live feed, under "Follow the best traders and get their trades in Telegram.": two cards side by side, one column
   on a phone. The first is the list, last month's, and says so ("Top traders · September", "10 wallets · next update
   Nov 1"): the sum they made in the month in mono at 24 px 700, green as profit is, five leaders as rows (three on a
-  phone) and the next one blurred, as the old list of analyses did, then one full-width key: *Follow N wallets* with
-  the bell, which follows and opens the watchlist on that list ("Open in your watchlist" once followed). The first
-  three ranks are medals, quietly (owner, 08.10): a pale gold, silver and bronze disc with a deeper digit, never a
-  bright fill. The second card, on the page's background, says why follow it: four theses, each a quiet icon in a
-  white square, a bold line and a few muted words; no numbers. No stack of faces, no notes under the cards. Profits
-  show three significant figures ($6.77M, $583K). Every number is tracced's own count of the month, the same as the
-  wallet's card on that month.
+  phone) and the next one blurred, as the old list of analyses did, then one full-width key: *Open the list*, which
+  asks for a wallet first and then opens the list's page (owner, 08.10). The first three ranks are medals, quietly
+  (owner, 08.10): a pale gold, silver and bronze disc with a deeper digit, never a bright fill. The second card, "Why
+  follow it", shows a piece of Telegram (owner, 08.10, after his own screenshots: «не пародія»): dark in both themes,
+  black with the faint math doodles (`tg-wall.svg`), the floating glass head (back, "tracced_ · bot", the avatar), a
+  date pill, and two real alerts from a trader in the list, written by the code that sends alerts: the first buy of a
+  position (🆕 and the token's address) and the biggest sell from it. Bubbles as Telegram draws them: within 10
+  minutes they group (inner corners 5 px), the last of a group has the tail, the time sits inside at the bottom
+  right; the input bar closes it. Its colours are sampled from his screenshots (bubble #1E2722 to #21252C, links
+  #3E88F7, date pill #1B1D25). No links in it: the home page is open to guests and the list is not. Under it, three
+  theses: a 16 px icon, a bold phrase, a few muted words, no numbers. With no alert to show, only the theses. No stack
+  of faces, no notes under the cards. Profits show three significant figures ($6.77M, $583K). Every number is
+  tracced's own count of the month, the same as the wallet's card on that month.
 - **A ready list's page** is for a connected wallet only (owner, 08.10: nobody takes the list without connecting; a
   guest sees the title, one line and Connect): the title, one short line ("September's most profitable traders. Real
   people, no bots."), the key on top (on a phone a bar fixed at the bottom), a tally strip (Profit, Best, Wallets,

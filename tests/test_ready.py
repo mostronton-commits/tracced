@@ -261,11 +261,53 @@ if AioHTTPTestCase:
     except ImportError:
         from test_web import FakeWebST, TEST_PK, wallet_cookie, CYRILLIC, seed_demo, OTHER_JID, OTHER_MINT
     from tracced.web import accounts as acct_mod
-    from tracced.web.app import create_app, _ready_refresh
+    from tracced.web.app import create_app, _ready_refresh, _ready_example
 
     GUEST = {"Cookie": ""}
     OTHER = acct_mod.b58encode(b"\x09" * 32)                      # звичайний гаманець, не власник
     SLUG = "top-traders"
+
+    class TestAlertExample(unittest.TestCase):
+        """Приклад алерту поруч зі списком (власник, 08.10): дві справжні угоди трейдера зі списку тим самим текстом, що
+        приходить у Telegram, без посилань; «🆕» — лише коли до цієї купівлі гаманець токена не мав."""
+        T, H = 1_788_000_000_000, 3_600_000
+
+        def app(self, history):
+            class St:
+                def token_info(self, mint):
+                    return {"supply": 1e6}
+
+                def wallet_token_trades(self, wallet, mint, max_pages=4, fresh=False, store=True):
+                    return history
+            return {"st": St(), "s": {"alerts_size_usd": [1000, 10000]}}
+
+        def rows(self):
+            t, h = self.T, self.H
+            trades = [[t, "b", 4000.0, 1000, 0.1, "b1"], [t + h, "s", 600.0, 100, 0.6, "s1"], [t + 2 * h, "s", 9000.0, 900, 1.0, "s2"]]
+            return [{"wallet": addr("K", 1), "x": "kol1", "pnl": 5600.0,
+                     "month": {"best_tokens": [{"mint": "TOKA", "symbol": "TOKA", "trades": trades}]}}]
+
+        def hist(self, *extra):
+            t, h = self.T, self.H
+            return list(extra) + [{"type": "buy", "time": t, "qty": 1000, "usd": 4000.0, "price": 0.1, "tx": "b1"},
+                                  {"type": "sell", "time": t + h, "qty": 100, "usd": 600.0, "price": 0.6, "tx": "s1"},
+                                  {"type": "sell", "time": t + 2 * h, "qty": 900, "usd": 9000.0, "price": 1.0, "tx": "s2"}]
+
+        def test_the_first_buy_of_a_new_position_and_its_biggest_sell(self):
+            ex = _ready_example(self.app(self.hist()), self.rows())
+            (t1, buy), (t2, sell) = [(m["t"], m["html"]) for m in ex["msgs"]]
+            self.assertEqual((t1, t2), (self.T, self.T + 2 * self.H))
+            self.assertTrue(buy.startswith("🟡 <a><b>$TOKA</b></a> 🆕 · MC $100K · <a>tx</a>"))   # $4K — жовта, як у каналі
+            self.assertIn("<code>TOKA</code>", buy)
+            self.assertTrue(sell.startswith("🟡 <a><b>$TOKA</b></a> · sold all · MC $1M · <a>tx</a>"))   # найбільший продаж, ним вийшов
+            self.assertNotIn("<code>", sell)                                             # адреса токена — лише в першому
+            self.assertNotIn("href", buy + sell)                                         # головну бачить гість: ні гаманця, ні tx
+            self.assertNotIn(addr("K", 1), buy + sell)
+
+        def test_no_new_mark_for_a_wallet_that_held_the_token_before(self):
+            older = {"type": "buy", "time": self.T - 5 * 86_400_000, "qty": 500, "usd": 50.0, "price": 0.1, "tx": "old"}
+            self.assertIsNone(_ready_example(self.app(self.hist(older)), self.rows()))
+            self.assertIsNone(_ready_example(self.app([]), self.rows()))                   # історії не видно — не показуємо
 
     class ReadyST(FakeWebST):
         def kol_leaderboard(self, days=30, limit=10):
@@ -282,6 +324,13 @@ if AioHTTPTestCase:
             return {addr("K", 2): {"first_trade": now - ready.DAY, "arbitrage": False, "type": "kol"},     # свіжий
                     addr("T", 3): {"first_trade": now - 900 * ready.DAY, "arbitrage": True, "type": None}}  # арбітражний бот
 
+        def wallet_token_trades(self, wallet, mint, max_pages=4, fresh=False, store=True):
+            """Уся історія гаманця в токені: ті самі купівля і продаж, що в його обмінах за місяць."""
+            self.requests += 1
+            t = ready.prev_month(time.time() * 1000)["from"] + 86_400_000
+            return [{"wallet": wallet, "type": "buy", "time": t, "qty": 1000, "usd": 100.0, "price": 0.1, "tx": "p1"},
+                    {"wallet": wallet, "type": "sell", "time": t + 3_600_000, "qty": 1000, "usd": 150.0, "price": 0.15, "tx": "p2"}]
+
         def wallet_swaps(self, owner, since_ms, max_pages=5):
             """Одна купівля і продаж з прибутком $50 — у минулому місяці, хоч би яке сьогодні число."""
             return super().wallet_swaps(owner, ready.prev_month(time.time() * 1000)["from"], max_pages)
@@ -292,7 +341,7 @@ if AioHTTPTestCase:
             self.st = ReadyST(TRADES)
             s = settings.load()
             s["ready_lists_on"], s["ready_top_pages"], s["ready_min_pnl"] = True, 4, 0   # у фейку кожен гаманець заробляє $50
-            s["ready_human"] = {"min_closed": 1, "win_rate": [0, 100]}                     # одна закрита позиція на гаманець
+            s["ready_human"] = dict(s["ready_human"], min_closed=1, win_rate=[0, 100])     # одна закрита позиція на гаманець
             s["ready_roi_pages"], s["ready_roi_min_invested"], s["ready_roi_min_pnl"] = 2, 0, 0
             app = create_app(self.st, s, {}, out_dir=self.tmp.name + "/web", store_dir=self.tmp.name + "/cache")
             app["admins"] = {TEST_PK}
@@ -328,8 +377,9 @@ if AioHTTPTestCase:
             self.app["s"]["ready_lists_on"] = True
             lists = await self.refresh()
             # KOL — 1 запит, дошка — 4 сторінки, дошка за ROI — 2, перші угоди — 1 на всіх, і кожен кандидат (24) своїми
-            # обмінами, крім свіжого KOL і арбітражного бота: їх відсіяно до запиту
-            self.assertEqual(self.st.requests, 1 + 4 + 2 + 1 + 22)
+            # обмінами, крім свіжого KOL і арбітражного бота: їх відсіяно до запиту; для приклада алерту — історія гаманця в
+            # токені і пропозиція токена
+            self.assertEqual(self.st.requests, 1 + 4 + 2 + 1 + 22 + 2)
             self.assertEqual(set(lists), {SLUG, "top-roi"})                                # список за прибутком і для порівняння — за ROI
             self.assertEqual(lists["top-roi"]["title"], "Best ROI · " + self.month["label"])
             self.assertEqual(lists["top-roi"]["rows"][0]["roi"], 0.5)                       # $50 на $100 купленого
@@ -344,10 +394,10 @@ if AioHTTPTestCase:
             self.assertNotIn(addr("K", 2), [r["wallet"] for r in t["rows"]])
             self.app["ready"]["tried_at"] = 0
             await self.refresh()
-            self.assertEqual(self.st.requests, 30)                                         # місяць уже пораховано: до 1-го — ні запиту
+            self.assertEqual(self.st.requests, 32)                                         # місяць уже пораховано: до 1-го — ні запиту
             with open(self.tmp.name + "/ready_lists.json") as f:
                 saved = json.load(f)
-            self.assertEqual((saved["v"], set(saved["lists"])), (4, {SLUG, "top-roi"}))      # після перезапуску — з файлу
+            self.assertEqual((saved["v"], set(saved["lists"])), (5, {SLUG, "top-roi"}))      # після перезапуску — з файлу
 
         async def test_a_new_month_counts_again_but_not_after_every_failure(self):
             await self.refresh()
@@ -364,10 +414,10 @@ if AioHTTPTestCase:
         async def test_a_file_of_an_older_kind_is_not_read(self):
             from tracced.web.app import _ready_load
             path = self.tmp.name + "/old.json"
-            for v in (None, 2, 3):
+            for v in (None, 2, 3, 4):
                 with open(path, "w") as f:
                     json.dump({"v": v, "lists": {"kols-30d": {"rows": [{"wallet": "W", "pnl": 1.0}]}}, "at": 1}, f)
-                self.assertEqual(_ready_load(path)["lists"], {})                            # 07.10 рейтингові, «30 днів», два списки
+                self.assertEqual(_ready_load(path)["lists"], {})                            # 07.10 рейтингові, «30 днів», два списки, без приклада
 
         async def test_one_board_down_still_makes_the_list_both_down_keep_the_last_month(self):
             await self.refresh()
@@ -404,7 +454,22 @@ if AioHTTPTestCase:
             self.assertEqual(html.count('class="rcard"'), 1)
             self.assertIn("Why follow it", html)                                          # і поруч — тези без статистики
             self.assertIn("No hours of searching", html)
+            # власник, 08.10, варіант B: справжній алерт від трейдера зі списку, як його показує Telegram — текст тим самим
+            # кодом, що шле алерти: перша купівля позиції з адресою токена, потім продаж
+            self.assertIn('class="tgx"', html)
+            self.assertIn("<b>tracced_</b>", html)
+            chat = html[html.index('class="tgx-chat"'):html.index("</article>", html.index('class="tgx-chat"'))]
+            self.assertIn("🆕", chat)
+            self.assertIn("sold all", chat)
+            self.assertIn("<code>TOKA</code>", chat)                                     # адреса токена — лише в першому
+            self.assertEqual(chat.count("<code>"), 1)
+            self.assertNotIn("href", chat[:chat.index('class="tgx-bottom"')])            # ні гаманця, ні tx: список закритий для гостей
+            self.assertNotIn("A real sell by", html)
             self.assertNotIn("wallets checked", html)
+            self.assertIsNotNone(self.app["ready"]["lists"][SLUG]["example"])
+            # tx угод потрібен був лише прикладу: у файл угоди лягають без нього
+            kept = [x for r in self.app["ready"]["lists"][SLUG]["rows"] for t in r["month"]["best_tokens"] for x in t["trades"]]
+            self.assertTrue(kept and all(len(x) == 5 for x in kept))
             self.assertEqual(html.count('class="peek" aria-hidden="true"'), 1)               # шостий — у розмитті
             self.assertIn('href="/lists/top-traders" data-need-wallet=', html)              # власник, 08.10: кнопка відкриває список
             self.assertIn(">Open the list</a>", html)
@@ -422,7 +487,9 @@ if AioHTTPTestCase:
         async def test_every_page_has_the_status_bar_and_dark_is_a_choice(self):
             # owner, 08.10, like OpenSea: a status bar with the switches; dark by choice, light by default
             for path in ("/", f"/token?mint={'A' * 40}", "/docs/how-it-works"):
-                html = await (await self.client.get(path, headers=GUEST)).text()
+                r = await self.client.get(path, headers=GUEST)
+                html = await r.text()
+                self.assertEqual(r.status, 200, path)
                 self.assertIn('class="sbar"', html, path)
                 self.assertIn('id="sbtheme"', html, path)
                 self.assertIn("Live on Solana", html, path)
