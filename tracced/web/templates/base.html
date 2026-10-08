@@ -14,7 +14,7 @@
 <link rel="icon" href="/static/brand/icon.svg?v={{ v }}" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/static/brand/icon-180.png?v={{ v }}">
 {% if umami_id %}<script defer src="https://cloud.umami.is/script.js" data-website-id="{{ umami_id }}" data-domains="{{ umami_domains }}" data-performance="true" data-tag="{{ 'wallet' if acct else 'guest' }}"></script>{% endif %}
-<script>try { if (localStorage.getItem('early:theme') === 'dark') document.documentElement.dataset.theme = 'dark'; } catch (e) {}</script>
+{% if dark_on %}<script>try { if (localStorage.getItem('early:theme') === 'dark') document.documentElement.dataset.theme = 'dark'; } catch (e) {}</script>{% endif %}
 <link rel="stylesheet" href="/static/style.css?v={{ v }}">
 <script src="/static/ui.js?v={{ v }}"></script>
 <script src="/static/wallet.js?v={{ v }}" defer></script>
@@ -101,7 +101,7 @@ window.EarlyTheme = (function () {
     <div class="foot-brand"><b>tracced</b><span class="muted mono">every wallet on the record</span>
       <div class="foot-meta"><span class="mono muted">Built on Solana · <span title="assets {{ v }}">v{{ version }}</span></span>
         <button type="button" class="tzseg" id="tz" title="Time zone for all dates" aria-label="Time zone for all dates" onclick="EarlyTZ.toggle()"><b class="on">UTC</b><b>Local</b></button>
-        <button type="button" class="tzseg ftheme" id="ftheme" title="Light or dark" aria-label="Light or dark" onclick="EarlyTheme.toggle()"><b class="on">Light</b><b>Dark</b></button></div></div>
+        {% if dark_on %}<button type="button" class="tzseg ftheme" id="ftheme" title="Light or dark" aria-label="Light or dark" onclick="EarlyTheme.toggle()"><b class="on">Light</b><b>Dark</b></button>{% endif %}</div></div>
     <nav class="foot-cols" aria-label="Site">
       <div><b>Product</b>
         {% if demo_token %}<a href="/token?mint={{ demo_token }}">Demo</a>{% endif %}
@@ -117,16 +117,17 @@ window.EarlyTheme = (function () {
     </nav>
   </div>
 </div></footer>
-{# the status bar (owner, 08.10, like OpenSea): wide screens only; phones keep the switches in the footer #}
+{# the status bar (owner, 08.10, like OpenSea): wide screens only, and there it is the only footer (owner, 08.10: «має
+   бути лише один»), so it carries the footer's links; phones and tablets keep the footer and its switches #}
 <div class="sbar" role="region" aria-label="Status and settings">
   <span class="sb-live" title="tracced reads Solana mainnet as it happens"><i class="flive" aria-hidden="true"></i>Live on Solana</span>
-  <span class="sb-links"><a href="/docs">Docs</a><a href="/docs/updates">What's new</a><a href="/feedback">Contact</a></span>
+  <span class="sb-links"><a href="/docs">Docs</a><a href="/docs/how-it-works">How it works</a><a href="/docs/project">The project</a><a href="/docs/updates">What's new</a><a href="/feedback">Contact</a></span>
   <span class="sb-right">
     <span class="mono" title="assets {{ v }}">v{{ version }}</span>
     <button type="button" class="sbseg" id="sbtz" title="Time zone for all dates" aria-label="Time zone for all dates" onclick="EarlyTZ.toggle()"><b class="on">UTC</b><b>Local</b></button>
     <button type="button" class="sbseg" id="sbcur" title="Amounts in dollars or in SOL" aria-label="Money unit" onclick="EarlyCur.toggle()"><b class="on">USD</b><b>SOL</b></button>
-    <button type="button" class="sbseg" id="sbtheme" title="Light or dark" aria-label="Light or dark" onclick="EarlyTheme.toggle()"><b class="on">Light</b><b>Dark</b></button>
-    <a href="https://x.com/tracced_xyz" target="_blank" rel="noopener">X</a><a href="https://t.me/tracced_xyz" target="_blank" rel="noopener">Telegram</a>
+    {% if dark_on %}<button type="button" class="sbseg" id="sbtheme" title="Light or dark" aria-label="Light or dark" onclick="EarlyTheme.toggle()"><b class="on">Light</b><b>Dark</b></button>{% endif %}
+    <a href="https://x.com/tracced_xyz" target="_blank" rel="noopener">X</a><a href="https://t.me/tracced_xyz" target="_blank" rel="noopener">Telegram</a><a href="https://github.com/mostronton-commits/tracced" target="_blank" rel="noopener">GitHub</a>
   </span>
 </div>
 </body>

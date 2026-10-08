@@ -55,26 +55,23 @@
       <div class="dh-act"><button type="button" class="ghost x" id="dclose" title="Close" aria-label="Close">×</button></div>
     </div>
     <section class="dsec dperf">
-      <div class="dsec-h"><h4>All tokens <span class="dinfo" id="dprofi" hidden>i</span></h4>
-        <div class="seg" id="dper" role="tablist" aria-label="Period"><button type="button" data-p="M" class="on">{{ (lst.label or '')[:3] }}</button><button type="button" data-p="7">7D</button><button type="button" data-p="30">30D</button></div></div>
+      <div class="dsec-h"><h4>Performance <span class="dinfo" id="dprofi" hidden>i</span></h4>
+        <div class="seg" id="dper" role="tablist" aria-label="Period"><button type="button" data-p="7">7D</button><button type="button" data-p="30" class="on">30D</button></div></div>
       <div id="dprof"></div>
     </section>
   </div>
 </aside>
-<script type="application/json" id="lprows">{{ rows|tojson }}</script>
+<script type="application/json" id="lprows">{{ rows_js|tojson }}</script>
 <script>
 (function () {
   const rows = JSON.parse(document.getElementById('lprows').textContent), byW = {};
   rows.forEach(r => { byW[r.wallet] = r; });
   const drawer = document.getElementById('drawer'), box = document.getElementById('dprof'), info = document.getElementById('dprofi');
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  // the list's month comes with the page, the same numbers as the row; 7D and 30D are the wallet's card, cached when
-  // the list was counted (a guest sees them too until the cache ages out, then a wallet is needed)
-  const list = document.querySelector('.lp-rows'), cache = new Map(), failed = new Map(); let period = 'M';
-  function data(w) {
-    const r = byW[w] || {}, c = cache.get(w), m = r.month ? { M: r.month } : {};
-    return c ? Object.assign({}, c, { periods: Object.assign({}, c.periods, m) }) : { periods: m };
-  }
+  // owner, 08.10: the card is the same as on an analysis — 7D and 30D and Recent/Best, no month tab: the month is the
+  // list itself. The card was cached when the list was counted, so it opens at once
+  const list = document.querySelector('.lp-rows'), cache = new Map(), failed = new Map(); let period = '30';
+  const data = w => cache.get(w) || { periods: {} };
   function paint(w) {
     const all = data(w);
     document.querySelectorAll('#dper [data-p]').forEach(b => b.classList.toggle('on', b.dataset.p === period));

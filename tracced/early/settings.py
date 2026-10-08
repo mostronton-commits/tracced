@@ -22,6 +22,7 @@ DEFAULTS = {
     "after_alerts": "draft",      # «After the alerts»: draft — лише на закритій копії (власник допрацьовує, 04.10); on; off
     "after_wallets": 10,          # «після алертів»: скільки гаманців з дзвіночком (чи найновіших) і скільки покупок
     "after_rows": 40,
+    "dark_theme": "draft",        # темна тема: draft — лише на закритій копії (власник, 08.10: не в 0.7.3, спершу довести); on; off
     "insightx_names": "draft",    # назви з міток InsightX: draft — лише на закритій копії (їхні умови, API Usage), on; off
     "insightx_calls_per_run": 3,  # InsightX: запитів на аналіз (по 100 спонсорів у кожному), лише з INSIGHTX_API_KEY
     "insightx_month": 1000,       # безкоштовний план: 1000 запитів на місяць і 5 на хвилину

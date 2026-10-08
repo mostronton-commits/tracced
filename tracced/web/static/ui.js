@@ -162,7 +162,8 @@ document.addEventListener('click', e => {
 (function () {
   let raf = 0;
   const set = () => { raf = 0; const bar = document.querySelector('header.top'); const h = bar ? Math.max(0, Math.round(bar.getBoundingClientRect().bottom)) : 0;
-    const foot = document.querySelector('footer.foot'), b = foot ? Math.max(0, Math.round(innerHeight - foot.getBoundingClientRect().top)) : 0;
+    // a hidden footer (a wide screen, where the status bar is the footer) has no box: its top would read 0, the card none
+    const foot = document.querySelector('footer.foot'), b = foot && foot.getClientRects().length ? Math.max(0, Math.round(innerHeight - foot.getBoundingClientRect().top)) : 0;
     document.documentElement.style.setProperty('--dtop', h + 'px'); document.documentElement.style.setProperty('--dbot', b + 'px'); };
   const soon = () => { if (!raf) raf = requestAnimationFrame(set); };
   addEventListener('scroll', soon, { passive: true }); addEventListener('resize', soon);

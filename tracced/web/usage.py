@@ -24,7 +24,7 @@ UI = {
     "range-set": ("end",), "range-add": (), "range-reset": (), "tf": ("tf",), "chart-nav": ("to",),
     "list-tab": (), "copy": ("what",), "ext": ("to",), "cur": ("to",), "tz": ("to",), "leave": ("secs",),
     "egg": ("what",), "star": ("on",), "list-move": ("how",), "wallet-bell": ("on",), "card-view": ("v",),
-    "card-token-chart": (), "list-bell": ("on",),
+    "card-token-chart": (), "list-bell": ("on",), "card-trades-all": (),
 }
 # короткий рядок: адреса гаманця (32-44 символи) чи набраний людиною текст сюди не пролазять фізично
 VAL = re.compile(r"^[A-Za-z0-9_.:-]{1,24}$")
@@ -163,14 +163,15 @@ CLICKS = {"card-open": "Opened a wallet card", "card-close": "Closed a wallet ca
           "list-tab": "Switched a list", "copy": "Copied an address", "ext": "Followed a link out", "cur": "Switched USD/SOL",
           "tz": "Switched UTC/local", "leave": "Left a page", "egg": "Found an easter egg",
           "star": "Starred a wallet into the watchlist", "list-move": "Changed a wallet's lists in its card",
-          "wallet-bell": "Switched a wallet's alerts", "card-view": "Switched a card between this token and all tokens",
-          "card-token-chart": "Opened another token's chart in a card", "list-bell": "Switched a whole list's alerts"}
+          "wallet-bell": "Switched a wallet's alerts", "card-view": "Switched a card's tokens between recent and best",
+          "card-token-chart": "Opened another token's chart in a card", "list-bell": "Switched a whole list's alerts",
+          "card-trades-all": "Opened all of a wallet's trades in its card"}
 # що на сайті можна натиснути зараз: з цього списку — «ніхто не користувався» (прибрані кнопки сюди не входять,
 # інакше вони висіли б у списку вічно)
 UI_FEATURES = ("card-open", "card-period", "pin", "sort", "filter", "hide", "filters-toggle", "filters-reset", "funder", "finding",
                "star", "export", "show-more", "agent-open", "range-set", "range-add", "range-reset", "tf",
                "chart-nav", "list-tab", "list-move", "wallet-bell", "card-view", "copy", "ext", "cur", "tz",
-               "card-token-chart", "list-bell")
+               "card-token-chart", "list-bell", "card-trades-all")
 PAGE_NAMES = {"job": "On a result", "token": "On a token's chart", "me": "In the watchlist", "home": "On the home page", "docs": "In the docs",
               "list": "On a ready list"}
 FUNNEL = (("result", "Opened a result"), ("card", "Opened a wallet card"), ("run", "Ran an analysis"),

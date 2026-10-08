@@ -285,7 +285,9 @@ from 04.10, owner; they pair with the Carbon icons. Geist stays in `static/fonts
 
 Light is the default and stays it (owner, 08.10: «не втративши свій акцент, щоб не стати ще одним Axiom, GMGN і другим
 терміналом, який темний по дефолту»). Dark is a choice, on the status bar or in the footer, kept in the browser and
-applied before the page paints.
+applied before the page paints. Until it is polished it lives on the draft site only (owner, 08.10: «кнопки й написи, які
+не читаються, логотипи, які не видно — не в цей реліз»): setting `dark_theme` draft | on | off; off the draft there is
+no switch and a stored choice does nothing.
 
 - **Not black: the hero's navy carried over the whole page.** Page #0B111C, cards #101827, a step lighter for hover
   (#18243A), lines #1E2A3D and #2E3D55, text #E6EDF5 and #8E9CB2. The top bar and the footer sit a step darker (#070B13).
@@ -359,13 +361,13 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   first while the cap leaves room; off silences them all. On the draft site no bot runs, so the alerts are a preview:
   the bells and the switch save, and the Telegram card says that nothing is sent.
 - **The wallet card** is a right-hand sheet, 420–440 px wide (on a phone a sheet from the bottom, see Phones), with a sticky head: identity,
-  then the Performance block (7D/30D, 30D by default), always there, then the trades with a switch, "<symbol> token"
-  (its numbers here as a small tally, then its trades) and "All tokens" (its recent tokens); the last choice stays for
-  the next card (owner, 04.10). A wallet's address in the table opens the card, never copies: it is underlined like a
+  then the Performance block (7D/30D, 30D by default) with its tokens under the numbers, Recent or Best. It is the same
+  card everywhere (owner, 08.10: «картка трейдера має бути однакова скрізь»): a result's card adds one block on top,
+  "<symbol> trades" (its numbers here as a small tally, then its trades), and nothing switches between them. A wallet's address in the table opens the card, never copies: it is underlined like a
   link, and a click anywhere else in the row opens the card too. In the card, the address copies itself on a click,
   with no copy mark beside it. Its chips say what they are without a hover: "funded by Binance", "94d old". In the
   watchlist the card shows the lists holding the wallet as switches under "Saved in", amber when on; the last one
-  stays, × in the row drops the wallet. In "All tokens" a recent token's row opens, under it, a small chart of that
+  stays, × in the row drops the wallet. In the tokens under the numbers a row opens, under it, a small chart of that
   token on the hours of the wallet's trades, its buys and sells marked as on the result's chart, with a link to the
   token's page (owner, 04.10). The token's address under a result's or a token's title copies itself on a click too,
   with no copy mark beside it.
@@ -394,9 +396,9 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   ago. Never who ran them. Rows lead nowhere. No caption and no day count above it (owner, 08.10). Seven rows show at once (owner, 07.10): the newest arrive one at a time at the top, 3–10 s apart, as
   they happened, and real new ones come every 20 s from `/live.json`. Nothing loops. A row: the token's picture (its
   letter while it loads or when it has none), symbol, one fact, how long ago. The fact is "saved N wallets" with the
-  star when people really saved wallets from that analysis, otherwise the token's market cap when it was analyzed
-  (owner, 08.10: "found 180 wallets" said nothing). Never a made-up number: the owner asked for random saved counts
-  twice and they stay out, as they would show activity that never happened. The
+  star when people really saved wallets from that analysis, otherwise how many of its wallets made 2× or more, in
+  green mono (owner, 08.10: "found 180 wallets" said nothing, the market cap neither). Never a made-up number: the owner
+  asked for random saved counts three times and they stay out, as they would show activity that never happened. The
   demo is no row: a guest gets a demo card under the token field (the token, its wallets and 2×+, Open the demo).
 - **Ready lists** (owner, 07.10: «цікаво, зрозуміло і привабливо»; 08.10: one list, simpler) sit on the home page under
   the live feed, under "Follow the best traders and get their trades in Telegram.": two cards side by side, one column
@@ -418,18 +420,20 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   guest sees the title, one line and Connect): the title, one short line ("September's most profitable traders. Real
   people, no bots."), the key on top (on a phone a bar fixed at the bottom), a tally strip (Profit, Best, Wallets,
   Next update), the wallets as a leaderboard with @X, win rate, wins and losses, and a link to the other list (Best ROI,
-  for comparison: ROI is the main number there). A row opens the wallet card on the list's month (its tab first, then
-  7D and 30D). Under the card's numbers its tokens switch between Recent and Best (owner, 08.10, «як на FOMO»): Best is
-  where the PnL was made, the most profitable first.
+  for comparison: ROI is the main number there). A row opens the wallet card, the same as a result's: 7D and 30D, no
+  tab for the month (owner, 08.10: the month is the list itself). Under the card's numbers its tokens switch between
+  Recent and Best (owner, 08.10, «як на FOMO»): Best is where the PnL was made, the most profitable first.
 - **Free during beta** (owner, 07.10: out of the hero; 08.10: the words): its own quiet block at the end of the home
   page, above the footer: "Pay with a follow on X, and be the first to see what's new." and *Follow @tracced_xyz* with
   the X mark, instead of payment.
 - **Chips under a token's title** (owner, 08.10, like OpenSea): on the token page and a result, under the symbol and the
   token's picture: SOLANA, its age ("3 weeks old"), NEW in green for its first day, the launchpad; mono capitals in a
   thin outline, then the short address that copies itself, Solscan and the project's X.
-- **The status bar** (owner, 08.10, like OpenSea): on a wide screen a thin line fixed along the bottom of the window:
-  "Live on Solana" with the live dot, Docs, What's new, Contact; on the right the version and three switches, UTC/Local,
-  USD/SOL and Light/Dark, then X and Telegram. Phones and tablets have no bar: the switches stay in the footer.
+- **The status bar** (owner, 08.10, like OpenSea): on a wide screen a thin line fixed along the bottom of the window,
+  and there the only footer (owner, 08.10: «має бути лише один»; the dark footer hides above 960 px): "Live on Solana"
+  with the live dot, Docs, How it works, The project, What's new, Contact; on the right the version and the switches,
+  UTC/Local, USD/SOL (and Light/Dark where dark is on), then X, Telegram and GitHub. Phones and tablets have no bar:
+  the footer stays, with the switches.
 - **The hero line stays "every wallet on the record_"** (owner, 08.10: "Find who bought before the pump — and catch
   their next move" was tried and is too long): under the big *tracced*, in mono at 26 px (18 on a phone), "on the
   record" in mint, the cursor after it; under it the lead. A shared link shows "Every wallet that bought before a pump,

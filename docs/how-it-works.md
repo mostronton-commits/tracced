@@ -37,8 +37,8 @@ sniper's pace), started trading less than {{ s.ready_human.min_age_days }} days 
 marked a bot, an exchange or an arbitrageur. Of the rest, the list keeps the ones that made more than
 ${{ '{:,}'.format(s.ready_min_pnl|int) }} in the month, best first.
 
-The list's page opens with a connected wallet. There a wallet's card opens on that month, the same numbers as the
-row; 7D and 30D beside it are its latest days, and under them **Best** shows the tokens it made its profit on. Beside
+The list's page opens with a connected wallet. Its rows are the month's numbers; a row opens the wallet's card, the
+same card as on a result, with its last 7 and 30 days, and under them **Best** shows the tokens it made its profit on. Beside
 the list, **Best ROI** ranks the same kind of people by the profit on what they bought in the month (at least
 ${{ '{:,}'.format(s.ready_roi_min_invested|int) }} in and ${{ '{:,}'.format(s.ready_roi_min_pnl|int) }} made), with its own
 candidates from Solana Tracker's ranking by return. **Follow** puts a copy of the list in your watchlist, under the

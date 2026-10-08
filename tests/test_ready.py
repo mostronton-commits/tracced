@@ -488,16 +488,25 @@ if AioHTTPTestCase:
             self.assertIsNone(CYRILLIC.search(html))
 
         async def test_every_page_has_the_status_bar_and_dark_is_a_choice(self):
-            # owner, 08.10, like OpenSea: a status bar with the switches; dark by choice, light by default
+            # owner, 08.10, like OpenSea: a status bar with the switches and the footer's links (the only footer on a wide
+            # screen); dark by choice, light by default — and only on the draft until it is polished (owner, 08.10)
             for path in ("/", f"/token?mint={'A' * 40}", "/docs/how-it-works"):
                 r = await self.client.get(path, headers=GUEST)
                 html = await r.text()
                 self.assertEqual(r.status, 200, path)
                 self.assertIn('class="sbar"', html, path)
-                self.assertIn('id="sbtheme"', html, path)
                 self.assertIn("Live on Solana", html, path)
-                self.assertIn("localStorage.getItem('early:theme') === 'dark'", html, path)   # до першого кадру, без блимання
-                self.assertNotIn('data-theme="dark"', html.split("<head>")[0], path)           # світла — за замовчуванням
+                bar = html[html.index('class="sbar"'):]
+                for link in ('href="/docs/how-it-works"', 'href="/docs/project"', 'href="/feedback"', "github.com/mostronton-commits/tracced"):
+                    self.assertIn(link, bar, path)
+                self.assertNotIn('id="sbtheme"', html, path)                                      # публічний сайт: темної нема
+                self.assertNotIn('id="ftheme"', html, path)
+                self.assertNotIn("localStorage.getItem('early:theme') === 'dark'", html, path)   # і збережений вибір не діє
+            self.app["s"]["dark_theme"] = "on"                                                    # на закритій копії — є
+            html = await (await self.client.get("/", headers=GUEST)).text()
+            self.assertIn('id="sbtheme"', html)
+            self.assertIn("localStorage.getItem('early:theme') === 'dark'", html)                # до першого кадру, без блимання
+            self.assertNotIn('data-theme="dark"', html.split("<head>")[0])                       # світла — за замовчуванням
 
         async def test_the_list_page_is_for_connected_wallets_only(self):
             await self.refresh()
@@ -511,7 +520,11 @@ if AioHTTPTestCase:
             self.assertIn(self.month["label"] + "&#39;s most profitable traders. Real people, no bots.", html)
             self.assertIn(addr("K", 1), html)
             self.assertIn("100% win rate · 1W 0L", html)
-            self.assertIn('data-p="M" class="on">' + self.month["label"][:3], html)          # картка відкривається на місяці списку
+            # власник, 08.10: картка — та сама, що на аналізі: 7D і 30D, без вкладки місяця (місяць — це сам список)
+            self.assertIn('<button type="button" data-p="7">7D</button><button type="button" data-p="30" class="on">30D</button>', html)
+            self.assertNotIn('data-p="M"', html)
+            rows_js = json.loads(html.split('id="lprows">', 1)[1].split("</script>", 1)[0])
+            self.assertEqual(set(rows_js[0]), {"wallet", "name", "x", "avatar"})              # сторінці не треба угод місяця
             self.assertIn("Next update", html)
             self.assertIn('href="/lists/top-roi"', html)                                    # для порівняння
             self.assertIsNone(CYRILLIC.search(html))

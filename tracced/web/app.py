@@ -3387,6 +3387,8 @@ def render(name, request, status=200, **ctx):
         ctx.setdefault("demo_token", (_demo(request.app) or {}).get("mint", ""))   # підвал веде на демо, якщо воно є
         ctx.setdefault("assistant_on", request.app.get("assistant") is not None)   # без ключа сторінки не обіцяють агента
         ctx.setdefault("early_note", EARLY_NOTE)
+        dark = str(request.app["s"].get("dark_theme", "draft"))      # власник, 08.10: темна — лише на закритій копії, поки не доведена
+        ctx.setdefault("dark_on", dark == "on" or (dark == "draft" and _private_host(request)))
     # аналітика вмикається лише там, де задано id, і ніколи на сторінках власника: там показується новий ключ API,
     # а сторонній скрипт на сторінці бачить усе, що на ній є
     admin_page = request is not None and request.path.startswith("/admin")
@@ -3929,10 +3931,13 @@ async def list_page(request):
     if not lst or not lst.get("rows"):
         raise web.HTTPNotFound(text="This list is not ready yet.")
     if not request.get("acct"):                 # власник, 08.10: список — лише з підключеним гаманцем, щоб його не забирали
-        return render("lists.html", request, lst=lst, rows=[], gate=True, following=None, others=[], alerts_ok=False)
+        return render("lists.html", request, lst=lst, rows=[], rows_js=[], gate=True, following=None, others=[], alerts_ok=False)
     following = _ready_follow_id(app, request["acct"], lst)
     _view(request, "list", ref=slug)
-    return render("lists.html", request, lst=lst, rows=_ready_rows(lst), following=following,
+    rows = _ready_rows(lst)
+    # the page's script needs only who is in a row; the month's own tokens and trades stay out (the card has 7D/30D)
+    rows_js = [{k: r.get(k) for k in ("wallet", "name", "x", "avatar")} for r in rows]
+    return render("lists.html", request, lst=lst, rows=rows, rows_js=rows_js, following=following,
                   others=[dict(v, slug=k) for k, v in (app["ready"].get("lists") or {}).items() if k != slug and v.get("rows")],
                   alerts_ok=_alerts_allowed(app, request.get("acct")))
 

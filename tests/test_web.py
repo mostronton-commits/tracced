@@ -370,6 +370,7 @@ if AioHTTPTestCase:
             for m in mints:
                 q.submit(m, 999999960000, 1000001160000)
                 await asyncio.to_thread(q.q.join)
+                await asyncio.sleep(0.003)                             # кожен наступний пізніший: у ту саму мілісекунду порядок випадковий
             html = await (await self.client.get("/")).text()
             feed = html[html.index('id="live"'):html.index("</section>", html.index('id="live"'))]
             shown = feed[:feed.index("<template")]
@@ -397,9 +398,9 @@ if AioHTTPTestCase:
             self.assertEqual(d["rows"][0]["id"][:6], newest)
             self.assertEqual(set(d["rows"][0]) >= {"id", "symbol", "letter", "image", "hue", "running", "wallets", "made2x", "saved", "at"}, True)
 
-        async def test_home_feed_row_says_saved_wallets_or_the_tokens_cap(self):
-            # власник, 07.10: рядок — тікер і одна фраза. Збережені гаманці, коли їх справді зберегли; інакше — скільки знайдено.
-            # Вигаданих чисел нема: лічильник — за `from_job` збережених у списках
+        async def test_home_feed_row_says_saved_wallets_or_how_many_made_2x(self):
+            # власник, 07.10: рядок — тікер і одна фраза. Збережені гаманці, коли їх справді зберегли; інакше (08.10: не капа)
+            # — скільки гаманців аналізу зробили 2×+. Вигаданих чисел нема: лічильник — за `from_job` збережених у списках
             import time as _time
             jid, mint = "FEEDFE_20010909-0146_0206", "F" * 40
             rows = [{"wallet": f"W{i}", "sells": 1, "multiple": m} for i, m in enumerate((2.5, 1.2, 9.0))] + [{"wallet": "W9", "sells": 0, "multiple": 5.0}]
@@ -423,7 +424,8 @@ if AioHTTPTestCase:
             self.app["accounts"]._update(TEST_PK, lambda a: a["wallets"].clear())
             self.app.pop("saved_counts", None)
             feed = (await (await self.client.get("/")).text()).split('id="live"', 1)[1]
-            self.assertIn("$2.5M cap", feed)                           # ніхто не зберіг — капа токена, коли його аналізували
+            self.assertIn("2 made 2×+", feed)                          # ніхто не зберіг — скільки зробили 2×+ (W0 і W2)
+            self.assertNotIn(" cap<", feed)                             # власник, 08.10: капа токена тут не потрібна
             self.assertNotIn("found ", feed)                           # власник, 08.10: «found 180 wallets» ні про що не каже
             self.assertIn('src="https://image.solanatracker.io/proxy?url=x"', feed)   # картинка токена з аналізу
 
@@ -1387,7 +1389,10 @@ if AioHTTPTestCase:
             self.assertIn("<i>spent</i>", html)
             self.assertNotIn('data-key="funder"', html)                  # no Funded by column (owner, 02.10): the card says it
             self.assertNotIn('data-key="w"', html)                       # nor sorting by the address
-            self.assertIn('data-v="all"', html)                          # the card: this token | all tokens
+            # the card (owner, 08.10): the same as a list's, 7D/30D and Recent/Best, plus this token's trades on top; no switch
+            self.assertNotIn('id="dview"', html)
+            self.assertIn("TST trades", html)
+            self.assertLess(html.index('class="dsec dtrades"'), html.index('class="dsec dperf"'))
             self.assertIn('id="finds"', html)
             self.assertIn("Back to the chart", html)
             self.assertIn('id="chart"', html)

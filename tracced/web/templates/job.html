@@ -144,6 +144,17 @@
           </div>
         </div>
         <div class="dtags" id="dtags"></div>
+        {# owner, 08.10: a wallet's card is the same everywhere (a ready list's too); here it adds one thing, this token's
+           trades, on top, since this is what the analysis is about #}
+        <section class="dsec dtrades">
+          <div class="dsec-h"><h4>{{ job.symbol }} trades <span class="muted" id="dtcount"></span></h4></div>
+          <div id="dtok">
+            <div class="tally dtally" id="dtally"></div>
+            <table class="story clip" id="dtable"><thead><tr><th>Time</th><th></th><th class="num">Amount</th><th class="num">Tokens</th><th class="num">Cap</th></tr></thead><tbody id="dtrades"></tbody></table>
+            <button type="button" class="ghost dmore" id="dmore" hidden></button>
+            <p class="muted small dline" id="dnote"></p>
+          </div>
+        </section>
         <section class="dsec dperf">
           <div class="dsec-h"><h4>Performance <span class="dinfo" id="dprofi" hidden>i</span></h4>
             <div class="seg" id="dper" role="tablist" aria-label="Period"><button type="button" data-p="7">7D</button><button type="button" data-p="30" class="on">30D</button></div></div>
@@ -151,19 +162,6 @@
         </section>
         <section class="dsec" id="dwsec" hidden>
           <div class="dcross" id="dcross"></div>
-        </section>
-        {# the trades: this token's or the recent tokens' (owner, 04.10: only these switch; the performance always shows) #}
-        <section class="dsec dtrades">
-          <div class="dview" id="dview" role="tablist" aria-label="Whose trades">
-            <button type="button" role="tab" data-v="token" aria-selected="true" class="on">{{ job.symbol }} token</button><button type="button" role="tab" data-v="all" aria-selected="false">All tokens</button>
-          </div>
-          <div id="dtok">
-            <div class="tally dtally" id="dtally"></div>
-            <h4 class="dth">Trades <span class="muted" id="dtcount"></span></h4>
-            <table class="story"><thead><tr><th>Time</th><th></th><th class="num">Amount</th><th class="num">Tokens</th><th class="num">Cap</th></tr></thead><tbody id="dtrades"></tbody></table>
-            <p class="muted small dline" id="dnote"></p>
-          </div>
-          <div id="dall" hidden><div id="drecent"></div></div>
         </section>
       </div>
     </aside>
@@ -1019,9 +1017,8 @@
       }
       const nf = v => (+v || 0).toLocaleString('en-US');
       let period = '30';
-      function renderProfile(all) {                               // the block itself is shared with Lists: static/card.js
-        EarlyCard.render(all, period, dprof, document.getElementById('dprofi'), { recent: false });
-        document.getElementById('drecent').innerHTML = EarlyCard.recent(all) || '<p class="dline muted small">No other tokens in its last 30 days.</p>';
+      function renderProfile(all) {                               // the same block as a ready list's card: static/card.js
+        EarlyCard.render(all, period, dprof, document.getElementById('dprofi'));
         document.querySelectorAll('#dper [data-p]').forEach(b => b.classList.toggle('on', b.dataset.p === period));
       }
       document.getElementById('dper').addEventListener('click', e => {
@@ -1034,22 +1031,20 @@
       async function loadProfile(w) {
         if (profiles.has(w)) { renderProfile(profiles.get(w)); return; }
         dprof.innerHTML = '<div class="dskel"><i></i><i></i><i></i></div>';
-        const rec = document.getElementById('drecent'); rec.innerHTML = '<div class="dskel"><i></i><i></i></div>';
         document.getElementById('dprofi').hidden = true;
         let r;
         try { r = await fetch('/wallet_profile.json?' + new URLSearchParams({ job: jobId, wallet: w }), { credentials: 'same-origin' }); }
-        catch (e) { if (drawer.dataset.w === w) dprof.innerHTML = rec.innerHTML = '<p class="dline muted small">Could not reach the server.</p>'; return; }
+        catch (e) { if (drawer.dataset.w === w) dprof.innerHTML = '<p class="dline muted small">Could not reach the server.</p>'; return; }
         if (drawer.dataset.w !== w) return;                   // the card moved on to another wallet meanwhile
         if (r.status === 401) {
           dprof.innerHTML = '<div class="dconnect"><button type="button" class="primary" id="dprofgo">Connect wallet for more data</button>'
             + '<span class="muted small">PnL, win rate and active hours across all its tokens</span></div>';
-          rec.innerHTML = '<p class="dline muted small">Connect a wallet to see its other tokens.</p>';
           document.getElementById('dprofgo').addEventListener('click', () => EarlyWallet.open(() => { acctOn = true; loadMe().then(() => loadProfile(w)); }, 'Connect a wallet to see all its tokens.'));
           return;
         }
         let d = {}; try { d = await r.json(); } catch (e) {}
         if (drawer.dataset.w !== w) { if (r.ok) profiles.set(w, d); return; }   // reading the body took time too: keep it, but not on another wallet's card
-        if (!r.ok) { dprof.innerHTML = rec.innerHTML = '<p class="dline muted small">' + esc(d.error || 'Could not load this wallet.') + '</p>'; return; }
+        if (!r.ok) { dprof.innerHTML = '<p class="dline muted small">' + esc(d.error || 'Could not load this wallet.') + '</p>'; return; }
         profiles.set(w, d); renderProfile(d);
       }
       async function saveMyTags(w, tags) {
@@ -1075,18 +1070,9 @@
           noteIn([w], d.list || 'main'); markSaved(); return true;
         } catch (e) { EarlyUI.toast(e.message); return false; }
       }
-      // its trades on this token, or its recent tokens (owner, 04.10): the choice stays for the next card
-      let cardView = 'token'; try { if (localStorage.getItem('early:cardview') === 'all') cardView = 'all'; } catch (e) {}
-      function showView(v) {
-        cardView = v;
-        document.querySelectorAll('#dview [data-v]').forEach(b => { const on = b.dataset.v === v; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
-        document.getElementById('dtok').hidden = v !== 'token'; document.getElementById('dall').hidden = v !== 'all';
-      }
-      document.getElementById('dview').addEventListener('click', e => {
-        const b = e.target.closest('[data-v]'); if (!b || b.dataset.v === cardView) return;
-        showView(b.dataset.v);
-        try { localStorage.setItem('early:cardview', b.dataset.v); } catch (x) {}
-        EarlyUI.use('card-view', { v: b.dataset.v });
+      document.getElementById('dmore').addEventListener('click', e => {
+        document.getElementById('dtable').classList.remove('clip'); e.currentTarget.hidden = true;
+        EarlyUI.use('card-trades-all');
       });
       // what it did here, as the row says it, a number and a word each: on a phone the row is under the card
       function renderTokFacts(w) {
@@ -1111,7 +1097,11 @@
         const dw = document.getElementById('dw'); dw.textContent = short(o.wallet); dw.dataset.copy = o.wallet; dw.title = o.wallet + ' · click to copy';
         document.getElementById('dsol').href = 'https://solscan.io/account/' + o.wallet;
         syncStar(o.wallet); renderTags(o.wallet); renderIdent(o.wallet);
-        dtrades.innerHTML = o.trades.map(t => '<tr class="' + t.side + '"><td class="mono dtc" data-ms="' + t.t + '">' + EarlyTZ.fmt(t.t, false) + '</td><td>' + (t.side === 'buy' ? '<b class="buy">▲ buy</b>' : '<b class="sell">▼ sell</b>') + '</td><td class="num mono">' + (cur && t.sol != null ? EarlyCur.solHtml(t.sol) : money(t.usd)) + '</td><td class="num mono">' + (t.qty ? ch.fmtMcap(t.qty) : '—') + '</td><td class="num mono">' + ch.fmtMcap(t.mcap) + '</td></tr>').join('');
+        // the first six on top, the rest behind «Show all»: a busy wallet's trades would push its card far down (owner, 08.10)
+        const SHOW = 6, dmore = document.getElementById('dmore');
+        document.getElementById('dtable').classList.add('clip');
+        dmore.hidden = o.trades.length <= SHOW; dmore.textContent = 'Show all ' + o.trades.length + ' trades';
+        dtrades.innerHTML = o.trades.map((t, i) => '<tr class="' + t.side + (i >= SHOW ? ' xtra' : '') + '"><td class="mono dtc" data-ms="' + t.t + '">' + EarlyTZ.fmt(t.t, false) + '</td><td>' + (t.side === 'buy' ? '<b class="buy">▲ buy</b>' : '<b class="sell">▼ sell</b>') + '</td><td class="num mono">' + (cur && t.sol != null ? EarlyCur.solHtml(t.sol) : money(t.usd)) + '</td><td class="num mono">' + (t.qty ? ch.fmtMcap(t.qty) : '—') + '</td><td class="num mono">' + ch.fmtMcap(t.mcap) + '</td></tr>').join('');
         const cx = crossings[o.wallet] || [];
         document.getElementById('dcross').innerHTML = cx.length
           ? '<b>' + CHAIN + ' Seen in ' + cx.length + ' of your other analyses</b><ul>' + cx.map(c =>
@@ -1123,7 +1113,7 @@
         document.getElementById('dtcount').textContent = row ? plural(+row.buys || 0, 'buy') + ' · ' + plural(sells, 'sell') : '';
         document.getElementById('dnote').textContent = (o.complete === false ? 'Exits not fetched (over the cap): only trades inside the range are known. ' : '')
           + (o.truncated ? 'First ' + o.trades.length + ' of ' + o.n + '.' : '');
-        renderTokFacts(o.wallet); showView(cardView); loadProfile(o.wallet);
+        renderTokFacts(o.wallet); loadProfile(o.wallet);
         try { localStorage.setItem('early:cardhint', '3'); } catch (e) {}   // found the card: the hint has done its job
         if (window.EarlyTZ) EarlyTZ.apply();
       }
