@@ -150,9 +150,7 @@ env.filters["usd"] = _usd
 env.filters["num"] = _num
 env.filters["usd3"] = _usd3
 env.filters["age"] = _age
-env.filters["dayfull"] = lambda ms: time.strftime("%B %d", time.gmtime((ms or 0) / 1000)).replace(" 0", " ")   # «September 11»
-env.filters["hm"] = lambda ms: time.strftime("%H:%M", time.gmtime((ms or 0) / 1000))      # час повідомлення, як у Telegram
-env.filters["tg"] = lambda h: Markup("".join(f"<p>{part}</p>" for part in str(h or "").split("\n\n")))   # alerts.message escapes what it quotes
+env.filters["tghead"] = lambda h: Markup(str(h or "").split("\n\n")[0].replace(" · <a>tx</a>", ""))   # перший рядок алерту, як його показує сповіщення; alerts.message екранує те, що цитує
 env.filters["per_day"] = lambda n: "one live analysis a day" if int(n or 0) == 1 else f"{int(n or 0)} live analyses a day"
 env.filters["log10"] = lambda v: math.log10(v) if (v and float(v) > 0) else 0.0
 

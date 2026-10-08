@@ -1986,49 +1986,27 @@ input.ltabedit { flex: none; width: 150px; min-width: 0; height: 30px; padding: 
 [data-theme="dark"] .mewl td.rm .bell.on, [data-theme="dark"] .wcard .dh-act .bell.on, [data-theme="dark"] .lalert.on {
   background: rgba(34, 197, 94, .14); border-color: rgba(34, 197, 94, .4); color: #4ADE80; }
 [data-theme="dark"] .dconnect { background: rgba(52, 211, 153, .08); border-color: rgba(134, 239, 172, .45); }
-/* the card beside the list, variant B (owner, 08.10: «візьми за основу реальні скріншоти з тг»): his Telegram on the
-   phone, dark — black with the math doodles, the floating glass head (back, «tracced_ · bot», the avatar), a date pill,
-   bubbles grouped the way Telegram groups them (within 10 minutes: the inner corners small, the tail on the last), the
-   time inside the bubble, the input at the bottom. Colours sampled from his screenshots; dark in both site themes */
-.rtg { gap: 12px; }
-.rtg h3 { margin: 0; font-size: 15px; font-weight: 600; }
-.tgx { margin: 0; display: flex; flex-direction: column; border-radius: 18px; overflow: hidden; color: #fff;
-  background: #000 url("tg-wall.svg") 0 0 / 220px 220px repeat; box-shadow: 0 0 0 1px rgba(255, 255, 255, .06);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", sans-serif; }
-.tgx svg { display: block; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.tgx-glass { background: rgba(27, 28, 28, .94); border: 1px solid rgba(255, 255, 255, .1); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05); }
-.tgx-top { display: grid; grid-template-columns: 36px minmax(0, 1fr) 36px; align-items: center; gap: 8px; padding: 10px 10px 4px;
-  background: linear-gradient(#000 55%, rgba(0, 0, 0, 0)); }
-.tgx-ic { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: #fff; }
-.tgx-ic svg { width: 20px; height: 20px; }
-.tgx-top .tgx-ic svg { stroke-width: 2.4; }
-.tgx-av { overflow: hidden; }
-.tgx-av img { width: 30px; height: 30px; border-radius: 50%; display: block; }
-.tgx-title { justify-self: center; min-width: 0; padding: 3px 26px 4px; border-radius: 999px; text-align: center; line-height: 1.2; }
-.tgx-title b { display: block; font-size: 14px; font-weight: 600; }
-.tgx-title small { display: block; font-size: 11px; color: #8B918F; }
-.tgx-chat { display: flex; flex-direction: column; align-items: flex-start; padding: 2px 12px 6px 18px; }
-.tgx-date { align-self: center; margin: 4px 0 8px; padding: 3px 10px 4px; border-radius: 999px; background: #1B1D25;
-  font-size: 12.5px; font-weight: 600; line-height: 1.2; }
-.tgx-msg { --tail: #1F2627; position: relative; max-width: 92%; min-width: 0; margin-top: 8px; padding: 7px 11px 8px;
-  border-radius: 15px 15px 15px 0; background: linear-gradient(#1E2722, var(--tail)); font-size: 14px; line-height: 1.3; overflow-wrap: anywhere; }
-.tgx-msg ~ .tgx-msg { --tail: #21252C; background: linear-gradient(#1F2627, var(--tail)); }
-.tgx-date + .tgx-msg { margin-top: 0; }
-.tgx-msg.gp { margin-top: 2px; border-top-left-radius: 5px; }
-.tgx-msg.gn { border-bottom-left-radius: 5px; }
-.tgx-msg p { margin: 0 0 1.3em; }
-.tgx-msg p:last-of-type { margin: 0; padding-right: 42px; }
-.tgx-msg a { color: #3E88F7; text-decoration: none; border: 0; }
-.tgx-msg b { font-weight: 600; }
-.tgx-msg code { font: 13px/1.3 ui-monospace, "SF Mono", Menlo, Consolas, monospace; word-break: break-all; }
-.tgx-time { position: absolute; right: 10px; bottom: 6px; font-size: 11px; line-height: 1; color: #8B918F; }
-.tgx svg.tgx-tail { position: absolute; left: -6px; bottom: 0; width: 6px; height: 14.6px; fill: var(--tail); stroke: none; }
-.tgx-bottom { display: grid; grid-template-columns: 34px minmax(0, 1fr) 34px; align-items: center; gap: 7px; margin-top: auto; padding: 8px 10px 10px; }
-.tgx-bottom .tgx-ic { width: 34px; height: 34px; }
-.tgx-field { height: 34px; display: flex; align-items: center; justify-content: space-between; padding: 0 9px 0 14px; border-radius: 999px;
-  font-size: 13.5px; color: #787878; }
-.tgx-field svg { width: 19px; height: 19px; color: #787878; }
-.rx-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 13px; color: var(--muted); }
-.rx-lines li { display: flex; align-items: center; gap: 10px; }
-.rx-lines b { color: var(--ink); font-weight: 600; }
-.rx-lines svg.ci { width: 16px; height: 16px; flex: none; color: var(--ink); }
+/* beside the list (owner, 08.10, «text» of three takes after tier-1 sites): a big tile with what lands in Telegram — two
+   real alerts as notifications on the hero's navy, the older one smaller behind — and two quiet tiles, an icon on navy
+   and two lines; no illustrations. The column stretches to the list's height, the navy area takes what is left */
+.rside { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr auto; gap: 16px; min-width: 0; }
+.rtile { display: flex; flex-direction: column; gap: 6px; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.rtile h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.rtile p { margin: 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.rt-main { grid-column: 1 / -1; padding: 10px 10px 18px; }
+.rt-main h3, .rt-main p { margin: 0 8px; }
+.rt-vis { flex: 1; min-height: 168px; margin-bottom: 10px; border-radius: 8px; display: grid; place-items: center; overflow: hidden; color: #fff;
+  background: radial-gradient(80% 90% at 85% 110%, rgba(167, 243, 208, .22), transparent 60%), radial-gradient(70% 80% at 0% 0%, rgba(99, 102, 241, .18), transparent 60%), var(--navy); }
+.rt-toasts { display: grid; gap: 8px; width: min(86%, 420px); }
+.rt-toast { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; align-items: center; padding: 9px 12px; border-radius: 16px; font-size: 12.5px; line-height: 1.3;
+  background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .14); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--sans); }
+.rt-toast + .rt-toast { opacity: .7; transform: scale(.96); }
+.rt-toast img { width: 30px; height: 30px; border-radius: 7px; display: block; }
+.rt-toast small { display: block; font-size: 11px; color: rgba(255, 255, 255, .65); }
+.rt-toast a { color: inherit; border: 0; }
+.rt-mini { flex-direction: row; align-items: flex-start; gap: 14px; padding: 18px; }
+.rt-mini h3 { margin-bottom: 4px; }
+.rt-wide { grid-column: 1 / -1; }
+.rt-ic { flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--navy); color: var(--mint); }
+.rt-ic svg.ci { width: 18px; height: 18px; }
+@media (max-width: 560px) { .rside { grid-template-columns: 1fr; } }

@@ -404,17 +404,16 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   Nov 1"): the sum they made in the month in mono at 24 px 700, green as profit is, five leaders as rows (three on a
   phone) and the next one blurred, as the old list of analyses did, then one full-width key: *Open the list*, which
   asks for a wallet first and then opens the list's page (owner, 08.10). The first three ranks are medals, quietly
-  (owner, 08.10): a pale gold, silver and bronze disc with a deeper digit, never a bright fill. The second card, "Why
-  follow it", shows a piece of Telegram (owner, 08.10, after his own screenshots: «не пародія»): dark in both themes,
-  black with the faint math doodles (`tg-wall.svg`), the floating glass head (back, "tracced_ · bot", the avatar), a
-  date pill, and two real alerts from a trader in the list, written by the code that sends alerts: the first buy of a
-  position (🆕 and the token's address) and the biggest sell from it. Bubbles as Telegram draws them: within 10
-  minutes they group (inner corners 5 px), the last of a group has the tail, the time sits inside at the bottom
-  right; the input bar closes it. Its colours are sampled from his screenshots (bubble #1E2722 to #21252C, links
-  #3E88F7, date pill #1B1D25). No links in it: the home page is open to guests and the list is not. Under it, three
-  theses: a 16 px icon, a bold phrase, a few muted words, no numbers. With no alert to show, only the theses. No stack
-  of faces, no notes under the cards. Profits show three significant figures ($6.77M, $583K). Every number is
-  tracced's own count of the month, the same as the wallet's card on that month.
+  (owner, 08.10): a pale gold, silver and bronze disc with a deeper digit, never a bright fill. Beside the list, three
+  tiles (owner, 08.10, «text», the take he chose of three after tier-1 sites): a big one, "Their trades, in your
+  Telegram", whose navy area (the hero's, with a faint mint and indigo glow) holds two real alerts of a trader on the
+  list as notifications, the newest on top and the older one smaller and dimmer behind, the text the first line of what
+  the alert code writes, with no links (the home page is open to guests, the list is not); under it two quiet tiles, a
+  mint icon on a navy square and two lines: "Real traders only" and "A new list every month". No illustrations, no
+  numbers in them. The column takes the list's height and the navy area fills what is left; on a phone the three stack.
+  With no alert to show, the big tile becomes a quiet one with the bell. No stack of faces, no notes under the cards.
+  Profits show three significant figures ($6.77M, $583K). Every number is tracced's own count of the month, the same
+  as the wallet's card on that month.
 - **A ready list's page** is for a connected wallet only (owner, 08.10: nobody takes the list without connecting; a
   guest sees the title, one line and Connect): the title, one short line ("September's most profitable traders. Real
   people, no bots."), the key on top (on a phone a bar fixed at the bottom), a tally strip (Profit, Best, Wallets,

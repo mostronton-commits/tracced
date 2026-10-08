@@ -128,7 +128,7 @@
 {% if ready %}
 {# owner, 07.10–08.10: a list a person can take in one click, for last month, changed once a month. Solana Tracker names
    the candidates; what each one made in the month is counted by tracced from its own swaps, and only people stay. A
-   card: the sum, five leaders with medals and a sixth blurred, one key; beside it, why it is worth following #}
+   card: the sum, five leaders with medals and a sixth blurred, one key; beside it, what following it gives #}
 {% macro face(r) %}<span class="limg" data-l="{{ r.letter }}" style="--h: {{ r.hue }}" aria-hidden="true">{% if r.avatar %}<img src="{{ r.avatar }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span>{% endmacro %}
 {% macro sub(r) %}{% if r.x %}@{{ r.x }}{% if r.win_rate is not none %} · {{ r.win_rate|round|int }}% win rate{% endif %}{% elif r.win_rate is not none %}{{ r.win_rate|round|int }}% win rate · {{ r.tokens }} tokens{% else %}{{ r.tokens }} tokens{% endif %}{% endmacro %}
 {% macro row(r, cls='') %}<li{% if cls %} class="{{ cls }}" aria-hidden="true"{% endif %}><span class="rk">{{ r.rank }}</span>{{ face(r) }}<span class="nm"><b{% if not r.name %} class="mono"{% endif %}>{{ r.label }}</b><small>{{ sub(r) }}</small></span><b class="mono pos">+{{ r.rv }}</b></li>{% endmacro %}
@@ -143,42 +143,29 @@
       {# owner, 08.10: the key opens the list and its numbers; following is done there. A guest connects first #}
       <div class="rc-act"><a class="button primary" href="/lists/{{ l.slug }}" data-need-wallet="Connect a wallet to see the list.">Open the list</a></div>
     </article>
-    {# owner, 08.10, variant B: beside the list, what lands in Telegram — two real trades of a trader on the list, the text
-       made by the same code that sends real alerts, shown the way Telegram shows it; then three short theses #}
-    <article class="rcard rtg" aria-labelledby="rxh">
-      <h3 id="rxh">Why follow it</h3>
+    {# owner, 08.10 («text», the third of three takes after tier-1 sites): beside the list, one big tile with what lands in
+       Telegram — two real alerts of a trader on the list as notifications, newest on top, the text made by the code that
+       sends alerts, no links (the home page is open to guests, the list is not) — and two quiet tiles, an icon and two
+       lines; no illustrations #}
+    <div class="rside">
       {% if l.example %}
-      {# owner, 08.10: «візьми за основу реальні скріншоти з тг» — his Telegram on the phone, dark: the bot's head, the
-         date, the bubbles as Telegram groups them (within 10 minutes, the tail on the last), the input at the bottom #}
-      <figure class="tgx" aria-label="An alert from this list, as it comes to Telegram">
-        <div class="tgx-top" aria-hidden="true">
-          <span class="tgx-glass tgx-ic"><svg viewBox="0 0 24 24"><path d="M14.5 5 7.5 12l7 7"/></svg></span>
-          <span class="tgx-glass tgx-title"><b>tracced_</b><small>bot</small></span>
-          <span class="tgx-glass tgx-ic tgx-av"><img src="/static/brand/icon.svg?v={{ v }}" alt=""></span>
-        </div>
-        <div class="tgx-chat">
-          {% set ns = namespace(day=None) %}
-          {% for m in l.example.msgs %}
-          {% set d = m.t|dayfull %}
-          {% if d != ns.day %}<span class="tgx-date dtc" data-ms="{{ m.t }}" data-short="day">{{ d }}</span>{% set ns.day = d %}{% endif %}
-          {% set gp = not loop.first and m.t - loop.previtem.t <= 600000 and loop.previtem.t|dayfull == d %}
-          {% set gn = not loop.last and loop.nextitem.t - m.t <= 600000 and loop.nextitem.t|dayfull == d %}
-          <div class="tgx-msg{{ ' gp' if gp }}{{ ' gn' if gn }}">{{ m.html|tg }}<span class="tgx-time dtc" data-ms="{{ m.t }}" data-short="1">{{ m.t|hm }}</span>{% if not gn %}<svg class="tgx-tail" viewBox="0 0 7 17" aria-hidden="true"><path d="M1 17H7V0C6.807 2.84 6.124 5.767 4.95 8.782 4.046 11.107 2.504 13.267.325 15.262A1 1 0 0 0 1 17z"/></svg>{% endif %}</div>
+      <article class="rtile rt-main">
+        <div class="rt-vis" role="img" aria-label="Two alerts from this list, as Telegram shows them">
+          <div class="rt-toasts">
+          {% for m in l.example.msgs|reverse %}
+            <div class="rt-toast"><img src="/static/brand/icon.svg?v={{ v }}" alt=""><span><small>tracced_ · <span class="dtc" data-ms="{{ m.t }}">{{ m.t|dt }}</span></small>{{ m.html|tghead }}</span></div>
           {% endfor %}
+          </div>
         </div>
-        <div class="tgx-bottom" aria-hidden="true">
-          <span class="tgx-glass tgx-ic"><svg viewBox="0 0 24 24"><path d="M16.6 7.2 9 14.8a1.8 1.8 0 0 0 2.6 2.6l7.4-7.4a3.7 3.7 0 0 0-5.2-5.2l-7.6 7.6a5.5 5.5 0 0 0 7.8 7.8l6.8-6.8"/></svg></span>
-          <span class="tgx-glass tgx-field">Message<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M20.4 12.6a7.8 7.8 0 0 0-7.8 7.8"/></svg></span>
-          <span class="tgx-glass tgx-ic"><svg viewBox="0 0 24 24"><rect x="9" y="3.2" width="6" height="11" rx="3"/><path d="M5.6 11.2a6.4 6.4 0 0 0 12.8 0M12 17.6v3.4"/></svg></span>
-        </div>
-      </figure>
+        <h3>Their trades, in your Telegram</h3>
+        <p>Follow the list once. Every buy and sell of these {{ l.summary.n }} traders comes to your chat as it happens.</p>
+      </article>
+      {% else %}
+      <article class="rtile rt-mini rt-wide"><span class="rt-ic">{{ icon('bell') }}</span><span><h3>Their trades, in your Telegram</h3><p>Follow the list once. Every buy and sell of these {{ l.summary.n }} traders comes to your chat as it happens.</p></span></article>
       {% endif %}
-      <ul class="rx-lines">
-        <li>{{ icon('time') }}<span><b>No hours of searching</b> · we checked every wallet's trades</span></li>
-        <li>{{ icon('chart') }}<span><b>Real traders only</b> · no bots, snipers or fresh wallets</span></li>
-        <li>{{ icon('renew') }}<span><b>A new list every month</b> · next update {{ l.next_label }}</span></li>
-      </ul>
-    </article>
+      <article class="rtile rt-mini"><span class="rt-ic">{{ icon('chart') }}</span><span><h3>Real traders only</h3><p>No bots, snipers or fresh wallets: we checked every wallet's trades.</p></span></article>
+      <article class="rtile rt-mini"><span class="rt-ic">{{ icon('renew') }}</span><span><h3>A new list every month</h3><p>{{ l.label }}'s list is in. The next one lands {{ l.next_label }}.</p></span></article>
+    </div>
   {% endfor %}
   </div>
 </section>

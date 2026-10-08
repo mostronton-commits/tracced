@@ -452,18 +452,21 @@ if AioHTTPTestCase:
             self.assertIn("profit together in " + self.month["label"], html)
             self.assertIn("next update " + self.month["next_label"], html)
             self.assertEqual(html.count('class="rcard"'), 1)
-            self.assertIn("Why follow it", html)                                          # і поруч — тези без статистики
-            self.assertIn("No hours of searching", html)
-            # власник, 08.10, варіант B: справжній алерт від трейдера зі списку, як його показує Telegram — текст тим самим
-            # кодом, що шле алерти: перша купівля позиції з адресою токена, потім продаж
-            self.assertIn('class="tgx"', html)
-            self.assertIn("<b>tracced_</b>", html)
-            chat = html[html.index('class="tgx-chat"'):html.index("</article>", html.index('class="tgx-chat"'))]
-            self.assertIn("🆕", chat)
-            self.assertIn("sold all", chat)
-            self.assertIn("<code>TOKA</code>", chat)                                     # адреса токена — лише в першому
-            self.assertEqual(chat.count("<code>"), 1)
-            self.assertNotIn("href", chat[:chat.index('class="tgx-bottom"')])            # ні гаманця, ні tx: список закритий для гостей
+            # власник, 08.10 («text»): поруч три плитки — велика з двома справжніми алертами трейдера зі списку як сповіщення
+            # (текст тим самим кодом, що шле алерти, новіше вгорі) і дві тихі, значок і два рядки
+            self.assertIn('class="rside"', html)
+            self.assertIn("Their trades, in your Telegram", html)
+            self.assertIn("Real traders only", html)
+            self.assertIn("A new list every month", html)
+            self.assertIn(f"{self.month['label']}'s list is in. The next one lands {self.month['next_label']}.", html)
+            vis = html[html.index('class="rt-vis"'):html.index("</article>", html.index('class="rt-vis"'))]
+            self.assertEqual(vis.count('class="rt-toast"'), 2)
+            self.assertLess(vis.index("sold all"), vis.index("🆕"))                         # новіше — продаж — угорі
+            self.assertNotIn("href", vis)                                                    # ні гаманця, ні tx: список закритий для гостей
+            self.assertNotIn("<code>", vis)                                                  # адреса токена в сповіщення не йде
+            self.assertNotIn(">tx<", vis)
+            for gone in ("Why follow it", 'class="tgx"', "No hours of searching"):
+                self.assertNotIn(gone, html)
             self.assertNotIn("A real sell by", html)
             self.assertNotIn("wallets checked", html)
             self.assertIsNotNone(self.app["ready"]["lists"][SLUG]["example"])
