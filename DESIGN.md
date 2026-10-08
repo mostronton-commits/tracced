@@ -381,21 +381,24 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   letter while it loads or when it has none), symbol, one fact, how long ago. The fact is "saved N wallets" with the
   star when people really saved wallets from that analysis, otherwise "found N wallets". Never a made-up number. The
   demo is no row: a guest gets a demo card under the token field (the token, its wallets and 2×+, Open the demo).
-- **Ready lists** (owner, 07.10: «цікаво, зрозуміло і привабливо»; 08.10: one list) sit on the home page under the
-  live feed: two cards side by side, one column on a phone. The first is the list, last month's, and says so ("Top
-  traders · September", "10 wallets · next list Nov 1"): the sum they made in the month in mono at 24 px 700, green as
-  profit is, the first five as rows (three on a phone; navy rank marks for the first three; face, name with @X or win
-  rate, the profit), then two keys: *Follow N wallets* with the bell (mint) and *See all N* (white). The second card
-  says how the list is made (owner, 08.10: «розписав що це за список і навіщо він»): a tally of wallets checked and
-  made the list, the reasons the rest are out with their counts (hidden on a phone), then four points with a bold lead
-  each: hours of searching done, people not machines, alerts in one click, a new list every month. No stack of faces,
-  no "and 7 more", no note under the cards. Profits show three significant figures ($6.77M, $583K). Every number is
-  tracced's own count of the month, the same as the wallet's card on that month; the ranking that names the
-  candidates is never quoted.
-- **A ready list's page**: the title and its rule in one paragraph with "N wallets checked, 10 made the list", the key on top (on a phone a bar fixed at the
-  bottom of the screen), a tally strip (Profit, Best, Wallets, Next list), then the wallets as a leaderboard with @X,
-  win rate, wins and losses. A row opens the wallet card on the list's month (its tab first, then 7D and 30D), the
-  same numbers as the row. Once the person follows the list, the key becomes "In your watchlist".
+- **Ready lists** (owner, 07.10: «цікаво, зрозуміло і привабливо»; 08.10: one list, simpler) sit on the home page under
+  the live feed, under "Follow the best traders and get their trades in Telegram.": two cards side by side, one column
+  on a phone. The first is the list, last month's, and says so ("Top traders · September", "10 wallets · next update
+  Nov 1"): the sum they made in the month in mono at 24 px 700, green as profit is, five leaders as rows (three on a
+  phone) and the next one blurred, as the old list of analyses did, then one full-width key: *Follow N wallets* with
+  the bell, which follows and opens the watchlist on that list ("Open in your watchlist" once followed). The first
+  three ranks are medals, quietly (owner, 08.10): a pale gold, silver and bronze disc with a deeper digit, never a
+  bright fill. The second card, on the page's background, says why follow it: four theses, each a quiet icon in a
+  white square, a bold line and a few muted words; no numbers. No stack of faces, no notes under the cards. Profits
+  show three significant figures ($6.77M, $583K). Every number is tracced's own count of the month, the same as the
+  wallet's card on that month.
+- **A ready list's page** is for a connected wallet only (owner, 08.10: nobody takes the list without connecting; a
+  guest sees the title, one line and Connect): the title, one short line ("September's most profitable traders. Real
+  people, no bots."), the key on top (on a phone a bar fixed at the bottom), a tally strip (Profit, Best, Wallets,
+  Next update), the wallets as a leaderboard with @X, win rate, wins and losses, and a link to the other list (Best ROI,
+  for comparison: ROI is the main number there). A row opens the wallet card on the list's month (its tab first, then
+  7D and 30D). Under the card's numbers its tokens switch between Recent and Best (owner, 08.10, «як на FOMO»): Best is
+  where the PnL was made, the most profitable first.
 - **Free while we build it** (owner, 07.10: out of the hero): its own quiet block at the end of the home page, above
   the footer: the line, and *Follow @tracced_xyz* with the X mark, instead of payment.
 - **Phones get less text, not fewer facts** (owner, 07.10, «like FOMO»): a short lead in the hero, no 01/02/03 steps,

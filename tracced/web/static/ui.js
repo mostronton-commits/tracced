@@ -277,8 +277,9 @@ window.EarlyTags = (function () {
     try {
       const d = await EarlyWallet.post('/me/ready/follow', { slug: b.dataset.follow });
       try { localStorage.setItem('early:list', d.list); } catch (e) {}       // the watchlist opens on this list
-      EarlyUI.toast(said(d, +b.dataset.n || d.added) + ' <a href="/me#list">Open the watchlist</a>', 8000);
       EarlyUI.track('list-follow', { list: b.dataset.follow });
+      if (b.dataset.go) { location.href = '/me#list'; return; }           // owner, 08.10: one key, straight to the saved wallets
+      EarlyUI.toast(said(d, +b.dataset.n || d.added) + ' <a href="/me#list">Open the watchlist</a>', 8000);
       const a = document.createElement('a'); a.className = 'button'; a.href = '/me#list'; a.textContent = 'In your watchlist';
       b.replaceWith(a);
     } catch (e) {
@@ -286,6 +287,9 @@ window.EarlyTags = (function () {
       EarlyUI.toast(esc((e && e.message) || 'Could not follow this list. Try again.'));
     }
   }
+  document.addEventListener('click', e => {             // «Open in your watchlist» opens on that list
+    const a = e.target.closest('a[data-open-list]'); if (a) { try { localStorage.setItem('early:list', a.dataset.openList); } catch (x) {} }
+  });
   document.addEventListener('click', e => {
     const b = e.target.closest('button[data-follow]'); if (!b) return;
     e.preventDefault();

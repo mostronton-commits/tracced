@@ -377,6 +377,40 @@ def heatmap(events, now_ms, days=30):
     return grid
 
 
+def _trades_by_mint(evs):
+    """Угоди вікна по токенах: [час, b|s, $, кількість, ціна] — мітки графіка того токена в картці."""
+    trades = {}
+    for e in evs:
+        if e.get("type") in ("buy", "sell") and e.get("mint"):
+            trades.setdefault(e["mint"], []).append([e["time"], "b" if e["type"] == "buy" else "s", round(float(e.get("usd") or 0), 2),
+                                                     e.get("qty"), e.get("price")])
+    return trades
+
+
+def best_tokens(events, now_ms, days=30, n=10, history=None):
+    """На чому гаманець заробив (власник, 08.10, «як на FOMO, кращі трейди»): токени з найбільшим прибутком з продажів у
+    вікні — та сама собівартість, що в PnL картки, — від більшого, лише в плюсі. Вигляд рядка — як у recent_tokens."""
+    since = now_ms - days * DAY
+    evs, base = _base(events, now_ms, since, history)
+    books, deltas = _replay(base)
+    real = {}
+    for t, d, mint, _ in deltas:
+        if since <= t <= now_ms:
+            real[mint] = real.get(mint, 0.0) + d
+    trades = _trades_by_mint(evs)
+    out = []
+    for mint, r in sorted(real.items(), key=lambda kv: -kv[1])[:n]:
+        if r <= 0:
+            break
+        b = books[mint]
+        state = "closed" if b.share >= CLOSED_SHARE else "open"
+        out.append({"mint": mint, "symbol": b.symbol, "state": state, "last_ms": b.last_t, "buys": b.buys,
+                    "sells": b.sells + b.orphan_sells, "invested_usd": b.invested, "realized_usd": r,
+                    "roi": (b.realized / b.invested * 100) if (state == "closed" and b.invested > 0) else None,
+                    "trades": sorted(trades.get(mint) or [], key=lambda x: x[0])[-RECENT_TRADES:]})
+    return out
+
+
 def recent_tokens(events, now_ms, days=30, n=12, history=None):
     """Останні токени гаманця з результатом кожного: що купив, що продав, скільки заробив, закрито чи ні. І самі угоди
     (останні RECENT_TRADES): [час, b|s, $, кількість, ціна] — з них графік того токена в картці ставить мітки, а «що було
@@ -384,11 +418,7 @@ def recent_tokens(events, now_ms, days=30, n=12, history=None):
     since = now_ms - days * DAY
     evs, base = _base(events, now_ms, since, history)
     books, _ = _replay(base)
-    trades = {}
-    for e in evs:
-        if e.get("type") in ("buy", "sell") and e.get("mint"):
-            trades.setdefault(e["mint"], []).append([e["time"], "b" if e["type"] == "buy" else "s", round(float(e.get("usd") or 0), 2),
-                                                     e.get("qty"), e.get("price")])
+    trades = _trades_by_mint(evs)
     out = []
     for b in sorted(books.values(), key=lambda x: -(x.last_t or 0))[:n]:
         state = "sold only" if b.buys == 0 else ("closed" if b.share >= CLOSED_SHARE else "open")
@@ -406,7 +436,8 @@ def card(events, wallet, now_ms, partial=False, history=None):
     жодного запиту понад ті, що вже принесли обміни."""
     d30 = summary(events, wallet, now_ms, 30, partial, history)
     return dict(d30, periods={"7": summary(events, wallet, now_ms, 7, partial, history), "30": d30},
-                heat=heatmap(events, now_ms), recent=recent_tokens(events, now_ms, history=history))
+                heat=heatmap(events, now_ms), recent=recent_tokens(events, now_ms, history=history),
+                best_tokens=best_tokens(events, now_ms, 30, history=history))
 
 
 def compact_identity(raw):

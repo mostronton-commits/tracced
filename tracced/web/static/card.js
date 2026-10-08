@@ -56,7 +56,27 @@
       + '<div class="hx"><span></span>' + [0, 3, 6, 9, 12, 15, 18, 21].map(h => '<b>' + ampm(h) + '</b>').join('') + '</div></div>';
   }
   // the recent tokens of the card on screen (one card at a time): a click on a row draws that token's chart under it
-  let RECENT = [];
+  let RECENT = [], TV = 'recent', LASTTV = null;
+  try { TV = localStorage.getItem('early:tv') === 'best' ? 'best' : 'recent'; } catch (e) {}
+  /* the tokens under the numbers: the latest ones, or the ones it made its PnL on (owner, 08.10: «перемикач, який
+     показує, як на FOMO, кращі трейди»). Best is the period's own when it has one (a list's month), else the 30 days */
+  function tokensHtml(all, p) {
+    const best = (p && p.best_tokens) || (all && all.best_tokens) || [], recent = (all && all.recent) || [];
+    if (!best.length && !recent.length) return '';
+    LASTTV = { all, p };
+    const view = (TV === 'best' && best.length) || !recent.length ? 'best' : 'recent';
+    const btn = (v, t) => '<button type="button" data-tv="' + v + '"' + (view === v ? ' class="on"' : '') + '>' + t + '</button>';
+    return '<div class="dtv-h"><h5>' + (view === 'best' ? 'Best trades' : 'Recent tokens') + '</h5>'
+      + (best.length && recent.length ? '<span class="seg sm" role="tablist" aria-label="Which tokens">' + btn('recent', 'Recent') + btn('best', 'Best') + '</span>' : '')
+      + '</div>' + recentHtml(view === 'best' ? best : recent);
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('.dtv [data-tv]'); if (!b || !LASTTV) return;
+    TV = b.dataset.tv; try { localStorage.setItem('early:tv', TV); } catch (x) {}
+    b.closest('.dtv').innerHTML = tokensHtml(LASTTV.all, LASTTV.p);
+    if (window.EarlyUI) EarlyUI.use('card-view', { v: 'tokens-' + TV });
+    if (window.EarlyTZ) EarlyTZ.apply();
+  });
   function recentHtml(list) {
     if (!list || !list.length) return '';
     RECENT = list.slice(0, 8);
@@ -98,7 +118,7 @@
       + '</div>'
       + (distHtml(p) ? '<h5>Closed positions <span class="muted">' + ((p.wins || 0) + (p.losses || 0) || '') + '</span></h5>' + distHtml(p) : '')
       + (all.heat ? '<h5>Active hours · ' + ((window.EarlyTZ && EarlyTZ.get() === 'local') ? 'your time' : 'UTC') + '</h5>' + heatHtml(all.heat) : '')
-      + (all.recent && all.recent.length && !(opts && opts.recent === false) ? '<h5>Recent tokens</h5>' + recentHtml(all.recent) : '');
+      + (!(opts && opts.recent === false) ? '<div class="dtv">' + tokensHtml(all, p) + '</div>' : '');
     if (window.EarlyTZ) EarlyTZ.apply();
   }
   function identicon(w) {
@@ -192,5 +212,5 @@
   };
   document.addEventListener('touchend', dropDrag);
   document.addEventListener('touchcancel', dropDrag);
-  window.EarlyCard = { render, identicon, recent: all => (all && all.recent && all.recent.length ? recentHtml(all.recent) : '') };
+  window.EarlyCard = { render, identicon, recent: all => { const h = tokensHtml(all, null); return h ? '<div class="dtv">' + h + '</div>' : ''; } };
 })();

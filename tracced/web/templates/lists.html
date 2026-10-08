@@ -8,35 +8,40 @@
 {% macro sub(r) %}{% set bits = [] %}{% if r.x %}{% set _ = bits.append('@' ~ r.x) %}{% endif %}{% if r.win_rate is not none %}{% set _ = bits.append((r.win_rate|round|int) ~ '% win rate') %}{% endif %}{% set _ = bits.append(r.wins ~ 'W ' ~ r.losses ~ 'L') %}{% if not r.x %}{% set _ = bits.append(r.tokens ~ ' tokens') %}{% endif %}{{ bits|join(' · ') }}{% endmacro %}
 {% macro face(r) %}<span class="limg" data-l="{{ r.letter }}" style="--h: {{ r.hue }}" aria-hidden="true">{% if r.avatar %}<img src="{{ r.avatar }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span>{% endmacro %}
 <section class="card lpage">
-  <a class="lp-back small" href="/#ready">Ready lists</a>
   <div class="lp-top">
     <div class="lp-id">
       <h1>{{ lst.title }}</h1>
       <p class="muted lp-rule">{{ lst.rule }}</p>
-      {% if lst.funnel %}<p class="small lp-funnel"><b class="mono">{{ '{:,}'.format(lst.funnel.checked) }}</b> wallets checked for {{ lst.label }}, <b class="mono">{{ lst.funnel.listed }}</b> made the list.</p>{% endif %}
     </div>
-    <div class="lp-bar">
-      {% if following %}<a class="button" href="/me#list">In your watchlist</a><span class="muted small">All {{ lst.summary.n }} are in your list “{{ lst.title }}”.</span>
-      {% else %}<button type="button" class="primary" data-follow="{{ lst.slug }}" data-n="{{ lst.summary.n }}">{{ icon('bell') }}Follow {{ lst.summary.n }} wallets</button><span class="muted small">To your watchlist{% if alerts_ok %}, with Telegram alerts{% endif %}</span>{% endif %}
-    </div>
+    {% if not gate %}<div class="lp-bar">
+      {% if following %}<a class="button" href="/me#list" data-open-list="{{ following }}">Open in your watchlist</a>
+      {% else %}<button type="button" class="primary" data-follow="{{ lst.slug }}" data-n="{{ lst.summary.n }}" data-go="1">{{ icon('bell') }}Follow {{ lst.summary.n }} wallets</button>{% endif %}
+    </div>{% endif %}
   </div>
+  {% if gate %}
+  {# owner, 08.10: the list is for connected wallets only, so it cannot be taken without connecting #}
+  <div class="lp-gate"><p>Connect a wallet to see the {{ lst.summary.n }} traders of this list and follow them.</p><button type="button" class="primary" data-wallet-signin data-wallet-note="Connect a wallet to see the list.">Connect a wallet</button></div>
+  {% else %}
   <div class="lp-tally">
+    {% if lst.kind == 'roi' %}<div><b class="mono pos">{{ rows[0].roi_text if rows else '—' }}</b><span>Best ROI</span></div>{% endif %}
     <div><b class="mono pos">+{{ lst.summary.pnl|usd3 }}</b><span>Profit</span></div>
-    <div><b class="mono pos">+{{ lst.summary.best|usd3 }}</b><span>Best</span></div>
+    {% if lst.kind != 'roi' %}<div><b class="mono pos">+{{ lst.summary.best|usd3 }}</b><span>Best</span></div>{% endif %}
     <div><b class="mono">{{ lst.summary.n }}</b><span>Wallets</span></div>
-    <div><b class="mono">{{ lst.next_label }}</b><span>Next list</span></div>
+    <div><b class="mono">{{ lst.next_label }}</b><span>Next update</span></div>
   </div>
   <ol class="lp-rows">
   {% for r in rows %}
     <li data-w="{{ r.wallet }}" tabindex="0" title="Open this wallet's card">
       <span class="rk">{{ r.rank }}</span>{{ face(r) }}
-      <span class="nm"><b{% if not r.name %} class="mono"{% endif %}>{{ r.label }}</b><small>{{ sub(r) }}</small></span>
-      <b class="mono pos rv">+{{ r.rv }}</b>
+      <span class="nm"><b{% if not r.name %} class="mono"{% endif %}>{{ r.label }}</b><small>{% if lst.kind == 'roi' %}+{{ r.rv }} profit · {% endif %}{{ sub(r) }}</small></span>
+      <b class="mono pos rv">{% if lst.kind == 'roi' %}{{ r.roi_text }}{% else %}+{{ r.rv }}{% endif %}</b>
     </li>
   {% endfor %}
   </ol>
+  {% endif %}
   {% for o in others %}<p class="lp-other small">Also: <a href="/lists/{{ o.slug }}">{{ o.title }}</a></p>{% endfor %}
 </section>
+{% if not gate %}
 <aside class="drawer wcard" id="drawer" hidden aria-label="Wallet card">
   <div class="drawer-scroll">
     <div class="drawer-head">
@@ -121,4 +126,5 @@
   });
 })();
 </script>
+{% endif %}
 {% endblock %}

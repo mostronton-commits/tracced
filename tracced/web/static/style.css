@@ -686,7 +686,6 @@ button.ghost.xbtn { padding: 0; color: #475569; }
 .rc-top li { display: grid; grid-template-columns: 22px 32px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 52px; border-bottom: 1px solid var(--line); }
 .rk { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font: 600 11px/1 var(--mono); color: var(--muted);
   background: var(--bg); border: 1px solid var(--line); }
-.rc-top li:nth-child(-n+3) .rk, .lp-rows li:nth-child(-n+3) .rk { background: var(--navy); border-color: var(--navy); color: #fff; }
 .rc-top .limg { width: 32px; height: 32px; font-size: 13px; }
 .nm { display: flex; flex-direction: column; min-width: 0; }
 .nm b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -696,22 +695,32 @@ button.ghost.xbtn { padding: 0; color: #475569; }
 .rc-act { display: flex; align-items: center; gap: 8px; margin-top: auto; }
 .rc-act .primary, .rc-act .button, .lp-bar .primary, .lp-bar .button, .freebar .button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .rc-act svg.ci, .lp-bar svg.ci { width: 16px; height: 16px; }
-/* the card beside the list (owner, 08.10): what the list is and why follow it — its own numbers first, then four short
-   points. The tally reads like the result's: a number over an uppercase word */
+/* the card beside the list (owner, 08.10: «спростити, пару тезисів, без статистики, красиво»): four short theses, each
+   a quiet icon in a soft square, a bold line and a few muted words; they share the card's height evenly */
+.rexplain { background: var(--bg); }
 .rexplain h3 { margin: 0; font-size: 15px; font-weight: 600; }
-.rx-tally { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-.rx-tally div { padding: 10px 14px; background: var(--surface); }
-.rx-tally b { display: block; font: 600 20px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
-.rx-tally span { display: block; margin-top: 2px; font-size: 11.5px; font-weight: 500; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
-.rx-drop { list-style: none; margin: 0; padding: 0; }
-.rx-drop li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--muted); }
-.rx-drop li:last-child { border-bottom: 0; }
-.rx-drop li b { color: var(--ink); font-size: 13px; font-weight: 600; }
-.rx-why { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 13px; line-height: 1.45; color: var(--muted); }
-.rx-why b { color: var(--ink); font-weight: 600; }
-.lp-funnel { margin: 8px 0 0; color: var(--muted); }
-.lp-funnel b { color: var(--ink); font-weight: 600; }
-@media (max-width: 560px) { .rx-drop, .rc-top li:nth-child(n+4) { display: none; } }
+.rx-points { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; flex: 1; align-content: space-evenly; }
+.rx-points li { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; align-items: center; }
+.rx-ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); color: var(--ink); }
+.rx-ic svg.ci { width: 20px; height: 20px; }
+.rx-points b { display: block; font-size: 14px; font-weight: 600; }
+.rx-points small { display: block; margin-top: 2px; font-size: 13px; color: var(--muted); }
+/* the first three like medals, quietly (owner, 08.10): pale gold, silver and bronze with a deeper digit, not a colour flood */
+.rc-top li:nth-child(1) .rk, .lp-rows li:nth-child(1) .rk { background: #FEF3C7; border-color: #FCD34D; color: #92400E; }
+.rc-top li:nth-child(2) .rk, .lp-rows li:nth-child(2) .rk { background: #F1F5F9; border-color: #CBD5E1; color: #334155; }
+.rc-top li:nth-child(3) .rk, .lp-rows li:nth-child(3) .rk { background: #FFEDD5; border-color: #FDBA74; color: #9A3412; }
+/* the sixth, blurred, as the old list of analyses did: there is more, and it opens with a wallet */
+.rc-top li.peek { filter: blur(3px); opacity: .55; pointer-events: none; user-select: none; }
+.rc-act .primary, .rc-act .button { flex: 1 1 auto; height: 40px; }
+.lp-gate { display: grid; justify-items: start; gap: 12px; padding: 20px; border: 1px dashed var(--line-strong, #CBD5E1); border-radius: 10px; background: var(--bg); }
+.lp-gate p { margin: 0; }
+.dtv-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 14px 0 6px; }
+.dtv-h h5 { margin: 0; }
+.seg.sm button { height: 24px; padding: 0 9px; font-size: 11px; }
+.mnew { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 13px; }
+.mnew svg.ci { width: 16px; height: 16px; }
+.mnew a { margin-left: auto; }
+@media (max-width: 560px) { .rc-top li:nth-child(n+5) { display: none; } .rc-top li:nth-child(4) { filter: blur(3px); opacity: .55; pointer-events: none; } }
 /* free while we build it (owner, 07.10): a follow on X is the only payment we ask, in its own quiet block at the end */
 .freebar { display: flex; align-items: center; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; margin: 24px 0 0;
   padding: 16px 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }

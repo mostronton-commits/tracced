@@ -30,8 +30,11 @@ SIZE = 10
 DAY = 86_400_000
 LISTS = {
     "top-traders": {"title": "Top traders · {month}", "kind": "top",
-                    "rule": "The wallets that made the most in {month} and trade like people: known KOLs and the best of "
-                            "the market, each counted by tracced from its own swaps, the same way as its card."},
+                    "rule": "{month}'s most profitable traders. Real people, no bots."},
+    # owner, 08.10: «по ROI як окремий список для порівняння, але не за аналізами tracced» — the board sorted by ROI adds
+    # its own candidates; the return is tracced's count: profit ÷ what the wallet bought in the month
+    "top-roi": {"title": "Best ROI · {month}", "kind": "roi",
+                "rule": "{month}'s best returns on what they put in. Real people, no bots."},
 }
 # why a candidate is not in the list, as the explaining card says it (owner, 08.10: «розписав що це за список і навіщо»)
 DROPPED = {"pace": "trade at a machine's pace", "fresh": "fresh wallets", "bot": "bots, exchanges, arbitrage",
@@ -114,10 +117,12 @@ def is_person(t):
     return 0 < trades <= MAX_TRADES and invested > 0 and realized > 0 and i.get("type") not in NOT_PEOPLE
 
 
-def traders(raw, n=SIZE):
-    """/v2/pnl/leaderboard/top rows (several pages) → the first n that pass is_person, in the board's order, no repeats."""
+def traders(raw, n=SIZE, by_board=False):
+    """/v2/pnl/leaderboard/top rows (several pages) → the first n that pass is_person, no repeats: by realized profit, or
+    in the board's own order (by_board: the ROI board)."""
     out, seen = [], set()
-    for t in sorted(raw or [], key=lambda x: -float((x.get("period") or {}).get("realized") or 0)):
+    rows = list(raw or []) if by_board else sorted(raw or [], key=lambda x: -float((x.get("period") or {}).get("realized") or 0))
+    for t in rows:
         w = t.get("wallet")
         if not w or w in seen or not is_person(t):
             continue
@@ -186,6 +191,15 @@ def rank(rows, n=SIZE, min_pnl=0.0):
     n. A «top» of +$2.7K is not one (08.10: the tail of the first count)."""
     keep = [r for r in rows or [] if not r.get("partial") and (r.get("pnl") or 0) > max(0.0, float(min_pnl or 0))]
     keep.sort(key=lambda r: -r["pnl"])
+    return keep[:n]
+
+
+def rank_roi(rows, n=SIZE, min_invested=2000.0, min_pnl=5000.0):
+    """The ROI list: people whose month was read in full, who put in at least min_invested and made at least min_pnl,
+    by profit ÷ what they bought in the month, best first. Without the floors a $40 buy that doubled would lead it."""
+    keep = [r for r in rows or [] if not r.get("partial") and r.get("roi") is not None
+            and (r.get("invested") or 0) >= float(min_invested) and (r.get("pnl") or 0) >= float(min_pnl)]
+    keep.sort(key=lambda r: -r["roi"])
     return keep[:n]
 
 

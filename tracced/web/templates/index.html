@@ -128,34 +128,31 @@
 
 {% if ready %}
 {# owner, 07.10–08.10: a list a person can take in one click, for last month, changed once a month. Solana Tracker names
-   the candidates (KOLs and its board); what each one made in the month is counted by tracced from its own swaps, and
-   only people stay. A card: the sum, the first three, two keys; beside it, how the list was made and why it helps #}
+   the candidates; what each one made in the month is counted by tracced from its own swaps, and only people stay. A
+   card: the sum, five leaders with medals and a sixth blurred, one key; beside it, why it is worth following #}
 {% macro face(r) %}<span class="limg" data-l="{{ r.letter }}" style="--h: {{ r.hue }}" aria-hidden="true">{% if r.avatar %}<img src="{{ r.avatar }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span>{% endmacro %}
 {% macro sub(r) %}{% if r.x %}@{{ r.x }}{% if r.win_rate is not none %} · {{ r.win_rate|round|int }}% win rate{% endif %}{% elif r.win_rate is not none %}{{ r.win_rate|round|int }}% win rate · {{ r.tokens }} tokens{% else %}{{ r.tokens }} tokens{% endif %}{% endmacro %}
+{% macro row(r, cls='') %}<li{% if cls %} class="{{ cls }}" aria-hidden="true"{% endif %}><span class="rk">{{ r.rank }}</span>{{ face(r) }}<span class="nm"><b{% if not r.name %} class="mono"{% endif %}>{{ r.label }}</b><small>{{ sub(r) }}</small></span><b class="mono pos">+{{ r.rv }}</b></li>{% endmacro %}
 <section class="ready" id="ready" aria-labelledby="readyh">
-  <div class="ready-head"><h2 id="readyh">Ready lists</h2><p class="muted">Follow proven traders in one click. Their trades come to your Telegram.</p></div>
+  <div class="ready-head"><h2 id="readyh">Ready lists</h2><p class="muted">Follow the best traders and get their trades in Telegram.</p></div>
   <div class="ready-grid">
   {% for l in ready %}
     <article class="rcard">
-      <div class="rc-head"><h3><a href="/lists/{{ l.slug }}">{{ l.title }}</a></h3><span class="mono muted">{{ l.summary.n }} wallets · next list {{ l.next_label }}</span></div>
+      <div class="rc-head"><h3><a href="/lists/{{ l.slug }}">{{ l.title }}</a></h3><span class="mono muted">{{ l.summary.n }} wallets · next update {{ l.next_label }}</span></div>
       <div class="rc-big"><b class="mono pos">+{{ l.summary.pnl|usd3 }}</b><span>profit together in {{ l.label }}</span></div>
-      <ol class="rc-top">{% for r in l.top %}<li><span class="rk">{{ r.rank }}</span>{{ face(r) }}<span class="nm"><b{% if not r.name %} class="mono"{% endif %}>{{ r.label }}</b><small>{{ sub(r) }}</small></span><b class="mono pos">+{{ r.rv }}</b></li>{% endfor %}</ol>
-      <div class="rc-act"><button type="button" class="primary" data-follow="{{ l.slug }}" data-n="{{ l.summary.n }}">{{ icon('bell') }}Follow {{ l.summary.n }} wallets</button><a class="button" href="/lists/{{ l.slug }}">See all {{ l.summary.n }}</a></div>
+      <ol class="rc-top">{% for r in l.top %}{{ row(r) }}{% endfor %}{% if l.peek %}{{ row(l.peek, 'peek') }}{% endif %}</ol>
+      <div class="rc-act">{% if l.following %}<a class="button" href="/me#list" data-open-list="{{ l.following }}">Open in your watchlist</a>{% else %}<button type="button" class="primary" data-follow="{{ l.slug }}" data-n="{{ l.summary.n }}" data-go="1">{{ icon('bell') }}Follow {{ l.summary.n }} wallets</button>{% endif %}</div>
     </article>
-    {% if l.funnel %}
-    {# owner, 08.10: one list, and beside it what the list is and why it is worth following — with its own numbers #}
+    {# owner, 08.10: beside the list, a few theses on why follow it — no numbers, few words #}
     <article class="rcard rexplain" aria-labelledby="rxh">
-      <h3 id="rxh">How the list is made</h3>
-      <div class="rx-tally"><div><b>{{ '{:,}'.format(l.funnel.checked) }}</b><span>wallets checked</span></div><div><b class="pos">{{ l.funnel.listed }}</b><span>made the list</span></div></div>
-      {% if l.funnel.reasons %}<ul class="rx-drop">{% for why, n in l.funnel.reasons %}<li><span>{{ why }}</span><b class="mono">{{ n }}</b></li>{% endfor %}</ul>{% endif %}
-      <ul class="rx-why">
-        <li><b>Hours of searching, done.</b> We read every candidate's own swaps for {{ l.label }} and kept the ones that made the most.</li>
-        <li><b>People, not machines.</b> Bots, fresh wallets, snipers and thousand-trade accounts stay out.</li>
-        <li><b>Alerts in one click.</b> Follow puts them in your watchlist, and their trades come to your Telegram.</li>
-        <li><b>A new list every month.</b> On {{ l.next_label }} it is counted again; the wallets you took stay yours.</li>
+      <h3 id="rxh">Why follow it</h3>
+      <ul class="rx-points">
+        <li><span class="rx-ic">{{ icon('time') }}</span><span><b>No hours of searching</b><small>We checked every wallet's trades for you</small></span></li>
+        <li><span class="rx-ic">{{ icon('chart') }}</span><span><b>Real traders only</b><small>No bots, snipers or fresh wallets</small></span></li>
+        <li><span class="rx-ic">{{ icon('bell') }}</span><span><b>Alerts in one click</b><small>Their trades come to your Telegram</small></span></li>
+        <li><span class="rx-ic">{{ icon('renew') }}</span><span><b>A new list every month</b><small>Next update {{ l.next_label }}</small></span></li>
       </ul>
     </article>
-    {% endif %}
   {% endfor %}
   </div>
 </section>

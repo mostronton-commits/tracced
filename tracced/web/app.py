@@ -2724,6 +2724,10 @@ async def me_page(request):
     a, wallets, analyses = _account_view(request.app, pk)
     lists = [dict(v, id=k, n=sum(1 for w in wallets if k in (w.get("lists") or []))) for k, v in a["lists"].items()]
     _view(request, "me")
+    # власник, 08.10: узятий готовий список лишається копією; коли вийшов новий місяць, вотчліст про це каже
+    names = {v.get("name") for v in a["lists"].values()}
+    new_ready = [dict(slug=k, title=v["title"]) for k, v in (request.app["ready"].get("lists") or {}).items()
+                 if v.get("rows") and v["title"] not in names and any(str(n or "").startswith(v["title"].split(" · ")[0] + " · ") for n in names)]
     tg = a.get("telegram") or {}
     # угоди за 7 днів, які бачив потік сповіщень (власник, 01.10) — лише для гаманців, за якими він стежить зараз: інакше
     # «0 угод» означало б «не стежили», а не «не торгував» (рев'ю 01.10)
@@ -2742,7 +2746,7 @@ async def me_page(request):
     wmeta = {w["wallet"]: dict({k: w.get(k) for k in ("my_tags", "lists", "added_ms")}, act=act.get(w["wallet"]), alert=bool(w.get("alert")),
                                sent_today=dc.count("s:" + pk + ":" + w["wallet"]) or None) for w in wallets}   # what the card shows, by wallet
     return render("me.html", request, wallets=wallets, analyses=analyses, max_my_tags=acct_mod.MAX_MY_TAGS, wmeta=wmeta, act=act,
-                  demo_mint=(demo or {}).get("mint"), lists=lists, max_lists=acct_mod.MAX_LISTS,
+                  demo_mint=(demo or {}).get("mint"), lists=lists, max_lists=acct_mod.MAX_LISTS, new_ready=new_ready,
                   alerts_ok=alerts_ok, alerts_preview=preview,   # без бота картка не обіцяє того, чого нема
                   after_on=_after_on(request),
                   alert_n=alert_n, watch_cap=cap, day_cap=day_cap, day_used=dc.count("a:" + pk),
@@ -3628,6 +3632,7 @@ def _ready_month(app, wallet, month):
     app["profile_cache"].put(f"v{profile.VERSION}:{wallet}", card)
     out = profile.summary(evs, wallet, month["to"], month["days"], False, history=hist)
     out["label"] = month["label"]                # картка на сторінці списку пише «in September», а не «in these 30 days»
+    out["best_tokens"] = profile.best_tokens(evs, month["to"], month["days"], history=hist)   # на чому заробив за місяць
     return out
 
 
@@ -3692,22 +3697,27 @@ async def _ready_refresh(app):
                 n0 = st.requests_here()
                 try:
                     groups = []
+                    pages = int(s.get("ready_top_pages", 10))
                     for name, fetch in (("kols", lambda: ready_mod.kols(st.kol_leaderboard(30, n), n)),
-                                        ("board", lambda: ready_mod.traders(st.top_traders(30, int(s.get("ready_top_pages", 10))), n))):
+                                        ("board", lambda: ready_mod.traders(st.top_traders(30, pages), n)),
+                                        ("board roi", lambda: ready_mod.traders(st.top_traders(30, int(s.get("ready_roi_pages", 10)), sort="roi"), n, by_board=True))):
                         try:
                             groups.append(fetch())
-                        except Exception as ex:  # noqa: BLE001 — другий рейтинг усе одно дасть кандидатів
+                        except Exception as ex:  # noqa: BLE001 — інші рейтинги усе одно дадуть кандидатів
                             log.warning("ready candidates %s: %s", name, ex)
                     cands = ready_mod.merged(*groups)
                     if not cands:
                         return got
                     facts = st.wallet_summaries([c["wallet"] for c in cands]) if hasattr(st, "wallet_summaries") else {}
                     people, dropped = _ready_count(app, cands, month, facts)
-                    rows = ready_mod.rank(people, min_pnl=float(s.get("ready_min_pnl", 10_000)))
                     pool = [{k: v for k, v in r.items() if k != "month"} for r in sorted(people, key=lambda r: -r["pnl"])]
-                    got["top-traders"] = {"rows": rows, "funnel": ready_mod.funnel(len(cands), dropped, len(people), len(rows)),
-                                          "pool": pool[:200]}
-                    log.info("ready list %s: %s of %s candidates, %s people, dropped %s", month["key"], len(rows), len(cands), len(people), dropped)
+                    rows = ready_mod.rank(people, min_pnl=float(s.get("ready_min_pnl", 10_000)))
+                    got["top-traders"] = {"rows": rows, "funnel": ready_mod.funnel(len(cands), dropped, len(people), len(rows)), "pool": pool[:200]}
+                    roi = ready_mod.rank_roi(people, min_invested=float(s.get("ready_roi_min_invested", 2000)),
+                                             min_pnl=float(s.get("ready_roi_min_pnl", 5000)))
+                    got["top-roi"] = {"rows": roi, "funnel": ready_mod.funnel(len(cands), dropped, len(people), len(roi)), "pool": []}
+                    log.info("ready lists %s: %s by profit, %s by ROI, of %s candidates, %s people, dropped %s",
+                             month["key"], len(rows), len(roi), len(cands), len(people), dropped)
                 finally:
                     _spend(app, "system", "ready", st=st.requests_here() - n0)
             return got
@@ -3752,20 +3762,33 @@ def _ready_rows(lst):
     for i, row in enumerate(lst.get("rows") or [], 1):
         w = row["wallet"]
         label = row.get("name") or (w[:4] + "…" + w[-4:])
+        roi = row.get("roi")
         out.append(dict(row, rank=i, label=label, short=w[:4] + "…" + w[-4:], letter=label[:1].upper(), rv=_usd3(row["pnl"]),
+                        roi_text=None if roi is None else f"{'+' if roi >= 0 else '−'}{abs(round(roi * 100)):,}%",
                         hue=int(hashlib.sha1(w.encode()).hexdigest()[:4], 16) % 360))
     return out
 
 
-def _ready_view(app):
-    """Готові списки для головної: у кожного — назва з місяцем, підсумок і п'ятеро перших. Список коротший за
-    ready_min_rows не показується. Рахує їх фон сервера раз на місяць."""
+def _ready_follow_id(app, pk, lst):
+    """Список людини, у якому вже весь цей готовий список (та сама назва й усі гаманці), або None."""
+    if not pk:
+        return None
+    a = app["accounts"].load(pk)
+    lid = next((k for k, v in (a.get("lists") or {}).items() if v.get("name") == lst["title"]), None)
+    ws = a.get("wallets") or {}
+    return lid if lid and all(lid in ((ws.get(r["wallet"]) or {}).get("lists") or []) for r in lst["rows"]) else None
+
+
+def _ready_view(app, pk=None):
+    """Готовий список для головної: назва з місяцем, підсумок, п'ятеро перших і шостий у розмитті (власник, 08.10: як
+    колись список аналізів — видно, що далі є ще). Хто вже взяв список, бачить шлях у свій вотчліст. Коротший за
+    ready_min_rows не показується. Рахує фон сервера раз на місяць."""
     lists, out = app["ready"].get("lists") or {}, []
     for k in READY_ORDER:
         if len((lists.get(k) or {}).get("rows") or []) < int(app["s"].get("ready_min_rows", 3)):
             continue
         rows = _ready_rows(lists[k])
-        out.append(dict(lists[k], top=rows[:5]))      # п'ятеро: поруч картка-пояснення вища; телефон показує трьох
+        out.append(dict(lists[k], top=rows[:5], peek=rows[5] if len(rows) > 5 else None, following=_ready_follow_id(app, pk, lists[k])))
     return out
 
 
@@ -3819,11 +3842,9 @@ async def list_page(request):
     lst = (app["ready"].get("lists") or {}).get(slug)
     if not lst or not lst.get("rows"):
         raise web.HTTPNotFound(text="This list is not ready yet.")
-    following = False
-    if request.get("acct"):
-        a = app["accounts"].load(request["acct"])
-        lid = next((k for k, v in (a.get("lists") or {}).items() if v.get("name") == lst["title"]), None)
-        following = bool(lid) and all(lid in ((a.get("wallets") or {}).get(r["wallet"]) or {}).get("lists", []) for r in lst["rows"])
+    if not request.get("acct"):                 # власник, 08.10: список — лише з підключеним гаманцем, щоб його не забирали
+        return render("lists.html", request, lst=lst, rows=[], gate=True, following=None, others=[], alerts_ok=False)
+    following = _ready_follow_id(app, request["acct"], lst)
     _view(request, "list", ref=slug)
     return render("lists.html", request, lst=lst, rows=_ready_rows(lst), following=following,
                   others=[dict(v, slug=k) for k, v in (app["ready"].get("lists") or {}).items() if k != slug and v.get("rows")],
@@ -3902,7 +3923,7 @@ async def index(request):
     if s.get("fresh_on") and f["ok_at"] and now_ms - f["ok_at"] < float(s.get("fresh_stale_hours", 3)) * 3_600_000:
         # вік рахується зараз, а не в момент оновлення; список, старший за кілька годин, не показується зовсім (рев'ю 30.09)
         fresh = [dict(r, age_h=max(0.0, (now_ms - r["created_ms"]) / 3_600_000) if r.get("created_ms") else None) for r in f["rows"]]
-    return render("index.html", request, live=_live_feed(app), demo_card=_demo_card(app), ready=_ready_view(app),
+    return render("index.html", request, live=_live_feed(app), demo_card=_demo_card(app), ready=_ready_view(app, request.get("acct")),
                   totals=totals, sample=sample, bg_lines=lines, my_n=my_n,
                   fresh=fresh, fresh_min=int((now_ms - f["ok_at"]) / 60_000) if f["ok_at"] else None)
 
@@ -4910,7 +4931,8 @@ async def wallet_profile_json(request):
         if wallet not in {r.get("wallet") for r in job.result.get("rows") or []}:
             raise web.HTTPNotFound(text="That wallet is not in this analysis.")
     elif wallet in _ready_wallets(app):
-        pass                                                     # гаманець готового списку: картку відкриває будь-хто
+        if not request.get("acct"):                              # гаманець готового списку — лише тим, хто підключився (08.10)
+            raise ConnectRequired(message="Connect a wallet to see the traders of the list.")
     elif not request.get("acct"):
         raise ConnectRequired(message="Connect a wallet to load this wallet's last 30 days.")
     elif wallet not in (app["accounts"].load(request["acct"]).get("wallets") or {}):

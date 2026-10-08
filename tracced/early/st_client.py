@@ -238,10 +238,10 @@ class EarlyST(SolanaTracker):
         d = self._get(f"/v2/pnl/leaderboard/kols/period?period={int(days)}d&sort=realized&direction=desc&limit={int(limit)}")
         return d.get("traders") or []
 
-    def top_traders(self, days=30, pages=10, per_page=100):
+    def top_traders(self, days=30, pages=10, per_page=100, sort="realized"):
         """All-wallet leaderboard by realized profit, `pages` cursor pages (1 request each). The board's own filters
         drop thin and one-token wallets; whether a person is behind the rest is ready.is_person's job."""
-        base = (f"/v2/pnl/leaderboard/top?days={int(days)}&sort=realized&direction=desc&limit={int(per_page)}"
+        base = (f"/v2/pnl/leaderboard/top?days={int(days)}&sort={'roi' if sort == 'roi' else 'realized'}&direction=desc&limit={int(per_page)}"
                 "&minTrades=40&minDays=10&maxSingleTokenPct=35&minInvested=2000&minClosedTokens=10")   # 08.10: 41 людського темпу проти 39
         out, cursor = [], None
         for _ in range(int(pages)):

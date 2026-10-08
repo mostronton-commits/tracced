@@ -19,7 +19,8 @@ follow. A wallet can sit in several. At `/me` every list has its own tab with it
 or delete it (the first one stays). A wallet's card there shows the lists that hold it: a click adds it to a list or
 takes it out. It stays in at least one; × in its row drops the wallet.
 A [ready list](https://tracced.xyz/docs/how-it-works#ready-lists) from the home page comes in whole: **Follow**
-makes a list of the same name with its wallets in it and turns on their bells while your account has bells left.
+makes a list of the same name with its wallets in it and turns on their bells while your account has bells left. It
+is a copy: when next month's list is out, your watchlist says so, and the one you took stays as it is.
 **Export** there gives the list on screen, or all of them, as CSV or TXT. The CSV is about each wallet itself: its
 name and X account when known, its first funder and the exchange behind it, its first transaction, your tags, the
 lists that hold it, and the token you found it on.
