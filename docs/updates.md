@@ -2,11 +2,21 @@
 
 <div class="ulog" markdown="1">
 
+## 0.7.3 <span class="ud">Oct 8, 2026</span>
+
+- September's top 10 traders, real people only
+- Follow a whole list, alerts included
+- One wallet card everywhere, with its best trades
+- A live feed of what people analyze
+- Token chips: age, launchpad, new
+- A status bar with your settings
+- Phones read like a trading app
+
 ## 0.7.2 <span class="ud">Oct 5, 2026</span>
 
 - Telegram alerts for everyone
 - The agent says first who a wallet is
-- New wallets get one analysis a day
+- Fairer daily limits
 - Need more? Ask us from the limit window
 - Home counters that only grow
 - A shorter list of recent analyses

@@ -24,7 +24,7 @@ UI = {
     "range-set": ("end",), "range-add": (), "range-reset": (), "tf": ("tf",), "chart-nav": ("to",),
     "list-tab": (), "copy": ("what",), "ext": ("to",), "cur": ("to",), "tz": ("to",), "leave": ("secs",),
     "egg": ("what",), "star": ("on",), "list-move": ("how",), "wallet-bell": ("on",), "card-view": ("v",),
-    "card-token-chart": (), "list-bell": ("on",),
+    "card-token-chart": (), "list-bell": ("on",), "card-trades-all": (),
 }
 # короткий рядок: адреса гаманця (32-44 символи) чи набраний людиною текст сюди не пролазять фізично
 VAL = re.compile(r"^[A-Za-z0-9_.:-]{1,24}$")
@@ -88,6 +88,9 @@ def page_of(referer, host):
         return "me", None
     if path == "/feedback":
         return "feedback", None
+    if path.startswith("/lists/"):
+        slug = path[7:]
+        return "list", slug if SLUG_RE.match(slug) else None
     if path == "/docs" or path.startswith("/docs/"):
         slug = path[6:] or "index"
         return "docs", slug if SLUG_RE.match(slug) else None
@@ -160,15 +163,17 @@ CLICKS = {"card-open": "Opened a wallet card", "card-close": "Closed a wallet ca
           "list-tab": "Switched a list", "copy": "Copied an address", "ext": "Followed a link out", "cur": "Switched USD/SOL",
           "tz": "Switched UTC/local", "leave": "Left a page", "egg": "Found an easter egg",
           "star": "Starred a wallet into the watchlist", "list-move": "Changed a wallet's lists in its card",
-          "wallet-bell": "Switched a wallet's alerts", "card-view": "Switched a card between this token and all tokens",
-          "card-token-chart": "Opened another token's chart in a card", "list-bell": "Switched a whole list's alerts"}
+          "wallet-bell": "Switched a wallet's alerts", "card-view": "Switched a card's tokens between recent and best",
+          "card-token-chart": "Opened another token's chart in a card", "list-bell": "Switched a whole list's alerts",
+          "card-trades-all": "Opened all of a wallet's trades in its card"}
 # що на сайті можна натиснути зараз: з цього списку — «ніхто не користувався» (прибрані кнопки сюди не входять,
 # інакше вони висіли б у списку вічно)
 UI_FEATURES = ("card-open", "card-period", "pin", "sort", "filter", "hide", "filters-toggle", "filters-reset", "funder", "finding",
                "star", "export", "show-more", "agent-open", "range-set", "range-add", "range-reset", "tf",
                "chart-nav", "list-tab", "list-move", "wallet-bell", "card-view", "copy", "ext", "cur", "tz",
-               "card-token-chart", "list-bell")
-PAGE_NAMES = {"job": "On a result", "token": "On a token's chart", "me": "In the watchlist", "home": "On the home page", "docs": "In the docs"}
+               "card-token-chart", "list-bell", "card-trades-all")
+PAGE_NAMES = {"job": "On a result", "token": "On a token's chart", "me": "In the watchlist", "home": "On the home page", "docs": "In the docs",
+              "list": "On a ready list"}
 FUNNEL = (("result", "Opened a result"), ("card", "Opened a wallet card"), ("run", "Ran an analysis"),
           ("keep", "Saved or exported"), ("agent", "Asked the agent"))
 LIMITS = {"run": "Live analyses", "browse": "Charts of new tokens", "age-card": "Age checks from cards",
@@ -388,7 +393,7 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
             reached["card"].add(pk)
         if ev == "analyze":
             reached["run"].add(pk)
-        if ev in ("save_wallets", "save_analysis", "export") or (ev == "ui" and e.get("name") == "export"):
+        if ev in ("save_wallets", "save_analysis", "export", "list_follow") or (ev == "ui" and e.get("name") == "export"):
             reached["keep"].add(pk)
         if ev == "agent" and e.get("kind") == "ask" and e.get("ok"):
             reached["agent"].add(pk)
@@ -647,7 +652,7 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
 # ───────────────────────── події людською мовою ─────────────────────────
 
 PAGES = {"home": "the home page", "token": "a token", "job": "a result", "me": "their lists", "docs": "the docs",
-         "feedback": "the Contact form", "other": "a page"}
+         "feedback": "the Contact form", "list": "a ready list", "other": "a page"}
 SPEND_OF = {"st": "Solana Tracker requests", "rpc": "Helius credits"}
 
 
@@ -680,6 +685,9 @@ def label(e):
         return {"text": f"turned alerts {'on' if g('on') else 'off'} for a wallet"}
     if ev == "list_move":
         return {"text": f"{'moved' if g('how') == 'move' else 'copied'} {_plural(int(g('n') or 1), 'wallet')} to another list"}
+    if ev == "list_follow":
+        return {"text": f"followed the ready list {g('slug') or ''} ({_plural(int(g('n') or 0), 'new wallet')}, "
+                        f"{int(g('alerts') or 0)} with alerts)"}
     if ev in ("list_create", "list_rename", "list_remove"):
         return {"text": {"list_create": "made", "list_rename": "renamed", "list_remove": "deleted"}[ev] + " a list"}
     if ev == "tags":
@@ -717,6 +725,8 @@ def label(e):
                     **({"href": f"/token?mint={g('ref')}", "link": (g("ref") or "")[:6] + "…"} if g("ref") else {})}
         if page == "docs":
             return {"text": f"read the docs: {g('ref') or 'index'}"}
+        if page == "list":
+            return {"text": f"opened the ready list {g('ref') or ''}".rstrip()}
         return {"text": f"opened {PAGES.get(page, 'a page')}"}
     if ev == "ui":
         name, extra = g("name"), []

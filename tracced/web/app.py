@@ -24,6 +24,7 @@ import threading
 import time
 import urllib.error
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import aiohttp
@@ -32,7 +33,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
 from ..cache import JsonCache
-from ..early import agent as agent_mod, assistant as assistant_mod, exchanges as exch_mod, labels as labels_mod, ledger, pipeline, profile, report, scope, tags, wallet_age as wallet_age_mod, window
+from ..early import agent as agent_mod, assistant as assistant_mod, exchanges as exch_mod, labels as labels_mod, ledger, pipeline, profile, ready as ready_mod, report, scope, tags, wallet_age as wallet_age_mod, window
 from ..early.store import TradeStore
 from ..providers import dexscreener
 from . import accounts as acct_mod, after as after_mod
@@ -70,6 +71,40 @@ def _usd(v):
     if s == "—":
         return s
     return "-$" + s[1:] if s.startswith("-") else "$" + s
+
+
+def _usd3(v):
+    """Прибуток у готових списках — три значущі цифри: $6.77M, $1.02M, $583K. З однією ($6.8M, $1M) сусідні місця
+    виглядали однаково."""
+    try:
+        v = float(v)
+    except Exception:  # noqa: BLE001 — None, '', jinja Undefined
+        return "—"
+    if v != v:
+        return "—"
+    sign, v = ("-" if v < 0 else ""), abs(v)
+    for lim, suf in ((1e9, "B"), (1e6, "M"), (1e3, "K")):
+        if v >= lim * 0.9995:
+            x = v / lim
+            return f"{sign}${x:.{2 if x < 9.995 else 1 if x < 99.95 else 0}f}{suf}"
+    return f"{sign}${v:.0f}"
+
+
+def _age(ms, now_ms=None):
+    """«2 days old» під назвою токена (власник, 08.10, як на OpenSea): скільки токену від створення, грубо."""
+    try:
+        ms = float(ms)
+    except (TypeError, ValueError):
+        return ""
+    if ms <= 0:
+        return ""
+    m = max(0.0, ((now_ms or time.time() * 1000) - ms) / 60_000)
+    for lim, div, word in ((60, 1, "min"), (1440, 60, "h"), (14 * 1440, 1440, "day"), (61 * 1440, 7 * 1440, "week"),
+                           (730 * 1440, 30 * 1440, "month"), (float("inf"), 365 * 1440, "year")):
+        if m < lim:
+            n = max(1, int(m // div))
+            return f"{n} {word}{'' if n == 1 or word in ('min', 'h') else 's'} old"
+    return ""
 
 
 def _num(v, digits=0):
@@ -113,6 +148,9 @@ env.filters["day"] = chart.fmt_day
 env.filters["mcap"] = chart.fmt_mcap
 env.filters["usd"] = _usd
 env.filters["num"] = _num
+env.filters["usd3"] = _usd3
+env.filters["age"] = _age
+env.filters["tghead"] = lambda h: Markup(str(h or "").split("\n\n")[0].replace(" · <a>tx</a>", ""))   # перший рядок алерту, як його показує сповіщення; alerts.message екранує те, що цитує
 env.filters["per_day"] = lambda n: "one live analysis a day" if int(n or 0) == 1 else f"{int(n or 0)} live analyses a day"
 env.filters["log10"] = lambda v: math.log10(v) if (v and float(v) > 0) else 0.0
 
@@ -490,6 +528,11 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["st_slots"] = threading.BoundedSemaphore(max(1, int(s.get("st_concurrency", 1) or 1)) + 1)   # +1: сторінка не чекає за прогоном
     app["overview_cache"], app["overview_pending"] = {}, {}
     app["dex_cache"] = JsonCache(str(Path(store_dir) / "dexscreener.json"), ttl_hours=24)   # чужий безкоштовний ендпоінт: добу тримаємо відповідь
+    # картинки токенів для головної: у нових аналізів вона в info, старшим дочитується раз (1 запит) і живе місяць
+    app["token_images"] = JsonCache(str(Path(store_dir) / "token_images.json"), ttl_hours=24 * 30)
+    app["images_busy"] = False
+    app["ready_path"] = Path(out_dir).parent / "ready_lists.json"   # готові списки гаманців: з файлу, оновлюються фоном
+    app["ready"] = _ready_load(app["ready_path"])
     app["profile_cache"] = JsonCache(str(Path(store_dir) / "wallet_profile.json"),             # картка гаманця: 1-5 запитів, добу з кешу
                                      ttl_hours=float(s.get("wallet_profile_ttl_hours", 24)), flush_every=25)   # решту допише зупинка сервера
     app["accounts"] = acct_mod.AccountStore(Path(out_dir).parent / "accounts")   # поруч з web/ і demo/ у output/early
@@ -586,6 +629,9 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
                            enrich_upto=(lambda r: enrich_target(r, s)) if ages else 0,
                            namer=make_namer(identify, st, spend) if identify else None, on_finish=on_finish)
     app.router.add_get("/", index)
+    app.router.add_get("/live.json", live_json)
+    app.router.add_get("/lists/{slug}", list_page)
+    app.router.add_post("/me/ready/follow", me_follow_list)
     app.router.add_get("/how", how)
     app.router.add_get("/docs", docs_page)
     app.router.add_get("/docs/{slug}", docs_page)
@@ -668,6 +714,7 @@ ONCHAIN_FIRST_S, ONCHAIN_EVERY_S = 600, 6 * 3600
 async def _start_background(app):
     loop = asyncio.get_running_loop()
     app["bg"]["usage"] = loop.create_task(_usage_loop(app))
+    app["bg"]["ready"] = loop.create_task(_ready_loop(app))
     fresh_age = time.time() * 1000 - app["fresh"]["at"]
     if app["s"].get("fresh_on") and fresh_age > float(app["s"].get("fresh_refresh_min", 10)) * 60_000:
         app["bg"]["fresh"] = loop.create_task(_fresh_refresh(app))       # головна не чекає; свіжий список з файла — не питаємо знову
@@ -1804,7 +1851,7 @@ def _alert_fail(app, pk, why):
 def _watch_now(app):
     s = app["s"]
     return alerts_mod.watch_map(app["accounts"].all(), app["admins"], bool(s.get("alerts_open")),
-                                int(s.get("alerts_max_wallets", 10)), s.get("alerts_min_usd"))
+                                int(s.get("alerts_max_wallets", 20)), s.get("alerts_min_usd"))
 
 
 async def _rpc(http, url, method, params):
@@ -2562,7 +2609,7 @@ async def me_lists(request, pk):
             if not _alerts_allowed(request.app, pk):
                 return _jerr("Alerts are in a closed test for now.", 403)
             on = bool(body.get("on"))
-            cap = int(request.app["s"].get("alerts_max_wallets", 10))
+            cap = int(request.app["s"].get("alerts_max_wallets", 20))
             out = {"alerts": on, "changed": acc.set_list_alerts(pk, str(body.get("id") or ""), on, cap), "cap": cap}
             out["bells"] = [w for w, m in acc.load(pk)["wallets"].items() if m.get("alert")]   # the page shows every bell as it is now
         else:
@@ -2586,7 +2633,7 @@ async def me_wallet_alert(request, pk):
     body = await _json_body(request)
     if body is None:
         return _jerr("Bad request body.")
-    cap = int(app["s"].get("alerts_max_wallets", 10))
+    cap = int(app["s"].get("alerts_max_wallets", 20))
     try:
         on, n = app["accounts"].set_wallet_alert(pk, str(body.get("wallet") or ""), bool(body.get("on")), cap)
     except acct_mod.AccountError as e:
@@ -2696,6 +2743,10 @@ async def me_page(request):
     a, wallets, analyses = _account_view(request.app, pk)
     lists = [dict(v, id=k, n=sum(1 for w in wallets if k in (w.get("lists") or []))) for k, v in a["lists"].items()]
     _view(request, "me")
+    # власник, 08.10: узятий готовий список лишається копією; коли вийшов новий місяць, вотчліст про це каже
+    names = {v.get("name") for v in a["lists"].values()}
+    new_ready = [dict(slug=k, title=v["title"]) for k, v in (request.app["ready"].get("lists") or {}).items()
+                 if v.get("rows") and v["title"] not in names and any(str(n or "").startswith(v["title"].split(" · ")[0] + " · ") for n in names)]
     tg = a.get("telegram") or {}
     # угоди за 7 днів, які бачив потік сповіщень (власник, 01.10) — лише для гаманців, за якими він стежить зараз: інакше
     # «0 угод» означало б «не стежили», а не «не торгував» (рев'ю 01.10)
@@ -2704,7 +2755,7 @@ async def me_page(request):
     live = _alerts_live(request.app)
     preview = not live and _private_host(request)
     s, alerts_ok = request.app["s"], _alerts_allowed(request.app, pk) and (live or preview)
-    cap = int(s.get("alerts_max_wallets", 10))
+    cap = int(s.get("alerts_max_wallets", 20))
     watched = alerts_mod.watch_map([a], request.app["admins"], bool(s.get("alerts_open")), cap,
                                    s.get("alerts_min_usd")) if alerts_ok else {}
     # дзвіночки на гаманцях і скільки алертів уже пішло сьогодні: лічильник угорі і рядок у картці (власник, 02.10)
@@ -2714,7 +2765,7 @@ async def me_page(request):
     wmeta = {w["wallet"]: dict({k: w.get(k) for k in ("my_tags", "lists", "added_ms")}, act=act.get(w["wallet"]), alert=bool(w.get("alert")),
                                sent_today=dc.count("s:" + pk + ":" + w["wallet"]) or None) for w in wallets}   # what the card shows, by wallet
     return render("me.html", request, wallets=wallets, analyses=analyses, max_my_tags=acct_mod.MAX_MY_TAGS, wmeta=wmeta, act=act,
-                  demo_mint=(demo or {}).get("mint"), lists=lists, max_lists=acct_mod.MAX_LISTS,
+                  demo_mint=(demo or {}).get("mint"), lists=lists, max_lists=acct_mod.MAX_LISTS, new_ready=new_ready,
                   alerts_ok=alerts_ok, alerts_preview=preview,   # без бота картка не обіцяє того, чого нема
                   after_on=_after_on(request),
                   alert_n=alert_n, watch_cap=cap, day_cap=day_cap, day_used=dc.count("a:" + pk),
@@ -3336,6 +3387,8 @@ def render(name, request, status=200, **ctx):
         ctx.setdefault("demo_token", (_demo(request.app) or {}).get("mint", ""))   # підвал веде на демо, якщо воно є
         ctx.setdefault("assistant_on", request.app.get("assistant") is not None)   # без ключа сторінки не обіцяють агента
         ctx.setdefault("early_note", EARLY_NOTE)
+        dark = str(request.app["s"].get("dark_theme", "draft"))      # власник, 08.10: темна — лише на закритій копії, поки не доведена
+        ctx.setdefault("dark_on", dark == "on" or (dark == "draft" and _private_host(request)))
     # аналітика вмикається лише там, де задано id, і ніколи на сторінках власника: там показується новий ключ API,
     # а сторонній скрипт на сторінці бачить усе, що на ній є
     admin_page = request is not None and request.path.startswith("/admin")
@@ -3497,32 +3550,436 @@ def _demo(app):
     return app["demo"]
 
 
-def _by_token(jobs, example_id=None):
-    """Один запис на токен: скільки діапазонів по ньому проаналізовано і що з них вийшло.
+LIVE_ROWS = 20            # «Live on tracced»: скільки останніх аналізів знає головна (на екрані — сім)
+IMAGES_PER_PASS = 10      # картинок токенів, які дочитуються за один фоновий прохід
 
-    На головній цікавий токен, а не окремий прогін: рядок веде на сторінку токена, де діапазони видно
-    на графіку і кожен відкривається своїм результатом.
-    """
-    groups = {}
-    for j in jobs:
-        groups.setdefault(j.mint, []).append(j)
-    out = []
-    for mint, js in groups.items():
-        done = [j for j in js if j.status == "done" and j.result]
-        best = max(((j.result.get("summary") or {}).get("best_multiple") or 0 for j in done), default=0)
-        out.append({
-            "mint": mint,
-            "symbol": next((j.symbol for j in js if j.symbol), mint[:6]),
-            "ranges": len(js),
-            "t_from": min(j.t_from for j in js),
-            "t_to": max(j.t_to for j in js),
-            "best": best,
-            "status": "running" if any(j.status in ("queued", "running") for j in js) else ("done" if done else "error"),
-            "example": any(j.id == example_id for j in js),
-            "at": max(j.created_ms or 0 for j in js),
-        })
-    out.sort(key=lambda g: (not g["example"], -g["at"]))               # приклад першим, далі найсвіжіші
+
+def _token_image(app, mint, info=None):
+    """Картинка токена: з аналізу, а ні — з кешу картинок (порожній рядок у кеші: у токена її нема, не питаємо знову)."""
+    img = (info or {}).get("image")
+    if img:
+        return img
+    hit = app["token_images"].get(mint) if app.get("token_images") is not None else None
+    return hit or None
+
+
+def _images_backfill(app, mints):
+    """Картинки токенів, аналізованих до того, як аналіз почав їх зберігати: фоном, по одному запиту на токен, не
+    більше IMAGES_PER_PASS за раз і лише коли ввімкнено (`token_images_backfill`). Сторінка не чекає: покаже наступному."""
+    cache = app.get("token_images")
+    if cache is None or app.get("images_busy") or not app["s"].get("token_images_backfill"):
+        return
+    todo = [m for m in dict.fromkeys(mints) if cache.get(m) is None][:IMAGES_PER_PASS]
+    if not todo:
+        return
+    app["images_busy"] = True
+
+    async def run():
+        st = app["st"]
+        try:
+            def work():
+                with st.meter():
+                    req0 = st.requests_here()
+                    for m in todo:
+                        try:
+                            cache.put(m, (st.token_info(m) or {}).get("image") or "")
+                        except Exception as ex:  # noqa: BLE001 — без картинки лишається літера
+                            log.info("token image %s: %s", m[:8], ex)
+                    cache.flush()
+                    return st.requests_here() - req0
+            n = await asyncio.to_thread(work)
+            _spend(app, "system", "images", st=n, bg=1)
+        finally:
+            app["images_busy"] = False
+    asyncio.get_running_loop().create_task(run())
+
+
+def _saved_counts(app, now=None):
+    """Скільки разів гаманці з кожного аналізу зберегли в списки (за `from_job` збереженого), раз на хвилину."""
+    now = time.time() if now is None else now
+    hit = app.get("saved_counts")
+    if hit and now - hit[0] < 60:
+        return hit[1]
+    counts = {}
+    try:
+        for a in app["accounts"].all():
+            for v in (a.get("wallets") or {}).values():
+                j = (v or {}).get("from_job")
+                if j:
+                    counts[j] = counts.get(j, 0) + 1
+    except Exception as ex:  # noqa: BLE001 — лічильник прикраса, сторінка відкривається без нього
+        log.info("saved counts: %s", ex)
+    app["saved_counts"] = (now, counts)
+    return counts
+
+
+READY_ORDER = ("top-traders",)            # власник, 08.10: один список; друга картка на головній пояснює, що це і навіщо
+
+
+def _ready_load(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+        if isinstance(d, dict) and isinstance(d.get("lists"), dict) and d.get("v") == READY_FORMAT:
+            return dict(d, busy=False)
+    except (OSError, ValueError):
+        pass
+    return {"lists": {}, "at": 0, "busy": False}
+
+
+READY_FORMAT = 5             # 08.10: один список з KOL і рейтингу, за місяць, наш леджер, лише люди; v5 — з прикладом алерту
+                              # для картки поруч; старі файли не читаємо: після деплою список рахується заново (~1 800 запитів)
+
+
+def _ready_month(app, wallet, month):
+    """Місяць кандидата нашим леджером (власник, 08.10). Обміни — від сьогодні назад до початку місяця, не більше
+    ready_profile_pages сторінок: хто їх переповнює, торгує тисячами угод і далі не рахується. Хто проходить темп, тому
+    дочитуються старі купівлі (для місяця і для 30 днів картки разом), і його картка лягає в кеш: зі списку вона
+    відкривається одразу, і гостю теж. → підсумок місяця (profile.summary)."""
+    st, s = app["st"], app["s"]
+    now = int(time.time() * 1000)
+    raw, partial = st.wallet_swaps(wallet, min(month["from"], now - 30 * 86_400_000), int(s.get("ready_profile_pages", 3)))
+    if partial:
+        return {"partial": True}
+    evs = [ev for r in reversed(raw) for ev in profile.normalize_wallet_swap(r, wallet)]   # джерело віддає новіші першими
+    pre = profile.summary(evs, wallet, month["to"], month["days"])
+    rules = dict(ready_mod.HUMAN, **(s.get("ready_human") or {}))
+    if pre["swaps"] > int(rules["max_swaps"]) or pre["tokens"] > int(rules["max_tokens"]):
+        return pre                               # темп машини: старі купівлі не дочитуємо, відсів скаже «pace»
+    need = list(dict.fromkeys(profile.needs_history(evs, month["to"], month["days"]) + profile.needs_history(evs, now, 30)))
+    hist, used = _profile_history(app, wallet, evs, now, 30, key="ready-history",
+                                  cap=int(s.get("ready_history_per_day", 3000)), need=need)
+    card = profile.card(evs, wallet, now, False, history=hist)
+    card["computed_ms"], card["history_requests"] = now, used
+    app["profile_cache"].put(f"v{profile.VERSION}:{wallet}", card)
+    out = profile.summary(evs, wallet, month["to"], month["days"], False, history=hist)
+    out["label"] = month["label"]                # картка на сторінці списку пише «in September», а не «in these 30 days»
+    out["best_tokens"] = profile.best_tokens(evs, month["to"], month["days"], history=hist, tx=True)   # на чому заробив за місяць
     return out
+
+
+def _ready_example(app, rows):
+    """Як алерт від трейдера зі списку виглядає в Telegram (власник, 08.10: «щоб було схоже на справжній телеграм, а не на
+    пародію»): дві його справжні угоди за місяць — перша купівля позиції і найбільший продаж з неї — тим самим кодом, що
+    шле справжні алерти (alerts.message). «🆕» — лише коли вся історія гаманця в токені (1 запит) починається з цієї
+    купівлі. Капа на момент угоди — ціна угоди × пропозиція токена (1 запит). Спершу трейдер з іменем; None, коли ні в
+    кого позиція не видна від першої купівлі."""
+    st, s = app["st"], app["s"]
+    if not hasattr(st, "wallet_token_trades"):
+        return None
+    for r in sorted(rows, key=lambda r: (not r.get("x"), -r["pnl"])):
+        for tok in ((r.get("month") or {}).get("best_tokens") or [])[:3]:
+            trs = sorted((x for x in tok.get("trades") or [] if len(x) >= 6 and x[5]), key=lambda x: x[0])
+            sells = [x for x in trs if x[1] == "s"]
+            if not trs or trs[0][1] != "b" or not sells:
+                continue                                         # початок позиції не видно: «🆕» був би вигадкою
+            buy, sell = trs[0], max(sells, key=lambda x: x[2])
+            bought = sum(float(x[3] or 0) for x in trs if x[1] == "b" and x[0] <= sell[0])
+            before = sum(float(x[3] or 0) for x in trs if x[1] == "s" and x[0] < sell[0])
+            if bought <= 0:
+                continue
+            try:
+                full = [e for e in (profile.history_event(t, tok["mint"]) for t in
+                                    st.wallet_token_trades(r["wallet"], tok["mint"], 2, fresh=True, store=False) or []) if e]
+            except Exception as ex:  # noqa: BLE001 — не перевірили, то й не показуємо
+                log.info("ready example %s: %s", tok["mint"][:8], ex)
+                continue
+            if not full or any(e["time"] < buy[0] for e in full):
+                continue                                         # тримав токен і до цієї купівлі: позиція не нова
+            total, step = round(100 * (before + float(sell[3] or 0)) / bought), round(100 * float(sell[3] or 0) / bought)
+            try:
+                supply = float((st.token_info(tok["mint"]) or {}).get("supply") or 0)
+            except Exception as ex:  # noqa: BLE001 — без пропозиції капа просто не пишеться
+                log.info("ready example %s: %s", tok["mint"][:8], ex)
+                supply = 0.0
+            cap = lambda price: float(price) * supply if price and supply else None
+            sizes = s.get("alerts_size_usd")
+            evb = {"side": "buy", "mint": tok["mint"], "usd": float(buy[2]), "new": True, "sig": buy[5]}
+            evs = {"side": "sell", "mint": tok["mint"], "usd": float(sell[2]), "all": total >= 99, "sig": sell[5],
+                   "total": min(total, 100), "step": step if before > 0 else None}
+            # без посилань: головну бачить і гість, а повна адреса гаманця і tx (у ньому той самий гаманець) віддали б
+            # трейдера зі списку, закритого для гостей (власник, 08.10); на вигляд нічого не змінюється
+            msg = lambda ev, price, ca: _A_HREF.sub("<a>", alerts_mod.message(ev, r["wallet"], {"tags": []},
+                                                                               {"symbol": tok.get("symbol"), "mcap": cap(price)}, ca=ca, sizes=sizes))
+            return {"msgs": [{"t": buy[0], "html": msg(evb, buy[4], True)}, {"t": sell[0], "html": msg(evs, sell[4], False)}]}
+    return None
+
+
+_A_HREF = re.compile(r'<a href="[^"]*">')
+
+
+def _ready_slim(rows):
+    """tx угод був потрібен лише прикладу алерту: у файл і на сторінку списку угоди йдуть без нього (~90 знаків на угоду)."""
+    for r in rows:
+        for t in ((r.get("month") or {}).get("best_tokens") or []):
+            t["trades"] = [x[:5] for x in t.get("trades") or []]
+    return rows
+
+
+def _ready_count(app, cands, month, facts):
+    """Кожен кандидат — його місяць нашим леджером і перевірка «схожий на людину». → (рядки, {причина відсіву: скільки})."""
+    s = app["s"]
+    rules = dict(ready_mod.HUMAN, **(s.get("ready_human") or {}))
+
+    def one(row):
+        f = dict(facts.get(row["wallet"]) or {})
+        f["type"] = f.get("type") or row.get("type")
+        why = ready_mod.by_facts(f, month["from"], rules)
+        if why:
+            return None, why                     # бот чи свіжий — до жодного запиту
+        try:
+            c = ready_mod.counted(row, _ready_month(app, row["wallet"], month))
+        except Exception as ex:  # noqa: BLE001 — без цього гаманця список лише коротший
+            log.info("ready count %s: %s", row["wallet"][:8], ex)
+            return None, "error"
+        why = ready_mod.not_human(c, month["from"], f, rules)
+        return (None, why) if why else (c, None)
+    with ThreadPoolExecutor(max_workers=4) as pool:      # лічильник запитів живе в контексті: копія на кожен
+        got = [f.result() for f in [pool.submit(contextvars.copy_context().run, one, r) for r in cands]]
+    dropped = {}
+    for _, why in got:
+        if why:
+            dropped[why] = dropped.get(why, 0) + 1
+    return [c for c, _ in got if c], dropped
+
+
+def _ready_due(app):
+    """Час рахувати: настав новий місяць, а списки ще за попередній (чи їх нема), і остання спроба була не щойно."""
+    s, r = app["s"], app["ready"]
+    if not s.get("ready_lists_on") or r.get("busy"):
+        return False
+    now = time.time() * 1000
+    key = ready_mod.prev_month(now)["key"]
+    lists = r.get("lists") or {}
+    if all((lists.get(k) or {}).get("month") == key for k in READY_ORDER):
+        return False
+    return now - (r.get("tried_at") or 0) >= float(s.get("ready_retry_hours", 3)) * 3_600_000
+
+
+async def _ready_refresh(app):
+    """Готові списки за минулий календарний місяць (власник, 08.10): раз на місяць, першого числа (UTC) — з фону
+    сервера, а не з чийогось перегляду. Кандидатів називає Solana Tracker (KOL і загальний рейтинг, ~11 запитів), коли
+    почав торгувати кожен — його пакетний запит (1 на 100); прибуток рахуємо самі. ~1 500 запитів за раз. Кожен список
+    оновлюється сам по собі: збій лишає попередній місяць, і причина йде в журнал."""
+    s, st, r = app["s"], app["st"], app["ready"]
+    if not _ready_due(app) or not hasattr(st, "kol_leaderboard"):
+        return
+    r["busy"], r["tried_at"] = True, int(time.time() * 1000)
+    try:
+        if not await _st_open(app):
+            log.warning("ready lists: the Solana Tracker balance is under the reserve, next try in %s h", s.get("ready_retry_hours", 3))
+            return
+        n, month = int(s.get("ready_candidates", 40)), ready_mod.prev_month(time.time() * 1000)
+
+        def work():
+            got = {}
+            with st.meter():
+                n0 = st.requests_here()
+                try:
+                    groups = []
+                    pages = int(s.get("ready_top_pages", 10))
+                    for name, fetch in (("kols", lambda: ready_mod.kols(st.kol_leaderboard(30, n), n)),
+                                        ("board", lambda: ready_mod.traders(st.top_traders(30, pages), n)),
+                                        ("board roi", lambda: ready_mod.traders(st.top_traders(30, int(s.get("ready_roi_pages", 10)), sort="roi"), n, by_board=True))):
+                        try:
+                            groups.append(fetch())
+                        except Exception as ex:  # noqa: BLE001 — інші рейтинги усе одно дадуть кандидатів
+                            log.warning("ready candidates %s: %s", name, ex)
+                    cands = ready_mod.merged(*groups)
+                    if not cands:
+                        return got
+                    facts = st.wallet_summaries([c["wallet"] for c in cands]) if hasattr(st, "wallet_summaries") else {}
+                    people, dropped = _ready_count(app, cands, month, facts)
+                    pool = [{k: v for k, v in r.items() if k != "month"} for r in sorted(people, key=lambda r: -r["pnl"])]
+                    rows = ready_mod.rank(people, min_pnl=float(s.get("ready_min_pnl", 10_000)))
+                    try:
+                        example = _ready_example(app, rows)
+                    except Exception as ex:  # noqa: BLE001 — без приклада картка покаже лише тези
+                        log.warning("ready example: %s", ex)
+                        example = None
+                    _ready_slim(people)                  # рядки обох списків — ті самі об'єкти
+                    got["top-traders"] = {"rows": rows, "funnel": ready_mod.funnel(len(cands), dropped, len(people), len(rows)),
+                                          "pool": pool[:200], "example": example}
+                    roi = ready_mod.rank_roi(people, min_invested=float(s.get("ready_roi_min_invested", 2000)),
+                                             min_pnl=float(s.get("ready_roi_min_pnl", 5000)))
+                    got["top-roi"] = {"rows": roi, "funnel": ready_mod.funnel(len(cands), dropped, len(people), len(roi)), "pool": []}
+                    log.info("ready lists %s: %s by profit, %s by ROI, of %s candidates, %s people, dropped %s",
+                             month["key"], len(rows), len(roi), len(cands), len(people), dropped)
+                finally:
+                    _spend(app, "system", "ready", st=st.requests_here() - n0)
+            return got
+        got = await asyncio.to_thread(work)
+        now = int(time.time() * 1000)
+        lists = dict(r.get("lists") or {})
+        for slug, d in got.items():
+            lists[slug] = dict(ready_mod.titled(slug, month), slug=slug, rows=d["rows"], summary=ready_mod.summary(d["rows"]), at=now,
+                               month=month["key"], label=month["label"], short=month["short"], next=month["next"],
+                               next_label=month["next_label"], funnel=d["funnel"], pool=d["pool"], example=d.get("example"))
+        data = {"v": READY_FORMAT, "lists": lists, "at": now if got else r.get("at") or 0}
+        path = app["ready_path"]
+        tmp = str(path) + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+        os.replace(tmp, path)
+        app["ready"] = dict(data, busy=False, tried_at=r["tried_at"])
+    except Exception as e:  # noqa: BLE001 — сторінки показують попередні списки
+        log.warning("ready lists: %s", e)
+    finally:
+        r["busy"] = False
+
+
+async def _ready_loop(app):
+    """Готові списки рахує фон сервера: за хвилину після старту (деплой) і далі щогодини дивиться, чи не настав новий
+    місяць. Сторінки не чекають і самі нічого не запускають."""
+    await asyncio.sleep(READY_FIRST_S)
+    while True:
+        try:
+            await _ready_refresh(app)
+        except Exception as e:  # noqa: BLE001
+            log.warning("ready loop: %s", e)
+        await asyncio.sleep(3600)
+
+
+READY_FIRST_S = 60
+
+
+def _ready_rows(lst):
+    """Рядки списку для сторінки: кожен гаманець з літерою, відтінком і короткою адресою на випадок, коли аватарки нема."""
+    out = []
+    for i, row in enumerate(lst.get("rows") or [], 1):
+        w = row["wallet"]
+        label = row.get("name") or (w[:4] + "…" + w[-4:])
+        roi = row.get("roi")
+        out.append(dict(row, rank=i, label=label, short=w[:4] + "…" + w[-4:], letter=label[:1].upper(), rv=_usd3(row["pnl"]),
+                        roi_text=None if roi is None else f"{'+' if roi >= 0 else '−'}{abs(round(roi * 100)):,}%",
+                        hue=int(hashlib.sha1(w.encode()).hexdigest()[:4], 16) % 360))
+    return out
+
+
+def _ready_follow_id(app, pk, lst):
+    """Список людини, у якому вже весь цей готовий список (та сама назва й усі гаманці), або None."""
+    if not pk:
+        return None
+    a = app["accounts"].load(pk)
+    lid = next((k for k, v in (a.get("lists") or {}).items() if v.get("name") == lst["title"]), None)
+    ws = a.get("wallets") or {}
+    return lid if lid and all(lid in ((ws.get(r["wallet"]) or {}).get("lists") or []) for r in lst["rows"]) else None
+
+
+def _ready_view(app, pk=None):
+    """Готовий список для головної: назва з місяцем, підсумок, п'ятеро перших і шостий у розмитті (власник, 08.10: як
+    колись список аналізів — видно, що далі є ще). Хто вже взяв список, бачить шлях у свій вотчліст. Коротший за
+    ready_min_rows не показується. Рахує фон сервера раз на місяць."""
+    lists, out = app["ready"].get("lists") or {}, []
+    for k in READY_ORDER:
+        if len((lists.get(k) or {}).get("rows") or []) < int(app["s"].get("ready_min_rows", 3)):
+            continue
+        rows = _ready_rows(lists[k])
+        out.append(dict(lists[k], top=rows[:5], peek=rows[5] if len(rows) > 5 else None, following=_ready_follow_id(app, pk, lists[k])))
+    return out
+
+
+def _ready_wallets(app):
+    return {r["wallet"] for lst in (app["ready"].get("lists") or {}).values() for r in lst.get("rows") or []}
+
+
+def _made_2x(result):
+    """Гаманці аналізу, що продали щонайменше вдвічі дорожче за вхід (ROI ≥ 2× з продажами)."""
+    return sum(1 for r in (result or {}).get("rows") or [] if (r.get("sells") or 0) > 0 and (r.get("multiple") or 0) >= 2)
+
+
+def _live_ago(ms, now_ms):
+    """«4 min ago» для стрічки на головній; далі сторінка оновлює це сама щопівхвилини."""
+    m = max(0, int((now_ms - (ms or 0)) // 60000))
+    return "just now" if m < 1 else f"{m} min ago" if m < 60 else f"{m // 60} h ago" if m < 1440 else f"{m // 1440} d ago"
+
+
+def _live_feed(app, now_ms=None):
+    """«Live on tracced» (власник, 05.10): люди відкривали чужі готові аналізи зі списку «Recently analyzed» і приймали їх
+    за висновки від нас, не розуміючи, що можуть зробити свій. Тепер це стрічка останніх аналізів будь-кого, без посилань:
+    видно, що й як часто аналізують, а дія на сторінці одна — вставити свій токен. Програвання демо сюди не потрапляють
+    (recent() їх не бачить), у демо своє посилання під полем."""
+    now_ms = int(time.time() * 1000) if now_ms is None else now_ms
+    rows, saved, missing = [], _saved_counts(app), []
+    for j in app["jobs"].recent(60):
+        if j.status == "error":
+            continue
+        r = j.result or {}
+        info = r.get("info") or {}
+        sym = str(j.symbol or info.get("symbol") or j.mint[:6])[:16]
+        img = _token_image(app, j.mint, info)
+        if not img:
+            missing.append(j.mint)
+        rows.append({"id": j.id, "symbol": sym, "letter": sym[:1].upper(), "image": img,
+                     "hue": int(hashlib.sha1(j.mint.encode()).hexdigest()[:4], 16) % 360,
+                     "running": j.status in ("queued", "running"), "wallets": (r.get("counts") or {}).get("n_early"),
+                     "cap": info.get("mcap") if isinstance(info.get("mcap"), (int, float)) and info.get("mcap") > 0 else None,
+                     "made2x": _made_2x(r), "saved": saved.get(j.id, 0), "at": j.created_ms or 0, "ago": _live_ago(j.created_ms, now_ms)})
+        if len(rows) >= LIVE_ROWS:
+            break
+    _images_backfill(app, missing)
+    day = sum(1 for j in list(app["jobs"].jobs.values()) if not j.replay and j.status != "error"
+              and now_ms - (j.created_ms or 0) < 86_400_000)
+    return {"rows": rows, "day": day}
+
+
+async def list_page(request):
+    """Готовий список гаманців: хто в ньому, за яким правилом, і кнопка взяти його собі разом зі сповіщеннями."""
+    app = request.app
+    slug = request.match_info.get("slug", "")
+    lst = (app["ready"].get("lists") or {}).get(slug)
+    if not lst or not lst.get("rows"):
+        raise web.HTTPNotFound(text="This list is not ready yet.")
+    if not request.get("acct"):                 # власник, 08.10: список — лише з підключеним гаманцем, щоб його не забирали
+        return render("lists.html", request, lst=lst, rows=[], rows_js=[], gate=True, following=None, others=[], alerts_ok=False)
+    following = _ready_follow_id(app, request["acct"], lst)
+    _view(request, "list", ref=slug)
+    rows = _ready_rows(lst)
+    # the page's script needs only who is in a row; the month's own tokens and trades stay out (the card has 7D/30D)
+    rows_js = [{k: r.get(k) for k in ("wallet", "name", "x", "avatar")} for r in rows]
+    return render("lists.html", request, lst=lst, rows=rows, rows_js=rows_js, following=following,
+                  others=[dict(v, slug=k) for k, v in (app["ready"].get("lists") or {}).items() if k != slug and v.get("rows")],
+                  alerts_ok=_alerts_allowed(app, request.get("acct")))
+
+
+@_acct_route
+async def me_follow_list(request, pk):
+    """Готовий список одним кліком (власник, 07.10): свій список з тією самою назвою (або наявний), десять гаманців у
+    ньому і дзвіночки на них, поки вистачає стелі. Telegram ще не підключено — дзвіночки чекають, сторінка про це скаже."""
+    app = request.app
+    body = await _json_body(request)
+    if body is None:
+        return _jerr("Bad request body.")
+    slug = str(body.get("slug") or "")
+    lst = (app["ready"].get("lists") or {}).get(slug)
+    if not lst or not lst.get("rows"):
+        return _jerr("This list is not ready yet. Try again in a minute.", 404)
+    acc = app["accounts"]
+    try:
+        a = acc.load(pk)
+        lid = next((k for k, v in (a.get("lists") or {}).items() if v.get("name") == lst["title"]), None)
+        if lid is None:
+            lid, _ = acc.create_list(pk, lst["title"])
+        items = [{"wallet": r["wallet"], "from_job": None, "mint": None, "symbol": None, "entry_mcap": 0,
+                  "invested_usd": 0, "multiple": 0, "tags": []} for r in lst["rows"]]
+        added, _ = acc.add_wallets(pk, items, lid)
+        cap = int(app["s"].get("alerts_max_wallets", 20))
+        if _alerts_allowed(app, pk):
+            acc.set_list_alerts(pk, lid, True, cap)
+    except acct_mod.AccountError as e:
+        return _jerr(str(e))
+    a = acc.load(pk)
+    on = sum(1 for r in lst["rows"] if ((a.get("wallets") or {}).get(r["wallet"]) or {}).get("alert"))
+    app["events"].add(pk, "list_follow", slug=slug, n=added, alerts=on)
+    return web.json_response({"ok": True, "list": lid, "name": lst["title"], "added": added, "alerts_on": on, "cap": cap,
+                              "alerts_ok": _alerts_allowed(app, pk), "telegram": bool((a.get("telegram") or {}).get("chat"))})
+
+
+async def live_json(request):
+    """Стрічка «Live on tracced» для сторінки, яка вже відкрита: нові аналізи додаються по одному. Без жодного запиту
+    назовні — лише те, що сервер і так тримає в пам'яті."""
+    live = _live_feed(request.app)
+    return web.json_response({"rows": live["rows"][:12], "day": live["day"]}, headers={"Cache-Control": "public, max-age=10"})
 
 
 async def index(request):
@@ -3531,12 +3988,6 @@ async def index(request):
     jobs = [j for j in jobs if j.status != "error"]                    # помилки на головній — шум
     sample, lines = _home_data(jobs)
     totals = _home_totals(app)
-    want = (demo_mod.read_override(str(Path(app["jobs"].dir).parent / "demo")).get("example_job")
-            or app["s"].get("example_job") or "")
-    example = app["jobs"].get(want) if want else None
-    if not example or example.status != "done":
-        done = [j for j in jobs if j.status == "done" and j.result and j.result.get("rows")]
-        example = min(done, key=lambda j: j.created_ms or 0) if done else None      # найстарший готовий = показовий
     my_n = len(app["accounts"].load(request["acct"])["analyses"]) if request.get("acct") else 0
     _view(request, "home")
     f, s = app["fresh"], app["s"]
@@ -3547,7 +3998,7 @@ async def index(request):
     if s.get("fresh_on") and f["ok_at"] and now_ms - f["ok_at"] < float(s.get("fresh_stale_hours", 3)) * 3_600_000:
         # вік рахується зараз, а не в момент оновлення; список, старший за кілька годин, не показується зовсім (рев'ю 30.09)
         fresh = [dict(r, age_h=max(0.0, (now_ms - r["created_ms"]) / 3_600_000) if r.get("created_ms") else None) for r in f["rows"]]
-    return render("index.html", request, tokens=_by_token(jobs, example.id if example else None),
+    return render("index.html", request, live=_live_feed(app), ready=_ready_view(app, request.get("acct")),
                   totals=totals, sample=sample, bg_lines=lines, my_n=my_n,
                   fresh=fresh, fresh_min=int((now_ms - f["ok_at"]) / 60_000) if f["ok_at"] else None)
 
@@ -3704,7 +4155,9 @@ async def token_page(request):
                 last.clear()
             last[gkey] = now_ms
             request.app["events"].add("guest", "view", page="token", ref=mint, src=src, dev=_device(request))
+    timg = _token_image(app, mint, info)
     return render("token.html", request, info=info, mint=mint, s=s, is_demo=bool(demo and demo["mint"] == mint), beta=beta,
+                  timg=timg, thue=int(hashlib.sha1(mint.encode()).hexdigest()[:4], 16) % 360,
                   runs_left=runs_left, runs_cap=runs_cap, notice=notice, limit_kind=limit_kind, reset_ms=_next_midnight_ms(), demo_mint=(demo or {}).get("mint"),
                   n_demo=len(demo["ranges"]) if demo and demo["mint"] == mint else 0, bounced=q.get("notice") == "demo", created=info.get("created_time") or 0, now=int(time.time() * 1000),
                   rows_json=json.dumps(rows), jobs_json=json.dumps(jobs_done), preset_json=json.dumps(preset))
@@ -4062,7 +4515,11 @@ async def job_page(request):
             or (app.get("ages") is not None and jr.get("dormant_at") is None)):
         app["jobs"].resume_enrich(job)
     exch, flab = _labels_for_page(job.result if result else None, _ix_names(request))
+    timg = _token_image(app, job.mint, (result or {}).get("info") or {})   # the token's picture by its name, as the home feed has it
+    if not timg:
+        _images_backfill(app, [job.mint])
     return render("job.html", request, job=job, save_id=job.canon or job.id, jstatus=status, result=result, s=app["s"], back=_back_link(job),
+                  timg=timg, thue=int(hashlib.sha1(job.mint.encode()).hexdigest()[:4], 16) % 360,
                   rows_json=_json_script(_table(result["rows"])) if result else "", bundle_min=tags.BUNDLE_MIN, burst_ms=tags.BURST_MS,
                   max_my_tags=acct_mod.MAX_MY_TAGS, is_admin=bool(request.get("acct")) and request.get("acct") in app["admins"],
                   age_read=wallet_age_mod.MAX_PAGES * wallet_age_mod.LIMIT,   # скільки транзакцій гаманця читає перевірка віку
@@ -4533,7 +4990,8 @@ async def job_enrich_json(request):
 async def wallet_profile_json(request):
     """The wallet's last days on every token, counted by our own ledger from its raw swaps: PnL, win rate, holds.
 
-    1-5 requests, cached for a day. Only wallets that appear in this analysis are looked up (the site does not
+    1-5 requests, plus one for each token it sold in the window but bought before it (its real cost; up to 25, from
+    the site's daily cap rather than the person's), cached for a day. Only wallets that appear in this analysis are looked up (the site does not
     resell Solana Tracker for arbitrary addresses), or, without `job`, a wallet the connected person keeps in a
     list (the card in Lists): it came from an analysis when it was saved. A cached profile is free for anyone; a
     new one needs a connected wallet and is paid from the same daily budget as charts."""
@@ -4549,6 +5007,9 @@ async def wallet_profile_json(request):
     if job is not None:
         if wallet not in {r.get("wallet") for r in job.result.get("rows") or []}:
             raise web.HTTPNotFound(text="That wallet is not in this analysis.")
+    elif wallet in _ready_wallets(app):
+        if not request.get("acct"):                              # гаманець готового списку — лише тим, хто підключився (08.10)
+            raise ConnectRequired(message="Connect a wallet to see the traders of the list.")
     elif not request.get("acct"):
         raise ConnectRequired(message="Connect a wallet to load this wallet's last 30 days.")
     elif wallet not in (app["accounts"].load(request["acct"]).get("wallets") or {}):
@@ -4567,11 +5028,14 @@ async def wallet_profile_json(request):
     def work():
         with st.meter():
             req0 = st.requests_here()
+            hist = [0]
             try:
-                return _profile_now(app, wallet)
+                out = _profile_now(app, wallet)
+                hist[0] = int(out.get("history_requests") or 0)
+                return out
             finally:
                 n = st.requests_here() - req0
-                settle(n)
+                settle(n - hist[0])        # старі купівлі токенів дочитуються з добової стелі сайту, не людини
                 _spend(app, pk, "card-profile", st=n, job=(job.canon or job.id) if job else None)
     try:
         out = await asyncio.to_thread(work)
@@ -4581,16 +5045,60 @@ async def wallet_profile_json(request):
     return web.json_response(out)
 
 
-def _profile_now(app, wallet):
-    """30 днів гаманця нашим леджером, зараз: 1-5 запитів, і відповідь лягає в кеш картки (його ж читає дашборд власника).
-    Кличеться в потоці, під лічильником запитів того, хто питає."""
+def _profile_history(app, wallet, evs, now, days, key="profile-history", cap=None, need=None):
+    """Власник, 07.10: прибуток у картці — за датою продажу. Токен, проданий у вікні, але куплений раніше, бере
+    собівартість зі своєї повної історії: `/trades/{mint}/by-wallet/{wallet}`, 1 запит на сторінку, свіжа (у кеші
+    може бракувати останніх продажів). Не більше `profile_history_tokens` токенів на картку, від найбільших продажів,
+    і не більше `profile_history_per_day` таких запитів на весь сайт за добу; решта лишається «без купівлі» і в PnL не
+    входить. Повертає (історії по токенах, скільки запитів пішло)."""
     st, s = app["st"], app["s"]
-    days, pages = int(s.get("profile_days", 30)), int(s.get("profile_max_pages", 5))
+    need = profile.needs_history(evs, now, days) if need is None else need
+    if not need or not hasattr(st, "wallet_token_trades"):
+        return {}, 0
+    daily = app["browse_daily"]
+    room = daily.left(key, int(cap if cap is not None else s.get("profile_history_per_day", 3000)))
+    picked = need[:max(0, min(int(s.get("profile_history_tokens", 25)), room))]
+    if not picked:
+        return {}, 0
+    sym = {}
+    for e in evs:
+        sym.setdefault(e.get("mint"), e.get("symbol"))
+    pages = int(s.get("profile_history_pages", 4))
+
+    def one(mint):
+        try:
+            return st.wallet_token_trades(wallet, mint, pages, fresh=True, store=False)
+        except Exception as ex:  # noqa: BLE001 — токен лишиться «без купівлі», картка однаково відкриється
+            log.info("card history %s %s: %s", wallet[:8], mint[:8], ex)
+            return None
+    req0 = st.requests_here()
+    with ThreadPoolExecutor(max_workers=min(4, len(picked))) as pool:   # лічильник запитів живе в контексті: копія на кожен
+        futs = [(m, pool.submit(contextvars.copy_context().run, one, m)) for m in picked]
+        got = [(m, f.result()) for m, f in futs]
+    used = st.requests_here() - req0
+    daily.add(key, used)
+    hist = {}
+    for mint, trs in got:
+        h = [x for x in (profile.history_event(t, mint, sym.get(mint)) for t in trs or []) if x]
+        if h:
+            hist[mint] = h
+    return hist, used
+
+
+def _profile_now(app, wallet, pages=None, history_key="profile-history", history_cap=None):
+    """30 днів гаманця нашим леджером, зараз: 1-5 запитів на обміни і по запиту на кожен токен, куплений до вікна
+    (_profile_history); відповідь лягає в кеш картки (його ж читає дашборд власника). Кличеться в потоці, під
+    лічильником запитів того, хто питає. Готові списки читають більше сторінок і платять за старі купівлі зі своєї
+    добової стелі, не з людської."""
+    st, s = app["st"], app["s"]
+    days, pages = int(s.get("profile_days", 30)), int(pages or s.get("profile_max_pages", 5))
     now = int(time.time() * 1000)
     raw, partial = st.wallet_swaps(wallet, now - days * 86_400_000, pages)
     evs = [ev for r in reversed(raw) for ev in profile.normalize_wallet_swap(r, wallet)]   # джерело віддає новіші першими
-    out = profile.card(evs, wallet, now, partial)
+    hist, used = _profile_history(app, wallet, evs, now, days, key=history_key, cap=history_cap)
+    out = profile.card(evs, wallet, now, partial, history=hist)
     out["computed_ms"] = now
+    out["history_requests"] = used
     app["profile_cache"].put(f"v{profile.VERSION}:{wallet}", out)
     return out
 

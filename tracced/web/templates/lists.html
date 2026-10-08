@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}{{ lst.title }} · tracced{% endblock %}
+{% block main_class %}withcard{% endblock %}
+{% block head %}<script src="/static/vendor/lightweight-charts.standalone.production.js?v={{ v }}"></script><script src="/static/chart.js?v={{ v }}"></script><script src="/static/card.js?v={{ v }}"></script>{% endblock %}
+{% block body %}
+{# a ready list (owner, 07.10): who is in it, by which rule, and one key to take all of it with alerts. A row opens the
+   wallet's card. The ranking and its sums are Solana Tracker's; the card's 30 days are counted by tracced from swaps #}
+{% macro sub(r) %}{% set bits = [] %}{% if r.x %}{% set _ = bits.append('@' ~ r.x) %}{% endif %}{% if r.win_rate is not none %}{% set _ = bits.append((r.win_rate|round|int) ~ '% win rate') %}{% endif %}{% set _ = bits.append(r.wins ~ 'W ' ~ r.losses ~ 'L') %}{% if not r.x %}{% set _ = bits.append(r.tokens ~ ' tokens') %}{% endif %}{{ bits|join(' · ') }}{% endmacro %}
+{% macro face(r) %}<span class="limg" data-l="{{ r.letter }}" style="--h: {{ r.hue }}" aria-hidden="true">{% if r.avatar %}<img src="{{ r.avatar }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span>{% endmacro %}
+<section class="card lpage">
+  <div class="lp-top">
+    <div class="lp-id">
+      <h1>{{ lst.title }}</h1>
+      <p class="muted lp-rule">{{ lst.rule }}</p>
+    </div>
+    {% if not gate %}<div class="lp-bar">
+      {% if following %}<a class="button" href="/me#list" data-open-list="{{ following }}">Open in your watchlist</a>
+      {% else %}<button type="button" class="primary" data-follow="{{ lst.slug }}" data-n="{{ lst.summary.n }}" data-go="1">{{ icon('bell') }}Follow {{ lst.summary.n }} wallets</button>{% endif %}
+    </div>{% endif %}
+  </div>
+  {% if gate %}
+  {# owner, 08.10: the list is for connected wallets only, so it cannot be taken without connecting #}
+  <div class="lp-gate"><p>Connect a wallet to see the {{ lst.summary.n }} traders of this list and follow them.</p><button type="button" class="primary" data-wallet-signin data-wallet-note="Connect a wallet to see the list.">Connect a wallet</button></div>
+  {% else %}
+  <div class="lp-tally">
+    {% if lst.kind == 'roi' %}<div><b class="mono pos">{{ rows[0].roi_text if rows else '—' }}</b><span>Best ROI</span></div>{% endif %}
+    <div><b class="mono pos">+{{ lst.summary.pnl|usd3 }}</b><span>Profit</span></div>
+    {% if lst.kind != 'roi' %}<div><b class="mono pos">+{{ lst.summary.best|usd3 }}</b><span>Best</span></div>{% endif %}
+    <div><b class="mono">{{ lst.summary.n }}</b><span>Wallets</span></div>
+    <div><b class="mono">{{ lst.next_label }}</b><span>Next update</span></div>
+  </div>
+  <ol class="lp-rows">
+  {% for r in rows %}
+    <li data-w="{{ r.wallet }}" tabindex="0" title="Open this wallet's card">
+      <span class="rk">{{ r.rank }}</span>{{ face(r) }}
+      <span class="nm"><b{% if not r.name %} class="mono"{% endif %}>{{ r.label }}</b><small>{% if lst.kind == 'roi' %}+{{ r.rv }} profit · {% endif %}{{ sub(r) }}</small></span>
+      <b class="mono pos rv">{% if lst.kind == 'roi' %}{{ r.roi_text }}{% else %}+{{ r.rv }}{% endif %}</b>
+    </li>
+  {% endfor %}
+  </ol>
+  {% endif %}
+  {% for o in others %}<p class="lp-other small">Also: <a href="/lists/{{ o.slug }}">{{ o.title }}</a></p>{% endfor %}
+</section>
+{% if not gate %}
+<aside class="drawer wcard" id="drawer" hidden aria-label="Wallet card">
+  <div class="drawer-scroll">
+    <div class="drawer-head">
+      <div class="dh-id">
+        <span class="wav" id="dav" aria-hidden="true"></span>
+        <div class="dh-names">
+          <div class="dh-top"><b id="dname">Wallet</b><span class="ids" id="dids"></span></div>
+          <div class="dh-addr"><button type="button" class="dwc mono" id="dw" data-copy="" title="Copy the address" aria-label="Copy the address"></button><a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan" aria-label="This wallet on Solscan">{{ icon('launch') }}</a></div>
+        </div>
+      </div>
+      <div class="dh-act"><button type="button" class="ghost x" id="dclose" title="Close" aria-label="Close">×</button></div>
+    </div>
+    <section class="dsec dperf">
+      <div class="dsec-h"><h4>Performance <span class="dinfo" id="dprofi" hidden>i</span></h4>
+        <div class="seg" id="dper" role="tablist" aria-label="Period"><button type="button" data-p="7">7D</button><button type="button" data-p="30" class="on">30D</button></div></div>
+      <div id="dprof"></div>
+    </section>
+  </div>
+</aside>
+<script type="application/json" id="lprows">{{ rows_js|tojson }}</script>
+<script>
+(function () {
+  const rows = JSON.parse(document.getElementById('lprows').textContent), byW = {};
+  rows.forEach(r => { byW[r.wallet] = r; });
+  const drawer = document.getElementById('drawer'), box = document.getElementById('dprof'), info = document.getElementById('dprofi');
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // owner, 08.10: the card is the same as on an analysis — 7D and 30D and Recent/Best, no month tab: the month is the
+  // list itself. The card was cached when the list was counted, so it opens at once
+  const list = document.querySelector('.lp-rows'), cache = new Map(), failed = new Map(); let period = '30';
+  const data = w => cache.get(w) || { periods: {} };
+  function paint(w) {
+    const all = data(w);
+    document.querySelectorAll('#dper [data-p]').forEach(b => b.classList.toggle('on', b.dataset.p === period));
+    if (all.periods[period]) { EarlyCard.render(all, period, box, info); return; }
+    info.hidden = true;
+    const why = failed.get(w);
+    if (!why) { box.innerHTML = '<div class="dskel"><i></i><i></i><i></i></div>'; return; }
+    box.innerHTML = '<p class="dline muted small">' + esc(why.text) + '</p>'
+      + (why.connect ? '<p class="dline"><button type="button" class="primary" id="dconnect">Connect a wallet</button></p>' : '');
+    const c = document.getElementById('dconnect');
+    if (c) c.addEventListener('click', () => EarlyWallet.open(() => { failed.delete(w); load(w); }, 'Connect a wallet to see this trader’s last 7 and 30 days.'));
+  }
+  async function load(w) {
+    paint(w);
+    if (cache.has(w) || failed.has(w)) return;
+    let r, d = {};
+    try { r = await fetch('/wallet_profile.json?' + new URLSearchParams({ wallet: w }), { credentials: 'same-origin' }); d = await r.json(); }
+    catch (e) { failed.set(w, { text: 'Could not reach the server.' }); if (drawer.dataset.w === w) paint(w); return; }
+    if (!r.ok) failed.set(w, { text: d.error || 'Could not load this wallet.', connect: r.status === 401 });
+    else cache.set(w, d);
+    if (drawer.dataset.w === w) paint(w);
+  }
+  function open(w) {
+    const r = byW[w] || {};
+    drawer.dataset.w = w; drawer.hidden = false; document.body.classList.add('drawer-open');
+    list.querySelectorAll('li.on').forEach(x => x.classList.remove('on'));
+    const li = list.querySelector('li[data-w="' + w + '"]'); if (li) li.classList.add('on');
+    document.getElementById('dav').innerHTML = r.avatar ? '<img src="' + esc(r.avatar) + '" alt="" referrerpolicy="no-referrer">' : EarlyCard.identicon(w);
+    document.getElementById('dname').textContent = r.name || 'Wallet';
+    document.getElementById('dids').innerHTML = r.x ? '<a class="ext small" href="https://x.com/' + encodeURIComponent(r.x) + '" target="_blank" rel="noopener">@' + esc(r.x) + '</a>' : '';
+    const dw = document.getElementById('dw'); dw.textContent = w.slice(0, 4) + '…' + w.slice(-4); dw.dataset.copy = w; dw.title = w + ' · click to copy';
+    document.getElementById('dsol').href = 'https://solscan.io/account/' + w;
+    document.getElementById('dclose').focus({ preventScroll: true });
+    EarlyUI.use('card-open', { src: 'list' });
+    load(w);
+  }
+  function close() {
+    const w = drawer.dataset.w; drawer.hidden = true; document.body.classList.remove('drawer-open');
+    const li = w && list.querySelector('li[data-w="' + w + '"]'); if (li) { li.classList.remove('on'); li.focus({ preventScroll: true }); }
+  }
+  list.addEventListener('click', e => { const li = e.target.closest('li[data-w]'); if (li) open(li.dataset.w); });
+  list.addEventListener('keydown', e => { const li = e.target.closest('li[data-w]'); if (li && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(li.dataset.w); } });
+  document.getElementById('dclose').addEventListener('click', close);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !drawer.hidden) close(); });
+  document.getElementById('dper').addEventListener('click', e => {
+    const b = e.target.closest('[data-p]'); if (!b) return;
+    period = b.dataset.p; EarlyUI.use('card-period', { p: period });
+    if (drawer.dataset.w) paint(drawer.dataset.w);
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -219,6 +219,40 @@ class EarlyST(SolanaTracker):
                 partial = True                          # сторінки скінчились, а до потрібної дати ще не дійшли
         return out, partial
 
+    def wallet_summaries(self, wallets):
+        """When each wallet first traded and whether Solana Tracker takes it for an arbitrage bot: `POST
+        /v2/pnl/wallets/batch`, 100 wallets a request. {wallet: {"first_trade": ms or None, "arbitrage": bool, "type": str}}."""
+        out, wallets = {}, list(dict.fromkeys(w for w in wallets if w))
+        for i in range(0, len(wallets), 100):
+            d = self._get("/v2/pnl/wallets/batch", body={"wallets": wallets[i:i + 100]}) or {}
+            for x in d.get("wallets") or []:
+                timing = ((x.get("summary") or {}).get("timing")) or {}
+                ft = timing.get("firstTrade")
+                out[x.get("wallet")] = {"first_trade": int(ft) if isinstance(ft, (int, float)) and ft > 0 else None,
+                                        "arbitrage": bool((x.get("tags") or {}).get("isArbitrage")),
+                                        "type": (x.get("identity") or {}).get("type")}
+        return out
+
+    def kol_leaderboard(self, days=30, limit=10):
+        """KOL roster by realized profit over the last `days` (1 request): rows with wallet, period, identity."""
+        d = self._get(f"/v2/pnl/leaderboard/kols/period?period={int(days)}d&sort=realized&direction=desc&limit={int(limit)}")
+        return d.get("traders") or []
+
+    def top_traders(self, days=30, pages=10, per_page=100, sort="realized"):
+        """All-wallet leaderboard by realized profit, `pages` cursor pages (1 request each). The board's own filters
+        drop thin and one-token wallets; whether a person is behind the rest is ready.is_person's job."""
+        base = (f"/v2/pnl/leaderboard/top?days={int(days)}&sort={'roi' if sort == 'roi' else 'realized'}&direction=desc&limit={int(per_page)}"
+                "&minTrades=40&minDays=10&maxSingleTokenPct=35&minInvested=2000&minClosedTokens=10")   # 08.10: 41 людського темпу проти 39
+        out, cursor = [], None
+        for _ in range(int(pages)):
+            d = self._get(base + (f"&cursor={urllib.parse.quote(str(cursor))}" if cursor else ""))
+            out.extend(d.get("traders") or [])
+            p = d.get("pagination") or {}
+            cursor = p.get("nextCursor")
+            if not p.get("hasMore") or not cursor:
+                break
+        return out
+
     def flush(self):
         super().flush()
         for c in (self.chart_cache, self.stats_cache, self.identity_cache):

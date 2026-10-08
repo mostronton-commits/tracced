@@ -1,0 +1,11 @@
+{# under a token's title (owner, 08.10, «як на OpenSea, зручно»): the chain, its age, «New» for its first day, where it was
+   launched; then its address (a click copies it), Solscan and its X. Each chip is a fact, none is a link but those #}
+{% set born = tc_created or 0 %}
+<div class="tchips">
+  <span class="tchip">Solana</span>
+  {% if born %}<span class="tchip" title="Created {{ born|dty }}">{{ born|age }}</span>{% if now - born < 86400000 %}<span class="tchip new">New</span>{% endif %}{% endif %}
+  {% if tc_launchpad %}<span class="tchip" title="Where the token was launched">{{ tc_launchpad|replace('https://','')|replace('http://','')|replace('www.','')|replace('.com','')|replace('/','') }}</span>{% endif %}
+  <button type="button" class="dwc mono tc-addr" data-copy="{{ tc_mint }}" title="Copy the token address: {{ tc_mint }}" aria-label="Copy the token address">{{ tc_mint[:4] }}…{{ tc_mint[-4:] }}</button>
+  <a class="ext" href="https://solscan.io/token/{{ tc_mint }}" target="_blank" rel="noopener" title="Token on Solscan" aria-label="Token on Solscan">{{ icon('launch') }}</a>
+  {% if tc_x %}<a class="ext" href="{{ tc_x }}" target="_blank" rel="noopener" title="The project's X" aria-label="The project's X">𝕏</a>{% endif %}
+</div>

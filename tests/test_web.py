@@ -360,30 +360,86 @@ if AioHTTPTestCase:
             self.assertIn(f'data-count="{100 * len(done)}"', html)
             self.assertTrue(_re.search(r'data-count="\d+" data-fmt="int">0</b><span>wallets on the record', html))
 
-        async def test_home_lists_ten_tokens_and_blurs_the_eleventh(self):
-            # власник, 05.10: список на головній ріс без кінця — десять токенів, одинадцятий розмитий і без посилання
+        async def test_home_live_feed_brings_the_newest_one_by_one_and_leads_nowhere(self):
+            # власник, 05.10 і 07.10: чужі готові аналізи зі списку приймали за наші висновки. Тепер «Live on tracced» —
+            # стрічка без посилань: на екрані сім, троє найновіших чекають у шаблоні й заходять по одному; далі сторінка
+            # питає /live.json. Нічого не крутиться по колу
+            import re as _re
             q = self.app["jobs"]
             mints = [chr(ord("B") + i) * 40 for i in range(12)]
             for m in mints:
                 q.submit(m, 999999960000, 1000001160000)
                 await asyncio.to_thread(q.q.join)
+                await asyncio.sleep(0.003)                             # кожен наступний пізніший: у ту саму мілісекунду порядок випадковий
             html = await (await self.client.get("/")).text()
-            self.assertEqual(html.count('<a class="rrow'), 10)
-            self.assertEqual(html.count('class="rrow more" aria-hidden="true"'), 1)
-            shown = [m for m in mints if f"/token?mint={m}" in html]
-            self.assertEqual(len(shown), 10)                               # дванадцятий не рендериться зовсім
-            self.assertEqual(html.count('class="rrow'), 11)
+            feed = html[html.index('id="live"'):html.index("</section>", html.index('id="live"'))]
+            shown = feed[:feed.index("<template")]
+            queued = feed[feed.index("<template"):]
+            self.assertEqual(shown.count('class="lrow"'), 7)
+            self.assertEqual(queued.count('class="lrow"'), 3)
+            newest = mints[-1][:6]
+            self.assertIn(f'data-id="{newest}', queued)                # найновіший прийде з черги, а не стоїть одразу
+            self.assertNotIn(f'data-id="{newest}', shown)
+            self.assertNotIn("<a ", feed.split("<p", 2)[-1].split("</p>", 1)[-1])   # жоден рядок не посилання
+            for m in mints:
+                self.assertNotIn(f'href="/token?mint={m}"', feed)
+            self.assertNotIn("lfeed-track", html)                      # без каруселі по колу
+            self.assertNotIn("in the last 24 h", html)                 # власник, 08.10: лічильник і підпис стрічки — зайві
+            self.assertNotIn("What traders are analyzing", html)
+            self.assertNotIn("My analyses (", html)
+            self.assertTrue(_re.search(r'data-ago="\d+">just now<', feed))
+            self.assertNotIn("Recently analyzed", html)
+            self.assertNotIn("best ", feed)                            # «best 11×» ні про що не говорив
+            r = await self.client.get("/live.json")
+            self.assertEqual(r.status, 200)
+            d = await r.json()
+            self.assertEqual(d["day"], 12)
+            self.assertEqual(len(d["rows"]), 12)
+            self.assertEqual(d["rows"][0]["id"][:6], newest)
+            self.assertEqual(set(d["rows"][0]) >= {"id", "symbol", "letter", "image", "hue", "running", "wallets", "made2x", "saved", "at"}, True)
 
-        async def test_home_groups_by_token_and_token_page_lists_its_analyses(self):
-            # головна = один рядок на токен; сторінка токена показує його готові діапазони з сервера
+        async def test_home_feed_row_says_saved_wallets_and_nothing_made_up(self):
+            # власник, 07.10: рядок — тікер і одна фраза. Збережені гаманці, коли їх справді зберегли; інакше (08.10) — нічого:
+            # ні капи, ні «made 2×+». Вигаданих чисел нема: лічильник — за `from_job` збережених у списках
+            import time as _time
+            jid, mint = "FEEDFE_20010909-0146_0206", "F" * 40
+            rows = [{"wallet": f"W{i}", "sells": 1, "multiple": m} for i, m in enumerate((2.5, 1.2, 9.0))] + [{"wallet": "W9", "sells": 0, "multiple": 5.0}]
+            stored = {"id": jid, "mint": mint, "t_from": 999999960000, "t_to": 1000001160000, "t_exit": None, "status": "done", "error": None,
+                      "created_ms": int(_time.time() * 1000), "started_ms": 1, "finished_ms": 2, "symbol_hint": "FED",
+                      "progress": {"phase": "done", "done": 1, "total": 1}, "log": [],
+                      "result": {"info": {"mint": mint, "symbol": "FED", "image": "https://image.solanatracker.io/proxy?url=x", "mcap": 2_500_000},
+                                 "counts": {"n_early": 4}, "rows": rows, "window": {"from": 999999960000, "to": 1000001160000}}}
+            with open(f"{self.tmp.name}/web/{jid}.json", "w") as f:
+                json.dump(stored, f)
+            self.app["jobs"]._load()
+            self.app["accounts"]._update(TEST_PK, lambda a: a.setdefault("wallets", {}).update({"W0": {"from_job": jid}, "W2": {"from_job": jid}}))
+            self.app.pop("saved_counts", None)
+            html = await (await self.client.get("/")).text()
+            feed = html[html.index('id="live"'):html.index("</section>", html.index('id="live"'))]
+            self.assertIn("saved 2 wallets", feed)
+            self.assertIn("#i-star-on", feed)                          # зірка зі спрайта, а не порожнє місце
+            self.assertNotIn("#i-i-", feed)
+            self.assertNotIn("$2.5M cap", feed)                        # одна фраза на рядок
+            self.assertNotIn("made 2×+", feed)
+            self.app["accounts"]._update(TEST_PK, lambda a: a["wallets"].clear())
+            self.app.pop("saved_counts", None)
+            feed = (await (await self.client.get("/")).text()).split('id="live"', 1)[1]
+            self.assertNotIn("made 2×+", feed)                         # власник, 08.10: незрозуміло, хто зробив 2× — прибрано
+            self.assertNotIn(" cap<", feed)                             # і капа токена тут не потрібна
+            self.assertNotIn("found ", feed)                           # власник, 08.10: «found 180 wallets» ні про що не каже
+            self.assertIn('src="https://image.solanatracker.io/proxy?url=x"', feed)   # картинка токена з аналізу
+
+        async def test_home_feed_and_token_page_list_the_analyses(self):
+            # стрічка — один рядок на аналіз; сторінка токена показує його готові діапазони з сервера
             await self.client.get(f"/token?mint={MINT}")
             for a, b in (("2001-09-09T01:46", "2001-09-09T02:06"), ("2001-09-09T02:20", "2001-09-09T02:40")):
                 await self.client.post("/analyze", data={"mint": MINT, "from": a, "to": b}, allow_redirects=False)
             await asyncio.to_thread(self.app["jobs"].q.join)
             html = await (await self.client.get("/")).text()
-            self.assertIn(f'href="/token?mint={MINT}"', html)              # рядок веде на токен, не на прогін
-            self.assertIn("2 ranges", html)
-            self.assertEqual(html.count('class="rrow'), 1)                 # один токен — один рядок
+            feed = html[html.index('id="live"'):html.index("</section>", html.index('id="live"'))]
+            self.assertEqual(feed.count('class="lrow"'), 2)                # мало — усі одразу, без черги
+            self.assertIn('class="lfeed few"', feed)
+            self.assertNotIn("<template", feed)
             import re as _re, json as _json, html as _html
             page = await (await self.client.get(f"/token?mint={MINT}")).text()
             rows = _json.loads(_html.unescape(_re.search(r"data-rows='([^']*)'", page).group(1)))
@@ -429,6 +485,16 @@ if AioHTTPTestCase:
             r = await self.client.get("/project", allow_redirects=False, headers=GUEST)
             self.assertEqual((r.status, r.headers["Location"]), (302, "/docs/project"))   # стара адреса сторінки проєкту жива
             self.assertEqual(self.st.requests, before)                  # сторінки й демо — без запитів
+            home = await (await self.client.get("/", headers=GUEST)).text()
+            # власник, 08.10 (реліз 0.7.3): демо — лише посиланням унизу (рядок стану й підвал), не карткою під полем
+            self.assertNotIn("herodemo", home)
+            self.assertIn(f'<a href="/token?mint={MINT}">Demo</a>', home)
+            self.assertEqual(self.st.requests, before)                  # і жодного запиту за неї
+            home = await (await self.client.get("/")).text()
+            self.assertNotIn("herodemo", home)
+            self.assertIn(f'<span class="sb-links"><a href="/token?mint={MINT}">Demo</a>', home)
+            self.assertNotIn("No token at hand", home)                 # власник, 07.10: з гаманцем — без цього рядка
+            self.assertIn("x.com/intent/follow?screen_name=tracced_xyz", home)   # безкоштовно, поки будуємо: підписка на X
             r = await self.client.get(f"/token?mint={other}", headers=GUEST)
             html = await r.text()
             self.assertEqual(r.status, 200)                             # гість бачить голий графік і ставить межі
@@ -558,6 +624,53 @@ if AioHTTPTestCase:
             self.assertEqual(r.status, 200)                             # з кешу — навіть гостю
             self.assertEqual(self.st.requests - before, 1)              # і без другого запиту
             self.app["admins"] = {TEST_PK}
+
+        async def test_wallet_card_counts_a_sale_at_the_cost_of_an_older_buy(self):
+            # власник, 07.10: прибуток за датою продажу. Проданий токен без купівлі в 30 днях — картка дочитує його історію;
+            # людина платить лише за обміни, дочитане йде з добової стелі сайту
+            import time as _time
+            jid, mint = "EEEEEF_20010909-0146_0206", "E" * 40
+            listed = acct_mod.b58encode(b"\x09" * 32)
+            stored = {"id": jid, "mint": mint, "t_from": 999999960000, "t_to": 1000001160000, "t_exit": None, "status": "done", "error": None,
+                      "created_ms": 1, "started_ms": 1, "finished_ms": 2, "symbol_hint": "EEE", "progress": {"phase": "done", "done": 1, "total": 1}, "log": [],
+                      "result": {"info": {"mint": mint, "symbol": "EEE", "supply": 1000000, "created_time": 999996400000},
+                                 "window": {"from": 999999960000, "to": 1000001160000, "end": 1000003560000}, "mode": "wallet-trades",
+                                 "counts": {"n_wallets": 1, "n_trades": 3, "n_early": 1}, "coverage": {"exits_known": 0, "total": 1, "mode": "wallet-trades"},
+                                 "wallet_trades": {}, "rows": [{"wallet": listed}], "scope": "all", "requests": 0}}
+            with open(f"{self.tmp.name}/web/{jid}.json", "w") as f:
+                json.dump(stored, f)
+            self.app["jobs"]._load()
+            sol, day = "So11111111111111111111111111111111111111112", 86_400_000
+            sold_at = int(_time.time() * 1000) - 25 * day
+
+            def swaps(owner, since_ms, max_pages=5):              # у 30 днях — лише продаж
+                self.st.requests += 1
+                return [{"tx": "s1", "wallet": owner, "time": sold_at, "from": {"address": "TOKX", "amount": 1000, "token": {"symbol": "TOKX"}},
+                         "to": {"address": sol, "amount": 3.0}, "volume": {"usd": 300.0, "sol": 3.0}}], False
+
+            asked = []
+
+            def by_wallet(wallet, m, max_pages=4, fresh=False, store=True):
+                self.st.requests += 1
+                asked.append((m, fresh, store))
+                return [{"wallet": wallet, "type": "buy", "time": sold_at - 15 * day, "qty": 1000, "usd": 100.0, "sol": 1.0, "price": 0.1, "tx": "b0"},
+                        {"wallet": wallet, "type": "sell", "time": sold_at, "qty": 1000, "usd": 300.0, "sol": 3.0, "price": 0.3, "tx": "s1"}]
+            self.st.wallet_swaps, self.st.wallet_token_trades = swaps, by_wallet
+            self.app["admins"] = set()
+            try:
+                left0, before = self.app["browse_daily"].left("global", 300), self.st.requests
+                r = await self.client.get(f"/wallet_profile.json?job={jid}&wallet={listed}")
+                self.assertEqual(r.status, 200, await r.text())
+                d = await r.json()
+                self.assertAlmostEqual(d["pnl_usd"], 200.0)                 # куплено 40 днів тому за 100, продано за 300
+                self.assertEqual((d["closed"], d["wins"], d["unbacked_tokens"], d["bought_earlier_tokens"]), (1, 1, 0, 1))
+                self.assertEqual(asked, [("TOKX", True, False)])            # свіжа історія і не в спільний кеш угод
+                self.assertEqual(self.st.requests - before, 2)
+                self.assertEqual(self.app["browse_daily"].left("global", 300), left0 - 1)   # людина платить лише за обміни
+                self.assertEqual(self.app["browse_daily"].count("profile-history"), 1)      # дочитане — з денної стелі сайту
+            finally:
+                del self.st.wallet_swaps, self.st.wallet_token_trades
+                self.app["admins"] = {TEST_PK}
 
         async def test_live_runs_wait_when_the_month_is_nearly_spent(self):
             # місяць: запуск можливий, лише поки найгірший прогін лишає резерв; день людини при відмові не згорає
@@ -785,7 +898,10 @@ if AioHTTPTestCase:
                 # вікно: чому один, і запрошення написати, щоб підняли ліміт
                 html = await (await self.client.get(f"/token?mint={MINT}&notice=newwallet", headers={"Cookie": wallet_cookie(young)})).text()
                 self.assertIn("openLimit('newwallet')", html)
-                self.assertIn("A new wallet gets 1 free analysis a day", html)
+                self.assertIn("This wallet's free analysis for today is used", html)
+                self.assertIn("3 analyses a day for active wallets", html)
+                self.assertNotIn("younger than", html)                     # власник, 07.10: точне правило ніде не пишемо
+                self.assertNotIn("under 0.01 SOL", html)
                 self.assertIn('href="/feedback?kind=limits"', html)
                 self.assertIn("None left today", html)
                 html = await (await self.client.get(f"/token?mint={MINT}", headers={"Cookie": wallet_cookie(old)})).text()
@@ -1190,7 +1306,8 @@ if AioHTTPTestCase:
             html = await r.text()
             self.assertEqual(r.status, 200)
             self.assertIn('<h1 class="brandline">tracced</h1>', html)   # brand line
-            self.assertIn("every wallet <em>on the record</em>", html)
+            self.assertIn("every wallet <em>on the record</em>", html)        # власник, 08.10: нова фраза задовга, повернули
+            self.assertIn('<meta property="og:description" content="See who bought before the pump, and what they did next.">', html)
             self.assertIn("tracced", html)
             self.assertNotIn('class="top"', html)                       # no top bar on the home page
             self.assertIn('data-count=', html)                          # live counters
@@ -1232,8 +1349,11 @@ if AioHTTPTestCase:
             self.assertNotRegex(html.split("<footer")[0], r'<svg(?! class="ci)')   # the chart library draws the page; inline SVG only for icons
             self.assertIn("/static/icons.svg?v=", html)                  # the icons come from the Carbon sprite
             # owner, 04.10: the token's address copies itself on a click, with no copy mark beside it
-            self.assertIn(f'<button type="button" class="dwc mono" data-copy="{MINT}"', html)
-            self.assertNotIn("#i-copy", html.split('class="contract')[1].split("</div>")[0])
+            self.assertIn(f'<button type="button" class="dwc mono tc-addr" data-copy="{MINT}"', html)
+            self.assertNotIn("#i-copy", html.split('class="tchips')[1].split("</div>")[0])
+            # owner, 08.10, like OpenSea: chips under the title — the chain, the token's age, where it was launched
+            self.assertIn('<span class="tchip">Solana</span>', html)
+            self.assertRegex(html, r'<span class="tchip" title="Created [^"]+">\d+ (min|h|days?|weeks?|months?|years?) old</span>')
 
         async def test_token_page_preset_from_result(self):
             r = await self.client.get(f"/token?mint={MINT}&from=2001-09-09T01:46&to=2001-09-09T02:06&exit=2001-09-09T02:46")
@@ -1272,7 +1392,10 @@ if AioHTTPTestCase:
             self.assertIn("<i>spent</i>", html)
             self.assertNotIn('data-key="funder"', html)                  # no Funded by column (owner, 02.10): the card says it
             self.assertNotIn('data-key="w"', html)                       # nor sorting by the address
-            self.assertIn('data-v="all"', html)                          # the card: this token | all tokens
+            # the card (owner, 08.10): the same as a list's, 7D/30D and Recent/Best, plus this token's trades on top; no switch
+            self.assertNotIn('id="dview"', html)
+            self.assertIn("TST trades", html)
+            self.assertLess(html.index('class="dsec dtrades"'), html.index('class="dsec dperf"'))
             self.assertIn('id="finds"', html)
             self.assertIn("Back to the chart", html)
             self.assertIn('id="chart"', html)
@@ -1342,7 +1465,7 @@ if AioHTTPTestCase:
             r = await self.client.get("/")                               # home with a finished analysis: counters, sample, bg lines
             self.assertEqual(r.status, 200)
             home = await r.text()
-            self.assertIn(">Demo<", home)                                # the recorded token is called the same word everywhere
+            self.assertIn('class="lrow" data-id="', home)                # the finished analysis is in the live feed, not as a link
             self.assertNotIn(">Example<", home)
             self.assertIn("TST", home)
             r = await self.client.get(loc + ".csv")

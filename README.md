@@ -19,8 +19,8 @@ Built for the Colosseum Crypto World's Fair, 2026. [Why it exists →](https://t
 
 Looking is free: the demo, every finished result, the chart of any token. A new analysis needs a connected wallet:
 Phantom, Backpack or Solflare, a signed message, no transaction, no fee. It counts against a daily allowance per person:
-the wallet and the browser count together, one network has its own count, a new or empty wallet gets one a day, and
-all of them reset at midnight UTC. Need more? The limit window has a button to ask.
+10 a day for active wallets, the wallet and the browser counting together, one network with its own count, and all of
+them reset at midnight UTC. Need more? The limit window has a button to ask.
 [Limits →](https://tracced.xyz/docs/limits)
 
 ![Range](docs/img/range.png)
@@ -39,10 +39,12 @@ definition you can read and check. [Every rule →](https://tracced.xyz/docs/tag
 Amounts read in dollars or in SOL. Both come from the same swap, so nothing is converted at a rate, and profit
 uses the cost basis of what was actually sold in both units. [Where the numbers come from →](https://tracced.xyz/docs/how-it-works)
 
-Click a wallet and its card shows the last 7 or 30 days on every token it traded: PnL, win rate over closed
-positions, average hold, counted by tracced from the wallet's own swaps. When the wallet is publicly identified,
-small marks say so: a star for a KOL, its X account, the app it trades through. Any of its recent tokens opens
-its own chart right in the card, with the wallet's buys and sells on it.
+Click a wallet and its card shows the last 7 or 30 days on every token it traded: PnL counted on the day of each
+sale at what the wallet really paid, win rate over closed positions, average hold, counted by tracced from the
+wallet's own swaps. When the wallet is publicly identified,
+small marks say so: a star for a KOL, its X account, the app it trades through. Its tokens switch between Recent and
+Best, where it made its profit, and any of them opens its own chart right in the card, with the wallet's buys and
+sells on it. It is the same card on a result, where it adds that token's trades on top, and on a ready list.
 [The wallet card →](https://tracced.xyz/docs/how-it-works#the-wallet-card)
 
 ![Wallet card](docs/img/card.png)
@@ -59,11 +61,13 @@ app it trades through.
 
 Keep what you find in your watchlist, in several named lists, tag wallets in your own words, and export a list as CSV or TXT. A bell
 on a wallet, or on a whole list, sends its buys and sells to Telegram about two seconds after the block, and each row
-counts the wallet's trades of the last 7 days. [Your account →](https://tracced.xyz/docs/account)
+counts the wallet's trades of the last 7 days. No token to start from? The home page has last month's top traders, KOLs and the best of the market who trade like
+people, each wallet's profit counted by tracced from its own swaps, to follow in one click with their alerts.
+[Your account →](https://tracced.xyz/docs/account)
 
 A busy token takes seconds, not minutes. The result page stays light with thousands of wallets: the table arrives
-as numbers and the page draws the first hundred rows, more on request, on a phone too, where each wallet becomes a
-card.
+as numbers and the page draws the first hundred rows, more on request, on a phone too, where each wallet is one line
+of a list, like a trading app's, and its card rises from the bottom.
 
 ## Documentation
 

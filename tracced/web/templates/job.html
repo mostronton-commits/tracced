@@ -5,15 +5,15 @@
 {% block head %}<script src="/static/vendor/lightweight-charts.standalone.production.js?v={{ v }}"></script><script src="/static/chart.js?v={{ v }}"></script><script src="/static/card.js?v={{ v }}"></script><script src="/static/term.js?v={{ v }}" defer></script>{% endblock %}
 {% block body %}
 <section class="card">
-  <div class="tokenhead">
+  <div class="tokenhead jobhead">
     <div>
-      <h1 class="h-title">{{ job.symbol }}</h1>
-      <div class="h-addr mono"><button type="button" class="dwc mono" data-copy="{{ job.mint }}" title="Copy the token address: {{ job.mint }}" aria-label="Copy the token address">{{ job.mint[:6] }}…{{ job.mint[-5:] }}</button><a class="ext" href="https://solscan.io/token/{{ job.mint }}" target="_blank" rel="noopener" title="Token on Solscan" aria-label="Token on Solscan">{{ icon('launch') }}</a></div>
+      <div class="h-tok"><span class="limg h-img" data-l="{{ (job.symbol or '?')[:1]|upper }}" style="--h: {{ thue }}" aria-hidden="true">{% if timg %}<img src="{{ timg }}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span><h1 class="h-title">{{ job.symbol }}</h1></div>
+      <div class="h-addr">{% set tc_created, tc_launchpad, tc_mint, tc_x = ((result or {}).info or {}).created_time, ((result or {}).info or {}).launchpad, job.mint, ((result or {}).info or {}).twitter %}{% include "_tokchips.html" %}</div>
       <div class="h-sub mono muted">Range <span class="dtc" data-ms="{{ job.t_from }}">{{ job.t_from|dt }}</span> → <span class="dtc" data-ms="{{ job.t_to }}">{{ job.t_to|dt }}</span>{% if result %} · Trades up to <span class="dtc" data-ms="{{ result.window.end or job.t_exit or now }}">{{ (result.window.end or job.t_exit or now)|dt }}</span>{% endif %}</div>
     </div>
     <div class="h-right">
       {% if jstatus != 'done' or not result %}<span class="chip st-{{ jstatus }}">{{ {'queued':'Queued','running':'Running','done':'Done','error':'Error'}[jstatus] }}</span>{% endif %}
-      {% if jstatus == 'done' and result %}<button type="button" class="ghost savejob" id="savejob" title="Keep this analysis under My analyses">{{ icon('star') }}<span>Save analysis</span></button>{% endif %}
+      {% if jstatus == 'done' and result %}<button type="button" class="ghost savejob" id="savejob" title="Keep this analysis under My analyses" aria-label="Save analysis">{{ icon('star') }}<span>Save analysis</span></button>{% endif %}
       {% if is_admin and jstatus == 'done' and result and not is_demo %}<button type="button" class="ghost" id="mkdemo" data-job="{{ job.id }}" title="Replace the demo token with this analysis (owner only)">Make it the demo</button>{% endif %}
       <a class="button" href="{{ back }}" title="The token's chart: this range stays as it is, a new one is marked beside it"><span class="long">← Back to the chart</span><span class="short">← Chart</span></a>
     </div>
@@ -144,6 +144,17 @@
           </div>
         </div>
         <div class="dtags" id="dtags"></div>
+        {# owner, 08.10: a wallet's card is the same everywhere (a ready list's too); here it adds one thing, this token's
+           trades, on top, since this is what the analysis is about #}
+        <section class="dsec dtrades">
+          <div class="dsec-h"><h4>{{ job.symbol }} trades <span class="muted" id="dtcount"></span></h4></div>
+          <div id="dtok">
+            <div class="tally dtally" id="dtally"></div>
+            <table class="story clip" id="dtable"><thead><tr><th>Time</th><th></th><th class="num">Amount</th><th class="num">Tokens</th><th class="num">Cap</th></tr></thead><tbody id="dtrades"></tbody></table>
+            <button type="button" class="ghost dmore" id="dmore" hidden></button>
+            <p class="muted small dline" id="dnote"></p>
+          </div>
+        </section>
         <section class="dsec dperf">
           <div class="dsec-h"><h4>Performance <span class="dinfo" id="dprofi" hidden>i</span></h4>
             <div class="seg" id="dper" role="tablist" aria-label="Period"><button type="button" data-p="7">7D</button><button type="button" data-p="30" class="on">30D</button></div></div>
@@ -151,19 +162,6 @@
         </section>
         <section class="dsec" id="dwsec" hidden>
           <div class="dcross" id="dcross"></div>
-        </section>
-        {# the trades: this token's or the recent tokens' (owner, 04.10: only these switch; the performance always shows) #}
-        <section class="dsec dtrades">
-          <div class="dview" id="dview" role="tablist" aria-label="Whose trades">
-            <button type="button" role="tab" data-v="token" aria-selected="true" class="on">{{ job.symbol }} token</button><button type="button" role="tab" data-v="all" aria-selected="false">All tokens</button>
-          </div>
-          <div id="dtok">
-            <div class="tally dtally" id="dtally"></div>
-            <h4 class="dth">Trades <span class="muted" id="dtcount"></span></h4>
-            <table class="story"><thead><tr><th>Time</th><th></th><th class="num">Amount</th><th class="num">Tokens</th><th class="num">Cap</th></tr></thead><tbody id="dtrades"></tbody></table>
-            <p class="muted small dline" id="dnote"></p>
-          </div>
-          <div id="dall" hidden><div id="drecent"></div></div>
         </section>
       </div>
     </aside>
@@ -316,6 +314,13 @@
       const STAR = w => { const on = inList(w); return '<button type="button" class="star' + (on ? ' on' : '') + '" aria-pressed="' + on + '" title="'
         + (on ? 'In your watchlist · click to change' : 'Add to your watchlist') + '" aria-label="' + (on ? 'In your watchlist' : 'Add to your watchlist') + '">' + EarlyIcon(on ? 'star-on' : 'star') + '</button>'; };
       const CHARTIC = EarlyIcon('chart');
+      // a phone shows a wallet as one line, like a trading app's list (owner, 07.10, «like FOMO»): its picture, the
+      // address and its marks, under them what it put in and how much it sold; PnL and ROI on the right. The picture is
+      // drawn from the address once; the line is hidden on a wider screen, where the columns say the same
+      const FACES = new Map(), face = w => { let f = FACES.get(w); if (!f) { f = EarlyCard.identicon(w); FACES.set(w, f); } return f; };
+      const msub = o => (SOLON && o.invsol != null ? '<span class="insol">' + EarlyCur.sol(o.invsol) + '</span>' : money(o.inv))
+        + ' at ' + (o.entry ? fm(o.entry) : '—') + ' cap'
+        + (o.sells == null ? '' : o.sold >= 99 ? ' · sold out' : o.sold > 0 ? ' · sold ' + soldPct(o.sold) : ' · holding all');
       function rowHtml(o, n, i) {
         const oc = onChart.find(x => x.wallet === o.w), tg = tagsHtml(o);
         cells.set(o.w, { tg });
@@ -327,10 +332,10 @@
         const cl = [oc && 'onchart', cd && 'carded', out && 'outside'].filter(Boolean).join(' ');
         const unk = o.sells == null, UNK = 'Its sells were not read: only the largest buyers\' are';   // entry-only, beyond the cap
         return '<tr data-w="' + o.w + '"' + (cl ? ' class="' + cl + '"' : '') + (out ? ' title="On the chart; the filters would hide it"' : '') + (style ? ' style="' + style + '"' : '') + '>'
-          + '<td class="wcell"><span class="wid">' + STAR(o.w)
+          + '<td class="wcell"><span class="wid">' + STAR(o.w) + '<span class="wface" aria-hidden="true">' + face(o.w) + '</span>'
           + '<button type="button" class="mk" title="Show its buys and sells on the chart" aria-label="Show on the chart">' + CHARTIC + '</button>'
           + '<button type="button" class="wname" title="Open the wallet\'s card: its trades here, its PnL on every token, its funder"><span class="mono">' + short(o.w) + '</span></button>'
-          + '</span><span class="tags">' + tg + '</span></td>'
+          + '</span><span class="tags">' + tg + '</span><span class="msub">' + msub(o) + '</span></td>'
           + '<td class="num two c-inv" data-h="Bought" title="Bought in the range at a ' + cap(o.entry) + ' market cap'
           + (o.tot > o.inv + 0.01 ? ' · ' + money(o.tot) + ' in total on this token' : '') + '">' + amount(o.inv, o.invsol, '')
           + '<small>' + cap(o.entry) + '</small></td>'
@@ -817,7 +822,7 @@
           const n = seen(); if (n >= 3 || !a.isConnected) return;
           try { localStorage.setItem('early:cardhint', String(n + 1)); } catch (e) {}
           const h = document.createElement('span'); h.className = 'chint'; h.setAttribute('aria-hidden', 'true');
-          h.innerHTML = '<svg class="chint-cur" viewBox="0 0 16 22"><path d="M1.5 1.5v16.2l4.3-4.1 2.8 6.4 2.8-1.2-2.8-6.3h5.9z"/></svg><span class="chint-tip">Click an address: its card opens</span>';
+          h.innerHTML = '<svg class="chint-cur" viewBox="0 0 16 22"><path d="M1.5 1.5v16.2l4.3-4.1 2.8 6.4 2.8-1.2-2.8-6.3h5.9z"/></svg><span class="chint-tip">' + (matchMedia('(max-width: 640px)').matches ? 'Tap a wallet: its card opens' : 'Click an address: its card opens') + '</span>';
           a.classList.add('hinted'); a.appendChild(h);
           const done = () => { h.remove(); a.classList.remove('hinted'); document.removeEventListener('pointerdown', done, true); };
           document.addEventListener('pointerdown', done, true); setTimeout(done, 7000);
@@ -1012,9 +1017,8 @@
       }
       const nf = v => (+v || 0).toLocaleString('en-US');
       let period = '30';
-      function renderProfile(all) {                               // the block itself is shared with Lists: static/card.js
-        EarlyCard.render(all, period, dprof, document.getElementById('dprofi'), { recent: false });
-        document.getElementById('drecent').innerHTML = EarlyCard.recent(all) || '<p class="dline muted small">No other tokens in its last 30 days.</p>';
+      function renderProfile(all) {                               // the same block as a ready list's card: static/card.js
+        EarlyCard.render(all, period, dprof, document.getElementById('dprofi'));
         document.querySelectorAll('#dper [data-p]').forEach(b => b.classList.toggle('on', b.dataset.p === period));
       }
       document.getElementById('dper').addEventListener('click', e => {
@@ -1027,22 +1031,20 @@
       async function loadProfile(w) {
         if (profiles.has(w)) { renderProfile(profiles.get(w)); return; }
         dprof.innerHTML = '<div class="dskel"><i></i><i></i><i></i></div>';
-        const rec = document.getElementById('drecent'); rec.innerHTML = '<div class="dskel"><i></i><i></i></div>';
         document.getElementById('dprofi').hidden = true;
         let r;
         try { r = await fetch('/wallet_profile.json?' + new URLSearchParams({ job: jobId, wallet: w }), { credentials: 'same-origin' }); }
-        catch (e) { if (drawer.dataset.w === w) dprof.innerHTML = rec.innerHTML = '<p class="dline muted small">Could not reach the server.</p>'; return; }
+        catch (e) { if (drawer.dataset.w === w) dprof.innerHTML = '<p class="dline muted small">Could not reach the server.</p>'; return; }
         if (drawer.dataset.w !== w) return;                   // the card moved on to another wallet meanwhile
         if (r.status === 401) {
           dprof.innerHTML = '<div class="dconnect"><button type="button" class="primary" id="dprofgo">Connect wallet for more data</button>'
             + '<span class="muted small">PnL, win rate and active hours across all its tokens</span></div>';
-          rec.innerHTML = '<p class="dline muted small">Connect a wallet to see its other tokens.</p>';
           document.getElementById('dprofgo').addEventListener('click', () => EarlyWallet.open(() => { acctOn = true; loadMe().then(() => loadProfile(w)); }, 'Connect a wallet to see all its tokens.'));
           return;
         }
         let d = {}; try { d = await r.json(); } catch (e) {}
         if (drawer.dataset.w !== w) { if (r.ok) profiles.set(w, d); return; }   // reading the body took time too: keep it, but not on another wallet's card
-        if (!r.ok) { dprof.innerHTML = rec.innerHTML = '<p class="dline muted small">' + esc(d.error || 'Could not load this wallet.') + '</p>'; return; }
+        if (!r.ok) { dprof.innerHTML = '<p class="dline muted small">' + esc(d.error || 'Could not load this wallet.') + '</p>'; return; }
         profiles.set(w, d); renderProfile(d);
       }
       async function saveMyTags(w, tags) {
@@ -1068,18 +1070,9 @@
           noteIn([w], d.list || 'main'); markSaved(); return true;
         } catch (e) { EarlyUI.toast(e.message); return false; }
       }
-      // its trades on this token, or its recent tokens (owner, 04.10): the choice stays for the next card
-      let cardView = 'token'; try { if (localStorage.getItem('early:cardview') === 'all') cardView = 'all'; } catch (e) {}
-      function showView(v) {
-        cardView = v;
-        document.querySelectorAll('#dview [data-v]').forEach(b => { const on = b.dataset.v === v; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
-        document.getElementById('dtok').hidden = v !== 'token'; document.getElementById('dall').hidden = v !== 'all';
-      }
-      document.getElementById('dview').addEventListener('click', e => {
-        const b = e.target.closest('[data-v]'); if (!b || b.dataset.v === cardView) return;
-        showView(b.dataset.v);
-        try { localStorage.setItem('early:cardview', b.dataset.v); } catch (x) {}
-        EarlyUI.use('card-view', { v: b.dataset.v });
+      document.getElementById('dmore').addEventListener('click', e => {
+        document.getElementById('dtable').classList.remove('clip'); e.currentTarget.hidden = true;
+        EarlyUI.use('card-trades-all');
       });
       // what it did here, as the row says it, a number and a word each: on a phone the row is under the card
       function renderTokFacts(w) {
@@ -1104,7 +1097,11 @@
         const dw = document.getElementById('dw'); dw.textContent = short(o.wallet); dw.dataset.copy = o.wallet; dw.title = o.wallet + ' · click to copy';
         document.getElementById('dsol').href = 'https://solscan.io/account/' + o.wallet;
         syncStar(o.wallet); renderTags(o.wallet); renderIdent(o.wallet);
-        dtrades.innerHTML = o.trades.map(t => '<tr class="' + t.side + '"><td class="mono dtc" data-ms="' + t.t + '">' + EarlyTZ.fmt(t.t, false) + '</td><td>' + (t.side === 'buy' ? '<b class="buy">▲ buy</b>' : '<b class="sell">▼ sell</b>') + '</td><td class="num mono">' + (cur && t.sol != null ? EarlyCur.solHtml(t.sol) : money(t.usd)) + '</td><td class="num mono">' + (t.qty ? ch.fmtMcap(t.qty) : '—') + '</td><td class="num mono">' + ch.fmtMcap(t.mcap) + '</td></tr>').join('');
+        // the first six on top, the rest behind «Show all»: a busy wallet's trades would push its card far down (owner, 08.10)
+        const SHOW = 6, dmore = document.getElementById('dmore');
+        document.getElementById('dtable').classList.add('clip');
+        dmore.hidden = o.trades.length <= SHOW; dmore.textContent = 'Show all ' + o.trades.length + ' trades';
+        dtrades.innerHTML = o.trades.map((t, i) => '<tr class="' + t.side + (i >= SHOW ? ' xtra' : '') + '"><td class="mono dtc" data-ms="' + t.t + '">' + EarlyTZ.fmt(t.t, false) + '</td><td>' + (t.side === 'buy' ? '<b class="buy">▲ buy</b>' : '<b class="sell">▼ sell</b>') + '</td><td class="num mono">' + (cur && t.sol != null ? EarlyCur.solHtml(t.sol) : money(t.usd)) + '</td><td class="num mono">' + (t.qty ? ch.fmtMcap(t.qty) : '—') + '</td><td class="num mono">' + ch.fmtMcap(t.mcap) + '</td></tr>').join('');
         const cx = crossings[o.wallet] || [];
         document.getElementById('dcross').innerHTML = cx.length
           ? '<b>' + CHAIN + ' Seen in ' + cx.length + ' of your other analyses</b><ul>' + cx.map(c =>
@@ -1116,7 +1113,7 @@
         document.getElementById('dtcount').textContent = row ? plural(+row.buys || 0, 'buy') + ' · ' + plural(sells, 'sell') : '';
         document.getElementById('dnote').textContent = (o.complete === false ? 'Exits not fetched (over the cap): only trades inside the range are known. ' : '')
           + (o.truncated ? 'First ' + o.trades.length + ' of ' + o.n + '.' : '');
-        renderTokFacts(o.wallet); showView(cardView); loadProfile(o.wallet);
+        renderTokFacts(o.wallet); loadProfile(o.wallet);
         try { localStorage.setItem('early:cardhint', '3'); } catch (e) {}   // found the card: the hint has done its job
         if (window.EarlyTZ) EarlyTZ.apply();
       }

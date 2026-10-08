@@ -44,8 +44,9 @@
     if (d && d.migration && d.migration.ms) out.push({ ms: d.migration.ms, kind: 'mig', badge: 'M',
       label: 'Migrated to ' + (d.migration.market || 'a DEX'),
       title: 'Migration: trading moved from ' + (d.migration.from || 'the launchpad') + ' to ' + (d.migration.market || 'a DEX') + when(d.migration.ms) });
-    ((d && d.paid) || []).forEach(p => out.push({ ms: p.ms, kind: 'paid', html: DEX, label: 'DexScreener ' + (p.kind || 'profile') + ' paid',
-      title: 'DexScreener ' + (p.kind || 'profile') + ' paid' + when(p.ms) + ' (anyone can pay, not only the team)' }));
+    const times = n => n === 2 ? ' twice' : n > 2 ? ' ' + n + ' times' : '';      // one mark for repeat payments (owner, 07.10)
+    ((d && d.paid) || []).forEach(p => out.push({ ms: p.ms, kind: 'paid', html: DEX, label: 'DexScreener ' + (p.kind || 'profile') + ' paid' + times(p.n),
+      title: 'DexScreener ' + (p.kind || 'profile') + ' paid' + times(p.n) + when(p.ms) + ' (anyone can pay, not only the team)' }));
     return out;
   }
   /* <div class="menu"><button data-menu>…</button><div class="menu-panel" hidden>…</div></div> */
@@ -161,7 +162,8 @@ document.addEventListener('click', e => {
 (function () {
   let raf = 0;
   const set = () => { raf = 0; const bar = document.querySelector('header.top'); const h = bar ? Math.max(0, Math.round(bar.getBoundingClientRect().bottom)) : 0;
-    const foot = document.querySelector('footer.foot'), b = foot ? Math.max(0, Math.round(innerHeight - foot.getBoundingClientRect().top)) : 0;
+    // a hidden footer (a wide screen, where the status bar is the footer) has no box: its top would read 0, the card none
+    const foot = document.querySelector('footer.foot'), b = foot && foot.getClientRects().length ? Math.max(0, Math.round(innerHeight - foot.getBoundingClientRect().top)) : 0;
     document.documentElement.style.setProperty('--dtop', h + 'px'); document.documentElement.style.setProperty('--dbot', b + 'px'); };
   const soon = () => { if (!raf) raf = requestAnimationFrame(set); };
   addEventListener('scroll', soon, { passive: true }); addEventListener('resize', soon);
@@ -258,4 +260,46 @@ window.EarlyTags = (function () {
     return out.join('');
   }
   return { ICON, BRANDS, chip, iconify, idMarks, isKol, handle, platforms, displayName, esc };
+})();
+/* Ready lists (owner, 07.10): «Follow N wallets» puts a list's wallets in the person's watchlist, under the list's own
+   name, with their bells on while the account has bells left. A guest connects first, and the follow goes on by itself. */
+(function () {
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  function said(d, n) {
+    const name = '<b>' + esc(d.name) + '</b> is in your watchlist';
+    if (!d.alerts_ok) return name + '.';
+    if (!d.alerts_on) return name + '. Its alerts are off: all ' + d.cap + ' of your bells are in use.';
+    return name + (d.alerts_on >= n ? ', alerts on for all ' + n + '.' : ', alerts on for ' + d.alerts_on + ' of ' + n + ': an account rings for ' + d.cap + ' wallets.')
+      + (d.telegram ? '' : ' Connect Telegram to get them.');
+  }
+  async function follow(b) {
+    if (b.disabled) return;
+    b.disabled = true; b.setAttribute('aria-busy', 'true');
+    try {
+      const d = await EarlyWallet.post('/me/ready/follow', { slug: b.dataset.follow });
+      try { localStorage.setItem('early:list', d.list); } catch (e) {}       // the watchlist opens on this list
+      EarlyUI.track('list-follow', { list: b.dataset.follow });
+      if (b.dataset.go) { location.href = '/me#list'; return; }           // owner, 08.10: one key, straight to the saved wallets
+      EarlyUI.toast(said(d, +b.dataset.n || d.added) + ' <a href="/me#list">Open the watchlist</a>', 8000);
+      const a = document.createElement('a'); a.className = 'button'; a.href = '/me#list'; a.textContent = 'In your watchlist';
+      b.replaceWith(a);
+    } catch (e) {
+      b.disabled = false; b.removeAttribute('aria-busy');
+      EarlyUI.toast(esc((e && e.message) || 'Could not follow this list. Try again.'));
+    }
+  }
+  document.addEventListener('click', e => {             // a link that needs a wallet: a guest connects, then goes on
+    const a = e.target.closest('a[data-need-wallet]'); if (!a || document.documentElement.dataset.acct === '1') return;
+    e.preventDefault();
+    EarlyWallet.open(() => { location.href = a.href; }, a.dataset.needWallet);
+  });
+  document.addEventListener('click', e => {             // «Open in your watchlist» opens on that list
+    const a = e.target.closest('a[data-open-list]'); if (a) { try { localStorage.setItem('early:list', a.dataset.openList); } catch (x) {} }
+  });
+  document.addEventListener('click', e => {
+    const b = e.target.closest('button[data-follow]'); if (!b) return;
+    e.preventDefault();
+    if (document.documentElement.dataset.acct === '1') follow(b);
+    else EarlyWallet.open(() => follow(b), 'Connect a wallet: the list goes to your watchlist, with Telegram alerts.');
+  });
 })();

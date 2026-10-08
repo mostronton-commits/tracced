@@ -9,7 +9,7 @@
     <div class="hero-top"><div class="hero-acct">{% include "_acct.html" %}</div>{% include "_news.html" %}</div>
     <h1 class="brandline">tracced</h1>
     <p class="tagline mono">every wallet <em>on the record</em><span class="cursor">_</span></p>
-    <p class="lead">Paste a token, choose the pump range — see every wallet that bought there and what it did next.</p>
+    <p class="lead"><span class="lead-long">Paste a token, mark the pump — see who bought before it and what they did next.</span><span class="lead-short">See who bought before the pump, and what they did next.</span></p>
     <form method="get" action="/token" class="row herof">
       <input type="text" name="mint" placeholder="Paste a token address" data-type-address
              required pattern="[1-9A-HJ-NP-Za-km-z]{32,44}" spellcheck="false" autocomplete="off" aria-label="Token address">
@@ -44,29 +44,130 @@
   <em aria-hidden="true">→</em>
   <div><i>03</i><b>Get wallets</b></div>
 </section>
-{% if tokens %}
-<section class="card" id="recent">
-  <div class="row mehead"><h2>Recently analyzed on tracced</h2>{% if acct %}<a class="right small" href="/me#analyses">My analyses ({{ my_n }}) →</a>{% endif %}</div>
-  <p class="muted small">Everyone's analyses. Who ran them is never shown.</p>
-  {% macro cells(t) %}
-        <span class="sym">{{ t.symbol }}</span>
-        <span class="mono muted win" title="When this token was last analyzed">analyzed <span class="dtc" data-ms="{{ t.at }}">{{ t.at|dt }}</span></span>
-        <span class="mono n">{{ t.ranges }} range{{ '' if t.ranges == 1 else 's' }}</span>
-        <span class="mono n"{% if t.best %} title="Highest average exit cap ÷ average entry cap among its wallets, buys before the range included"{% endif %}>{% if t.best %}best {{ t.best|round(1) }}×{% endif %}</span>
-        {% if t.example %}<span class="chip ex" title="Recorded token — press Analyze on a pump to replay the run, no requests">Demo</span>{% else %}<span class="chip st-{{ t.status }}">{{ {'running':'Running','done':'Done','error':'Error'}[t.status] }}</span>{% endif %}
-        <span class="open">Open →</span>
-  {% endmacro %}
-  <div class="recent">
-    {# ten tokens; an eleventh, blurred and fading out, only says the list goes on (owner, 05.10: it grew without end) #}
-    {% for t in tokens[:11] %}
-      {% if loop.index <= 10 %}
-      <a class="rrow{{ ' ex' if t.example else '' }}" href="/token?mint={{ t.mint }}">{{ cells(t) }}</a>
+{% macro lrow(r) %}<div class="lrow" data-id="{{ r.id }}" data-at="{{ r.at }}"><span class="limg" data-l="{{ r.letter }}" style="--h: {{ r.hue }}" aria-hidden="true">{% if r.image %}<img src="{{ r.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span><b class="sym">{{ r.symbol }}</b>{% if r.running %}<span class="lnow"><i class="flive" aria-hidden="true"></i>analyzing now</span>{% elif r.saved %}<span class="lstat lsaved" title="Wallets from this analysis that people saved to their watchlists">{{ icon('star-on') }}saved {{ '{:,}'.format(r.saved) }} wallet{{ '' if r.saved == 1 else 's' }}</span>{% else %}<span class="lstat"></span>{% endif %}<span class="mono muted lt" data-ago="{{ r.at }}">{{ r.ago }}</span></div>{% endmacro %}
+{% if live.rows %}
+{# «Live on tracced» (owner, 05.10, 07.10): people opened others' finished analyses from a clickable list and took them for
+   our verdicts. Now everyone's latest analyses lead nowhere, and they arrive the way they happened: the newest few slide
+   in one at a time, 3–10 s apart, then the page asks /live.json for real new ones every 20 s. Nothing loops, nothing is
+   made up: every row is an analysis someone ran, with its time. The one action here is pasting a token. #}
+{% set q = [3, [0, live.rows|length - 4]|max]|min %}
+<section class="card livefeed" id="live" aria-label="Live on tracced">
+  <div class="row mehead"><h2><i class="flive" aria-hidden="true"></i>Live on tracced</h2></div>
+  <div class="lfeed{{ ' few' if live.rows|length < 7 }}" id="lfeed">{% for r in live.rows[q:q + 7] %}{{ lrow(r) }}{% endfor %}</div>
+  {% if q %}<template id="liveq">{% for r in live.rows[:q] %}{{ lrow(r) }}{% endfor %}</template>{% endif %}
+</section>
+<script>
+(function () {
+  const ago = ms => { const m = Math.max(0, Math.round((Date.now() - ms) / 60000));
+    return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.floor(m / 60) + ' h ago' : Math.floor(m / 1440) + ' d ago'; };
+  const tick = () => document.querySelectorAll('[data-ago]').forEach(el => { el.textContent = ago(+el.dataset.ago); });
+  tick(); setInterval(tick, 30000);
+  document.querySelectorAll('[data-focus-mint]').forEach(a => a.addEventListener('click', e => {
+    e.preventDefault();
+    const i = document.querySelector('.herof input'); if (!i) return;
+    i.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+    i.focus({ preventScroll: true });
+  }));
+  const box = document.getElementById('lfeed'); if (!box) return;
+  const MAX = 7, reduced = matchMedia('(prefers-reduced-motion: reduce)').matches, tpl = document.getElementById('liveq');
+  const queue = tpl ? Array.from(tpl.content.children).reverse() : [];      // the newest arrives last
+  const ids = new Set([...box.children, ...queue].map(r => r.dataset.id));
+  let newest = Math.max(0, ...[...box.children, ...queue].map(r => +r.dataset.at || 0)), timer = null;
+  const fmt = n => Number(n).toLocaleString('en-US');
+  function el(tag, cls, text) { const x = document.createElement(tag); if (cls) x.className = cls; if (text != null) x.textContent = text; return x; }
+  function build(r) {                                     // a row from /live.json, text only through textContent
+    const row = el('div', 'lrow'); row.dataset.id = r.id; row.dataset.at = r.at;
+    const pic = el('span', 'limg'); pic.dataset.l = r.letter || '?'; pic.style.setProperty('--h', r.hue || 160); pic.setAttribute('aria-hidden', 'true');
+    if (r.image) { const im = new Image(); im.alt = ''; im.loading = 'lazy'; im.referrerPolicy = 'no-referrer'; im.onerror = () => im.remove(); im.src = r.image; pic.appendChild(im); }
+    row.append(pic, el('b', 'sym', r.symbol));
+    if (r.running) { const now = el('span', 'lnow'); const dot = el('i', 'flive'); dot.setAttribute('aria-hidden', 'true'); now.append(dot, 'analyzing now'); row.appendChild(now); }
+    else if (r.saved) {
+      const sv = el('span', 'lstat lsaved'); sv.title = 'Wallets from this analysis that people saved to their watchlists';
+      const use = document.querySelector('use[href*="#i-"]');
+      sv.innerHTML = '<svg class="ci" aria-hidden="true"><use href="' + (use ? use.getAttribute('href').replace(/#.*/, '#i-star-on') : '/static/icons.svg#i-star-on') + '"/></svg>';
+      sv.appendChild(document.createTextNode('saved ' + fmt(r.saved) + (r.saved === 1 ? ' wallet' : ' wallets'))); row.appendChild(sv);
+    } else row.appendChild(el('span', 'lstat', ''));
+    const t = el('span', 'mono muted lt', ago(r.at)); t.dataset.ago = r.at; row.appendChild(t);
+    return row;
+  }
+  function show(row) {
+    if (!reduced) row.classList.add('lin');
+    box.prepend(row);
+    if (!reduced) { void row.offsetHeight; row.classList.remove('lin'); }
+    while (box.children.length > MAX) box.lastElementChild.remove();
+    box.classList.toggle('few', box.children.length < MAX);
+  }
+  function step() { timer = null; if (!queue.length) return; if (document.hidden) return plan(); show(queue.shift()); plan(); }
+  function plan() { if (!timer && queue.length) timer = setTimeout(step, 3000 + Math.random() * 7000); }
+  async function poll() {
+    if (document.hidden) return;
+    try {
+      const d = await (await fetch('/live.json', { cache: 'no-store' })).json();
+      (d.rows || []).slice().reverse().forEach(r => {      // oldest first, so they arrive in the order they happened
+        const shown = box.querySelector('[data-id="' + CSS.escape(r.id) + '"]');
+        if (shown) { if ((shown.querySelector('.lnow') != null) !== !!r.running) shown.replaceWith(build(r)); return; }
+        if (ids.has(r.id) || r.at <= newest) return;       // already queued, or older than what is on screen
+        ids.add(r.id); newest = Math.max(newest, r.at); queue.push(build(r));
+      });
+      plan();
+    } catch (e) {}
+  }
+  plan(); setInterval(poll, 20000);
+})();
+</script>
+{% endif %}
+
+
+{% if ready %}
+{# owner, 07.10–08.10: a list a person can take in one click, for last month, changed once a month. Solana Tracker names
+   the candidates; what each one made in the month is counted by tracced from its own swaps, and only people stay. A
+   card: the sum, five leaders with medals and a sixth blurred, one key; beside it, what following it gives #}
+{% macro face(r) %}<span class="limg" data-l="{{ r.letter }}" style="--h: {{ r.hue }}" aria-hidden="true">{% if r.avatar %}<img src="{{ r.avatar }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span>{% endmacro %}
+{% macro sub(r) %}{% if r.x %}@{{ r.x }}{% if r.win_rate is not none %} · {{ r.win_rate|round|int }}% win rate{% endif %}{% elif r.win_rate is not none %}{{ r.win_rate|round|int }}% win rate · {{ r.tokens }} tokens{% else %}{{ r.tokens }} tokens{% endif %}{% endmacro %}
+{% macro row(r, cls='') %}<li{% if cls %} class="{{ cls }}" aria-hidden="true"{% endif %}><span class="rk">{{ r.rank }}</span>{{ face(r) }}<span class="nm"><b{% if not r.name %} class="mono"{% endif %}>{{ r.label }}</b><small>{{ sub(r) }}</small></span><b class="mono pos">+{{ r.rv }}</b></li>{% endmacro %}
+<section class="ready" id="ready" aria-labelledby="readyh">
+  <div class="ready-head"><h2 id="readyh">Follow the best traders</h2></div>
+  <div class="ready-grid">
+  {% for l in ready %}
+    <article class="rcard">
+      <div class="rc-head"><h3><a href="/lists/{{ l.slug }}">{{ l.label }}'s top {{ l.summary.n }}</a></h3><span class="mono muted">next list {{ l.next_label }}</span></div>
+      <div class="rc-big"><b class="mono pos">+{{ l.summary.pnl|usd3 }}</b><span>combined profit</span></div>
+      <ol class="rc-top">{% for r in l.top %}{{ row(r) }}{% endfor %}{% if l.peek %}{{ row(l.peek, 'peek') }}{% endif %}</ol>
+      {# owner, 08.10: the key opens the list and its numbers; following is done there. A guest connects first #}
+      <div class="rc-act"><a class="button primary" href="/lists/{{ l.slug }}" data-need-wallet="Connect a wallet to see the list.">Open the list</a></div>
+    </article>
+    {# owner, 08.10 («text», the third of three takes after tier-1 sites): beside the list, one big tile with what lands in
+       Telegram — two real alerts of a trader on the list as notifications, newest on top, the text made by the code that
+       sends alerts, no links (the home page is open to guests, the list is not) — and two quiet tiles, an icon and two
+       lines; no illustrations #}
+    <div class="rside">
+      {% if l.example %}
+      <article class="rtile rt-main">
+        <div class="rt-vis" role="img" aria-label="Two alerts from this list, as Telegram shows them">
+          <div class="rt-toasts">
+          {% for m in l.example.msgs|reverse %}
+            <div class="rt-toast"><img src="/static/brand/icon.svg?v={{ v }}" alt=""><span><small>tracced_ · <span class="dtc" data-ms="{{ m.t }}">{{ m.t|dt }}</span></small>{{ m.html|tghead }}</span></div>
+          {% endfor %}
+          </div>
+        </div>
+        <h3>Their trades, in your Telegram</h3>
+        <p>Follow the list. You'll know each time one of them buys or sells.</p>
+      </article>
       {% else %}
-      <div class="rrow more" aria-hidden="true">{{ cells(t) }}</div>
+      <article class="rtile rt-mini rt-wide"><span class="rt-ic">{{ icon('bell') }}</span><span><h3>Their trades, in your Telegram</h3><p>Follow the list. You'll know each time one of them buys or sells.</p></span></article>
       {% endif %}
-    {% endfor %}
+      <article class="rtile rt-mini"><span class="rt-ic">{{ icon('chart') }}</span><span><h3>Real traders only</h3><p>No bots, snipers or fresh wallets: we checked every wallet's trades.</p></span></article>
+      <article class="rtile rt-mini"><span class="rt-ic">{{ icon('renew') }}</span><span><h3>A new list every month</h3><p>{{ l.label }}'s list is in. The next one lands {{ l.next_label }}.</p></span></article>
+    </div>
+  {% endfor %}
   </div>
 </section>
 {% endif %}
+
+{# owner, 07.10: free while in development; a follow on X is the only payment we ask, in its own quiet block below #}
+<section class="freebar" aria-label="Free during beta">
+  <div><b>Free during beta</b><span>Pay with a follow on X, and be the first to see what's new.</span></div>
+  <a class="button" href="https://x.com/intent/follow?screen_name=tracced_xyz" target="_blank" rel="noopener" data-umami-event="home-follow"><svg class="xmark" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>Follow @tracced_xyz</a>
+</section>
 
 {% endblock %}

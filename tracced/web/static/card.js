@@ -56,7 +56,27 @@
       + '<div class="hx"><span></span>' + [0, 3, 6, 9, 12, 15, 18, 21].map(h => '<b>' + ampm(h) + '</b>').join('') + '</div></div>';
   }
   // the recent tokens of the card on screen (one card at a time): a click on a row draws that token's chart under it
-  let RECENT = [];
+  let RECENT = [], TV = 'recent', LASTTV = null;
+  try { TV = localStorage.getItem('early:tv') === 'best' ? 'best' : 'recent'; } catch (e) {}
+  /* the tokens under the numbers: the latest ones, or the ones it made its PnL on (owner, 08.10: «перемикач, який
+     показує, як на FOMO, кращі трейди»). Best is the period's own when it has one (a list's month), else the 30 days */
+  function tokensHtml(all, p) {
+    const best = (p && p.best_tokens) || (all && all.best_tokens) || [], recent = (all && all.recent) || [];
+    if (!best.length && !recent.length) return '';
+    LASTTV = { all, p };
+    const view = (TV === 'best' && best.length) || !recent.length ? 'best' : 'recent';
+    const btn = (v, t) => '<button type="button" data-tv="' + v + '"' + (view === v ? ' class="on"' : '') + '>' + t + '</button>';
+    return '<div class="dtv-h"><h5>' + (view === 'best' ? 'Best trades' : 'Recent tokens') + '</h5>'
+      + (best.length && recent.length ? '<span class="seg sm" role="tablist" aria-label="Which tokens">' + btn('recent', 'Recent') + btn('best', 'Best') + '</span>' : '')
+      + '</div>' + recentHtml(view === 'best' ? best : recent);
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('.dtv [data-tv]'); if (!b || !LASTTV) return;
+    TV = b.dataset.tv; try { localStorage.setItem('early:tv', TV); } catch (x) {}
+    b.closest('.dtv').innerHTML = tokensHtml(LASTTV.all, LASTTV.p);
+    if (window.EarlyUI) EarlyUI.use('card-view', { v: 'tokens-' + TV });
+    if (window.EarlyTZ) EarlyTZ.apply();
+  });
   function recentHtml(list) {
     if (!list || !list.length) return '';
     RECENT = list.slice(0, 8);
@@ -76,12 +96,14 @@
     const cls = p.pnl_usd > 0 ? 'pos' : (p.pnl_usd < 0 ? 'neg' : '');
     const day = x => x ? '<b class="' + (x.usd >= 0 ? 'pos' : 'neg') + '">' + money(x.usd) + '</b><small>' + utcDay(x.ms) + '</small>' : '<b>—</b>';
     if (info) {                                  // short (custdev 01.10: too much text in the tooltips)
-      info.title = 'From ' + nf(p.swaps) + ' swaps on every token' + (all.partial ? ', latest only, since ' + EarlyTZ.fmt(all.oldest_ms || p.since_ms, false) : '')
-        + '. Closed = 99% sold.' + (p.unbacked_tokens ? ' ' + plural(p.unbacked_tokens, 'token') + ' sold without a buy left out.' : '');
+      // owner, 07.10: profit counts on the day of the sale, at what the wallet paid, even for a token bought earlier
+      info.title = 'PnL counts every sale ' + (p.label ? 'in ' + p.label : 'in these ' + p.days + ' days') + ' at what the wallet paid, even if it bought earlier. From '
+        + nf(p.swaps) + ' swaps on every token' + (all.partial ? ', latest only, since ' + EarlyTZ.fmt(all.oldest_ms || p.since_ms, false) : '')
+        + '. Closed = 99% sold.' + (p.unbacked_tokens ? ' ' + plural(p.unbacked_tokens, 'token') + ' sold with no buy found left out.' : '');
       info.hidden = !p.swaps;
       info.classList.toggle('warn', !!(all.partial || p.unbacked_tokens));
     }
-    box.innerHTML = !p.swaps ? '<p class="dline muted small">No swaps in ' + p.days + ' days.</p>' :
+    box.innerHTML = !p.swaps ? '<p class="dline muted small">No swaps ' + (p.label ? 'in ' + p.label : 'in ' + p.days + ' days') + '.</p>' :
       '<div class="dhero"><div><span class="lbl">PnL</span><b class="big ' + cls + '">' + (sol ? EarlyCur.solHtml(p.pnl_sol) : money(p.pnl_usd)) + '</b></div>'
       + '<div class="r" title="' + plural(p.closed, 'closed position') + '"><span class="lbl">Win rate</span><b class="big">' + (p.win_rate == null ? '—' : Math.round(p.win_rate * 100) + '%') + '</b>'
       + '<span class="sub"><span class="pos">' + p.wins + 'W</span> <span class="neg">' + p.losses + 'L</span></span></div></div>'
@@ -96,7 +118,7 @@
       + '</div>'
       + (distHtml(p) ? '<h5>Closed positions <span class="muted">' + ((p.wins || 0) + (p.losses || 0) || '') + '</span></h5>' + distHtml(p) : '')
       + (all.heat ? '<h5>Active hours · ' + ((window.EarlyTZ && EarlyTZ.get() === 'local') ? 'your time' : 'UTC') + '</h5>' + heatHtml(all.heat) : '')
-      + (all.recent && all.recent.length && !(opts && opts.recent === false) ? '<h5>Recent tokens</h5>' + recentHtml(all.recent) : '');
+      + (!(opts && opts.recent === false) ? '<div class="dtv">' + tokensHtml(all, p) + '</div>' : '');
     if (window.EarlyTZ) EarlyTZ.apply();
   }
   function identicon(w) {
@@ -160,5 +182,35 @@
   }
   document.addEventListener('click', e => { const r = e.target.closest('table.drecent tr.rt'); if (r && !e.target.closest('a')) toggleToken(r); });
   document.addEventListener('keydown', e => { const r = e.target.closest && e.target.closest('table.drecent tr.rt'); if (r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleToken(r); } });
-  window.EarlyCard = { render, identicon, recent: all => (all && all.recent && all.recent.length ? recentHtml(all.recent) : '') };
+  /* On a phone the card is a sheet from the bottom (owner, 07.10, «like FOMO»): a tap on the dimmed page above it closes
+     it, and so does pulling its head down. Whatever closes it goes through its own ×, so each page keeps one way out */
+  const PHONE = () => innerWidth <= 640;
+  const openSheet = () => document.querySelector('.drawer.wcard:not([hidden])');
+  document.addEventListener('click', e => {
+    const s = PHONE() && e.target === document.body && openSheet();
+    const x = s && s.querySelector('#dclose'); if (x) x.click();
+  });
+  let drag = null;
+  document.addEventListener('touchstart', e => {
+    const h = PHONE() && e.target.closest && e.target.closest('.wcard .drawer-head');
+    if (!h || e.target.closest('button, a, input')) return;
+    drag = { s: h.closest('.wcard'), y: e.touches[0].clientY, dy: 0 };
+    drag.s.style.transition = 'none';
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (!drag) return;
+    drag.dy = Math.max(0, e.touches[0].clientY - drag.y);
+    drag.s.style.transform = drag.dy ? 'translateY(' + drag.dy + 'px)' : '';
+  }, { passive: true });
+  const dropDrag = () => {
+    if (!drag) return;
+    const { s, dy } = drag; drag = null;
+    s.style.transition = 'transform .2s ease-out';
+    const done = () => { s.style.transition = ''; s.style.transform = ''; };
+    if (dy > 90) { s.style.transform = 'translateY(100%)'; setTimeout(() => { const x = s.querySelector('#dclose'); if (x) x.click(); done(); }, 200); }
+    else { s.style.transform = ''; setTimeout(done, 200); }
+  };
+  document.addEventListener('touchend', dropDrag);
+  document.addEventListener('touchcancel', dropDrag);
+  window.EarlyCard = { render, identicon, recent: all => { const h = tokensHtml(all, null); return h ? '<div class="dtv">' + h + '</div>' : ''; } };
 })();

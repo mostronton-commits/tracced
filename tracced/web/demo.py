@@ -28,7 +28,7 @@ def write_override(demo_dir, job_id):
     os.makedirs(demo_dir, exist_ok=True)
     tmp = os.path.join(demo_dir, OVERRIDE + ".tmp")
     with open(tmp, "w", encoding="utf-8") as f:
-        json.dump({"demo_job": job_id, "example_job": job_id, "set_ms": int(time.time() * 1000)}, f)
+        json.dump({"demo_job": job_id, "set_ms": int(time.time() * 1000)}, f)
     os.replace(tmp, os.path.join(demo_dir, OVERRIDE))
 
 

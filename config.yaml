@@ -13,7 +13,6 @@ detect:                             # pump detector: suggested ranges on the cha
 early:
   plan: advanced                # Pro: 1 000 000 requests a month, no rate limit. One call is one credit.
   private_hosts: [dev.tracced.xyz]   # owner, 30.09: the working copy opens for the owner's wallets only
-  example_job: 98kfF7_20260915-1930_1950   # a finished analysis pinned as the example on the home page (ignored if missing)
   demo_job: 98kfF7_20260915-1930_1950      # replays from output/early/demo/<mint>.json with zero requests (ignored if missing)
 
   # Cost of one new token. The entry range is always fetched in full (up to max_window_pages); exits come
@@ -33,10 +32,17 @@ early:
   credits_renew_day: 24         # the plan renews on this day of the month (bought on 24.09.2026); the owner's dashboard
                                 # shows the date and whether the balance lasts until then. The API gives only the balance
   st_eur_per_million: 200       # Pro costs €200 a month for 1,000,000 requests: the dashboard turns requests per analysis into euros
-  runs_per_day: 10              # per person (owner, 04.10: 5 → 10): the wallet and the browser both count, so another wallet adds nothing
+  runs_per_day: 10              # per person (owner, 07.10: stays 10, «10 analyses a day for active wallets»): the wallet and the
+                                # browser both count, so another wallet adds nothing
   runs_per_ip_per_day: 20       # per network: incognito plus a fresh wallet stops here; twice the person's, as an office or a phone carrier shares one address
+  ready_lists_on: true          # owner, 07.10: ready lists on the home page. Last month's (owner, 08.10), counted on the 1st by the
+                                # server's background: candidates from Solana Tracker's boards, their month counted by tracced
+                                # like a wallet card, only wallets that trade like people; about 1,500 requests a month
+  token_images_backfill: true   # owner, 07.10: token pictures in the home feed; older analyses read theirs once (1 request each)
   alerts_open: true             # owner, 05.10: Telegram alerts for every connected wallet, no longer a closed test
   runs_per_day_new_wallet: 1    # owner, 05.10: someone rotated fresh wallets to reset the count. A wallet younger than
+                                # (owner, 07.10: the pages say only «for active wallets», never the exact rule, so nobody
+                                # learns to farm one analysis per fresh wallet)
   new_wallet_days: 7            # new_wallet_days or holding under new_wallet_min_sol SOL gets this many a day; its age and
   new_wallet_min_sol: 0.01      # balance are read when it presses Analyze. Need more: the limit window offers the contact form
   refund_below_requests: 50     # a failed run gives its analysis back only if it spent fewer requests than this

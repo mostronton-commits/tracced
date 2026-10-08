@@ -20,9 +20,8 @@ people behind one address. Every count resets at midnight UTC, and the page show
 fails early, or is cut short by a server restart, gives its analysis back; one that fails once it has done real
 work counts toward the day.
 
-A new or empty wallet gets less: one younger than {{ s.new_wallet_days }} days, or holding under {{ s.new_wallet_min_sol }} SOL,
-gets {{ s.runs_per_day_new_wallet }} new {{ 'analysis' if s.runs_per_day_new_wallet == 1 else 'analyses' }} a day. When it presses Analyze we read its
-balance and its first transaction from the chain: public data, read only to set this count.
+Connect your wallet: {{ s.runs_per_day }} analyses a day for active wallets. A wallet with no trading history may get fewer. To
+set the count, we read the wallet's public on-chain history when it presses Analyze, and use it for nothing else.
 
 Need more than the day gives? The window that says the count is used up has a *Write to us* button: tell us how you
 use tracced, and we raise the limit.
@@ -33,11 +32,13 @@ Loading what a result does not hold yet in a wallet card: the wallet's last 30 d
 first funder when the analysis has not checked them. What someone has already loaded is free for everyone: the 30
 days are kept for a day, and the age and funder stay in the result.
 
+To count a sale at its real cost, a card also reads the wallet's earlier trades of the tokens it sold in those days
+but bought before them: up to {{ s.profile_history_tokens }} tokens a card, from the site's day rather than yours.
+
 | Limit | Value |
 |---|---|
 | New analyses a day, per person: wallet and browser count together | {{ s.runs_per_day }} |
 | New analyses a day from one network | {{ s.runs_per_ip_per_day }} |
-| New analyses a day for a wallet younger than {{ s.new_wallet_days }} days or with under {{ s.new_wallet_min_sol }} SOL | {{ s.runs_per_day_new_wallet }} |
 | New analyses a day on the whole site, while the month's requests last | {{ s.runs_global_per_day }} |
 | Ranges per token | {{ s.ranges_per_token }} |
 | Longest range | {{ s.max_window_hours }} hours |

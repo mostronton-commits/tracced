@@ -45,7 +45,7 @@ if AioHTTPTestCase:
                 html = await r.text()
                 self.assertEqual(r.status, 403, path)
                 self.assertIn("This copy of tracced is private", html, path)
-                self.assertNotIn("Recently analyzed", html, path)
+                self.assertNotIn("Live on tracced", html, path)
                 self.assertEqual(r.headers.get("X-Robots-Tag"), "noindex, nofollow", path)
             r = await self.client.get("/", headers=dict(DEV, Cookie=wallet_cookie(STRANGER)))
             self.assertIn("has no access here", await r.text())                     # another wallet: still closed

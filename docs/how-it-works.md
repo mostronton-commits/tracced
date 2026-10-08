@@ -18,6 +18,33 @@ Tokens created in the last {{ s.fresh_hours|int }} hours that reached a real mar
 Clones with huge caps and no trading, and charts bought by one bot, are filtered out. Biggest peak first; the list
 is refreshed at most every {{ s.fresh_refresh_min|int }} minutes. A click opens the chart, where you mark the range.
 
+## Ready lists
+
+**Top traders** on the home page: up to ten wallets that made the most last month and trade like people, for when
+you have no token to start from. The September list stays the same all October; on the 1st of the month (UTC) the
+next one is counted. Beside it, a card says why it is worth following.
+
+The candidates are known KOLs and the best of the market from Solana Tracker's rankings. How much each one made,
+tracced counts itself, from the wallet's own swaps over the whole month, the same way as its card. The rankings count
+as profit the tokens that came from another wallet with no purchase; we leave out a sale with no purchase found under
+it. A swap of a memecoin into a tokenized stock (RACE, SKHY, SPCX) is a real exit and counts at the stock's price.
+
+Only people stay, not machines. A wallet is left out when, in the month, it made more than
+{{ '{:,}'.format(s.ready_human.max_swaps) }} swaps or traded more than {{ s.ready_human.max_tokens }} tokens, closed fewer than
+{{ s.ready_human.min_closed }} positions, won less than {{ s.ready_human.win_rate[0] }} % or more than {{ s.ready_human.win_rate[1] }} % of
+them, held a position less than {{ s.ready_human.min_hold_min }} minutes on average or closed most of them within a minute (a
+sniper's pace), started trading less than {{ s.ready_human.min_age_days }} days before the month began (a fresh wallet), or is
+marked a bot, an exchange or an arbitrageur. Of the rest, the list keeps the ones that made more than
+${{ '{:,}'.format(s.ready_min_pnl|int) }} in the month, best first.
+
+The list's page opens with a connected wallet. Its rows are the month's numbers; a row opens the wallet's card, the
+same card as on a result, with its last 7 and 30 days, and under them **Best** shows the tokens it made its profit on. Beside
+the list, **Best ROI** ranks the same kind of people by the profit on what they bought in the month (at least
+${{ '{:,}'.format(s.ready_roi_min_invested|int) }} in and ${{ '{:,}'.format(s.ready_roi_min_pnl|int) }} made), with its own
+candidates from Solana Tracker's ranking by return. **Follow** puts a copy of the list in your watchlist, under the
+same name, with the bells on while your account has bells left. The copy is yours: next month's list does not change
+it; your watchlist says when the new one is out.
+
 ## The numbers under the chart
 
 One strip under the chart, a number and a word each. A click on a number shows exactly those wallets, or sorts by it.
@@ -132,7 +159,8 @@ that were checked. When the check is paused, the page says so.
 
 Click a wallet's address, or anywhere else in its row. The chart mark before it, which comes out with the star when the
 pointer is over the row, puts its buys and sells on the chart instead, in the wallet's own colour. In the card, a click on
-the address copies it. The card shows, top to bottom:
+the address copies it. On a phone each wallet is one line, its PnL and ROI on the right; a tap opens the card from the
+bottom of the screen, and a tap above it or pulling it down closes it. The card shows, top to bottom:
 
 1. who it is, when the wallet is publicly identified (a star for a KOL, its X account, the app it trades through),
    and next to the address its age, like `94d old`, and who sent it its first SOL (`funded by …`); hover either for
@@ -154,11 +182,14 @@ ROI, in the card and in its own column of the table, is the average exit cap ove
 before the range included: `2×` is +100%, `61.5×` is +6,050%. Hover it for the percent.
 
 The 30 days are counted by tracced from the wallet's own swaps, the same way as the table: average cost, and
-profit only on tokens the wallet actually bought. A position is closed once 99% of it is sold. Win rate is the
-closed positions that made money, out of all closed ones.
+profit only on what the wallet actually bought. Profit counts on the day of the sale, as a broker counts it: a token
+sold in those days counts in full, at what the wallet really paid for it, even when the buy came earlier. For such a
+token the card reads the wallet's earlier trades of it too, up to {{ s.profile_history_tokens }} tokens with the biggest sales. A
+position is closed once 99% of it is sold; win rate is the positions closed in those days that made money, out of all
+of them.
 
-A token the wallet sold in those days without buying it there is left out and counted apart. It came by transfer
-or was bought earlier, so its cost is unknown, and a transfer is not a profit.
+A token sold in those days with no buy found is left out and counted apart: it came by transfer, or its buy is
+older than what the card reads, so its cost is unknown, and a transfer is not a profit.
 
 !!! info "📊 Why not a third-party PnL"
     Third-party PnL often comes from a formula nobody publishes, and a "win rate" over a period can count

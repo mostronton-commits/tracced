@@ -36,6 +36,7 @@
 </section>
 {% endif %}
 <section class="card me" id="list">
+  {% for r in new_ready or [] %}<p class="mnew">{{ icon('renew') }}<span><b>{{ r.title }}</b> is out. The list you took stays as it is.</span><a href="/lists/{{ r.slug }}">See the new list</a></p>{% endfor %}
   <div class="row mehead">
     <h2>Watchlist</h2><span class="muted small" id="wcount">{{ wallets|length }} wallet{{ '' if wallets|length == 1 else 's' }}</span>
     {% if wallets %}<div class="menu right"><button type="button" class="ghost xbtn" data-menu title="Export the list on screen: CSV or TXT" aria-label="Export">{{ icon('download') }}</button>

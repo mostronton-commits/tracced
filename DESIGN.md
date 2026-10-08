@@ -225,7 +225,8 @@ chart sit on dark navy. The working surfaces are light: a pale page, white cards
   marks a hover.
 - **Background (#F8FAFC), surface (#FFFFFF), hover (#F1F5F9), sage (#D1FAE5)** are the light layers: the page, the
   cards, ghost hover and press, selected rows and the PnL bar.
-- **Navy (#090D16) with navy-line (#1E293B)** carries the header, the home hero and the chart.
+- **Navy (#090D16) with navy-line (#1E293B)** carries the header, the home hero and the chart, and the rank marks of
+  a ready list's first three.
 - **Meanings, each used for its meaning only:**
   - gain (#059669) and loss (#DC2626) for money;
   - saved, in amber (#D97706), for a wallet in your lists;
@@ -273,12 +274,30 @@ from 04.10, owner; they pair with the Carbon icons. Geist stays in `static/fonts
   - laptop: 961 to 1399 px;
   - wide: 1400 px and up.
   
-  Older rules at 380, 560, 720, 860 and 1000 px stay until someone touches them. On a phone and a tablet the
-  result table turns into one card per wallet. Before a change counts as done, check it
+  Older rules at 380, 560, 720, 860 and 1000 px stay until someone touches them. On a tablet the result table turns
+  into one card per wallet, on a phone into a list, one line per wallet (see Phones). Before a change counts as done, check it
   at 1920, 1440, 1280, 768 and 390 px. Nothing scrolls the page sideways, wide tables scroll inside their own frame,
   and the footer sits at the bottom.
 - **The result page** runs top to bottom: the chart, the tally (the counts and the insights in one strip), the
   toolbar, the table with its filters in its head. The wallet card slides in from the right.
+
+## The dark theme
+
+Light is the default and stays it (owner, 08.10: «не втративши свій акцент, щоб не стати ще одним Axiom, GMGN і другим
+терміналом, який темний по дефолту»). Dark is a choice, on the status bar or in the footer, kept in the browser and
+applied before the page paints. Until it is polished it lives on the draft site only (owner, 08.10: «кнопки й написи, які
+не читаються, логотипи, які не видно — не в цей реліз»): setting `dark_theme` draft | on | off; off the draft there is
+no switch and a stored choice does nothing.
+
+- **Not black: the hero's navy carried over the whole page.** Page #0B111C, cards #101827, a step lighter for hover
+  (#18243A), lines #1E2A3D and #2E3D55, text #E6EDF5 and #8E9CB2. The top bar and the footer sit a step darker (#070B13).
+- **Mint stays the one accent**, on the primary key, the switches that are on, the live dot; its text on mint stays
+  dark ink in both themes.
+- **Meanings keep their hue and lose their glare:** profit is #34D399, loss #F87171; a tag's pale fill becomes its hue
+  at 16 % on the dark, its border at about 40 %, its glyph lighter; amber warnings, green bells and medals likewise.
+- **The chart does not change**: it was navy in the light theme already.
+- Every colour comes from the tokens (`--bg`, `--surface`, `--subtle`, `--hover`, `--ink`, `--muted`, `--line`,
+  `--line-strong`, `--gain`, `--on-primary`); a new rule that hard-codes a light fill needs its dark line too.
 
 ## Elevation & Depth
 
@@ -341,14 +360,14 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   holds a switch, "Alerts for this list", with "k of N on" beside it: on rings every wallet in the list, the newest
   first while the cap leaves room; off silences them all. On the draft site no bot runs, so the alerts are a preview:
   the bells and the switch save, and the Telegram card says that nothing is sent.
-- **The wallet card** is a right-hand sheet, 420–440 px wide and full width on a phone, with a sticky head: identity,
-  then the Performance block (7D/30D, 30D by default), always there, then the trades with a switch, "<symbol> token"
-  (its numbers here as a small tally, then its trades) and "All tokens" (its recent tokens); the last choice stays for
-  the next card (owner, 04.10). A wallet's address in the table opens the card, never copies: it is underlined like a
+- **The wallet card** is a right-hand sheet, 420–440 px wide (on a phone a sheet from the bottom, see Phones), with a sticky head: identity,
+  then the Performance block (7D/30D, 30D by default) with its tokens under the numbers, Recent or Best. It is the same
+  card everywhere (owner, 08.10: «картка трейдера має бути однакова скрізь»): a result's card adds one block on top,
+  "<symbol> trades" (its numbers here as a small tally, then its trades), and nothing switches between them. A wallet's address in the table opens the card, never copies: it is underlined like a
   link, and a click anywhere else in the row opens the card too. In the card, the address copies itself on a click,
   with no copy mark beside it. Its chips say what they are without a hover: "funded by Binance", "94d old". In the
   watchlist the card shows the lists holding the wallet as switches under "Saved in", amber when on; the last one
-  stays, × in the row drops the wallet. In "All tokens" a recent token's row opens, under it, a small chart of that
+  stays, × in the row drops the wallet. In the tokens under the numbers a row opens, under it, a small chart of that
   token on the hours of the wallet's trades, its buys and sells marked as on the result's chart, with a link to the
   token's page (owner, 04.10). The token's address under a result's or a token's title copies itself on a click too,
   with no copy mark beside it.
@@ -371,8 +390,76 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   something. Colour only for meaning: amber a warning, red the creator or a staged launch, violet repeats. A cell with
   a filter or an order behind it is a button. The strip is a grid: a short last row keeps its cells' width. The home
   page shows none.
-- **Recently analyzed** on the home page lists ten tokens (owner, 05.10: the list grew without end). An eleventh row,
-  blurred and fading out, only says there are more: it is no link, and the home page has no way to the rest.
+- **Live on tracced** on the home page is a feed, not a list of links (owner, 05.10: people opened others' finished
+  analyses and took them for our verdicts, not seeing they could run their own). It shows the latest twenty analyses by
+  anyone, one row each: a letter mark, the symbol, the wallets found and the best ×, or "analyzing now", and how long
+  ago. Never who ran them. Rows lead nowhere. No caption and no day count above it (owner, 08.10). Seven rows show at once (owner, 07.10): the newest arrive one at a time at the top, 3–10 s apart, as
+  they happened, and real new ones come every 20 s from `/live.json`. Nothing loops. A row: the token's picture (its
+  letter while it loads or when it has none), symbol, one fact, how long ago. The fact is "saved N wallets" with the
+  star when people really saved wallets from that analysis, otherwise nothing (owner, 08.10: "found 180 wallets" said
+  nothing, the market cap neither, and "made 2×+" left unclear who made it). Never a made-up number: the owner asked
+  for random saved counts three times and they stay out, as they would show activity that never happened. The demo is
+  neither a row nor a card on the home page (owner, 08.10): it is a link, Demo, first in the status bar and in the
+  footer's Product.
+- **Ready lists** (owner, 07.10: «цікаво, зрозуміло і привабливо»; 08.10: one list, simpler) sit on the home page under
+  the live feed, under "Follow the best traders" (owner, 08.10: no subtitle, no word twice): two cards side by side, one
+  column on a phone. The first is the list, last month's, and says so ("September's top 10", "next list Nov 1"): the
+  sum they made in the month in mono at 24 px 700, green as profit is, "combined profit" under it, five leaders as rows (three on a
+  phone) and the next one blurred, as the old list of analyses did, then one full-width key: *Open the list*, which
+  asks for a wallet first and then opens the list's page (owner, 08.10). The first three ranks are medals, quietly
+  (owner, 08.10): a pale gold, silver and bronze disc with a deeper digit, never a bright fill. Beside the list, three
+  tiles (owner, 08.10, «text», the take he chose of three after tier-1 sites): a big one, "Their trades, in your
+  Telegram", whose navy area (the hero's, with a faint mint and indigo glow) holds two real alerts of a trader on the
+  list as notifications, the newest on top and the older one smaller and dimmer behind, the text the first line of what
+  the alert code writes, with no links (the home page is open to guests, the list is not); under it two quiet tiles, a
+  mint icon on a navy square and two lines: "Real traders only" and "A new list every month". No illustrations, no
+  numbers in them. The column takes the list's height and the navy area fills what is left; on a phone the three stack.
+  With no alert to show, the big tile becomes a quiet one with the bell. No stack of faces, no notes under the cards.
+  Profits show three significant figures ($6.77M, $583K). Every number is tracced's own count of the month, the same
+  as the wallet's card on that month.
+- **A ready list's page** is for a connected wallet only (owner, 08.10: nobody takes the list without connecting; a
+  guest sees the title, one line and Connect): the title, one short line ("September's most profitable traders. Real
+  people, no bots."), the key on top (on a phone a bar fixed at the bottom), a tally strip (Profit, Best, Wallets,
+  Next update), the wallets as a leaderboard with @X, win rate, wins and losses, and a link to the other list (Best ROI,
+  for comparison: ROI is the main number there). A row opens the wallet card, the same as a result's: 7D and 30D, no
+  tab for the month (owner, 08.10: the month is the list itself). Under the card's numbers its tokens switch between
+  Recent and Best (owner, 08.10, «як на FOMO»): Best is where the PnL was made, the most profitable first.
+- **Free during beta** (owner, 07.10: out of the hero; 08.10: the words): its own quiet block at the end of the home
+  page, above the footer: "Pay with a follow on X, and be the first to see what's new." and *Follow @tracced_xyz* with
+  the X mark, instead of payment.
+- **Chips under a token's title** (owner, 08.10, like OpenSea): on the token page and a result, under the symbol and the
+  token's picture: SOLANA, its age ("3 weeks old"), NEW in green for its first day, the launchpad; mono capitals in a
+  thin outline, then the short address that copies itself, Solscan and the project's X.
+- **The status bar** (owner, 08.10, like OpenSea): on a wide screen a thin line fixed along the bottom of the window,
+  on the hero's navy in both themes (owner, 08.10: «темним, у наших кольорах»), and there the only footer (owner,
+  08.10: «має бути лише один»; the dark footer hides above 960 px): "Live on Solana" with the live dot, Demo, Docs,
+  How it works, The project, What's new, Contact; on the right the version and the switches,
+  UTC/Local, USD/SOL (and Light/Dark where dark is on), then X, Telegram and GitHub. Phones and tablets have no bar:
+  the footer stays, with the switches.
+- **The hero line stays "every wallet on the record_"** (owner, 08.10: "Find who bought before the pump — and catch
+  their next move" was tried and is too long): under the big *tracced*, in mono at 26 px (18 on a phone), "on the
+  record" in mint, the cursor after it; under it the lead, "Paste a token, mark the pump — see who bought before it and
+  what they did next." (owner, 08.10: not "every wallet" twice). A shared link shows "See who bought before the pump,
+  and what they did next." (description and og tags).
+- **Phones get less text, not fewer facts** (owner, 07.10, «like FOMO»): a short lead in the hero, no 01/02/03 steps,
+  no captions under section titles; numbers and actions stay.
+- **Phones read like a trading app's lists** (owner, 07.10: «Сторінку результату й картку гаманця як у FOMO»), in
+  tracced's own colours:
+  - a result's wallet is one line: the star, the wallet's picture (drawn from its address, round), the address with up
+    to three marks, under it what it put in, at which cap and how much it sold ("$1.2K at 263K cap · sold out"); PnL
+    and ROI on the right. Seven to nine wallets fit a screen. The chart mark leaves the line: the card puts the
+    wallet on the chart when it opens;
+  - the toolbar is two lines: Filters, Sort and the money unit; then the count, Export and the agent;
+  - the result's head keeps the star and "Chart" beside the title, the range under it across the width; the token
+    page's facts stand three to a line, never one under another;
+  - where the desktop shows a mouse pointer clicking (the chart's two-click demo, the result's card hint), a touch
+    screen shows a fingertip pressing, or nothing;
+  - a range row is two lines: its number, name and ×; then its times, the pencil and the key;
+  - the wallet card rises from the bottom as a sheet (12 px corners, a handle, the page dimmed behind it) and closes
+    by ×, a tap above it or pulling its head down. In it, this token's PnL is large like a position, ROI beside it,
+    then bought, sold and held.
+- **The token's picture** stands before its symbol in a result's head, as in the home feed: its letter on its hue while
+  it loads or when it has none.
 - **Toasts** sit at the bottom centre, one at a time. They name the result and can carry one link ("Lists →") or one
   Undo.
 - **Menus and popovers** are white with a 1 px border. Menus have an 8 px radius, popovers 10 px. Escape or a click
@@ -387,8 +474,14 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   longer than 300 ms, and nothing uses `ease-in`.
 - **Nothing jumps on hover.** No `translateY` on buttons, rows, chips or cards; a chip in a clipped strip gets cut.
 - **Name the properties being animated.** Never write `transition: all`.
-- **Decorative loops** (the agent button's sheen, the fresh-pumps tape, the live dot) run briefly or only under the
-  pointer. All of them stop under `prefers-reduced-motion: reduce`.
+- **Decorative loops** (the agent button's sheen, the live dot) run briefly or only under the pointer.
+- **The fresh-pumps tape** moves slowly all the time and stops under the pointer.
+- **The live feed does not roll**: a new row slides in at the top (300 ms, `ease-out`) and the seventh fades out
+  at the bottom.
+- **The phone's wallet card** rises in 260 ms (`ease-out`) and follows the finger when its head is pulled down; past
+  90 px it closes, short of it it goes back.
+- All of these stop under `prefers-reduced-motion: reduce`: the tape then scrolls by hand, new feed rows appear
+  without sliding, and the card's sheet appears without rising.
 
 ## Do's and Don'ts
 
