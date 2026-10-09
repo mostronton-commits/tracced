@@ -382,7 +382,7 @@ if AioHTTPTestCase:
             feed = html[html.index('id="live"'):html.index("</section>", html.index('id="live"'))]
             shown = feed[:feed.index("<template")]
             queued = feed[feed.index("<template"):]
-            self.assertEqual(shown.count('class="lrow"'), 7)
+            self.assertEqual(shown.count('class="lrow"'), 9)           # три колонки по три на компі; телефон показує сім
             self.assertEqual(queued.count('class="lrow"'), 3)
             newest = mints[-1][:6]
             self.assertIn(f'data-id="{newest}', queued)                # найновіший прийде з черги, а не стоїть одразу

@@ -102,6 +102,11 @@
     while (box.children.length > m) box.lastElementChild.remove();
     box.classList.toggle('few', box.children.length < m);
   }
+  function fit() {                                       // the page arrives with nine; a tablet keeps eight, a phone seven
+    const m = max();
+    while (box.children.length > m) box.lastElementChild.remove();
+  }
+  fit(); addEventListener('resize', fit);
   function step() { timer = null; if (!queue.length) return; if (document.hidden) return plan(); show(queue.shift()); plan(); }
   function plan() { if (!timer && queue.length) timer = setTimeout(step, 3000 + Math.random() * 7000); }
   async function poll() {
