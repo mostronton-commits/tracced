@@ -53,7 +53,7 @@
 {% set q = [3, [0, live.rows|length - 4]|max]|min %}
 <section class="card livefeed" id="live" aria-label="Live on tracced">
   <div class="row mehead"><h2><i class="flive" aria-hidden="true"></i>Live on tracced</h2></div>
-  <div class="lfeed{{ ' few' if live.rows|length < 7 }}" id="lfeed">{% for r in live.rows[q:q + 7] %}{{ lrow(r) }}{% endfor %}</div>
+  <div class="lfeed{{ ' few' if live.rows|length < 7 }}" id="lfeed">{% for r in live.rows[q:q + 9] %}{{ lrow(r) }}{% endfor %}</div>
   {% if q %}<template id="liveq">{% for r in live.rows[:q] %}{{ lrow(r) }}{% endfor %}</template>{% endif %}
 </section>
 <script>
@@ -69,7 +69,11 @@
     i.focus({ preventScroll: true });
   }));
   const box = document.getElementById('lfeed'); if (!box) return;
-  const MAX = 7, reduced = matchMedia('(prefers-reduced-motion: reduce)').matches, tpl = document.getElementById('liveq');
+  // one column on a phone holds seven rows; on a wider screen the rows sit in two or three columns (owner, 09.10: one wide
+  // column left an empty middle), eight or nine of them, so no column ends short
+  const cols = () => Math.max(1, getComputedStyle(box).gridTemplateColumns.split(' ').filter(c => c && c !== 'none').length);
+  const max = () => { const c = cols(); return c === 1 ? 7 : c * Math.ceil(7 / c); };
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches, tpl = document.getElementById('liveq');
   const queue = tpl ? Array.from(tpl.content.children).reverse() : [];      // the newest arrives last
   const ids = new Set([...box.children, ...queue].map(r => r.dataset.id));
   let newest = Math.max(0, ...[...box.children, ...queue].map(r => +r.dataset.at || 0)), timer = null;
@@ -94,8 +98,9 @@
     if (!reduced) row.classList.add('lin');
     box.prepend(row);
     if (!reduced) { void row.offsetHeight; row.classList.remove('lin'); }
-    while (box.children.length > MAX) box.lastElementChild.remove();
-    box.classList.toggle('few', box.children.length < MAX);
+    const m = max();
+    while (box.children.length > m) box.lastElementChild.remove();
+    box.classList.toggle('few', box.children.length < m);
   }
   function step() { timer = null; if (!queue.length) return; if (document.hidden) return plan(); show(queue.shift()); plan(); }
   function plan() { if (!timer && queue.length) timer = setTimeout(step, 3000 + Math.random() * 7000); }

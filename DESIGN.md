@@ -411,7 +411,7 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
 - **Live on tracced** on the home page is a feed, not a list of links (owner, 05.10: people opened others' finished
   analyses and took them for our verdicts, not seeing they could run their own). It shows the latest twenty analyses by
   anyone, one row each: a letter mark, the symbol, the wallets found and the best ×, or "analyzing now", and how long
-  ago. Never who ran them. Rows lead nowhere. No caption and no day count above it (owner, 08.10). Seven rows show at once (owner, 07.10): the newest arrive one at a time at the top, 3–10 s apart, as
+  ago. Never who ran them. Rows lead nowhere. No caption and no day count above it (owner, 08.10). Seven rows show at once on a phone (owner, 07.10); on a wider screen the rows sit in columns, three of three on a desktop and two of four on a tablet (owner, 09.10: one row across the page left an empty middle). The newest arrive one at a time at the top, 3–10 s apart, as
   they happened, and real new ones come every 20 s from `/live.json`. Nothing loops. A row: the token's picture (its
   letter while it loads or when it has none), symbol, one fact, how long ago. The fact is "saved N wallets" with the
   star when people really saved wallets from that analysis, otherwise nothing (owner, 08.10: "found 180 wallets" said

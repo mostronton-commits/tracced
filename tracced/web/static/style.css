@@ -714,6 +714,15 @@ button.ghost.xbtn { padding: 0; color: #475569; }
   .rcard, .freebar { padding: 16px; }
   .rc-act .primary, .rc-act .button { flex: 1 1 0; height: 44px; padding: 0 10px; }
   .freebar .button { width: 100%; height: 44px; } }
+/* wider screens: the rows sit in columns (owner, 09.10: one row across the page left an empty middle between the symbol
+   and the time). Three columns of three on a desktop, two of four on a tablet; the block is half as tall */
+@media (min-width: 561px) {
+  .lfeed { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; height: auto;
+    -webkit-mask-image: none; mask-image: none; }
+  .lrow { grid-template-columns: 26px minmax(0, 1fr) auto auto; transition: opacity .3s ease-out, transform .3s ease-out; }
+  .lrow.lin { height: 44px; transform: translateY(-6px); border-bottom-color: var(--line); }
+}
+@media (min-width: 961px) { .lfeed { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (prefers-reduced-motion: reduce) { .lrow { transition: none; } }
 
 /* ── iteration 9: assistant ── */
