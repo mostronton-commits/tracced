@@ -264,7 +264,7 @@ from 04.10, owner; they pair with the Carbon icons. Geist stays in `static/fonts
 
 ## Layout
 
-- **Width:** the content is at most 1280 px wide, 1600 px on a result page, centred. The page side gutter is 24 px,
+- **Width:** the content is at most 1280 px wide, 1600 px on a token's page (its results are on it), centred. The page side gutter is 24 px,
   16 px on a phone.
 - **Spacing** follows a 4 px base: 2, 4, 8, 12, 16, 24 and 32 px. Odd steps of 6, 10, 14 and 18 px exist only inside
   dense controls. Space groups with `gap` in flex and grid, not with margins on each element.
@@ -278,8 +278,29 @@ from 04.10, owner; they pair with the Carbon icons. Geist stays in `static/fonts
   into one card per wallet, on a phone into a list, one line per wallet (see Phones). Before a change counts as done, check it
   at 1920, 1440, 1280, 768 and 390 px. Nothing scrolls the page sideways, wide tables scroll inside their own frame,
   and the footer sits at the bottom.
-- **The result page** runs top to bottom: the chart, the tally (the counts and the insights in one strip), the
-  toolbar, the table with its filters in its head. The wallet card slides in from the right.
+- **A token's page is one page from the token to its wallets** (owner, 09.10: «юзер вводить токен і на тій самій
+  сторінці виділяє діапазон і отримує результат»). Top to bottom: the token's head with its chips, the chart, the
+  token's analyses as tabs (each in its band's shade: «Pump 1 · 765 wallets», a dashed «+ New range»), then the bar of
+  a marked range (its times, ✎ for exact minutes, Cancel, *Get wallets*), the run's line while it goes, and the chosen
+  result: the tally (the counts and the insights in one strip), the toolbar, the table with its filters in its head.
+  The wallet card slides in from the right.
+  - The chart is the control: two clicks mark a range and the bar with *Get wallets* appears under the chart. Nothing
+    runs until it is pressed (owner, 09.10: variant A). A result on screen stays while a new range is marked.
+  - The run (owner, 09.10: «бігуча строка»): a navy line under the chart fills with the run's own steps — Token,
+    Trades, Exits, Checks, Wallets — its phase and count in words («Checking where they sold · 329 / 765 wallets»), a
+    light passing along the filled part, and the range's band on the chart glows with a light moving left to right.
+    Full, it says how many wallets were found, then the result rises in below. No page reload anywhere.
+  - Tabs (owner, 09.10: variant A of two): one result on the page at a time; the others wait as fetched markup (three
+    at most), so a tab opens at once; the band's label on the chart opens its tab too. Up to `ranges_per_token`
+    analyses per token; the demo's tabs are its recorded pumps, each replayed once per browser. Tabs go in the order
+    their ranges start and are named Pump 1, 2, 3 by it, the same on the page as after a reload; a run you started
+    gets its × when it ends. A closed tab's late answers (a card's age, trades, profile) are dropped, never drawn
+    into the open tab's card (release check, 10.10).
+  - The address follows the tab: /job/<id> for a result (shareable, opens this page with that tab chosen), /token?mint=
+    for the bare token; Back and Forward move between tabs.
+  - Weak computers (owner, 09.10): one result mounted, its listeners, timers and pop-ups gone when another tab opens
+    (static/result.js); motion in CSS only, none with reduced motion; the table draws a hundred rows at a time. On a 4×
+    slower processor a tab switch stays under 200 ms of blocking.
 
 ## The dark theme
 
@@ -435,7 +456,8 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   08.10: «має бути лише один»; the dark footer hides above 960 px): "Live on Solana" with the live dot, Demo, Docs,
   How it works, The project, What's new, Contact; on the right the version and the switches,
   UTC/Local, USD/SOL (and Light/Dark where dark is on), then X, Telegram and GitHub. Phones and tablets have no bar:
-  the footer stays, with the switches.
+  the footer stays, with the switches. A switch on the navy never lights up on hover (owner, 10.10: «світиться білим —
+  виглядає не гарно»): the border lifts a shade and the idle half's text brightens, nothing else.
 - **The hero line stays "every wallet on the record_"** (owner, 08.10: "Find who bought before the pump — and catch
   their next move" was tried and is too long): under the big *tracced*, in mono at 26 px (18 on a phone), "on the
   record" in mint, the cursor after it; under it the lead, "Paste a token, mark the pump — see who bought before it and
@@ -475,7 +497,8 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
 - **Nothing jumps on hover.** No `translateY` on buttons, rows, chips or cards; a chip in a clipped strip gets cut.
 - **Name the properties being animated.** Never write `transition: all`.
 - **Decorative loops** (the agent button's sheen, the live dot) run briefly or only under the pointer.
-- **The fresh-pumps tape** moves slowly all the time and stops under the pointer.
+- **The fresh-pumps tape** moves slowly all the time and stops under the pointer. Each chip leads with the market
+  cap now, the number the token page opens with, and the peak follows it, smaller (owner, 10.10).
 - **The live feed does not roll**: a new row slides in at the top (300 ms, `ease-out`) and the seventh fades out
   at the bottom.
 - **The phone's wallet card** rises in 260 ms (`ease-out`) and follows the finger when its head is pulled down; past

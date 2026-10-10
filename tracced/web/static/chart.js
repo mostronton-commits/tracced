@@ -102,7 +102,7 @@
     const normWins = ws => (ws || []).map(w => ({ ...w, from: sec(w.from), to: sec(w.to) }));
     let tf = null, data = new Map(), times = [], loaded = { a: null, b: null }, busy = false, gen = 0;
     let edge = { left: false, right: false };   // the feed has nothing further that way: stop asking for it
-    let windows = normWins(opts.windows), selected = opts.selected || 0, exitSec = sec(opts.exit), marker = null, events = [];
+    let windows = normWins(opts.windows), selected = opts.selected || 0, exitSec = sec(opts.exit), marker = null, events = [], running = null;
     // The first visit's demo (owner, 30.09): no line of text about clicking, and no bands the page picked by itself. A
     // cursor clicks where buying starts, then where the pump takes off, a band grows between the two clicks, and it goes
     // round until the person clicks the chart. 'two' — both clicks; {after} — the second, from the first mark
@@ -271,7 +271,7 @@
       windows.forEach((w, i) => {
         if (!w.from || !w.to || w.to < v.a || w.from > v.b) return;
         const x1 = xOf(w.from), x2 = xOf(w.to); if (x1 == null || x2 == null) return;
-        const d = document.createElement('div'); d.className = 'win' + (i === selected ? ' sel' : '');
+        const d = document.createElement('div'); d.className = 'win' + (i === selected ? ' sel' : '') + (i === running ? ' run' : '');
         d.style.setProperty('--wc', SHADES[i % SHADES.length]);
         d.style.left = Math.min(x1, W) + 'px'; d.style.width = Math.max(2, Math.min(x2, W) - Math.min(x1, W)) + 'px';
         const lbl = document.createElement('span'); lbl.className = 'lbl'; lbl.textContent = (w.n || (i + 1)) + (w.label && i === selected ? ' · ' + w.label : ''); lbl.title = w.label || '';
@@ -388,6 +388,8 @@
       setDemo(m) { const next = m === 'two' ? 'two' : m && m.after ? { after: sec(m.after) } : null;
         if (JSON.stringify(next) !== JSON.stringify(demo)) { demo = next; place(); } },
       setWalletMarkers(list) { wallets = list || []; renderMarkers(); },
+      setOnMarkers(fn) { opts.onMarkers = fn; },           // the page keeps one chart; each result says where its marker hint goes
+      setRunning(i) { if (running !== i) { running = i; place(); } },   // the band being analyzed glows while its run goes (owner, 09.10)
       focus: (from, to, exit) => focus(sec(from), sec(to), sec(exit)),
       setTf, init: async first => { if (first) await setTf(first, false, 'recent'); else await setTf(pickTf(now - created), false); },
       fmtMcap,

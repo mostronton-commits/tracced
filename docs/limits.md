@@ -11,7 +11,7 @@ whoever ran it: its range does not move, and a different range is a new row besi
 ## Needs a wallet
 
 Running a **new** analysis. The wallet signs a message: no transaction, no fee. You are asked at the moment you
-press Analyze, not before, and the range you marked survives the sign-in.
+press Get wallets, not before, and the range you marked survives the sign-in.
 
 The daily count of new analyses is per person, not per wallet: connecting another wallet in the same browser adds
 nothing. To know the browser again, the first analysis leaves a cookie holding a random number and nothing else; it
@@ -21,7 +21,7 @@ fails early, or is cut short by a server restart, gives its analysis back; one t
 work counts toward the day.
 
 Connect your wallet: {{ s.runs_per_day }} analyses a day for active wallets. A wallet with no trading history may get fewer. To
-set the count, we read the wallet's public on-chain history when it presses Analyze, and use it for nothing else.
+set the count, we read the wallet's public on-chain history when it presses Get wallets, and use it for nothing else.
 
 Need more than the day gives? The window that says the count is used up has a *Write to us* button: tell us how you
 use tracced, and we raise the limit.

@@ -1,0 +1,144 @@
+{# The result under the token's chart (owner, 09.10: one page). Served inside /job/<id> and alone by /job/<id>/view, which
+   the page fetches when a run ends or a tab opens; static/result.js mounts it and unmounts it. What the script needs from
+   the server is in #rcfg, so the same markup works both ways #}
+{% set job_end = (result.window.end or job.t_exit or job.t_to) %}
+<div class="result" id="resultroot" data-id="{{ save_id }}">
+  <div class="rhead">
+    <span class="mono muted rrange">Range <span class="dtc" data-ms="{{ job.t_from }}">{{ job.t_from|dt }}</span> → <span class="dtc" data-ms="{{ job.t_to }}">{{ job.t_to|dt }}</span> · trades up to <span class="dtc" data-ms="{{ job_end }}">{{ job_end|dt }}</span></span>
+    <span class="rhead-act">
+      <button type="button" class="ghost savejob" id="savejob" title="Keep this analysis under My analyses" aria-label="Save analysis">{{ icon('star') }}<span>Save analysis</span></button>
+      {% if is_admin and not is_demo %}<button type="button" class="ghost" id="mkdemo" data-job="{{ job.id }}" title="Replace the demo token with this analysis (owner only)">Make it the demo</button>{% endif %}
+    </span>
+  </div>
+  {% set r = result %}{% set c = r.counts %}
+  <div class="onchart-bar" id="onchart" hidden></div>
+  <p class="muted small mhint" id="mhint" hidden></p>
+  {# what tracced counted and found, one strip under the chart: a number and a word each (owner, 02.10: no pills, no
+     sentence of counts). The counts always; after them, the findings that say something (findings() fills #finds) #}
+  {% set n0 = sm.n or 0 %}
+  {% set pso = [((100 * (sm.exited or 0) / n0)|round|int), (99 if (sm.exited or 0) < n0 else 100)]|min if n0 else 0 %}
+  {% set phd = [((100 * (sm.holding or 0) / n0)|round|int), (99 if (sm.holding or 0) < n0 else 100)]|min if n0 else 0 %}
+  {% set cv = r.coverage or {} %}{% set partial = cv and cv.mode != 'trades' and (cv.exits_known or 0) < (cv.total or 0) %}
+  <div class="tally" id="tally">
+    <span class="tc" title="Wallets that bought inside the range: the list below"><b data-count="{{ sm.n }}" data-fmt="int">0</b><i>bought <span class="kinfo tipt{{ ' warn' if partial }}" tabindex="0" title="{{ c.n_wallets|num }} traded in the range · {{ c.dust|num }} below ${{ s.min_invested_usd }} · {{ ((c.pre_range_only or 0) + (c.before_range_only or 0))|num }} sold only · {{ c.n_trades|num }} trades{% if cov_text %} · {{ cov_text }}{% endif %}" aria-label="{{ 'Exits are not known for every wallet' if partial else 'How these numbers were counted' }}">{{ '!' if partial else 'i' }}</span></i></span>
+    <span class="tc" title="What these wallets spent inside the range"><b class="amt" data-usd="{{ (sm.invested_range or 0)|round(0)|int }}"{% if sm.invested_range_sol is not none %} data-sol="{{ sm.invested_range_sol|round(2) }}"{% endif %} data-count="{{ (sm.invested_range or 0)|round(0)|int }}" data-fmt="usd">0</b><i>spent</i></span>
+    <button type="button" class="tc" data-act="sold" title="{{ (sm.exited or 0)|num }} of {{ n0|num }} sold 99% or more · click to show them"><b data-count="{{ pso }}" data-fmt="pct">0</b><i>sold out</i><span class="tm" style="--p:{{ pso }}%"></span></button>
+    <button type="button" class="tc" data-act="holding" title="{{ (sm.holding or 0)|num }} of {{ n0|num }} sold less than half · click to show them"><b data-count="{{ phd }}" data-fmt="pct">0</b><i>holding</i><span class="tm" style="--p:{{ phd }}%"></span></button>
+    <button type="button" class="tc" data-act="best" title="Highest average exit cap ÷ average entry cap, buys before the range included · click to sort by ROI"><b data-count="{{ sm.best_multiple or 0 }}" data-fmt="mult">0</b><i>best ROI</i></button>
+    <span class="tfinds" id="finds"></span>
+  </div>
+
+  {% if not sm.has_sol %}<p class="muted small solnote" hidden>This analysis was saved before tracced started recording SOL amounts, so its figures stay in dollars.</p>{% endif %}
+
+  <div class="row toolbar">
+    <button type="button" id="ftoggle" aria-expanded="false" aria-controls="fpanel">Filters</button><button type="button" class="ghost frst" id="freset" hidden title="Back to no filters and the PnL order">Reset</button>
+    <span class="muted small" id="shown"></span><span class="factive" id="factive" hidden></span>
+    {% if s.age_lookups_max %}<span class="muted small tipt" id="enrich" title="{{ TAGS.fresh }}">wallet age…</span>{% endif %}
+    <label class="sortby muted small">Sort <select id="msort" aria-label="Sort the wallets">
+      <option value="real" selected>PnL, highest first</option><option value="inv">Bought the most</option>
+      <option value="etime" data-dir="1">Bought first</option><option value="got">Sold for the most</option>
+      <option value="mult">ROI, highest first</option><option value="entry" data-dir="1">Lowest entry cap</option>
+      <option value="hold">Held longest</option><option value="" hidden disabled>Custom</option></select></label>
+    <button type="button" class="tzseg" id="cur" title="Show every amount in dollars or in SOL" aria-label="Money unit" onclick="EarlyCur.toggle()"><b class="on">USD</b><b>SOL</b></button>
+    <div class="soonwrap right" id="aiwrap">
+      <button type="button" class="button holo" id="askbtn" title="{{ 'Pick wallets to watch by your method' if assistant_on else 'Coming soon' }}"><span class="holo-in">✦ AI agent</span></button>
+      <div class="soon-pop" id="aipop" hidden>
+        <b>Coming soon</b>
+        <span>The agent will read this analysis and tell you what happened in the range, what to weigh and whose wallets stand out, then answer your questions about it. It is not switched on on this server yet.</span>
+      </div>
+    </div>
+    <div class="menu">
+      <button type="button" class="ghost xbtn" data-menu title="Export the wallets shown: CSV, TXT or JSON" aria-label="Export">{{ icon('download') }}</button>
+      <div class="menu-panel r" id="xpanel" hidden>
+        <button type="button" data-x="csv">CSV <small id="xcsv"></small></button>
+        <button type="button" data-x="txt">TXT <small id="xtxt"></small></button>
+        <button type="button" data-x="json">JSON <small id="xjson"></small></button>
+      </div>
+    </div>
+  </div>
+
+  {# the filters as a panel over the table, its full width (owner, 04.10: as it was, not a pop-up); filled by drawPanel() #}
+  <div class="fpanel" id="fpanel" hidden></div>
+  <div class="tablewrap">
+  <table class="facts" id="facts" data-id="{{ save_id }}">
+    <thead>
+    <tr>
+      {# a funnel by each number: «from … to …» in one small window, the money unit by Bought; one line each (owner, 02.10) #}
+      <th class="wh">Wallet</th>
+      <th class="num sortable" data-key="inv" title="How much it bought inside the range · the market cap of its first buy there"><span class="thc"><button type="button" class="hcur" title="Amounts in dollars or in SOL · click to switch" aria-label="Money unit">$</button><span class="hl">Bought</span><button type="button" class="hfil" data-fil="inv" title="Filter by what it bought" aria-label="Filter Bought">{{ icon('filter') }}</button></span></th>
+      <th class="num sortable" data-key="got" title="What it received from selling · its average exit market cap and the share of its tokens sold"><span class="thc"><span class="hl">Sold</span><button type="button" class="hfil" data-fil="sold" title="Filter by the share sold" aria-label="Filter Sold">{{ icon('filter') }}</button></span></th>
+      <th class="num sortable desc" data-key="real" title="Profit on what it sold: received minus what those tokens cost · below it, the paper result on what is left"><span class="thc"><span class="hl">PnL</span><button type="button" class="hfil" data-fil="real" title="Filter by PnL" aria-label="Filter PnL">{{ icon('filter') }}</button></span></th>
+      <th class="num sortable" data-key="mult" title="How many times over it sold: average exit cap ÷ average entry cap, buys before the range included. 2× = +100%"><span class="thc"><span class="hl">ROI</span><button type="button" class="hfil" data-fil="mult" title="Filter by ROI" aria-label="Filter ROI">{{ icon('filter') }}</button></span></th>
+      <th class="num sortable" data-key="hold" title="From its entry to its first sale · its buys ↑ and sells ↓"><span class="thc"><span class="hl">Held</span><button type="button" class="hfil" data-fil="hold" title="Filter by hold time and buys" aria-label="Filter Held">{{ icon('filter') }}</button></span></th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>
+  </div>
+  <script type="application/json" id="rowsdata">{{ rows_json }}</script>
+  <div class="row more" id="more" hidden>
+    <button type="button" id="more100">Show 100 more</button>
+    <button type="button" class="ghost" id="moreall">Show all <span id="moren"></span></button>
+    <span class="muted small">Filters and Export work on every wallet, shown or not.</span>
+  </div>
+
+  <aside class="drawer apanel" id="apanel" hidden aria-label="AI agent">
+    <div class="drawer-head"><div class="aht"><b>✦ AI agent</b><span>reads this analysis only</span></div><button type="button" class="ghost x" id="aclose" title="Close" aria-label="Close">×</button></div>
+    <div class="apanel-body">
+      <div class="aempty" id="aempty">
+        <p class="aintro">Ask about this pump</p>
+        <div class="aquick">
+          {% for q in agent_chips %}<button type="button" class="aqbtn" data-q="{{ q }}">{{ q }}<span aria-hidden="true">→</span></button>
+          {% endfor %}<button type="button" class="aqbtn asum" data-sum="1">Summary of this pump<span aria-hidden="true">→</span></button>
+        </div>
+        <p class="muted small aguest" id="aguest" hidden>Beta, free for now. Connect a wallet to ask.</p>
+      </div>
+      <div class="athread" id="athread"></div>
+    </div>
+    <div class="afoot">
+      <div class="achips" id="achips" hidden></div>
+      <form class="aask" id="aform"><input id="aq" maxlength="500" placeholder="Ask anything about this pump…" autocomplete="off" aria-label="Your question"><button type="submit" class="primary">Ask</button></form>
+      <p class="muted small anote">Facts from this analysis only. Not advice. <span id="aleft"></span></p>
+    </div>
+  </aside>
+  <aside class="drawer wcard" id="drawer" hidden aria-label="Wallet card">
+    <div class="drawer-scroll">
+      <div class="drawer-head">
+        <div class="dh-id">
+          <span class="wav" id="dav" aria-hidden="true"></span>
+          <div class="dh-names">
+            <div class="dh-top"><b id="dname">Wallet</b><span class="ids" id="dids"></span></div>
+            <div class="dh-addr"><button type="button" class="dwc mono" id="dw" data-copy="" title="Copy the address" aria-label="Copy the address"></button><a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan" aria-label="This wallet on Solscan">{{ icon('launch') }}</a><span class="dchips" id="dchips"></span></div>
+          </div>
+        </div>
+        <div class="dh-act">
+          <button type="button" class="ghost dstar" id="dstar" title="Add to your watchlist" aria-label="Add to your watchlist">{{ icon('star') }}</button>
+          <button type="button" class="ghost x" id="dclose" title="Close" aria-label="Close">×</button>
+        </div>
+      </div>
+      <div class="dtags" id="dtags"></div>
+      {# owner, 08.10: a wallet's card is the same everywhere (a ready list's too); here it adds one thing, this token's
+         trades, on top, since this is what the analysis is about #}
+      <section class="dsec dtrades">
+        <div class="dsec-h"><h4>{{ job.symbol }} trades <span class="muted" id="dtcount"></span></h4></div>
+        <div id="dtok">
+          <div class="tally dtally" id="dtally"></div>
+          <table class="story clip" id="dtable"><thead><tr><th>Time</th><th></th><th class="num">Amount</th><th class="num">Tokens</th><th class="num">Cap</th></tr></thead><tbody id="dtrades"></tbody></table>
+          <button type="button" class="ghost dmore" id="dmore" hidden></button>
+          <p class="muted small dline" id="dnote"></p>
+        </div>
+      </section>
+      <section class="dsec dperf">
+        <div class="dsec-h"><h4>Performance <span class="dinfo" id="dprofi" hidden>i</span></h4>
+          <div class="seg" id="dper" role="tablist" aria-label="Period"><button type="button" data-p="7">7D</button><button type="button" data-p="30" class="on">30D</button></div></div>
+        <div id="dprof"></div>
+      </section>
+      <section class="dsec" id="dwsec" hidden>
+        <div class="dcross" id="dcross"></div>
+      </section>
+    </div>
+  </aside>
+  <script type="application/json" id="rcfg">{{ {"job": save_id, "mint": job.mint, "symbol": job.symbol, "from": job.t_from, "to": job.t_to,
+    "exit": scope_end or 0, "tags": TAGS, "exch": exchanges, "flab": flabels, "bundle_min": bundle_min, "burst_ms": burst_ms,
+    "verdict_pct": s.verdict_organised_pct or 90, "age_n": s.age_lookups_max or 0, "acct": acct is not none and acct != '',
+    "max_tags": max_my_tags, "age_read": age_read or 6000, "assist": assistant_on}|tojson }}</script>
+</div>
