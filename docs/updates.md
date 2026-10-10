@@ -9,6 +9,7 @@
 - A live line while the analysis runs
 - Each analysis is a tab, no reloads
 - Calmer switches in the status bar
+- Fresh pumps show the market cap now
 
 ## 0.7.3 <span class="ud">Oct 8, 2026</span>
 
