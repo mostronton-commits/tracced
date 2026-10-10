@@ -468,6 +468,7 @@ if AioHTTPTestCase:
             self.assertTrue(d["ok"])
             jid = d["id"]
             self.assertEqual(d["url"], "/job/" + jid)
+            self.assertTrue(d["mine"])                                       # the run is this wallet's: its tab gets × when done
             await asyncio.to_thread(self.app["jobs"].q.join)
             d2 = await (await self.client.post("/analyze.json", data=rng)).json()
             self.assertEqual((d2["id"], d2["status"]), (jid, "done"))        # the same range again opens it: no second run

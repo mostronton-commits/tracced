@@ -121,10 +121,11 @@
     if (!DEMO && !acct()) { EarlyWallet.open(() => getWallets(), 'Connect a wallet to get these wallets.'); return; }
     if (starting) return;
     starting = true; getw.disabled = true;
+    const rng = { from: draft.from, to: draft.to };          // what is sent is what the tab keeps, whatever the chart does meanwhile
     EarlyUI.track('analyze', { who: acct() ? 'wallet' : 'guest' });
     let r, d = {};
     try {
-      r = await fetch('/analyze.json', { method: 'POST', credentials: 'same-origin', body: new URLSearchParams({ mint, from: draft.from, to: draft.to }) });
+      r = await fetch('/analyze.json', { method: 'POST', credentials: 'same-origin', body: new URLSearchParams({ mint, from: rng.from, to: rng.to }) });
       try { d = await r.json(); } catch (e) {}
     } catch (e) { starting = false; getw.disabled = false; EarlyUI.toast('Could not reach the server.'); return; }
     starting = false; getw.disabled = false;
@@ -132,19 +133,30 @@
     if (!r.ok) { EarlyUI.toast(d.error || 'Could not start the analysis.', 7000); return; }
     if (d.notice) { if (d.notice === 'demo') EarlyUI.toast(D.bounced || 'Demo ranges are fixed.', 6000); else openLimit(d.notice); return; }
     if (!d.ok || !d.id) { EarlyUI.toast('Could not start the analysis.'); return; }
-    if (runsLeft && !DEMO) runsLeft -= 1;
+    if (runsLeft && !DEMO && d.status !== 'done') { runsLeft -= 1; noteLeft(); }   // an existing result opens free
     const tabId = d.canon || d.id;                          // a demo replay runs under its own id and opens as the recorded one
     let t = tabOf(tabId);
     if (!t) {
-      t = { id: tabId, from: draft.from, to: draft.to, label: 'Pump ' + (tabs.length + 1), n: null, status: d.status, deletable: false, demo: false };
-      tabs.push(t);
+      t = { id: tabId, from: rng.from, to: rng.to, label: '', n: null, status: d.status, deletable: false, demo: false, mine: !!d.mine };
+      tabs.push(t); order();
     }
-    editing = false; draft = { from: '', to: '' }; step = 0; saveDraft();
+    if (draft.from === rng.from && draft.to === rng.to) { editing = false; draft = { from: '', to: '' }; step = 0; saveDraft(); }
     if (d.status === 'done') { t.status = 'done'; if (DEMO) markRan(tabId); openTab(tabId); return; }
     t.status = 'running'; t.run = d.id;
     openTab(tabId, { fresh: true });
   }
   getw.addEventListener('click', getWallets);
+  // tabs in the server's order and names: by where the range starts, Pump 1, 2, 3 (app.py _tabs_for), so a reload
+  // shows the same names and colours, and a deleted tab leaves no gap or twin
+  function order() {
+    if (DEMO) return;
+    tabs.sort((a, b) => parse(a.from) - parse(b.from));
+    tabs.forEach((t, i) => { t.label = 'Pump ' + (i + 1); });
+  }
+  function noteLeft() {
+    const el = $('picknote'); if (!el || runsLeft == null || DEMO) return;
+    el.textContent = runsLeft > 0 ? runsLeft + ' of ' + (D.runsCap || '') + ' left today' : 'None left today · resets at 00:00 UTC';
+  }
   function markRan(id) { try { localStorage.setItem(RAN + id, '1'); } catch (e) {} }
 
   /* ── the run: its own steps and counts fill a line under the chart (owner, 09.10: «бігуча строка»), its band glows on
@@ -189,8 +201,10 @@
   function finish(t, st, status, err, open) {
     clearTimeout(st.timer);
     t.status = status; st.status = status; st.error = err;
+    if (err) t.error = err;                                  // the reason stays with the tab after its run line is gone
     if (status === 'done') {
       t.n = st.found; if (DEMO) markRan(t.id);
+      if (t.mine) t.deletable = true;
       EarlyUI.track('analysis-done', { secs: Math.round((st.el0 + Date.now() - st.t0) / 1000) });
     } else EarlyUI.track('analysis-failed');
     paintRun(); renderTabs(); runGlow();
@@ -259,9 +273,9 @@
       return;
     }
     EarlyWallet.post('/job/' + id + '/delete').then(() => {
-      tabs = tabs.filter(t => t.id !== id); frags.delete(id);
+      tabs = tabs.filter(t => t.id !== id); frags.delete(id); order();
       if (sel === id) { closeResult(); sel = null; go(null); }
-      drawChart(); renderTabs(); EarlyUI.toast('Analysis deleted. The slot is free again.');
+      drawChart(); renderTabs(); runGlow(); paintRun(); EarlyUI.toast('Analysis deleted. The slot is free again.');
     }).catch(x => EarlyUI.toast(x.message));
   }
 

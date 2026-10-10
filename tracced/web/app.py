@@ -4591,8 +4591,10 @@ async def analyze_json(request):
         m = re.fullmatch(r"/job/([^/?#]+)", loc)
         if m:
             job = request.app["jobs"].get(m.group(1))
+            pk = request.get("acct")
             resp = web.json_response({"ok": True, "id": m.group(1), "url": loc,
-                                      "status": job.status if job else "queued", "canon": (job.canon if job else None)})
+                                      "status": job.status if job else "queued", "canon": (job.canon if job else None),
+                                      "mine": bool(job and pk and job.owner == pk)})   # its × appears once it is done
         else:
             notice = (urllib.parse.parse_qs(urllib.parse.urlparse(loc).query).get("notice") or [None])[0]
             resp = web.json_response({"ok": False, "notice": notice})

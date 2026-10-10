@@ -292,7 +292,10 @@ from 04.10, owner; they pair with the Carbon icons. Geist stays in `static/fonts
     Full, it says how many wallets were found, then the result rises in below. No page reload anywhere.
   - Tabs (owner, 09.10: variant A of two): one result on the page at a time; the others wait as fetched markup (three
     at most), so a tab opens at once; the band's label on the chart opens its tab too. Up to `ranges_per_token`
-    analyses per token; the demo's tabs are its recorded pumps, each replayed once per browser.
+    analyses per token; the demo's tabs are its recorded pumps, each replayed once per browser. Tabs go in the order
+    their ranges start and are named Pump 1, 2, 3 by it, the same on the page as after a reload; a run you started
+    gets its × when it ends. A closed tab's late answers (a card's age, trades, profile) are dropped, never drawn
+    into the open tab's card (release check, 10.10).
   - The address follows the tab: /job/<id> for a result (shareable, opens this page with that tab chosen), /token?mint=
     for the bare token; Back and Forward move between tabs.
   - Weak computers (owner, 09.10): one result mounted, its listeners, timers and pop-ups gone when another tab opens

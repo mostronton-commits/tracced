@@ -13,7 +13,7 @@
          data-tabs='{{ tabs|tojson }}' data-active='{{ active|tojson }}' data-preset='{{ preset|tojson }}'
          data-max-tabs="{{ max_tabs }}" data-taken="{{ taken }}" data-created="{{ created }}" data-now="{{ now }}"
          data-demo="{{ 1 if is_demo else 0 }}" data-max-hours="{{ s.max_window_hours }}" data-reset="{{ reset_ms }}"
-         data-runs-left="{{ runs_left if runs_left is not none else '' }}" data-limit-kind="{{ limit_kind or '' }}" data-notice="{{ notice or '' }}"
+         data-runs-left="{{ runs_left if runs_left is not none else '' }}" data-runs-cap="{{ runs_cap if runs_cap is not none else s.runs_per_day }}" data-limit-kind="{{ limit_kind or '' }}" data-notice="{{ notice or '' }}"
          {% if bounced %}data-bounced="Only the {{ "ranges" if n_demo > 1 else "range" }} below {{ "are" if n_demo > 1 else "is" }} recorded. Open one and press Get wallets."{% endif %}>
   <div class="tokenhead">
     <div>

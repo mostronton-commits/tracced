@@ -780,7 +780,8 @@
       ageTried.set(w, 'busy');
       let r, d = {};
       try { r = await fetch('/wallet_age.json?' + new URLSearchParams({ job: jobId, wallet: w }), { credentials: 'same-origin' }); d = await r.json(); }
-      catch (e) { ageTried.set(w, 'failed'); if (drawer.dataset.w === w) renderWalletInfo(w); return; }
+      catch (e) { if (!alive) return; ageTried.set(w, 'failed'); if (drawer.dataset.w === w) renderWalletInfo(w); return; }
+      if (!alive) return;                                        // another tab is open now: its card has the same ids
       if (r.status === 401) { ageTried.set(w, 'connect'); if (drawer.dataset.w === w) renderWalletInfo(w); return; }
       if (!r.ok) { ageTried.set(w, 'failed'); if (drawer.dataset.w === w) renderWalletInfo(w); return; }
       if (d.age) ages[w] = d.age;
@@ -864,8 +865,8 @@
       document.getElementById('dprofi').hidden = true;
       let r;
       try { r = await fetch('/wallet_profile.json?' + new URLSearchParams({ job: jobId, wallet: w }), { credentials: 'same-origin' }); }
-      catch (e) { if (drawer.dataset.w === w) dprof.innerHTML = '<p class="dline muted small">Could not reach the server.</p>'; return; }
-      if (drawer.dataset.w !== w) return;                   // the card moved on to another wallet meanwhile
+      catch (e) { if (alive && drawer.dataset.w === w) dprof.innerHTML = '<p class="dline muted small">Could not reach the server.</p>'; return; }
+      if (!alive || drawer.dataset.w !== w) return;         // the card moved on to another wallet, or another tab is open
       if (r.status === 401) {
         dprof.innerHTML = '<div class="dconnect"><button type="button" class="primary" id="dprofgo">Connect wallet for more data</button>'
           + '<span class="muted small">PnL, win rate and active hours across all its tokens</span></div>';
@@ -873,6 +874,7 @@
         return;
       }
       let d = {}; try { d = await r.json(); } catch (e) {}
+      if (!alive) return;
       if (drawer.dataset.w !== w) { if (r.ok) profiles.set(w, d); return; }   // reading the body took time too: keep it, but not on another wallet's card
       if (!r.ok) { dprof.innerHTML = '<p class="dline muted small">' + esc(d.error || 'Could not load this wallet.') + '</p>'; return; }
       profiles.set(w, d); renderProfile(d);
@@ -982,12 +984,14 @@
       const full = onChart.length >= MAX_ON_CHART;
       if (full && !story) { EarlyUI.toast(MAX_ON_CHART + ' wallets on the chart is the limit — remove one to add another'); return; }   // before paying for the trades
       const r = await fetch('/wallet_trades.json?' + new URLSearchParams({ job: jobId, wallet: w }));
+      if (!alive) return;                                      // another tab is open now: nothing of this one lands there
       if (!r.ok) {                                             // say why, never a dead click
         let err = {}; try { err = await r.json(); } catch (e) {}
         if (r.status === 401) EarlyWallet.open(null, 'Connect a wallet to load its trades.'); else EarlyUI.toast(err.error || 'Could not load this wallet.');
         return;
       }
       const d = await r.json();
+      if (!alive) return;
       const had = onChart.find(x => x.wallet === w);           // the row's chart icon and its name can both be in flight: one chart entry
       if (had) { if (story && lastAsked === w) openStory(had); return; }
       const o = { wallet: w, bundleColor: bundleColor(w), trades: d.trades, n: d.n, truncated: d.truncated, complete: d.complete };
@@ -1143,7 +1147,7 @@
     };
     const refresh = () => { verdict(); findings(); if (!drawer.hidden && drawer.dataset.w) { renderIdent(drawer.dataset.w); renderWalletInfo(drawer.dataset.w); if (window.EarlyTZ) EarlyTZ.apply(); } };
     // one dropped answer (a deploy, a flaky network) is asked again; the fourth in a row ends the checks for this view
-    const lost = () => { if (++fails <= 3) { again(); return; } if (en) en.hidden = true; ageDone = true; refresh(); };
+    const lost = () => { if (!alive) return; if (++fails <= 3) { again(); return; } if (en) en.hidden = true; ageDone = true; refresh(); };
     const tick = async () => {
       let d;
       try {
@@ -1200,6 +1204,7 @@
     loadCrossings();
     return function unmount() {
       alive = false;
+      drawer.hidden = true; delete drawer.dataset.w;          // a late answer's «is this card still open» check now fails
       off.forEach(fn => { try { fn(); } catch (e) {} });
       fpop.remove(); listpop.remove();
       document.body.classList.remove('drawer-open');
