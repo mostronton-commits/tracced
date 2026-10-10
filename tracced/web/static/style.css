@@ -714,15 +714,6 @@ button.ghost.xbtn { padding: 0; color: #475569; }
   .rcard, .freebar { padding: 16px; }
   .rc-act .primary, .rc-act .button { flex: 1 1 0; height: 44px; padding: 0 10px; }
   .freebar .button { width: 100%; height: 44px; } }
-/* wider screens: the rows sit in columns (owner, 09.10: one row across the page left an empty middle between the symbol
-   and the time). Three columns of three on a desktop, two of four on a tablet; the block is half as tall */
-@media (min-width: 561px) {
-  .lfeed { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; height: auto;
-    -webkit-mask-image: none; mask-image: none; }
-  .lrow { grid-template-columns: 26px minmax(0, 1fr) auto auto; transition: opacity .3s ease-out, transform .3s ease-out; }
-  .lrow.lin { height: 44px; transform: translateY(-6px); border-bottom-color: var(--line); }
-}
-@media (min-width: 961px) { .lfeed { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (prefers-reduced-motion: reduce) { .lrow { transition: none; } }
 
 /* ── iteration 9: assistant ── */
@@ -821,6 +812,8 @@ button.primary { transition: background .12s ease, border-color .12s ease; }   /
 .tzseg b { font: 500 11px/1 var(--mono); padding: 4px 7px; color: #94A3B8; }
 .tzseg b.on { background: var(--mint); color: var(--navy); }
 button.tzseg { background: transparent; padding: 0; height: auto; font: inherit; color: inherit; }
+button.tzseg:hover, button.tzseg:active { background: transparent; border-color: #475569; }   /* no light flash on the dark footer (owner, 10.10) */
+.tzseg:hover b:not(.on) { color: #E2E8F0; }
 /* An older result carries no SOL amounts; that figure stays in dollars and says so by looking faded. */
 .amt.nosol { opacity: .55; }
 
@@ -1845,6 +1838,10 @@ input.ltabedit { flex: none; width: 150px; min-width: 0; height: 30px; padding: 
   .sbseg, [data-theme="dark"] .sbseg { display: inline-flex; height: 22px; padding: 0; border: 1px solid #1E293B; border-radius: 6px; overflow: hidden; background: transparent; cursor: pointer; }
   .sbseg b { display: inline-flex; align-items: center; padding: 0 8px; font: 500 11px/1 var(--mono); color: #94A3B8; }
   .sbseg b.on, [data-theme="dark"] .sbseg b.on { background: #1E293B; color: var(--mint); }
+  /* the generic button hover painted the switch light on the navy bar (owner, 10.10: «світиться білим»): here a hover
+     only lifts the border and the idle half's text */
+  .sbseg:hover, .sbseg:active, [data-theme="dark"] .sbseg:hover { background: transparent; border-color: #334155; }
+  .sbseg:hover b:not(.on) { color: #E2E8F0; }
   body { padding-bottom: 32px; }
   .foot { display: none; }                     /* the bar is the footer here (owner, 08.10: «має бути лише один») */
   .foot-meta .tzseg, .foot-meta .ftheme { display: none; }

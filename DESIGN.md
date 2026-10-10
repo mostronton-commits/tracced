@@ -411,7 +411,7 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
 - **Live on tracced** on the home page is a feed, not a list of links (owner, 05.10: people opened others' finished
   analyses and took them for our verdicts, not seeing they could run their own). It shows the latest twenty analyses by
   anyone, one row each: a letter mark, the symbol, the wallets found and the best ×, or "analyzing now", and how long
-  ago. Never who ran them. Rows lead nowhere. No caption and no day count above it (owner, 08.10). Seven rows show at once on a phone (owner, 07.10); on a wider screen the rows sit in columns, three of three on a desktop and two of four on a tablet (owner, 09.10: one row across the page left an empty middle). The newest arrive one at a time at the top, 3–10 s apart, as
+  ago. Never who ran them. Rows lead nowhere. No caption and no day count above it (owner, 08.10). Seven rows show at once (owner, 07.10): the newest arrive one at a time at the top, 3–10 s apart, as
   they happened, and real new ones come every 20 s from `/live.json`. Nothing loops. A row: the token's picture (its
   letter while it loads or when it has none), symbol, one fact, how long ago. The fact is "saved N wallets" with the
   star when people really saved wallets from that analysis, otherwise nothing (owner, 08.10: "found 180 wallets" said
@@ -453,7 +453,8 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   08.10: «має бути лише один»; the dark footer hides above 960 px): "Live on Solana" with the live dot, Demo, Docs,
   How it works, The project, What's new, Contact; on the right the version and the switches,
   UTC/Local, USD/SOL (and Light/Dark where dark is on), then X, Telegram and GitHub. Phones and tablets have no bar:
-  the footer stays, with the switches.
+  the footer stays, with the switches. A switch on the navy never lights up on hover (owner, 10.10: «світиться білим —
+  виглядає не гарно»): the border lifts a shade and the idle half's text brightens, nothing else.
 - **The hero line stays "every wallet on the record_"** (owner, 08.10: "Find who bought before the pump — and catch
   their next move" was tried and is too long): under the big *tracced*, in mono at 26 px (18 on a phone), "on the
   record" in mint, the cursor after it; under it the lead, "Paste a token, mark the pump — see who bought before it and

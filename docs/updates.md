@@ -2,6 +2,14 @@
 
 <div class="ulog" markdown="1">
 
+## 0.7.4 <span class="ud">Oct 10, 2026</span>
+
+- One page from a token to its wallets
+- Get wallets right under the chart
+- A live line while the analysis runs
+- Each analysis is a tab, no reloads
+- Calmer switches in the status bar
+
 ## 0.7.3 <span class="ud">Oct 8, 2026</span>
 
 - September's top 10 traders, real people only
