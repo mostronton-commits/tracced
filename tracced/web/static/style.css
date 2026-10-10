@@ -1600,8 +1600,8 @@ input.ltabedit { flex: none; width: 150px; min-width: 0; height: 30px; padding: 
 .fimg::before { content: attr(data-l); }
 .fimg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .ftk b { color: #F8FAFC; font-weight: 600; }
-.fpk { font: 600 12.5px var(--mono); color: #6EE7B7; }
-.fdr { font: 12px var(--mono); color: #FCA5A5; } .fup { font: 12px var(--mono); color: #6EE7B7; } .fag { font: 12px var(--mono); color: var(--muted); }
+.fpk { font: 600 12.5px var(--mono); color: #F8FAFC; }   /* the cap now, the same number the token page opens with (owner, 10.10) */
+.fpe { font: 12px var(--mono); color: var(--muted); } .fpe i { font-style: normal; color: #6EE7B7; } .fup { font: 12px var(--mono); color: #6EE7B7; } .fag { font: 12px var(--mono); color: var(--muted); }
 @media (max-width: 640px) { .ftape { flex-direction: column; align-items: stretch; gap: 12px; padding: 0 0 22px; } .ftape-h { padding: 0 16px; } }
 @media (prefers-reduced-motion: reduce) { .ftape-track { animation: none; } .ftape-win { overflow-x: auto; } .flive { animation: none; } .ftk { transition: none; }
   .ftk[aria-hidden="true"] { display: none; } }   /* standing still, the loop's copies would just repeat the list */

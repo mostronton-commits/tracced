@@ -1372,8 +1372,9 @@ if AioHTTPTestCase:
             html = await (await self.client.get("/")).text()
             self.assertIn('id="fresh"', html)
             self.assertIn('href="/token?mint=' + "M" * 44 + '&amp;src=fresh" rel="nofollow"', html)   # a way into its chart, counted, not crawled
-            self.assertIn('<span class="fpk" title="The highest market cap it reached">$12M</span>', html)
-            self.assertIn("−75%", html)
+            self.assertIn('<span class="fpk" title="Market cap now">$3.1M</span>', html)   # the number the token page opens with
+            self.assertIn('peak <i>$12M</i>', html)
+            self.assertIn("now 75% lower", html)
             self.assertIsNone(CYRILLIC.search(html))
             self.app["fresh"].update(rows=[], at=0, ok_at=0)
 

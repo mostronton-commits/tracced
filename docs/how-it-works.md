@@ -15,8 +15,9 @@ nothing: the trades are already here.
 ## Fresh pumps on the home page
 
 Tokens created in the last {{ s.fresh_hours|int }} hours that reached a real market cap and are really traded.
-Clones with huge caps and no trading, and charts bought by one bot, are filtered out. Biggest peak first; the list
-is refreshed at most every {{ s.fresh_refresh_min|int }} minutes. A click opens the chart, where you mark the range.
+Clones with huge caps and no trading, and charts bought by one bot, are filtered out. Each one shows its market cap
+now and the peak it reached. Biggest peak first; the list is refreshed at most every {{ s.fresh_refresh_min|int }}
+minutes. A click opens the chart, where you mark the range.
 
 ## Ready lists
 

@@ -494,7 +494,8 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
 - **Nothing jumps on hover.** No `translateY` on buttons, rows, chips or cards; a chip in a clipped strip gets cut.
 - **Name the properties being animated.** Never write `transition: all`.
 - **Decorative loops** (the agent button's sheen, the live dot) run briefly or only under the pointer.
-- **The fresh-pumps tape** moves slowly all the time and stops under the pointer.
+- **The fresh-pumps tape** moves slowly all the time and stops under the pointer. Each chip leads with the market
+  cap now, the number the token page opens with, and the peak follows it, smaller (owner, 10.10).
 - **The live feed does not roll**: a new row slides in at the top (300 ms, `ease-out`) and the seventh fades out
   at the bottom.
 - **The phone's wallet card** rises in 260 ms (`ease-out`) and follows the finger when its head is pulled down; past
