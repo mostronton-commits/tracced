@@ -163,7 +163,8 @@ class TestWhoLine(unittest.TestCase):
     def test_the_line_says_who_from_the_labels(self):
         s = agent.short
         self.assertEqual(agent.who_line(self.r, W[0]), s(W[0]) + ": @wirelyss on X; a trader, no bot signs; trades through pump.fun app")
-        self.assertEqual(agent.who_line(self.r, W[1]), s(W[1]) + ": no X account; likely a bot or arbitrage wallet")
+        # Solana Tracker's «likely bot» is not shown (owner, 11.10): a bot is only what its trades here say (bot-like)
+        self.assertEqual(agent.who_line(self.r, W[1]), s(W[1]) + ": no X account; a trader, no bot signs")
         self.assertEqual(agent.who_line(self.r, W[2]), s(W[2]) + ": no X account; trades like a bot here")
         line = agent.who_line(self.r, W[3])
         self.assertTrue(line.startswith(s(W[3]) + ": no X account, named FlowerJungleCat; a trader, no bot signs; trades through FOMO"), line)

@@ -364,6 +364,9 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   before, inside and after the range, the same base as Sold, PnL and ROI. Under it, small: what it bought inside the
   range and the cap there ("$32 in range · 169K"), or the cap alone when it bought only inside. Its funnel and its sort
   use the number on screen. The card's "bought" says the same.
+- **A bot mark is ours only** (owner, 11.10): the bot picture means the bot-like tag, from the wallet's own trades on
+  this token. Solana Tracker's «known bot», «likely bot or arbitrage» labels are not drawn anywhere, so Hide bot-like
+  hides every row that shows one. The exchange and exploit marks from public labels stay.
 - **One card's trades on the chart at a time** (owner, 11.10: three cards in a row left a mess of arrows): a card puts
   its wallet on the chart, and the next card takes its place. A wallet put there with the row's chart mark stays until
   its × or the mark again.

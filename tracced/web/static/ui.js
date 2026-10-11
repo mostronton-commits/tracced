@@ -216,8 +216,9 @@ window.EarlyTags = (function () {
   const BRANDS = { axiom: ['axiom', 'Axiom'], 'axiom-flash': ['axiom', 'Axiom'], gmgn: ['gmgn', 'GMGN'], fomo: ['fomo', 'Fomo'],
     'pumpfun-app': ['pumpfun', 'the pump.fun app'], pumpfun: ['pumpfun', 'the pump.fun app'], terminal: ['terminal', 'Terminal (Padre)'],
     padre: ['terminal', 'Terminal (Padre)'], photon: ['photon', 'Photon'], bloom: ['bloom', 'Bloom'], bullx: ['bullx', 'BullX'] };
-  const ROLES = { exchange: 'An exchange wallet', hacker: 'A known exploit or scam wallet', bot: 'A known bot',
-    potential_bot: 'Likely a bot or arbitrage wallet', arbitrage: 'An arbitrage wallet' };
+  // no «bot» labels from others (owner, 11.10): a bot mark means our own rule from its trades here, the bot-like tag,
+  // so the filter that hides it hides every row that shows it
+  const ROLES = { exchange: 'An exchange wallet', hacker: 'A known exploit or scam wallet' };
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const handle = idn => String((idn && idn.twitter) || '').replace(/^@/, '').replace(/[^A-Za-z0-9_]/g, '');
   const isKol = idn => !!idn && (idn.type === 'kol' || (idn.tags || []).includes('kol'));
@@ -254,7 +255,7 @@ window.EarlyTags = (function () {
       out.push('<span class="idm brand" title="Trades through ' + esc(name) + (who && !isKol(idn) ? ' as ' + who : '') + '"><img src="/static/brands/' + f + '.png" alt="' + esc(name) + '"></span>');
     });
     [...new Set([idn.type].concat(idn.tags || []))].filter(r => ROLES[r]).forEach(r => {
-      const icon = r === 'exchange' ? ICON.exchange : r === 'hacker' ? ICON.hacker : ICON['bot-like'];
+      const icon = r === 'exchange' ? ICON.exchange : ICON.hacker;
       out.push('<span class="idm role r-' + r + '" title="' + ROLES[r] + '">' + icon + '</span>');
     });
     return out.join('');
