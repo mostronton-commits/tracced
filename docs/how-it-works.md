@@ -179,8 +179,12 @@ bottom of the screen, and a tap above it or pulling it down closes it. The card 
    tokens, the latest tokens it traded. Click one of them: its chart opens right there, on the hours of the wallet's
    trades, with its buys and sells marked. The trades come with the 30 days; the candles cost what any chart costs.
 
+Bought, in the table and in the card, is everything the wallet bought of this token: before the range, inside it and
+after it. Under it: what it bought inside the range, and the market cap there. Sold, PnL and ROI count the same buys, so
+the four numbers add up: PnL is what the wallet received minus what the sold tokens cost at its average price.
+
 ROI, in the card and in its own column of the table, is the average exit cap over the average entry cap, buys
-before the range included: `2×` is +100%, `61.5×` is +6,050%. Hover it for the percent.
+before and after the range included: `2×` is +100%, `61.5×` is +6,050%. Hover it for the percent.
 
 The 30 days are counted by tracced from the wallet's own swaps, the same way as the table: average cost, and
 profit only on what the wallet actually bought. Profit counts on the day of the sale, as a broker counts it: a token

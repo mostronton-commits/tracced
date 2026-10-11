@@ -360,6 +360,13 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   click on the word does nothing (owner, 02.10: tags went by accident).
 - **Tables** are white, with 1 px row lines, a sticky uppercase header, numbers right-aligned in mono, and a sage bar
   behind PnL (a red-tinted bar for a loss). The first 100 rows are drawn and the rest wait behind "Show more".
+- **Bought is everything the wallet bought of the token** (owner, 11.10: «bought $32, sold $13K» read as a mistake):
+  before, inside and after the range, the same base as Sold, PnL and ROI. Under it, small: what it bought inside the
+  range and the cap there ("$32 in range · 169K"), or the cap alone when it bought only inside. Its funnel and its sort
+  use the number on screen. The card's "bought" says the same.
+- **One card's trades on the chart at a time** (owner, 11.10: three cards in a row left a mess of arrows): a card puts
+  its wallet on the chart, and the next card takes its place. A wallet put there with the row's chart mark stays until
+  its × or the mark again.
 - **Filters live in the table's head** (owner, 02.10). A head reads, on one line: the money key where there is one,
   the sort mark, the name, the funnel. Only the numbers sort; the address does not, and there is no Funded by column:
   the card says who funded a wallet. Funnels stand only by numbers and open one small window: "from … to …", Reset, Apply; Enter applies and

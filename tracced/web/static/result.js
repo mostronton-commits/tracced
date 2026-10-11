@@ -29,7 +29,7 @@
     // filters (owner, 02.10): a funnel by each column with «from … to …», the tags under the Wallet funnel.
     // r: {column: [from, to]}, null = open on that side
     const RANGES = {
-      inv: { t: 'Bought', u: '$', step: 10, hint: 'inside the range, in dollars', get: o => +o.inv || 0 },
+      inv: { t: 'Bought', u: '$', step: 10, hint: 'all its buys of this token, in dollars', get: o => +o.tot || +o.inv || 0 },   // the number the column shows (owner, 11.10)
       sold: { t: 'Sold', u: '%', step: 5, hint: 'share of its tokens sold', get: o => +o.sold || 0 },
       real: { t: 'PnL', u: '$', step: 10, hint: 'realized, in dollars; a loss is negative', get: o => +o.real || 0 },
       mult: { t: 'ROI', u: '×', step: 0.5, hint: 'average exit ÷ average entry', get: o => +o.mult || 0 },
@@ -158,8 +158,9 @@
     // address and its marks, under them what it put in and how much it sold; PnL and ROI on the right. The picture is
     // drawn from the address once; the line is hidden on a wider screen, where the columns say the same
     const FACES = new Map(), face = w => { let f = FACES.get(w); if (!f) { f = EarlyCard.identicon(w); FACES.set(w, f); } return f; };
-    const msub = o => (SOLON && o.invsol != null ? '<span class="insol">' + EarlyCur.sol(o.invsol) + '</span>' : money(o.inv))
-      + ' at ' + (o.entry ? fm(o.entry) : '—') + ' cap'
+    const extra = o => o.tot > o.inv + 0.01;                   // it bought outside the range too: before it, after it or both
+    const msub = o => (SOLON && o.totsol != null ? '<span class="insol">' + EarlyCur.sol(o.totsol) + '</span>' : money(o.tot || o.inv))
+      + (extra(o) ? ' · ' + money(o.inv) + ' in range' : ' at ' + (o.entry ? fm(o.entry) : '—') + ' cap')
       + (o.sells == null ? '' : o.sold >= 99 ? ' · sold out' : o.sold > 0 ? ' · sold ' + soldPct(o.sold) : ' · holding all');
     function rowHtml(o, n, i) {
       const oc = onChart.find(x => x.wallet === o.w), tg = tagsHtml(o);
@@ -176,9 +177,10 @@
         + '<button type="button" class="mk" title="Show its buys and sells on the chart" aria-label="Show on the chart">' + CHARTIC + '</button>'
         + '<button type="button" class="wname" title="Open the wallet\'s card: its trades here, its PnL on every token, its funder"><span class="mono">' + short(o.w) + '</span></button>'
         + '</span><span class="tags">' + tg + '</span><span class="msub">' + msub(o) + '</span></td>'
-        + '<td class="num two c-inv" data-h="Bought" title="Bought in the range at a ' + cap(o.entry) + ' market cap'
-        + (o.tot > o.inv + 0.01 ? ' · ' + money(o.tot) + ' in total on this token' : '') + '">' + amount(o.inv, o.invsol, '')
-        + '<small>' + cap(o.entry) + '</small></td>'
+        + '<td class="num two c-inv" data-h="Bought" title="' + money(o.tot || o.inv) + ' bought of this token in all'
+        + (extra(o) ? ', ' + money(o.inv) + ' of it inside the range' : ', all of it inside the range') + ' · its first buy in the range at a ' + cap(o.entry) + ' market cap">'
+        + amount(o.tot || o.inv, o.totsol != null ? o.totsol : o.invsol, '')
+        + '<small>' + (extra(o) ? money(o.inv) + ' in range · ' : '') + cap(o.entry) + '</small></td>'
         + '<td class="num two c-sold" data-h="Sold"' + (o.exitcap ? ' title="Sold at a ' + fm(o.exitcap) + ' market cap on average'
           + (vs != null ? ', ' + (vs > 0 ? '+' : '') + vs + '% against its average entry' : '') + ' · ' + soldPct(o.sold) + ' of its tokens sold"' : unk ? ' title="' + UNK + '"' : '') + '>'
         + (o.got ? amount(o.got, o.gotsol, '') : '<b class="mono">—</b>') + '<small>' + (o.exitcap ? fm(o.exitcap) + ' · ' + soldPct(o.sold) : '') + '</small></td>'
@@ -584,7 +586,7 @@
     const msort = document.getElementById('msort');
     function sortBy(k, dir, text) {
       sortKey = k; sortDir = dir;
-      const val = o => k === 'funder' ? fundKey(o.w) : o[k];
+      const val = o => k === 'funder' ? fundKey(o.w) : k === 'inv' ? (+o.tot || +o.inv || 0) : o[k];   // Bought sorts by the number it shows
       order.sort((a, b) => text ? String(val(a) || '').localeCompare(String(val(b) || '')) * dir : ((+val(a) || 0) - (+val(b) || 0)) * dir);
       limit = LIMIT;
       table.querySelectorAll('th.sortable').forEach(x => x.classList.toggle('desc', x.dataset.key === k && dir < 0));
@@ -715,9 +717,9 @@
           const c = document.createElement('span'); c.className = 'chipw';
           c.innerHTML = '<span class="mono">' + short(o.wallet) + '</span> ';
           c.title = 'Stays visible when filtered · click for the story';
-          c.addEventListener('click', ev => { if (!ev.target.closest('.x')) { cardSrc = 'chart'; openStory(o); } });
+          c.addEventListener('click', ev => { if (!ev.target.closest('.x')) { cardSrc = 'chart'; dropViaCard(o.wallet); openStory(o); } });
           const x = document.createElement('button'); x.type = 'button'; x.className = 'ghost x'; x.textContent = '×'; x.title = 'Remove from chart';
-          x.addEventListener('click', () => { onChart.splice(onChart.indexOf(o), 1); if (drawer.dataset.w === o.wallet) closeCard(); renderOnChart(); });
+          x.addEventListener('click', () => { if (viaCard === o.wallet) viaCard = null; onChart.splice(onChart.indexOf(o), 1); if (drawer.dataset.w === o.wallet) closeCard(); renderOnChart(); });
           c.appendChild(x); bar.appendChild(c);
         });
       }
@@ -911,7 +913,9 @@
       const o = rowOf(w), el = document.getElementById('dtally'); if (!o) { el.innerHTML = ''; return; }
       const amt = (usd, sol) => SOLON && sol != null ? '<span class="insol">' + EarlyCur.sol(sol) + '</span>' : money(usd);
       const cell = (v, l, cls, tip) => '<span class="tc"' + (tip ? ' title="' + esc(tip) + '"' : '') + '><b class="' + (cls || '') + '">' + v + '</b><i>' + l + '</i></span>';
-      el.innerHTML = cell(amt(o.inv, o.invsol), 'bought', '', 'At a ' + (o.entry ? fm(o.entry) : '—') + ' market cap')
+      const more = o.tot > o.inv + 0.01;                        // owner, 11.10: «bought $32, sold $13K» read as a mistake
+      el.innerHTML = cell(amt(o.tot || o.inv, o.totsol != null ? o.totsol : o.invsol), 'bought', '',
+          (more ? money(o.inv) + ' of it inside the range, at a ' : 'All of it inside the range, at a ') + (o.entry ? fm(o.entry) : '—') + ' market cap')
         + cell(o.got ? amt(o.got, o.gotsol) : '—', 'sold', '', soldPct(o.sold) + ' of its tokens' + (o.exitcap ? ', at a ' + fm(o.exitcap) + ' cap on average' : ''))
         + (o.sells == null ? cell('—', 'PnL', '', 'Its sells were not read: only the largest buyers\' are')
           : cell(amt(o.real, o.realsol), 'PnL', o.real > 0 ? 'pos' : o.real < 0 ? 'neg' : '', o.unreal ? money(o.unreal) + ' on ' + leftPct(o.sold) + ' left' : ''))
@@ -977,9 +981,18 @@
     });
     dtags.addEventListener('focusout', e => { const inp = e.target.closest('.tagin'); if (inp && !inp.value.trim()) setTimeout(() => { if (document.activeElement !== inp) renderTags(drawer.dataset.w); }, 150); });
     let lastAsked = null;                                      // the card a click asked for last: a slower answer for an earlier one does not replace it
+    // the wallet a card put on the chart, not one pinned with the row's chart icon: the next card takes its place, so
+    // opening three cards in a row leaves one wallet's trades on the chart, not three (owner, 11.10)
+    let viaCard = null;
+    const dropViaCard = keep => {
+      if (!viaCard || viaCard === keep) return;
+      const j = onChart.findIndex(o => o.wallet === viaCard); viaCard = null;
+      if (j >= 0) { onChart.splice(j, 1); renderOnChart(); }
+    };
     async function toggleWallet(w, story) {
-      if (story) lastAsked = w;
+      if (story) { lastAsked = w; dropViaCard(w); }
       const i = onChart.findIndex(o => o.wallet === w);
+      if (!story && w === viaCard) viaCard = null;             // the chart icon on that wallet: from now on it is the user's own choice
       if (i >= 0) { if (story) { openStory(onChart[i]); return; } onChart.splice(i, 1); if (drawer.dataset.w === w) closeCard(); renderOnChart(); return; }
       const full = onChart.length >= MAX_ON_CHART;
       if (full && !story) { EarlyUI.toast(MAX_ON_CHART + ' wallets on the chart is the limit — remove one to add another'); return; }   // before paying for the trades
@@ -1000,6 +1013,8 @@
         else if (!story) EarlyUI.toast(MAX_ON_CHART + ' wallets on the chart is the limit — remove one to add another');
         return;
       }
+      if (story && lastAsked !== w) return;                    // a card asked for earlier and left: its trades do not land on the chart
+      if (story) viaCard = w;
       onChart.push(o); renderOnChart(); if (story && lastAsked === w) openStory(o);
     }
     // every button in a row answers here, so a redrawn row needs no listeners of its own
