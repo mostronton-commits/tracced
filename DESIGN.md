@@ -378,6 +378,9 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   watchlist, then every number from and to, then the tags to hide, struck through when hidden. It applies as you type,
   and it and the funnels edit the same numbers. On a phone or a tablet, where the table has no head, it is the way in.
   **Reset** stands beside Filters whenever a filter is on or the order is not "PnL, highest first", and clears both.
+  **Views** (owner, 12.10, after Phanes): the last row of the panel. "Save these filters" asks for a name and keeps the
+  numbers, the hidden tags, the toggles and the order in this browser for any analysis; a chip applies one (sage when
+  it is in force), its × deletes it, eight at most. The button shows only when something is set.
 - **The star and the chart mark** before an address come out with the row under the pointer and are gone without it
   (owner, 04.10). One click on an empty star saves the wallet to the watchlist, and the star turns filled amber. A
   filled star always shows and opens the lists menu; the chart mark of a wallet on the chart stays in its colour.

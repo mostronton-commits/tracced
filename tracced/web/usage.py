@@ -18,6 +18,7 @@ HOUR = 3_600_000
 UI = {
     "card-open": ("src",), "card-close": (), "card-period": ("p",), "pin": ("on",),
     "filter": ("k",), "hide": ("tag", "on"), "filters-reset": (), "filters-toggle": ("on",), "funder": ("on",),
+    "view-save": ("count",), "view-apply": (), "view-delete": (),
     "sort": ("key", "dir", "via"), "select": ("count",), "select-all": ("on",), "select-clear": (),
     "export": ("format", "sel", "filtered", "where"), "agent-open": (), "agent-close": (),
     "show-more": ("all",), "find-pump": (), "range-preset": ("p",), "finding": ("k",), "limit-window": ("kind",),
@@ -155,6 +156,7 @@ WHO = {"wallets": "Wallet users", "team": "You and test wallets", "guests": "Gue
 # кліки людською мовою: таблиця «що клікають» і хронологія гаманця
 CLICKS = {"card-open": "Opened a wallet card", "card-close": "Closed a wallet card", "card-period": "Switched 7D/30D in a card",
           "pin": "Pinned a wallet to the chart", "filter": "Changed a filter", "hide": "Hid a tag", "filters-reset": "Reset the filters",
+          "view-save": "Saved a set of filters", "view-apply": "Applied a saved set of filters", "view-delete": "Deleted a saved set of filters",
           "filters-toggle": "Opened or closed the filters", "funder": "Filtered by a funder", "sort": "Sorted the table",
           "select": "Ticked wallets", "select-all": "Ticked all", "select-clear": "Cleared the selection", "export": "Exported",
           "agent-open": "Opened the agent", "agent-close": "Closed the agent", "show-more": "Showed more rows",
@@ -168,7 +170,7 @@ CLICKS = {"card-open": "Opened a wallet card", "card-close": "Closed a wallet ca
           "card-trades-all": "Opened all of a wallet's trades in its card"}
 # що на сайті можна натиснути зараз: з цього списку — «ніхто не користувався» (прибрані кнопки сюди не входять,
 # інакше вони висіли б у списку вічно)
-UI_FEATURES = ("card-open", "card-period", "pin", "sort", "filter", "hide", "filters-toggle", "filters-reset", "funder", "finding",
+UI_FEATURES = ("card-open", "card-period", "pin", "sort", "filter", "hide", "filters-toggle", "filters-reset", "view-save", "view-apply", "funder", "finding",
                "star", "export", "show-more", "agent-open", "range-set", "range-add", "range-reset", "tf",
                "chart-nav", "list-tab", "list-move", "wallet-bell", "card-view", "copy", "ext", "cur", "tz",
                "card-token-chart", "list-bell", "card-trades-all")

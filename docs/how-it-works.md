@@ -14,7 +14,8 @@ nothing: the trades are already here.
 
 ## Fresh pumps on the home page
 
-Tokens created in the last {{ s.fresh_hours|int }} hours that reached a real market cap and are really traded.
+Tokens created in the last {{ s.fresh_hours|int }} hours with a market cap of ${{ (s.fresh_min_mcap / 1000)|int }}K or more,
+${{ (s.fresh_min_liquidity / 1000)|int }}K of liquidity, ${{ (s.fresh_min_vol_24h / 1000)|int }}K traded in a day and {{ s.fresh_min_holders|int }}+ holders.
 Clones with huge caps and no trading, and charts bought by one bot, are filtered out. Each one shows its market cap
 now and the peak it reached. Biggest peak first; the list is refreshed at most every {{ s.fresh_refresh_min|int }}
 minutes. A click opens the chart, where you mark the range.
@@ -182,6 +183,9 @@ bottom of the screen, and a tap above it or pulling it down closes it. The card 
 Bought, in the table and in the card, is everything the wallet bought of this token: before the range, inside it and
 after it. Under it: what it bought inside the range, and the market cap there. Sold, PnL and ROI count the same buys, so
 the four numbers add up: PnL is what the wallet received minus what the sold tokens cost at its average price.
+
+Filters you use often can be kept: open Filters, press "Save these filters" and name them. The set (the numbers, the
+hidden tags and the order) stays in your browser and applies to any analysis in one click.
 
 ROI, in the card and in its own column of the table, is the average exit cap over the average entry cap, buys
 before and after the range included: `2×` is +100%, `61.5×` is +6,050%. Hover it for the percent.

@@ -55,6 +55,13 @@
     f.hide = (f.hide || []).filter(x => HIDE_TAGS.includes(x));     // a saved hide these chips no longer offer could not be undone
     f.exits = f.profit = f.repeat = f.mine = false; f.only = f.q = f.bundle = '';   // a finding's filter and a search are for this visit
     const saveF = () => { try { localStorage.setItem(FKEY, JSON.stringify(f)); } catch (e) {} };
+    // saved sets of filters (owner, 12.10, after Phanes' «Views»): the numbers, the hidden tags, the toggles and the order,
+    // kept in this browser for every analysis. The wallet search and a funder or bundle pick belong to one analysis: out
+    const VKEY = 'early:views', MAX_VIEWS = 8;
+    const loadViews = () => { try { const v = JSON.parse(localStorage.getItem(VKEY) || '[]'); return Array.isArray(v) ? v.filter(x => x && x.name && x.f && x.sort) : []; } catch (e) { return []; } };
+    const saveViews = v => { try { localStorage.setItem(VKEY, JSON.stringify(v.slice(0, MAX_VIEWS))); } catch (e) {} };
+    const viewOf = () => ({ f: { r: JSON.parse(JSON.stringify(f.r)), hide: f.hide.slice(), mine: !!f.mine, profit: !!f.profit, exits: !!f.exits,
+      repeat: !!f.repeat, only: f.only || '' }, sort: [sortKey, sortDir] });
     const ftoggle = document.getElementById('ftoggle');
     const isOn = k => { const v = f.r[k]; return !!v && (v[0] != null || v[1] != null); };
     function syncHeads() {                                      // which funnels hold a filter, and the money unit's mark
@@ -403,7 +410,10 @@
         + '<div class="fp-nums">' + PANEL_NUMS.map(k => '<label class="fnum" title="' + esc(RANGES[k].hint) + '"><span>' + RANGES[k].t + (RANGES[k].u ? ', ' + RANGES[k].u : '')
           + '</span>' + numIn(k, 0, null) + '<i>–</i>' + numIn(k, 1, null) + '</label>').join('') + '</div>'
         + '<div class="fp-hide"><span class="fph">Hide</span>' + HIDE_TAGS.map(x => '<button type="button" class="tagchip t-' + x + '" data-hide="' + x + '" aria-pressed="false" title="Hide wallets tagged '
-          + x + ': ' + esc(TAGDEF[x] || '') + '">' + (EarlyTags.ICON[x] || '') + x + '</button>').join('') + '</div>';
+          + x + ': ' + esc(TAGDEF[x] || '') + '">' + (EarlyTags.ICON[x] || '') + x + '</button>').join('') + '</div>'
+        + '<div class="fp-views"><span class="fph">Views</span><span class="fvlist"></span>'
+        + '<button type="button" class="ghost fvsave" title="Keep these filters and this order under a name, for any analysis">Save these filters</button>'
+        + '<input type="text" class="fvname" maxlength="24" placeholder="Name, then Enter" aria-label="Name of the saved filters" hidden></div>';
       fillPanel();
     }
     function fillPanel() {                                     // the values from the state, never under the field being typed in
@@ -412,6 +422,12 @@
       const m = fp.querySelector('.fmine'); m.hidden = !(hasLists || f.mine); m.querySelector('input').checked = !!f.mine;
       fp.querySelectorAll('input[data-k]').forEach(x => { if (x !== document.activeElement) { const v = (f.r[x.dataset.k] || [null, null])[+x.dataset.i]; x.value = v == null ? '' : v; } });
       fp.querySelectorAll('[data-hide]').forEach(b => { const on = f.hide.includes(b.dataset.hide); b.classList.toggle('off', on); b.setAttribute('aria-pressed', String(on)); });
+      const vs = loadViews(), cur = JSON.stringify(viewOf());
+      fp.querySelector('.fvlist').innerHTML = vs.map((v, i) => '<span class="vchip' + (JSON.stringify({ f: v.f, sort: v.sort }) === cur ? ' on' : '') + '">'
+        + '<button type="button" data-view="' + i + '" title="Apply these filters and this order">' + esc(v.name) + '</button>'
+        + '<button type="button" class="vx" data-vdel="' + i + '" title="Delete" aria-label="Delete ' + esc(v.name) + '">×</button></span>').join('');
+      const plain = !nActive() && sortKey === 'real' && sortDir === -1;   // nothing set: nothing to save
+      fp.querySelector('.fvsave').hidden = plain || vs.length >= MAX_VIEWS || !fp.querySelector('.fvname').hidden;
     }
     const fpanel = document.getElementById('fpanel');
     ftoggle.addEventListener('click', () => {
@@ -432,11 +448,37 @@
         saveF(); syncHeads(); limit = LIMIT; apply(); EarlyUI.use('filter', { k });
       }, 400);
     });
+    fpanel.addEventListener('keydown', e => {
+      const inp = e.target; if (!inp.classList || !inp.classList.contains('fvname')) return;
+      if (e.key === 'Escape') { e.stopPropagation(); inp.hidden = true; fillPanel(); return; }
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const name = inp.value.trim().slice(0, 24); if (!name) return;
+      const vs = loadViews().filter(v => v.name !== name);     // the same name again replaces it
+      vs.unshift(Object.assign({ name }, viewOf())); saveViews(vs);
+      inp.hidden = true; fillPanel(); EarlyUI.use('view-save', { count: Math.min(vs.length, MAX_VIEWS) });
+    });
+    fpanel.addEventListener('focusout', e => {
+      const inp = e.target; if (inp.classList && inp.classList.contains('fvname')) setTimeout(() => { if (document.activeElement !== inp) { inp.hidden = true; fillPanel(); } }, 150);
+    });
     fpanel.addEventListener('change', e => {
       if (!e.target.matches('[data-mine]')) return;
       f.mine = e.target.checked; saveF(); limit = LIMIT; apply();
     });
     fpanel.addEventListener('click', e => {
+      const vb = e.target.closest('[data-view]');
+      if (vb) {
+        const v = loadViews()[+vb.dataset.view]; if (!v) return;
+        Object.assign(f, fresh0(), JSON.parse(JSON.stringify(v.f))); saveF(); syncHeads(); closeFilter();
+        sortBy(v.sort[0], v.sort[1], v.sort[0] === 'funder'); fillPanel(); EarlyUI.use('view-apply');
+        return;
+      }
+      const vd = e.target.closest('[data-vdel]');
+      if (vd) { const vs = loadViews(); vs.splice(+vd.dataset.vdel, 1); saveViews(vs); fillPanel(); EarlyUI.use('view-delete'); return; }
+      if (e.target.closest('.fvsave')) {
+        const inp = fpanel.querySelector('.fvname'); inp.hidden = false; inp.value = 'View ' + (loadViews().length + 1);
+        fillPanel(); inp.focus(); inp.select(); return;
+      }
       const b = e.target.closest('[data-hide]'); if (!b) return;
       const tg = b.dataset.hide, on = !f.hide.includes(tg);
       f.hide = on ? f.hide.concat([tg]) : f.hide.filter(y => y !== tg);
@@ -444,7 +486,7 @@
     });
     // Reset beside Filters, there whenever filters or the order differ from how the table came (owner, 02.10)
     const freset = document.getElementById('freset');
-    function resetAll() { Object.assign(f, fresh0()); saveF(); syncHeads(); closeFilter(); sortBy('real', -1); EarlyUI.use('filters-reset'); }
+    function resetAll() { Object.assign(f, fresh0()); saveF(); syncHeads(); closeFilter(); sortBy('real', -1); fillPanel(); EarlyUI.use('filters-reset'); }
     freset.addEventListener('click', resetAll);
 
     // the account: a wallet goes to a list by its star, the whole analysis to «My analyses»; no wallet yet → connect
