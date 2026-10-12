@@ -1,5 +1,7 @@
 # tracced
 
+> **Hackathon judges:** start with [JUDGES.md](JUDGES.md): how to try it, how a result is built, and a map of the code.
+
 **Every wallet on the record.** Paste a Solana token, mark the pump on the chart, and read every wallet that
 bought inside that range. Entry and exit market cap, invested, realized, hold time, who funded it. Every number is
 a swap you can open on Solscan. No scores, no "smart money" labels.
