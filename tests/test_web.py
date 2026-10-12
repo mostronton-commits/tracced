@@ -1385,7 +1385,9 @@ if AioHTTPTestCase:
             self.assertEqual(r.status, 200)
             self.assertIn('<h1 class="brandline">tracced</h1>', html)   # brand line
             self.assertIn("every wallet <em>on the record</em>", html)        # власник, 08.10: нова фраза задовга, повернули
-            self.assertIn('<meta property="og:description" content="See who bought before the pump, and what they did next.">', html)
+            self.assertIn('<meta property="og:description" content="Mark a pump on any Solana token and get every early buyer: what they paid, sold and earned. Every trade on Solscan. Free in beta.">', html)
+            self.assertIn('<meta name="twitter:card" content="summary_large_image">', html)   # the big card (owner, 12.10)
+            self.assertIn('content="https://tracced.xyz/static/brand/og.png?v=', html)
             self.assertIn("tracced", html)
             self.assertNotIn('class="top"', html)                       # no top bar on the home page
             self.assertIn('data-count=', html)                          # live counters
