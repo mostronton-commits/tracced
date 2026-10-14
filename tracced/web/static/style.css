@@ -1616,6 +1616,7 @@ input.ltabedit { flex: none; width: 150px; min-width: 0; height: 30px; padding: 
   .ftk[aria-hidden="true"] { display: none; } }   /* standing still, the loop's copies would just repeat the list */
 /* the label on the chart while the range is empty: it pops in, then breathes, and goes with the second click */
 .chartbox .charthint:not([hidden]) { animation: hint-in .35s cubic-bezier(.2, 1.4, .4, 1) both, hint-breathe 2.4s ease-in-out .4s infinite; }
+.chartbox .charthint.calm:not([hidden]) { animation: hint-in .35s cubic-bezier(.2, 1.4, .4, 1) both; }   /* the tour said it: no breathing */
 @keyframes hint-in { from { opacity: 0; transform: translate(-50%, -6px) scale(.9); } }
 @keyframes hint-breathe { 50% { box-shadow: 0 0 0 6px rgba(167, 243, 208, .18); } }
 @media (prefers-reduced-motion: reduce) { .chartbox .charthint:not([hidden]) { animation: none; } }

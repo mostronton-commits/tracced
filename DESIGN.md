@@ -290,8 +290,9 @@ from 04.10, owner; they pair with the Carbon icons. Geist stays in `static/fonts
     variant A). A result on screen stays while a new range is marked.
   - A first-visit tour (owner, 14.10): four steps, each shown when its part of the page appears — the chart (mark the
     zone), the bar on the chart (Get wallets), the result's table, a wallet's card. A spotlight dims the rest without
-    blocking it; a light card says what the part does in one or two sentences. Once per browser, Skip ends it; on a
-    phone the card is a sheet at the bottom.
+    blocking it; a light card says what the part does in one short sentence. Once per browser, Skip ends it; on a
+    phone the card is a sheet at the bottom. The chart's animated cursor plays only while the first step is open; once
+    that step is read it is gone, and after a skipped tour it plays one cycle, once per browser (owner, 14.10).
   - The run (owner, 09.10: «бігуча строка»): a navy line under the chart fills with the run's own steps — Token,
     Trades, Exits, Checks, Wallets — its phase and count in words («Checking where they sold · 329 / 765 wallets»), a
     light passing along the filled part, and the range's band on the chart glows with a light moving left to right.

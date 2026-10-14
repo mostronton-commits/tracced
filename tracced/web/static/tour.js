@@ -9,20 +9,21 @@
   const write = v => { try { localStorage.setItem(KEY, String(v)); } catch (e) {} };
   if (read() === 'skip' || +read() >= 4) return;
 
-  const shown = el => !!el && !el.hidden && el.offsetParent !== null && el.getBoundingClientRect().height > 0;
+  // a fixed element (the wallet card) has no offsetParent: its boxes say whether it is on screen
+  const shown = el => !!el && !el.hidden && el.getClientRects().length > 0 && el.getBoundingClientRect().height > 0
+    && getComputedStyle(el).visibility !== 'hidden';
   const STEPS = [
     { el: () => document.getElementById('chart'), when: () => !DEMO && !shown(document.getElementById('pick')),
-      h: 'Mark the zone before the pump', p: 'Click the chart where the buying starts, then where the price takes off. That window is what tracced reads.',
+      h: 'Mark the pump', p: 'Click where the buying starts, then where the price takes off.',
       done: () => shown(document.getElementById('pick')) },
     { el: () => document.getElementById('pick'), when: () => shown(document.getElementById('pick')),
-      h: 'Get wallets', p: DEMO ? 'Press it: the recorded analysis of this pump replays.'
-        : "The button appears right on the chart. tracced reads every trade in the zone, then each wallet's whole history on this token.",
+      h: 'Get wallets', p: DEMO ? 'Press it to replay this pump.' : 'Press it to see who bought in your zone.',
       done: () => !!document.getElementById('facts') },
     { el: () => document.getElementById('facts'), when: () => shown(document.getElementById('facts')),
-      h: 'Every wallet that bought in the zone', p: 'What each one bought, sold and earned. Sort by ROI, filter by size, hide the bots. Click a wallet to open its card.',
+      h: 'The wallets', p: 'What each one bought, sold and earned. Click a wallet to open it.',
       done: () => shown(document.getElementById('drawer')) },
     { el: () => document.getElementById('drawer'), when: () => shown(document.getElementById('drawer')),
-      h: 'Read the wallet, then follow it', p: 'Its trades on the chart, its last 30 days on every token. Star it, and its next buys and sells come to your Telegram.',
+      h: 'Follow a wallet', p: 'Star it to get its trades in Telegram.',
       done: () => false, last: true },
   ];
 
@@ -61,10 +62,11 @@
   }
   function show() { open = true; render(); spot.hidden = tip.hidden = false; place(); }
   function hide() { open = false; spot.hidden = tip.hidden = true; }
-  function next() { hide(); step += 1; write(step); }
+  const told = () => dispatchEvent(new Event('early:tour'));   // tokenpage.js stops the chart's click animation
+  function next() { hide(); step += 1; write(step); told(); }
 
   tip.addEventListener('click', e => {
-    if (e.target.closest('.tour-skip')) { hide(); write('skip'); stop(); return; }
+    if (e.target.closest('.tour-skip')) { hide(); write('skip'); told(); stop(); return; }
     if (e.target.closest('.tour-next')) { next(); if (step >= 4) stop(); }
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && open) next(); });

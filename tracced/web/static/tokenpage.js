@@ -81,10 +81,31 @@
 
   /* the chart says what to click while nothing is marked: a label and a cursor clicking twice (owner, 30.09); once any
      range is on the page only the mid-way label stays */
+  /* the animated cursor clicking twice plays at most once (owner, 14.10): not at all once the tour's first step was
+     read («Mark the pump» said it already), one cycle for someone who skipped the tour, looping only while that first
+     step is on screen to illustrate it */
+  const DEMO_ONCE = 3600;                                   // one cycle of the cursor (style.css cd-cur)
+  const tourState = () => { try { return localStorage.getItem('early:tour') || '0'; } catch (x) { return 'skip'; } };
+  const demoed = () => { try { return localStorage.getItem('early:demoed') === '1'; } catch (x) { return true; } };
+  let demoTimer = 0;
+  function demoAllowed() {
+    const t = tourState();
+    if (t !== '0' && t !== 'skip') return false;            // step 1 read: no animation
+    if (t === '0') return true;                             // the tour is on step 1: it illustrates it
+    return !demoed();                                       // skipped: once
+  }
+  function onceThenStop() {
+    if (demoTimer || tourState() !== 'skip') return;
+    demoTimer = setTimeout(() => { try { localStorage.setItem('early:demoed', '1'); } catch (x) {} hint(); }, DEMO_ONCE);
+  }
+  addEventListener('early:tour', () => hint());              // tour.js says when a step was read or skipped
   function hint() {
     const empty = !DEMO && (step === 1 || !(draft.from && draft.to)) && !draft.demo;
     const first = !tabs.length;
-    ch.setDemo(!empty || !first ? null : step === 1 && draft.from ? { after: parse(draft.from) } : 'two');
+    const anim = demoAllowed();
+    ch.setDemo(!empty || !first || !anim ? null : step === 1 && draft.from ? { after: parse(draft.from) } : 'two');
+    if (empty && first && anim) onceThenStop();
+    hintEl.classList.toggle('calm', !anim);
     hintEl.textContent = step === 1 ? 'Now ' + VERB.toLowerCase() + ' where the pump takes off' : VERB + ' where buying starts';
     hintEl.hidden = !empty || (!first && step !== 1) || (sel && step !== 1);
   }

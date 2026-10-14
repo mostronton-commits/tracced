@@ -2,6 +2,12 @@
 
 <div class="ulog" markdown="1">
 
+## 0.7.7 <span class="ud">Oct 14, 2026</span>
+
+- Shorter tips in the tour
+- The chart's hint animation plays once
+- The tour's last step shows on a wallet's card
+
 ## 0.7.6 <span class="ud">Oct 14, 2026</span>
 
 - Get wallets right on the chart
