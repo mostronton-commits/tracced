@@ -2,6 +2,10 @@
 
 <div class="ulog" markdown="1">
 
+## 0.7.5 <span class="ud">Oct 12, 2026</span>
+
+- Bigger link previews in X, Telegram and Discord
+
 ## 0.7.4 <span class="ud">Oct 10, 2026</span>
 
 - One page from a token to its wallets

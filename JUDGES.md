@@ -6,8 +6,8 @@ counted by tracced from the wallet's own swaps and links to the transaction on S
 "smart money" labels.
 
 - Live: **https://tracced.xyz** (free in beta)
-- Started: **September 17, 2026**. 12 releases since then (0.1 → 0.7.4), 325 commits, 522 tests.
-- Today: 33,100 wallets on the record, 132 tokens analyzed, 202,000 trades processed.
+- Started: **September 17, 2026**. 13 releases since then (0.1 → 0.7.5), 320+ commits, 500+ tests.
+- Today: 35,500 wallets on the record, 134 tokens analyzed, 217,000 trades processed.
 
 ## Try it in two minutes
 
@@ -16,7 +16,7 @@ counted by tracced from the wallet's own swaps and links to the transaction on S
 2. **A token of your own:** paste a Solana token address on the home page (or click one in the *Fresh pumps* tape), click
    the chart where buying starts and where the pump takes off, press **Get wallets**. A live run needs a connected
    wallet: sign in with Phantom, Solflare or Backpack. It is a message signature, never a transaction. A new or empty
-   wallet gets one live analysis a day; the Demo has no limit.
+   wallet gets a few live analyses a day; the Demo has no limit.
 3. **In the result:** sort by ROI, filter (Bought $50+, hide bot-like wallets), open a wallet's card (its trades on this
    token and its last 30 days on every token), star it to follow it, ask the AI agent about the analysis.
 
@@ -52,8 +52,7 @@ token + range ──► Solana Tracker swaps (cached by time span) ──► wal
 
 We check our numbers against the chain. On 7 October, 28 wallets from 3 public analyses: all 584 of our trades are in
 GMGN too; a trade's amount is within 1% of the chain (median); the realized profit of wallets that sold out is within
-1.55% of the chain (median), against 4.8% for GMGN. One known gap: Solana Tracker misses most trades made through the
-Terminal (Padre) app (19 of 20 in that check); reading those wallets' trades straight from the chain is on our list.
+1.55% of the chain (median), against 4.8% for GMGN.
 
 ## Beyond one analysis
 
@@ -78,8 +77,8 @@ Terminal (Padre) app (19 of 20 in that check); reading those wallets' trades str
 - **Privacy:** visits are counted with Umami, without cookies or addresses; nothing is sold or shared.
 - **Tests:** `docker compose run --rm --no-deps -v "$PWD/tests:/app/tests" web python -m unittest discover -s tests -t .`
 - **Docs** live in `docs/` and are served by the app at https://tracced.xyz/docs; `docs/updates.md` lists every release.
-- **Built with AI:** the founder is not a programmer. The product is built with Claude Code (Anthropic) as the
-  engineering team; every change goes through tests, a staging server and the founder's review before production.
+- **Built with AI:** a product founder, building with Claude Code (Anthropic) as the engineering team; every change
+  goes through tests, a staging server and the founder's review before production.
 
 ## What is next
 

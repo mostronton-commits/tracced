@@ -4,13 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}tracced{% endblock %}</title>
-{# what a shared link shows under the name in Telegram and X (owner, 08.10) #}
+{# what a shared link shows in X, Telegram and Discord (owner, 08.10). The big card (owner, 12.10: «a bit more
+   information»): X shows the picture with the domain and nothing else, so the picture says what tracced does #}
 <meta name="description" content="Paste a Solana token, mark the pump — see who bought before it and what they did next.">
+<meta property="og:type" content="website">
 <meta property="og:site_name" content="tracced">
-<meta property="og:title" content="tracced">
-<meta property="og:description" content="See who bought before the pump, and what they did next.">
-<meta property="og:image" content="https://tracced.xyz/static/brand/icon-180.png">
-<meta name="twitter:card" content="summary">
+<meta property="og:title" content="tracced · see who bought before the pump">
+<meta property="og:description" content="Mark a pump on any Solana token and get every early buyer: what they paid, sold and earned. Every trade on Solscan. Free in beta.">
+<meta property="og:image" content="https://tracced.xyz/static/brand/og.png?v={{ v }}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="tracced: see who bought before the pump. A chart with a wallet's buys before the pump and its sells at the top.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@tracced_xyz">
 <link rel="icon" href="/static/brand/icon.svg?v={{ v }}" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/static/brand/icon-180.png?v={{ v }}">
 {% if umami_id %}<script defer src="https://cloud.umami.is/script.js" data-website-id="{{ umami_id }}" data-domains="{{ umami_domains }}" data-performance="true" data-tag="{{ 'wallet' if acct else 'guest' }}"></script>{% endif %}
