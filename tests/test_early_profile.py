@@ -76,6 +76,13 @@ class TestSummary(unittest.TestCase):
         self.assertEqual([b["mint"] for b in s["best"]], ["TOKA"])
         self.assertFalse(s["partial"])
 
+    def test_average_hold_is_weighted_by_amount(self):
+        # власник, 13.10: $999 продано за 2 с, $1 тримав добу — утримання ~1.5 хв, а не доба до останнього продажу
+        evs = events([swap(3, SOL, 10.0, "TOKZ", 1000, 1000.0), swap(3 - 2 / 86_400, "TOKZ", 999, SOL, 10.0, 999.0),
+                      swap(2, "TOKZ", 1, SOL, 0.01, 1.0)])
+        s = profile.summary(evs, W, NOW, days=30)
+        self.assertAlmostEqual(s["avg_hold_min"], (999 * 2 + 1 * 86_400) / 1000 / 60, places=3)
+
     def test_no_closed_positions_means_no_win_rate(self):
         s = profile.summary(events([swap(2, SOL, 0.5, "TOKC", 100, 50.0)]), W, NOW)
         self.assertIsNone(s["win_rate"])

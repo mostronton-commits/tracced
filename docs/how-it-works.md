@@ -80,6 +80,11 @@ cap at that exact trade.
 The chart can have a gap, often right after a token leaves pump.fun, and that is usually the pump itself. Once a
 range is analyzed, the chart fills the gap with candles built from that analysis's own trades.
 
+**Held** is how long a wallet held what it sold, on average, weighted by amount. A wallet that sells $999 of its
+$1,000 two seconds after buying and keeps the last $1 for a day held about a minute and a half, not two seconds and
+not a day. What it still holds is not counted: the table shows it apart. The card's **average hold** over 7 or 30
+days is counted the same way, position by position.
+
 The range is always read in full. The **i** after the counts above the chart says for how many wallets exits are
 known, and how many traded in the range but stay out of the table (too small, or only sold); it turns into **!** when
 exits are not known for every wallet.

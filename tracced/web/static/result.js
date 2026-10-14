@@ -33,7 +33,7 @@
       sold: { t: 'Sold', u: '%', step: 5, hint: 'share of its tokens sold', get: o => +o.sold || 0 },
       real: { t: 'PnL', u: '$', step: 10, hint: 'realized, in dollars; a loss is negative', get: o => +o.real || 0 },
       mult: { t: 'ROI', u: '×', step: 0.5, hint: 'average exit ÷ average entry', get: o => +o.mult || 0 },
-      hold: { t: 'Held', u: 'min', step: 5, hint: 'from its entry to its first sale', get: o => o.hold == null ? null : +o.hold },
+      hold: { t: 'Held', u: 'min', step: 5, hint: 'how long it held what it sold, weighted by amount', get: o => o.hold == null ? null : +o.hold },
       buys: { t: 'Buys', u: '', step: 1, hint: 'its buys on this token', get: o => +o.buys || 0 },
     };
     const HIDE_TAGS = Object.keys(CFG.tags).filter(x => !['seen-before', 'pre-range', 're-bought'].includes(x));
@@ -962,7 +962,7 @@
         + (o.sells == null ? cell('—', 'PnL', '', 'Its sells were not read: only the largest buyers\' are')
           : cell(amt(o.real, o.realsol), 'PnL', o.real > 0 ? 'pos' : o.real < 0 ? 'neg' : '', o.unreal ? money(o.unreal) + ' on ' + leftPct(o.sold) + ' left' : ''))
         + cell(roiX(o.mult), 'ROI', o.mult ? (o.mult >= 1 ? 'pos' : 'neg') : '', o.mult ? roiPct(o.mult) : 'Nothing sold yet')
-        + cell(holdText(o.hold), 'held', '', 'From its entry to its first sale');
+        + cell(holdText(o.hold), 'held', '', 'How long it held what it sold, on average, weighted by amount');
     }
     let cardSrc = 'row';                                       // where the card was opened from, for the owner's log
     function openStory(o) {

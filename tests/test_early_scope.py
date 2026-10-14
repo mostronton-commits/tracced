@@ -56,7 +56,8 @@ class TestScope(unittest.TestCase):
         self.assertAlmostEqual(a["invested_usd"], 330)                               # уся історія: 100 + 200 + 30
         self.assertAlmostEqual(a["proceeds_usd"], 600)
         self.assertAlmostEqual(a["realized_usd"], 600 - 150 * 1.5)                   # середня ціна 1.5
-        self.assertAlmostEqual(a["hold_minutes"], 30 * 60 - 5)                       # від входу в діапазоні до продажу
+        self.assertAlmostEqual(a["hold_minutes"], 30 * 60 + 12.5)                    # з вагою від середнього часу покупок
+                                                                                       # (−30 і +5 хв), як собівартість (13.10)
         self.assertIn("pre-range", a["tag_list"]); self.assertIn("re-bought", a["tag_list"]); self.assertIn("fresh", a["tag_list"]); self.assertIn("bundle", a["tag_list"])
         self.assertFalse(b["first_sell_utc"])                                        # у 24 год продажу ще нема
         self.assertAlmostEqual(b["invested_usd"], 300)

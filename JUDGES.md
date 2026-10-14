@@ -47,7 +47,8 @@ token + range ──► Solana Tracker swaps (cached by time span) ──► wal
 - **Sold:** what it received for its sells, and the share of its tokens sold.
 - **PnL:** received minus what the sold tokens cost at the wallet's average price. Unsold tokens are shown apart.
 - **ROI:** average exit market cap ÷ average entry market cap.
-- **Held:** from its entry into the range to its first sale.
+- **Held:** how long it held what it sold, on average, weighted by amount: $999 sold after 2 seconds and $1 after a
+  day is about a minute and a half, not 2 seconds and not a day. Tokens still held are not in it.
 
 We check our numbers against the chain. On 7 October, 28 wallets from 3 public analyses: all 584 of our trades are in
 GMGN too; a trade's amount is within 1% of the chain (median); the realized profit of wallets that sold out is within

@@ -152,8 +152,10 @@ document.addEventListener('click', e => {
   e.stopPropagation();
   EarlyUI.use('copy', { what: b.closest('#drawer') ? 'card' : b.closest('tr') ? 'row' : 'page' });   // where, never what
   navigator.clipboard.writeText(b.dataset.copy).then(() => {
-    if (!b.dataset.was) b.dataset.was = b.innerHTML;
-    b.textContent = '✓'; clearTimeout(b._h); b._h = setTimeout(() => { b.innerHTML = b.dataset.was; delete b.dataset.was; }, 1200);
+    // the tick keeps the button's width: in the card the address shrank to one ✓ and the chips beside it jumped
+    if (!b.dataset.was) { b.dataset.was = b.innerHTML; b.style.minWidth = b.getBoundingClientRect().width + 'px'; }
+    b.textContent = '✓'; clearTimeout(b._h);
+    b._h = setTimeout(() => { b.innerHTML = b.dataset.was; delete b.dataset.was; b.style.minWidth = ''; }, 1200);
   });
 });
 

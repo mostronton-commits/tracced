@@ -493,8 +493,16 @@ def _ok_number(tok, known):
     return any(abs(v - k) <= tol * abs(k) for k in known if abs(k) >= 1000)
 
 
+# назви полів вижимки, які модель іноді вставляє в текст попри заборону. Підкреслення далі вирізається як розмітка,
+# і з «watch_candidates» виходило «watchcandidates» (помічено на зйомці демо, 10.10): спершу людські слова
+_FIELDS = {"watch_candidates": "the method's picks", "top_by_pnl": "the top by profit", "top_by_roi": "the top by ROI",
+           "your_lists": "your lists", "asked_about": "the wallet you asked about", "by_app": "by app"}
+
+
 def _clean(text):
     t = re.sub(r"<[^>]*>|\[([^\]]*)\]\([^)]*\)|https?://\S+|www\.\S+", r"\1", str(text or ""))
+    t = re.sub(r"\b(" + "|".join(_FIELDS) + r")\b", lambda m: _FIELDS[m.group(1)], t)
+    t = re.sub(r"(?<=[A-Za-z])_(?=[A-Za-z])", " ", t)   # будь-яка інша назва поля: слова через пробіл, не злиті
     t = re.sub(r"[`*_#>|]", "", t)
     return " ".join(t.split())[:MAX_BULLET]
 

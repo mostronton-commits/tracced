@@ -25,6 +25,12 @@ RESULT = {
 
 
 class TestDigest(unittest.TestCase):
+
+    def test_field_names_never_reach_the_reader_glued(self):
+        # «watch_candidates» без підкреслення ставало «watchcandidates» (зйомка демо, 10.10)
+        self.assertEqual(agent._clean("See watch_candidates first"), "See the method's picks first")
+        self.assertEqual(agent._clean("from first_sol and sold_out"), "from first sol and sold out")
+        self.assertEqual(agent._clean("a *bold* word"), "a bold word")
     def test_numbers_come_from_the_result_and_the_filter_from_the_method(self):
         d, wmap = digest(RESULT, {"min_roi": 3, "min_hold_min": 10, "exclude": ["bot-like", "fresh"], "n": 5})
         self.assertEqual((d["wallets"]["bought_in_range"], d["wallets"]["in_profit"], d["wallets"]["at_a_loss"]), (5, 4, 1))

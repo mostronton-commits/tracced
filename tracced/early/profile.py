@@ -108,7 +108,8 @@ def history_event(t, mint, symbol=None):
 class _Book:
     """Одна позиція гаманця в одному токені: середня собівартість, та сама арифметика, що в ledger.build."""
     __slots__ = ("mint", "symbol", "qty", "cost", "cost_sol", "invested", "realized", "realized_sol", "bought", "sold",
-                 "buys", "sells", "orphan_sells", "sol_seen", "sol_gap", "first_buy_t", "last_sell_t", "last_t", "gaps")
+                 "buys", "sells", "orphan_sells", "sol_seen", "sol_gap", "first_buy_t", "last_sell_t", "last_t", "gaps",
+                 "time_qty", "held_ms_qty", "held_qty")
 
     def __init__(self, mint, symbol):
         self.mint, self.symbol = mint, symbol
@@ -118,6 +119,7 @@ class _Book:
         self.sol_seen = self.sol_gap = False
         self.first_buy_t = self.last_sell_t = self.last_t = None
         self.gaps = []                               # [(час, кількість)] проданого без позиції під нього
+        self.time_qty = self.held_ms_qty = self.held_qty = 0.0   # утримання з вагою за кількістю, як у ledger
 
     @property
     def share(self):
@@ -163,6 +165,7 @@ def _replay(evs):
             b.cost += usd
             b.invested += usd
             b.bought += qty
+            b.time_qty += qty * e["time"]
             if sol is not None:
                 b.cost_sol += sol
                 b.sol_seen = True
@@ -181,6 +184,10 @@ def _replay(evs):
             if qty - part > max(qty, b.bought) * UNCOVERED:
                 b.gaps.append((e["time"], qty - part))     # продано більше, ніж було куплено: решта без собівартості
             avg = b.cost / b.qty
+            avg_t = b.time_qty / b.qty
+            b.held_ms_qty += part * max(0.0, e["time"] - avg_t)
+            b.held_qty += part
+            b.time_qty -= avg_t * part
             got = usd * (part / qty)
             d = got - avg * part
             b.realized += d
@@ -318,8 +325,8 @@ def summary(events, wallet, now_ms, days=30, partial=False, history=None):
             wins += r > 0
             if b.invested > 0:
                 dist[_bucket(b.realized / b.invested * 100)] += 1
-            if b.first_buy_t is not None:
-                holds.append((b.last_sell_t - b.first_buy_t) / 60_000)
+            if b.held_qty > 0:
+                holds.append(b.held_ms_qty / b.held_qty / 60_000)   # з вагою за кількістю, не до останнього продажу
         else:
             open_ += 1
         per_token.append({"mint": b.mint, "symbol": b.symbol, "realized_usd": r, "closed": is_closed})
