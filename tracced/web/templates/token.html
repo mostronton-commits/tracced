@@ -30,25 +30,27 @@
     </dl>
   </div>
 
-  <div class="chartbox" id="chart"><div class="charthint" id="charthint" hidden></div></div>
+  <div class="chartbox" id="chart"><div class="charthint" id="charthint" hidden></div>
+    {# a marked range on the chart itself, top centre where the hint was (owner, 14.10, variant B): its times, ✎ for
+       exact minutes, Cancel, Get wallets. Nothing under the chart repeats it #}
+    <div class="pick" id="pick" hidden>
+      <span class="pick-dot" aria-hidden="true"></span>
+      <span class="pick-text" id="picktext"></span>
+      <span class="pick-edit" id="pickedit" hidden>
+        <label class="fld"><span>From</span><input type="datetime-local" id="pfrom"></label>
+        <label class="fld"><span>To</span><input type="datetime-local" id="pto"></label>
+      </span>
+      <span class="pick-act">
+        <button type="button" class="ghost" id="pickt" title="Type exact times">✎</button>
+        <button type="button" class="ghost" id="pickx" title="Clear this range">Cancel</button>
+        <button type="button" class="primary" id="getw">Get wallets</button>
+      </span>
+      <span class="pick-note muted small" id="picknote">{% if is_demo %}Demo · replayed without requests{% elif not acct %}Free in beta · a wallet signature, no transaction{% elif beta %}Beta tester · no daily limit{% elif runs_left is not none %}{% if runs_left > 0 %}{{ runs_left }} of {{ runs_cap if runs_cap is not none else s.runs_per_day }} left today{% else %}None left today · resets at 00:00 UTC{% endif %}{% endif %}</span>
+    </div>
+  </div>
 
   {# the token's analyses: one tab each, the one shown is the result below; drawn by tokenpage.js #}
   <div class="atabs" id="tabs" role="tablist" aria-label="This token's analyses"></div>
-  {# a marked range: what it is, ✎ for exact minutes, Get wallets #}
-  <div class="pick" id="pick" hidden>
-    <span class="pick-dot" aria-hidden="true"></span>
-    <span class="pick-text" id="picktext"></span>
-    <span class="pick-edit" id="pickedit" hidden>
-      <label class="fld"><span>From</span><input type="datetime-local" id="pfrom"></label>
-      <label class="fld"><span>To</span><input type="datetime-local" id="pto"></label>
-    </span>
-    <span class="pick-act">
-      <button type="button" class="ghost" id="pickt" title="Type exact times">✎</button>
-      <button type="button" class="ghost" id="pickx" title="Clear this range">Cancel</button>
-      <button type="button" class="primary" id="getw">Get wallets</button>
-    </span>
-    <span class="pick-note muted small" id="picknote">{% if is_demo %}Demo · replayed without requests{% elif not acct %}Free in beta · a wallet signature, no transaction{% elif beta %}Beta tester · no daily limit{% elif runs_left is not none %}{% if runs_left > 0 %}{{ runs_left }} of {{ runs_cap if runs_cap is not none else s.runs_per_day }} left today{% else %}None left today · resets at 00:00 UTC{% endif %}{% endif %}</span>
-  </div>
   {# a run in progress: a line that fills with the run's own steps and counts (owner, 09.10: «бігуча строка») #}
   <div class="run" id="run" hidden aria-live="polite">
     <div class="run-top"><b class="run-phase" id="runphase">Starting</b><span class="run-count mono" id="runcount"></span><span class="run-clock mono" id="runclock">00:00</span></div>

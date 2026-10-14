@@ -280,12 +280,14 @@ from 04.10, owner; they pair with the Carbon icons. Geist stays in `static/fonts
   and the footer sits at the bottom.
 - **A token's page is one page from the token to its wallets** (owner, 09.10: «юзер вводить токен і на тій самій
   сторінці виділяє діапазон і отримує результат»). Top to bottom: the token's head with its chips, the chart, the
-  token's analyses as tabs (each in its band's shade: «Pump 1 · 765 wallets», a dashed «+ New range»), then the bar of
-  a marked range (its times, ✎ for exact minutes, Cancel, *Get wallets*), the run's line while it goes, and the chosen
+  token's analyses as tabs (each in its band's shade: «Pump 1 · 765 wallets», a dashed «+ New range»), the run's line
+  while it goes, and the chosen
   result: the tally (the counts and the insights in one strip), the toolbar, the table with its filters in its head.
   The wallet card slides in from the right.
-  - The chart is the control: two clicks mark a range and the bar with *Get wallets* appears under the chart. Nothing
-    runs until it is pressed (owner, 09.10: variant A). A result on screen stays while a new range is marked.
+  - The chart is the control: two clicks mark a range and a small navy bar appears on the chart itself, top centre,
+    where the hint was: the range's times, ✎ for exact minutes, Cancel, *Get wallets* (owner, 14.10, variant B: under
+    the chart nobody saw it). Nothing under the chart repeats it. Nothing runs until it is pressed (owner, 09.10:
+    variant A). A result on screen stays while a new range is marked.
   - The run (owner, 09.10: «бігуча строка»): a navy line under the chart fills with the run's own steps — Token,
     Trades, Exits, Checks, Wallets — its phase and count in words («Checking where they sold · 329 / 765 wallets»), a
     light passing along the filled part, and the range's band on the chart glows with a light moving left to right.

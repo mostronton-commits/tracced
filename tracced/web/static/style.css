@@ -1980,6 +1980,19 @@ input.ltabedit { flex: none; width: 150px; min-width: 0; height: 30px; padding: 
 .pick-act { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .pick-act #getw { height: 38px; padding: 0 20px; font-weight: 600; font-size: 14px; }
 .pick-note { flex-basis: 100%; text-align: right; margin-top: -4px; }
+/* variant B (owner, 14.10): on the chart, top centre, where the hint was: the eye is already there after the second click */
+.chartbox .pick { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); z-index: 7; margin: 0;
+  width: max-content; max-width: calc(100% - 24px); padding: 7px 8px 7px 12px; gap: 6px 10px; border-radius: 12px;
+  background: rgba(9, 13, 22, .94); border: 1px solid rgba(var(--wc), .75); box-shadow: 0 10px 30px -10px rgba(0, 0, 0, .7);
+  animation: hintin .25s ease both; }
+.chartbox .pick-text { color: #E2E8F0; font-size: 12.5px; }
+.chartbox .pick-act { margin-left: 4px; gap: 6px; }
+.chartbox .pick-act .ghost { color: #CBD5E1; border-color: #334155; background: transparent; height: 34px; }
+.chartbox .pick-act .ghost:hover { color: #F8FAFC; border-color: #64748B; }
+.chartbox .pick-act #getw { height: 34px; padding: 0 16px; box-shadow: 0 0 0 4px rgba(167, 243, 208, .16); }
+.chartbox .pick-note { color: #94A3B8; font-size: 11px; text-align: center; margin: -2px 0 0; }
+.chartbox .pick-edit .fld { color: #94A3B8; }
+.chartbox .pick-edit input { background: #0F172A; color: #E2E8F0; border-color: #334155; color-scheme: dark; }
 
 .run { --wc: 52, 211, 153; margin: 0 0 12px; padding: 10px 14px 12px; border: 1px solid #1E293B; border-radius: 10px;
   background: linear-gradient(180deg, #0B1220 0%, #090D16 100%); color: #CBD5E1; animation: rise-in .22s ease-out; }
@@ -2025,5 +2038,7 @@ input.ltabedit { flex: none; width: 150px; min-width: 0; height: 30px; padding: 
   .atab { min-width: 0; flex: 1 1 140px; }
   .pick-act { margin-left: 0; width: 100%; } .pick-act #getw { flex: 1; }
   .pick-note { text-align: left; }
+  .chartbox .pick { left: 8px; right: 8px; top: 8px; transform: none; width: auto; max-width: none; animation: none; }
+  .chartbox .pick-note { text-align: center; }
   .run-clock { display: none; }
 }
