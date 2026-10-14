@@ -244,6 +244,9 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
     if win_t.n:
         log(win_t.line("entry range", t_win))
 
+    # підписи угод перших хвилин після запуску лишаються в результаті: по них перевірка запуску шукає пакети Jito
+    tx_until = (created + int(float(s.get("launch_window_s", 180)) * 1000)) if created else None
+
     # ── 2. гаманці, що купували в діапазоні ──
     repaired = ledger.repair_quantities(store.trades)     # джерело інколи ламає кількість токенів
     if repaired:
@@ -306,7 +309,7 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
         if price_end is None:
             price_end = next((tr["price"] for tr in reversed(store.between(created, t_end)) if tr.get("price")), None)
         for l in early:
-            wallet_trades[l.wallet] = {"trades": scope.pack(by_wallet.get(l.wallet, [])), "source": "trades"}
+            wallet_trades[l.wallet] = {"trades": scope.pack(by_wallet.get(l.wallet, []), tx_until=tx_until), "source": "trades"}
         counts_extra = {"lookups": 0, "entry_only": 0}
         covered = len(early)
     else:
@@ -315,7 +318,7 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
         log(f"fetching each wallet's trades for {len(lookups)}"
             + (f", {rest} left entry-only (cap {lookups_cap})" if rest else ""))
         wal_t, t_wal = Timing(), time.monotonic()
-        got, last_seen = fetch_wallets(st, mint, [l.wallet for l in lookups], t_end, s, store.trades,
+        got, last_seen = fetch_wallets(st, mint, [l.wallet for l in lookups], t_end, s, store.trades, tx_until=tx_until,
                                        here=here, req0=req0, run_cap=run_cap, log=log, progress=progress, timing=wal_t)
         if wal_t.n:
             log(wal_t.line("wallets", t_wal, unit="lookups"))
@@ -326,7 +329,7 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
             if l.wallet in got:
                 wallet_trades[l.wallet] = {"trades": got[l.wallet], "source": "wallet-trades"}
             else:
-                wallet_trades[l.wallet] = {"trades": scope.pack(win_by.get(l.wallet, [])), "source": "entry-only"}
+                wallet_trades[l.wallet] = {"trades": scope.pack(win_by.get(l.wallet, []), tx_until=tx_until), "source": "entry-only"}
         if price_end is None and last_seen:
             price_end = last_seen[1]
         n_ok = len(got)
@@ -378,7 +381,8 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
     return result
 
 
-def fetch_wallets(st, mint, wallets, t_end, s, trades, here, req0=0, run_cap=0, log=None, progress=None, timing=None):
+def fetch_wallets(st, mint, wallets, t_end, s, trades, here, req0=0, run_cap=0, log=None, progress=None, timing=None,
+                  tx_until=None):
     """Угоди кожного гаманця по токену, `st_concurrency` гаманців одночасно.
 
     Сторінки одного гаманця зчеплені курсором, а різні гаманці незалежні, тож паралелимо між гаманцями. Головний
@@ -403,7 +407,7 @@ def fetch_wallets(st, mint, wallets, t_end, s, trades, here, req0=0, run_cap=0, 
               if tr["time"] is not None and tr["time"] <= t_end]
         seen = max(((tr["time"], tr["price"]) for tr in wt if tr.get("price")), default=None)
         ledger.repair_quantities(wt, ref=ref)
-        return scope.pack(wt), seen
+        return scope.pack(wt, tx_until=tx_until), seen
 
     got, last_seen, done = {}, None, 0
     pending, nxt, capped = {}, 0, False

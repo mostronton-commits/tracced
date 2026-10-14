@@ -26,6 +26,13 @@ for one launch is worth a second look.
 `transfer-in` means the tokens arrived without a purchase. We see swaps, not transfers, so a wallet that sold more
 than it ever bought got them some other way — almost always sent from another wallet.
 
+`own-bundle` and `launch-bundle` come from Jito bundles of the launch's first minutes. A bundle is up to five
+transactions that run in a row, and only someone holding all of them signed can send it. So when one wallet sells and
+another buys **in the same bundle**, it is one hand moving tokens between its own wallets, and both get `own-bundle`:
+from outside it looks like a bundle selling out, but the tokens went to wallets that look unrelated and then show up as
+the best early traders. A wallet in the creator's own bundle at the launch gets `launch-bundle`. Each one opens on the
+bundle's page at Jito, so you can check it yourself.
+
 `seen-before` is the only tag that depends on you rather than the chain. It appears when the wallet was also an
 early buyer in **another analysis you saved**, and clicking it opens that list.
 

@@ -63,6 +63,10 @@ GMGN too; a trade's amount is within 1% of the chain (median); the realized prof
 - **AI agent:** answers questions about the analysis on screen only. The numbers come from the code, the model only
   picks and words them, and the code checks every answer against the analysis before it is shown
   (`tracced/early/agent.py`).
+- **Organised launches:** after each analysis, the launch's first minutes are checked at Jito: a wallet that bought in
+  the same bundle where another sold is one hand on both sides, and the creator fee is traced to where it is sent
+  (`tracced/early/launch.py`). On AI6 it found the fee wallet's 174 SOL and the bundles that made the launch's own
+  wallets look like its best traders; they never enter the ready lists.
 - **Ready lists:** last month's top traders, people only, profit counted by our ledger (`tracced/early/ready.py`).
 - **Partner API (beta):** a token check by rules for other apps (`tracced/web/partner_api.py`); a team from this
   hackathon uses it.

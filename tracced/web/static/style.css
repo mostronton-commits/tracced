@@ -2049,3 +2049,22 @@ input.ltabedit { flex: none; width: 150px; min-width: 0; height: 30px; padding: 
   .chartbox .pick-note { text-align: center; }
   .run-clock { display: none; }
 }
+
+/* the launch check's marks (14.10): one hand on both sides of a Jito bundle, or the creator's own launch bundle */
+.ci.ins { color: #DC2626; }
+
+/* the first-visit tour (owner, 14.10): a spotlight that dims the rest without catching clicks, a light card beside it */
+.tour-spot { position: fixed; z-index: 60; border-radius: 12px; pointer-events: none; box-shadow: 0 0 0 9999px rgba(9, 13, 22, .55);
+  outline: 2px solid var(--mint-strong, #34D399); outline-offset: 2px; transition: left .2s ease, top .2s ease, width .2s ease, height .2s ease; }
+.tour-spot[hidden], .tour-tip[hidden] { display: none; }
+.tour-tip { position: fixed; z-index: 61; width: min(400px, calc(100vw - 24px)); background: #FFFFFF; color: #0F172A; border-radius: 14px;
+  padding: 18px 20px 14px; box-shadow: 0 24px 60px -12px rgba(9, 13, 22, .45); animation: rise-in .2s ease-out; }
+.tour-tip.tour-sheet { left: 12px; right: 12px; bottom: 12px; top: auto; width: auto; }
+.tour-tip .tour-n { font: 600 11.5px var(--mono); color: #047857; letter-spacing: .06em; }
+.tour-tip h3 { margin: 6px 0 4px; font: 600 18px/1.3 var(--sans); }
+.tour-tip p { margin: 0; font-size: 14.5px; line-height: 1.5; color: #475569; }
+.tour-row { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; gap: 8px; }
+.tour-row > span:last-child { display: flex; gap: 8px; }
+.tour-dots { display: flex; gap: 5px; } .tour-dots i { width: 6px; height: 6px; border-radius: 50%; background: #CBD5E1; }
+.tour-dots i.on { width: 16px; border-radius: 3px; background: #34D399; }
+@media (prefers-reduced-motion: reduce) { .tour-spot { transition: none; } .tour-tip { animation: none; } }

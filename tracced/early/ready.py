@@ -39,7 +39,8 @@ LISTS = {
 # why a candidate is not in the list, as the explaining card says it (owner, 08.10: «розписав що це за список і навіщо»)
 DROPPED = {"pace": "trade at a machine's pace", "fresh": "fresh wallets", "bot": "bots, exchanges, arbitrage",
            "sniper": "snipers", "win rate": "win rate outside 30–90 %", "few": "too few closed trades",
-           "error": "could not be read", "small": "people who made less"}
+           "error": "could not be read", "small": "people who made less",
+           "launch": "wallets of organised launches"}
 MAX_TRADES = 1500             # the board's pace: a month of about fifty trades a day
 NOT_PEOPLE = {"bot", "exchange", "pool", "hacker", "spam_dusting"}
 HUMAN = {"max_swaps": 1500, "max_tokens": 300, "min_closed": 5, "win_rate": [30.0, 90.0], "min_hold_min": 2.0,
@@ -153,9 +154,13 @@ def counted(row, month):
                 month=month if month.get("pnl_usd") is not None else None)
 
 
-def by_facts(facts, month_from, rules=None):
-    """What the batch of Solana Tracker already says, before a request is spent on the wallet: a bot or a fresh one."""
+def by_facts(facts, month_from, rules=None, wallet=None, operators=None):
+    """What the batch of Solana Tracker already says, before a request is spent on the wallet: a bot or a fresh one.
+    A wallet that tracced saw on both sides of a Jito bundle, or in a creator's launch bundle, is not a trader to
+    follow either (owner, 14.10: on AI6 14 of the top 20 were the launch's own wallets)."""
     r, f = dict(HUMAN, **(rules or {})), facts or {}
+    if wallet and operators and wallet in operators:
+        return "launch"
     if f.get("arbitrage") or f.get("type") in NOT_PEOPLE:
         return "bot"
     ft = f.get("first_trade")

@@ -2,7 +2,7 @@
 {% block title %}{{ info.symbol or mint[:8] }}{% if active %} · result{% endif %} · tracced{% endblock %}
 {% block main_class %}wide{% endblock %}
 {% block crumb %}{{ info.symbol or mint[:8] }}{% endblock %}
-{% block head %}<script src="/static/vendor/lightweight-charts.standalone.production.js?v={{ v }}"></script><script src="/static/chart.js?v={{ v }}"></script><script src="/static/card.js?v={{ v }}"></script><script src="/static/result.js?v={{ v }}"></script><script src="/static/tokenpage.js?v={{ v }}" defer></script>{% endblock %}
+{% block head %}<script src="/static/vendor/lightweight-charts.standalone.production.js?v={{ v }}"></script><script src="/static/chart.js?v={{ v }}"></script><script src="/static/card.js?v={{ v }}"></script><script src="/static/result.js?v={{ v }}"></script><script src="/static/tokenpage.js?v={{ v }}" defer></script><script src="/static/tour.js?v={{ v }}" defer></script>{% endblock %}
 {% block body %}
 {# One page for a token and its analyses (owner, 09.10: «юзер вводить токен і на тій самій сторінці виділяє діапазон і
    отримує результат»): the chart; under it the token's analyses as tabs; a marked range offers Get wallets; the run's

@@ -162,6 +162,24 @@ Until the check reaches a wallet, `fresh`, `bundle` and the filters that hide th
 the first {{ s.age_lookups_max }} they stay unknown unless a card is opened: a bundle there counts only the wallets
 that were checked. When the check is paused, the page says so.
 
+## Organised launches
+
+After the table, tracced checks how the token was launched, from two free sources, and adds only facts with a proof
+(owner, 14.10). There is no score.
+
+- **Jito bundles of the first {{ (s.launch_window_s / 60)|int }} minutes.** Each early sale is looked up at Jito: when
+  another wallet bought in the same bundle, both get `own-bundle`. Wallets in the creator's own launch bundle get
+  `launch-bundle`.
+- **The creator fee.** pump.fun lets a creator send the fee from every trade to another wallet. tracced reads where
+  it was sent and how much SOL it has paid out so far.
+
+When any of it is found, the strip above the table says **organised launch**, with the facts on hover; a click shows
+exactly those wallets. Such wallets are never in the ready lists of top traders.
+
+On one launch we checked by hand, 14 of the 20 most profitable early wallets belonged to the launch itself. These
+checks catch the ones that traded inside the launch's own bundles; wallets tied to it only by later shared signatures
+are not caught yet.
+
 ## The wallet card
 
 Click a wallet's address, or anywhere else in its row. The chart mark before it, which comes out with the star when the

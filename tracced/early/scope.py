@@ -22,18 +22,21 @@ def end_for(scope, t_to, t_end):
     return min(t_end, t_to + int(scope[:-1]) * HOUR)
 
 
-def pack(trades):
-    """Компактний запис угоди для файлу результату: [час, сторона, кількість, $, ціна, SOL].
+def pack(trades, tx_until=None):
+    """Компактний запис угоди для файлу результату: [час, сторона, кількість, $, ціна, SOL(, підпис)].
 
     Шосте поле додане пізніше: результати, зняті до нього, мають пʼять елементів і читаються так само,
-    просто без суми в SOL. Тому розпакування дивиться на довжину, а не припускає формат."""
+    просто без суми в SOL. Тому розпакування дивиться на довжину, а не припускає формат. Сьоме — підпис транзакції,
+    лише для угод перших хвилин після запуску (до tx_until): по ньому перевірка запуску знаходить пакети Jito
+    (організовані запуски, 14.10), а решті угод він не потрібен і лише роздував би файл."""
     return [[tr["time"], tr["type"], tr.get("qty"), tr.get("usd"), tr.get("price"), tr.get("sol")]
+            + ([tr["tx"]] if tx_until and tr.get("tx") and (tr["time"] or 0) <= tx_until else [])
             for tr in sorted(trades, key=lambda x: x["time"] or 0) if tr.get("type") in ("buy", "sell")]
 
 
 def unpack(wallet, packed):
     return [{"wallet": wallet, "type": t[1], "time": t[0], "qty": t[2], "usd": t[3], "price": t[4],
-             "sol": (t[5] if len(t) > 5 else None)}
+             "sol": (t[5] if len(t) > 5 else None), "tx": (t[6] if len(t) > 6 else None)}
             for t in packed]
 
 
@@ -65,6 +68,7 @@ def rows_for(result, scope, s=None):
     fresh = set(result.get("fresh_wallets") or [])
     dormant = result.get("dormant") or {}                  # тиша перед покупкою, з перевірки віку (збагачення)
     bundle = result.get("bundle") or {}
+    launch_tags = result.get("launch_tags") or {}          # перевірка запуску (пакети Jito), з фонового збагачення
     info_ = result.get("info") or {}
     dev = (info_.get("creator") or info_.get("deployer") or "").strip()   # творець токена серед покупців — окремий факт
     facts = []
@@ -84,6 +88,8 @@ def rows_for(result, scope, s=None):
             f["tags"] = tags.with_tag(f["tags"], "dormant")
         if wallet in bundle:
             f["tags"] = tags.with_tag(f["tags"], "bundle")
+        for t in launch_tags.get(wallet, ()):
+            f["tags"] = tags.with_tag(f["tags"], t)
         if dev and wallet == dev:
             f["tags"] = tags.with_tag(f["tags"], "dev")
         facts.append(f)

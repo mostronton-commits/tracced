@@ -33,7 +33,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
 from ..cache import JsonCache
-from ..early import agent as agent_mod, assistant as assistant_mod, exchanges as exch_mod, labels as labels_mod, ledger, pipeline, profile, ready as ready_mod, report, scope, tags, wallet_age as wallet_age_mod, window
+from ..early import agent as agent_mod, assistant as assistant_mod, exchanges as exch_mod, labels as labels_mod, launch as launch_mod, ledger, pipeline, profile, ready as ready_mod, report, scope, tags, wallet_age as wallet_age_mod, window
 from ..early.store import TradeStore
 from ..providers import dexscreener
 from . import accounts as acct_mod, after as after_mod
@@ -385,7 +385,63 @@ def _enrich_body(ages, s, labels=None):
         r["bundle_rev"] = tags.BUNDLE_REV                   # бандли пораховані чинним правилом
         save(job)
         ages.flush()
+        _launch_check(r, rows, s, job, save)
     return enrich
+
+
+def _launch_check(r, rows, s, job, save):
+    """Організований запуск (власник, 14.10): пакети Jito перших хвилин і комісія творця. Безкоштовні джерела
+    (публічне API Jito і публічна нода), раз на результат; збій не чіпає решту збагачення."""
+    if not s.get("launch_on") or (r.get("launch") or {}).get("rev") == launch_mod.REV:   # on in the defaults, off in bare test settings
+        return
+    info = r.get("info") or {}
+    mint, created, supply = getattr(job, "mint", None) or info.get("mint"), info.get("created_time"), info.get("supply") or 0
+    creator = (info.get("creator") or info.get("deployer") or "").strip() or None
+    trades = [t for w, v in (r.get("wallet_trades") or {}).items()
+              for t in scope.unpack(w, v.get("trades") or []) if t.get("tx")]
+    out = {"rev": launch_mod.REV, "pairs": [], "launch": None}
+    jito, rpc = launch_mod.Jito(), launch_mod.Rpc()
+    try:
+        if trades and created:
+            out.update(launch_mod.buybacks(trades, created, int(float(s.get("launch_window_s", 180)) * 1000), jito,
+                                           creator=creator, max_lookups=int(s.get("launch_jito_max", 120)),
+                                           rpc=rpc, mint=mint, supply=supply))
+        else:
+            out["no_tx"] = True                         # результат до 14.10: підписів перших хвилин у ньому нема
+        if creator and mint and created:
+            fee = launch_mod.fee_shares(rpc, creator, mint, created)
+            if fee and fee.get("config") and fee.get("to"):
+                fee["paid"] = launch_mod.fee_paid(rpc, fee["config"], fee["to"][0][0])
+            out["fee"] = fee
+    except Exception as ex:  # noqa: BLE001 — перевірка запуску — лише додаток до результату
+        out["failed"] = str(ex)[:120]
+        job.log.append(f"launch check failed: {str(ex)[:80]}")
+    out["calls"] = {"jito": jito.calls, "rpc": rpc.calls}
+    r["launch"] = out
+    lt = launch_mod.wallet_tags(out)
+    r["launch_tags"] = lt
+    for row in rows:                                    # рядки вже пораховані: теги дописуються, як fresh вище
+        for t in lt.get(row["wallet"], ()):
+            if t not in (row.get("tag_list") or []):
+                row["tag_list"] = tags.with_tag(row.get("tag_list"), t)
+                row["tags"] = "|".join(row["tag_list"])
+    try:
+        launch_mod.remember(lt, mint)
+    except OSError as ex:
+        job.log.append(f"launch wallets not saved: {str(ex)[:60]}")
+    save(job)
+
+
+def _launch_view(r):
+    """Що з перевірки запуску бачить сторінка: теги гаманців, підсумок і пакети з доказом."""
+    lc = r.get("launch")
+    if not lc or lc.get("rev") is None:
+        return None
+    sm = launch_mod.summary(lc, (r.get("info") or {}).get("supply") or 0)
+    return {"tags": r.get("launch_tags") or {}, "summary": sm,
+            "pairs": [{"bundle": p["bundle"], "seller": p["seller"], "buyers": [b[0] for b in p["buyers"]]} for p in lc.get("pairs") or []][:20],
+            "launch_bundle": (lc.get("launch") or {}).get("bundle"),
+            "fee_tx": (lc.get("fee") or {}).get("tx")}
 
 
 def _label_funders(r, labels, s, job=None):
@@ -3726,13 +3782,14 @@ def _ready_count(app, cands, month, facts):
     """Кожен кандидат — його місяць нашим леджером і перевірка «схожий на людину». → (рядки, {причина відсіву: скільки})."""
     s = app["s"]
     rules = dict(ready_mod.HUMAN, **(s.get("ready_human") or {}))
+    operators = launch_mod.load_operators()
 
     def one(row):
         f = dict(facts.get(row["wallet"]) or {})
         f["type"] = f.get("type") or row.get("type")
-        why = ready_mod.by_facts(f, month["from"], rules)
+        why = ready_mod.by_facts(f, month["from"], rules, wallet=row["wallet"], operators=operators)
         if why:
-            return None, why                     # бот чи свіжий — до жодного запиту
+            return None, why                     # бот, свіжий чи гаманець організованого запуску — до жодного запиту
         try:
             c = ready_mod.counted(row, _ready_month(app, row["wallet"], month))
         except Exception as ex:  # noqa: BLE001 — без цього гаманця список лише коротший
@@ -5053,7 +5110,8 @@ async def job_enrich_json(request):
            "funders_done": e.get("funders_done", 0), "paused": paused,
            "funders": funders, "n_funders": n_funders, "ages": ages, "n_ages": n_ages, "services": r.get("services") or [],
            "dormant": r.get("dormant") or {}, "labels": _shown_labels(r, _ix_names(request)),
-           "identities_done": bool(r.get("identities_done")) or snapshot or app["jobs"].namer is None}
+           "identities_done": bool(r.get("identities_done")) or snapshot or app["jobs"].namer is None,
+           "launch": _launch_view(r)}
     if request.query.get("i") != "1":
         out["identities"] = r.get("identities") or {}
     return web.json_response(out, headers={"Cache-Control": "no-store"})

@@ -77,6 +77,7 @@
 
     // what arrives after the page: the background checks (funders, ages, names) and the account (repeats, lists)
     let funders = {}, bundle = {}, crossings = {}, idents = {}, ages = {}, ageDone = false, palette = new Map();
+    let LAUNCH = null;                                          // the launch check: its summary and tags, after the page
     let DORM = {};                                             // wallet → days it was quiet before its first buy here
     let services = new Set();                                  // funders that are exchanges or apps: they make no bundle
     // known exchange hot wallets: the funder column names the exchange, and one click shows every
@@ -211,7 +212,8 @@
     const okRow = o => inRange(o) && qOk(o) && (!f.profit || o.real > 0) &&
       (!f.exits || o.exit) && (!f.mine || inList(o.w)) &&
       (!f.funder || fundKey(o.w) === f.funder) && (!f.bundle || (!!bundle[o.w] && bundle[o.w].funder === f.bundle)) && (!f.repeat || !!crossings[o.w]) && !f.hide.some(t => o.tags.includes(t)) &&
-      (!f.only || (f.only === 'cex' ? !!(funders[o.w] && EXCH[funders[o.w]]) : o.tags.includes(f.only)));
+      (!f.only || (f.only === 'cex' ? !!(funders[o.w] && EXCH[funders[o.w]])
+        : f.only === 'launch' ? (o.tags.includes('own-bundle') || o.tags.includes('launch-bundle')) : o.tags.includes(f.only)));
     function draw() {
       // the first `limit` rows that pass, plus any wallet pinned to the chart further down; a pinned wallet the
       // filters reject is drawn last and without a number, and is not in `pass`, so no action counts it. The same
@@ -264,6 +266,19 @@
     function findings() {
       const el = document.getElementById('finds'); if (!el) return;
       const inv = o => +o.inv || 0, tot = all.reduce((s, o) => s + inv(o), 0) || 1, n = all.length, out = [];
+      // an organised launch (owner, 14.10): wallets on both sides of one Jito bundle, the creator's own bundle, the
+      // creator fee sent elsewhere. Facts in the tooltip, a click shows exactly those wallets
+      const ls = LAUNCH && LAUNCH.summary;
+      if (ls && (ls.pairs || ls.launch_wallets || ls.fee_to)) {
+        const nOwn = all.filter(o => o.tags.includes('own-bundle') || o.tags.includes('launch-bundle')).length;
+        const bits = [];
+        if (ls.pairs) bits.push(ls.pairs + ' Jito bundles where one wallet sold and another bought' + (ls.bought_back_pct ? ': ' + ls.bought_back_pct + '% of the supply' : ''));
+        if (ls.launch_wallets) bits.push(plural(ls.launch_wallets, 'wallet') + " in the creator's own launch bundle");
+        if (ls.fee_to) bits.push('the creator fee goes to ' + ls.fee_to.map(x => x[0].slice(0, 4) + '…' + x[0].slice(-4) + (x[1] < 10000 ? ' (' + x[1] / 100 + '%)' : '')).join(', ')
+          + (ls.fee_sol ? ', ' + (+ls.fee_sol).toFixed(1) + ' SOL paid out so far' : ''));
+        out.push({ k: 'launch', sev: 'bad', act: nOwn ? ['only', 'launch'] : null, v: ls.bought_back_pct ? ls.bought_back_pct + '%' : String(nOwn || '✓'),
+          l: 'organised launch', tip: 'Organised launch: ' + bits.join('; ') + '.' });
+      }
       const dev = all.find(o => o.tags.includes('dev'));
       if (dev) out.push({ k: 'dev', sev: 'bad', act: ['only', 'dev'], v: money(dev.inv), l: 'creator bought',
         tip: "The token's creator bought here: " + money(dev.inv) + ' in' + (dev.got ? ', ' + money(dev.got) + ' out' : ', nothing sold yet') });
@@ -323,7 +338,8 @@
       (document.querySelector('.row.toolbar') || document.getElementById('facts')).scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     // the one filter a click can set without the panel open is named beside the count, with its own ×
-    const ONLY = { bundle: 'Only bundles', dev: 'Only the creator', fresh: 'Only fresh wallets', cex: 'Only funded from exchanges' };
+    const ONLY = { bundle: 'Only bundles', dev: 'Only the creator', fresh: 'Only fresh wallets', cex: 'Only funded from exchanges',
+      launch: "Only the launch's own wallets" };
     function activeNote() {
       const el = document.getElementById('factive'); if (!el) return;
       const n = f.only ? ONLY[f.only] : f.repeat ? 'Only early in your other pumps' : f.funder ? 'Funded by ' + fundLabel(f.funder)
@@ -1227,6 +1243,10 @@
         if (v[2] === 'exchange') EXCH[a] = v[1] ? [v[0], v[1]] : [v[0], '', 1]; else FLAB[a] = [v[0], v[1], KIND_TXT[v[2]] || 'a known service']; });
       if (newL) changed = true;
       Object.entries(d.dormant || {}).forEach(([w, n]) => { DORM[w] = n; const o = byW.get(w); if (o && !o.tags.includes('dormant')) { o.tags.push('dormant'); added++; } });
+      if (d.launch && !LAUNCH) {                              // the launch check (14.10): its tags join the rows once
+        LAUNCH = d.launch; changed = true;
+        Object.entries(d.launch.tags || {}).forEach(([w, ts]) => { const o = byW.get(w); if (o) ts.forEach(t => { if (!o.tags.includes(t)) { o.tags.push(t); added++; } }); });
+      }
       if (newF || newS) {
         rebundle();
         byW.forEach((o, w) => {                               // the tag follows the recount both ways

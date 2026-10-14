@@ -212,6 +212,7 @@ window.EarlyTags = (function () {
     dev: I('dev'), sniper: I('sniper'), fresh: I('fresh'), bundle: I('bundle'), 'bot-like': I('bot'),
     'pre-range': I('time'), 're-bought': I('renew'), 'transfer-in': I('transfer'), 'never-sold': I('gem'), dormant: I('asleep'),
     'seen-before': I('link', 'lnk'), kol: I('kol'), exchange: I('exchange'), hacker: I('hacker'),
+    'launch-bundle': I('bundle', 'ins'), 'own-bundle': I('transfer', 'ins'),
     x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>',
   };
   // trading platforms a wallet is labelled with, and the file of each one's own icon in /static/brands
