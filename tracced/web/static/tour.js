@@ -9,7 +9,9 @@
   const write = v => { try { localStorage.setItem(KEY, String(v)); } catch (e) {} };
   if (read() === 'skip' || +read() >= 4) return;
 
-  const shown = el => !!el && !el.hidden && el.offsetParent !== null && el.getBoundingClientRect().height > 0;
+  // a fixed element (the wallet card) has no offsetParent: its boxes say whether it is on screen
+  const shown = el => !!el && !el.hidden && el.getClientRects().length > 0 && el.getBoundingClientRect().height > 0
+    && getComputedStyle(el).visibility !== 'hidden';
   const STEPS = [
     { el: () => document.getElementById('chart'), when: () => !DEMO && !shown(document.getElementById('pick')),
       h: 'Mark the pump', p: 'Click where the buying starts, then where the price takes off.',
