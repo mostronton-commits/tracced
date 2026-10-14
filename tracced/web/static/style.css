@@ -1982,11 +1982,15 @@ input.ltabedit { flex: none; width: 150px; min-width: 0; height: 30px; padding: 
 .pick-note { flex-basis: 100%; text-align: right; margin-top: -4px; }
 /* variant B (owner, 14.10): on the chart, top centre, where the hint was: the eye is already there after the second click */
 .chartbox .pick { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); z-index: 7; margin: 0;
-  width: max-content; max-width: calc(100% - 24px); padding: 7px 8px 7px 12px; gap: 6px 10px; border-radius: 12px;
+  display: grid; grid-template-columns: auto auto auto; align-items: center;
+  width: max-content; max-width: calc(100% - 24px); padding: 7px 8px 7px 12px; gap: 4px 10px; border-radius: 12px;
   background: rgba(9, 13, 22, .94); border: 1px solid rgba(var(--wc), .75); box-shadow: 0 10px 30px -10px rgba(0, 0, 0, .7);
   animation: hintin .25s ease both; }
+.chartbox .pick-dot, .chartbox .pick-text { grid-row: 1; }
 .chartbox .pick-text { color: #E2E8F0; font-size: 12.5px; }
-.chartbox .pick-act { margin-left: 4px; gap: 6px; }
+.chartbox .pick-act { grid-row: 1; grid-column: 3; margin-left: 4px; gap: 6px; }
+.chartbox .pick-edit { grid-row: 2; grid-column: 1 / -1; }
+.chartbox .pick-note { grid-row: 3; grid-column: 1 / -1; }
 .chartbox .pick-act .ghost { color: #CBD5E1; border-color: #334155; background: transparent; height: 34px; }
 .chartbox .pick-act .ghost:hover { color: #F8FAFC; border-color: #64748B; }
 .chartbox .pick-act #getw { height: 34px; padding: 0 16px; box-shadow: 0 0 0 4px rgba(167, 243, 208, .16); }
@@ -2038,7 +2042,10 @@ input.ltabedit { flex: none; width: 150px; min-width: 0; height: 30px; padding: 
   .atab { min-width: 0; flex: 1 1 140px; }
   .pick-act { margin-left: 0; width: 100%; } .pick-act #getw { flex: 1; }
   .pick-note { text-align: left; }
-  .chartbox .pick { left: 8px; right: 8px; top: 8px; transform: none; width: auto; max-width: none; animation: none; }
+  .chartbox .pick { left: 8px; right: 8px; top: 8px; transform: none; width: auto; max-width: none; animation: none;
+    grid-template-columns: auto 1fr; }
+  .chartbox .pick-act { grid-row: 2; grid-column: 1 / -1; margin-left: 0; }
+  .chartbox .pick-edit { grid-row: 3; } .chartbox .pick-note { grid-row: 4; }
   .chartbox .pick-note { text-align: center; }
   .run-clock { display: none; }
 }
