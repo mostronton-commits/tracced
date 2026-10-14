@@ -20,7 +20,7 @@ class TestPick(unittest.TestCase):
     def test_turnover_drops_the_inflated_clones(self):
         # 30.09: UDR $3.45B with a day's volume of $465K (0.0001 of the cap) — a clone; SI $5M with $15.6M — a pump
         c = F.candidates([row("UDR", 3.45e9, 5.3e6, 4.65e5), row("SI", 5e6, 2.65e5, 1.56e7), row("SI", 5e6, 2.65e5, 1.56e7),
-                          row("LOW", 2e5), row("DRY", 2e6, liq=2e4), {"bad": 1}, None], S)
+                          row("LOW", 9e4), row("DRY", 2e6, liq=1.5e4), {"bad": 1}, None], S)
         self.assertEqual([x["mint"] for x in c], ["SI"])                      # no clone, no double, nothing under the bars
 
     def test_an_always_rising_chart_stays_out(self):
@@ -33,10 +33,17 @@ class TestPick(unittest.TestCase):
 
     def test_the_peak_decides_and_sorts(self):
         c = F.candidates([row("A", 1.5e6), row("B", 3e6), row("C", 1.2e6)], S)
-        out = F.pick(c, {"A": 2.5e6, "C": 1.9e6}, NOW, S)
+        bar = dict(S, fresh_min_ath=2e6)                                                 # a peak bar of its own, as before 12.10
+        out = F.pick(c, {"A": 2.5e6, "C": 1.9e6}, NOW, bar)
         self.assertEqual([(x["mint"], x["peak"], x["drop"]) for x in out], [("B", 3e6, 0), ("A", 2.5e6, 40)])   # C never reached $2M
         self.assertEqual(round(out[0]["age_h"]), 5)
         self.assertEqual(F.pick(c, {"B": 1e6}, NOW, S)[0]["peak"], 3e6)                  # a stale peak never sits under the cap
+        # owner, 12.10: Phanes' bars, no peak bar of its own: every candidate shows, biggest peak first
+        self.assertEqual([x["mint"] for x in F.pick(c, {"A": 2.5e6, "C": 1.9e6}, NOW, S)], ["B", "A", "C"])
+
+    def test_a_day_of_trading_below_the_bar_stays_out(self):
+        # a $200K token with $40K traded in a day: turnover passes (0.2), Phanes' $50K a day does not
+        self.assertEqual(F.candidates([row("THIN", 2e5, 3e4, 4e4)], S), [])
 
     def test_only_the_trackers_own_image_host(self):
         c = F.candidates([row("A", 3e6, image="https://image.solanatracker.io/proxy?url=x"), row("B", 3e6, image="https://ipfs.io/ipfs/x")], S)
@@ -44,8 +51,8 @@ class TestPick(unittest.TestCase):
 
     def test_search_asks_for_the_owners_bars(self):
         q = F.search_path(NOW, S)
-        for part in ("minCreatedAt=%d" % (NOW - 48 * H), "minMarketCap=250000", "minLiquidity=25000", "minHolders=500", "sortBy=marketCapUsd",
-                     "minFeesTotal=5", "limit=500"):
+        for part in ("minCreatedAt=%d" % (NOW - 24 * H), "minMarketCap=100000", "minLiquidity=20000", "minHolders=100", "sortBy=marketCapUsd",
+                     "minFeesTotal=1", "limit=500"):
             self.assertIn(part, q)
 
 

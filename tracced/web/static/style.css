@@ -248,6 +248,15 @@ th.sortable.desc::after { content: " ↓"; color: var(--ink); font-size: 10px; }
 .fpanel .fck { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink); cursor: pointer; }
 .fpanel .fck input { margin: 0; accent-color: #10b981; } .fpanel .fck svg.ci { color: #D97706; }
 .fpanel .tagchip { height: 28px; padding: 0 10px; gap: 6px; cursor: pointer; }
+/* saved sets of filters (owner, 12.10): a chip applies one, its × deletes it; the one in force is sage */
+.fpanel .fp-views { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.fpanel .fvlist { display: contents; }
+.fpanel .vchip { display: inline-flex; align-items: center; height: 28px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.fpanel .vchip button { height: 100%; padding: 0 4px 0 12px; border: 0; background: none; font: 500 12.5px var(--sans); color: var(--ink); cursor: pointer; }
+.fpanel .vchip .vx { padding: 0 10px 0 4px; color: var(--muted); }
+.fpanel .vchip.on { border-color: #10b981; background: rgba(16, 185, 129, .1); }
+.fpanel .fvsave { height: 28px; padding: 0 10px; font-size: 12.5px; }
+.fpanel .fvname { width: 180px; height: 28px; padding: 0 8px; font: 12.5px var(--sans); }
 #ftoggle[aria-expanded="true"] { border-color: #94A3B8; }
 /* the money unit lives in the table's head; the toolbar keeps its switch only where the head is hidden */
 @media (min-width: 961px) { .toolbar #cur { display: none; } }
@@ -1971,6 +1980,23 @@ input.ltabedit { flex: none; width: 150px; min-width: 0; height: 30px; padding: 
 .pick-act { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .pick-act #getw { height: 38px; padding: 0 20px; font-weight: 600; font-size: 14px; }
 .pick-note { flex-basis: 100%; text-align: right; margin-top: -4px; }
+/* variant B (owner, 14.10): on the chart, top centre, where the hint was: the eye is already there after the second click */
+.chartbox .pick { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); z-index: 7; margin: 0;
+  display: grid; grid-template-columns: auto auto auto; align-items: center;
+  width: max-content; max-width: calc(100% - 24px); padding: 7px 8px 7px 12px; gap: 4px 10px; border-radius: 12px;
+  background: rgba(9, 13, 22, .94); border: 1px solid rgba(var(--wc), .75); box-shadow: 0 10px 30px -10px rgba(0, 0, 0, .7);
+  animation: hintin .25s ease both; }
+.chartbox .pick-dot, .chartbox .pick-text { grid-row: 1; }
+.chartbox .pick-text { color: #E2E8F0; font-size: 12.5px; }
+.chartbox .pick-act { grid-row: 1; grid-column: 3; margin-left: 4px; gap: 6px; }
+.chartbox .pick-edit { grid-row: 2; grid-column: 1 / -1; }
+.chartbox .pick-note { grid-row: 3; grid-column: 1 / -1; }
+.chartbox .pick-act .ghost { color: #CBD5E1; border-color: #334155; background: transparent; height: 34px; }
+.chartbox .pick-act .ghost:hover { color: #F8FAFC; border-color: #64748B; }
+.chartbox .pick-act #getw { height: 34px; padding: 0 16px; box-shadow: 0 0 0 4px rgba(167, 243, 208, .16); }
+.chartbox .pick-note { color: #94A3B8; font-size: 11px; text-align: center; margin: -2px 0 0; }
+.chartbox .pick-edit .fld { color: #94A3B8; }
+.chartbox .pick-edit input { background: #0F172A; color: #E2E8F0; border-color: #334155; color-scheme: dark; }
 
 .run { --wc: 52, 211, 153; margin: 0 0 12px; padding: 10px 14px 12px; border: 1px solid #1E293B; border-radius: 10px;
   background: linear-gradient(180deg, #0B1220 0%, #090D16 100%); color: #CBD5E1; animation: rise-in .22s ease-out; }
@@ -2016,5 +2042,29 @@ input.ltabedit { flex: none; width: 150px; min-width: 0; height: 30px; padding: 
   .atab { min-width: 0; flex: 1 1 140px; }
   .pick-act { margin-left: 0; width: 100%; } .pick-act #getw { flex: 1; }
   .pick-note { text-align: left; }
+  .chartbox .pick { left: 8px; right: 8px; top: 8px; transform: none; width: auto; max-width: none; animation: none;
+    grid-template-columns: auto 1fr; }
+  .chartbox .pick-act { grid-row: 2; grid-column: 1 / -1; margin-left: 0; }
+  .chartbox .pick-edit { grid-row: 3; } .chartbox .pick-note { grid-row: 4; }
+  .chartbox .pick-note { text-align: center; }
   .run-clock { display: none; }
 }
+
+/* the launch check's marks (14.10): one hand on both sides of a Jito bundle, or the creator's own launch bundle */
+.ci.ins { color: #DC2626; }
+
+/* the first-visit tour (owner, 14.10): a spotlight that dims the rest without catching clicks, a light card beside it */
+.tour-spot { position: fixed; z-index: 60; border-radius: 12px; pointer-events: none; box-shadow: 0 0 0 9999px rgba(9, 13, 22, .55);
+  outline: 2px solid var(--mint-strong, #34D399); outline-offset: 2px; transition: left .2s ease, top .2s ease, width .2s ease, height .2s ease; }
+.tour-spot[hidden], .tour-tip[hidden] { display: none; }
+.tour-tip { position: fixed; z-index: 61; width: min(400px, calc(100vw - 24px)); background: #FFFFFF; color: #0F172A; border-radius: 14px;
+  padding: 18px 20px 14px; box-shadow: 0 24px 60px -12px rgba(9, 13, 22, .45); animation: rise-in .2s ease-out; }
+.tour-tip.tour-sheet { left: 12px; right: 12px; bottom: 12px; top: auto; width: auto; }
+.tour-tip .tour-n { font: 600 11.5px var(--mono); color: #047857; letter-spacing: .06em; }
+.tour-tip h3 { margin: 6px 0 4px; font: 600 18px/1.3 var(--sans); }
+.tour-tip p { margin: 0; font-size: 14.5px; line-height: 1.5; color: #475569; }
+.tour-row { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; gap: 8px; }
+.tour-row > span:last-child { display: flex; gap: 8px; }
+.tour-dots { display: flex; gap: 5px; } .tour-dots i { width: 6px; height: 6px; border-radius: 50%; background: #CBD5E1; }
+.tour-dots i.on { width: 16px; border-radius: 3px; background: #34D399; }
+@media (prefers-reduced-motion: reduce) { .tour-spot { transition: none; } .tour-tip { animation: none; } }

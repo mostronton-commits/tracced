@@ -26,6 +26,13 @@ for one launch is worth a second look.
 `transfer-in` means the tokens arrived without a purchase. We see swaps, not transfers, so a wallet that sold more
 than it ever bought got them some other way — almost always sent from another wallet.
 
+`own-bundle` and `launch-bundle` come from Jito bundles of the launch's first minutes. A bundle is up to five
+transactions that run in a row, and only someone holding all of them signed can send it. So when one wallet sells and
+another buys **in the same bundle**, it is one hand moving tokens between its own wallets, and both get `own-bundle`:
+from outside it looks like a bundle selling out, but the tokens went to wallets that look unrelated and then show up as
+the best early traders. A wallet in the creator's own bundle at the launch gets `launch-bundle`. Each one opens on the
+bundle's page at Jito, so you can check it yourself.
+
 `seen-before` is the only tag that depends on you rather than the chain. It appears when the wallet was also an
 early buyer in **another analysis you saved**, and clicking it opens that list.
 
@@ -37,8 +44,9 @@ early buyer in **another analysis you saved**, and clicking it opens that list.
 
 Next to some wallets sit other pictures: a star for a known trader (KOL), the X logo when the wallet's X account is
 known, the logo of the app it trades through (Axiom, GMGN, Fomo, pump.fun, Terminal, Photon, Bloom, BullX), and a
-mark for an exchange, a known bot or a known exploit wallet. None of that is our judgement: it comes from public
-identity labels, and it is never mixed with the tags above.
+mark for an exchange or a known exploit wallet. None of that is our judgement: it comes from public identity labels,
+and it is never mixed with the tags above. Others' guesses that a wallet is a bot are not shown: a bot mark is only
+our bot-like tag, from the wallet's own trades here.
 
 Every other wallet in the table is one nobody has labelled. That is most of them, and usually the interesting part.
 

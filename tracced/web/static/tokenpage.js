@@ -89,16 +89,17 @@
     hintEl.hidden = !empty || (!first && step !== 1) || (sel && step !== 1);
   }
 
-  /* ── the bar under the chart: the marked range, ✎ for exact minutes, Get wallets ── */
+  /* ── the bar on the chart, top centre (owner, 14.10, variant B): the marked range, ✎ for exact minutes, Get wallets.
+        It shows once both ends are set; before that the hint in the same place says where to click ── */
   const ptext = $('picktext'), pedit = $('pickedit'), pfrom = $('pfrom'), pto = $('pto'), getw = $('getw');
   let editing = false;
   function renderPick() {
     const set = !!(draft.from && draft.to);
-    pick.hidden = !(draft.from || draft.demo);
+    pick.hidden = !(set || draft.demo);
     if (pick.hidden) return;
     pick.classList.toggle('ready', set);
     pick.style.setProperty('--wc', EarlyChart.SHADES[(draft.demo ? tabs.findIndex(t => t.id === draft.demo) : tabs.length) % EarlyChart.SHADES.length]);
-    ptext.textContent = set ? sumText(draft) : tfmt(parse(draft.from)) + ' → … now ' + VERB.toLowerCase() + ' where the pump takes off';
+    ptext.textContent = sumText(draft);
     getw.hidden = !set; $('pickt').hidden = !set || !!draft.demo; $('pickx').hidden = !!draft.demo;
     pedit.hidden = !editing || !set || !!draft.demo;
     if (!pedit.hidden) { if (document.activeElement !== pfrom) pfrom.value = show(draft.from); if (document.activeElement !== pto) pto.value = show(draft.to); }

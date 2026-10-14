@@ -20,6 +20,8 @@ DEFS = {
     "re-bought":  "Bought again after the range",
     "never-sold": "No sells on this token: it still holds, or moved the tokens out",
     "bundle":     "Its first SOL came from the same wallet as 2+ others here: likely one operator",
+    "launch-bundle": "Bought in the token creator's own Jito bundle at the launch: the creator's hand",
+    "own-bundle": "Sold to, or bought from, another wallet here inside one Jito bundle: one hand on both sides",
     "seen-before": "Also early in another analysis you saved",
 }
 BUNDLE_MIN = 3        # стільки гаманців списку з одним спонсором = бандл

@@ -29,11 +29,11 @@
     // filters (owner, 02.10): a funnel by each column with «from … to …», the tags under the Wallet funnel.
     // r: {column: [from, to]}, null = open on that side
     const RANGES = {
-      inv: { t: 'Bought', u: '$', step: 10, hint: 'inside the range, in dollars', get: o => +o.inv || 0 },
+      inv: { t: 'Bought', u: '$', step: 10, hint: 'all its buys of this token, in dollars', get: o => +o.tot || +o.inv || 0 },   // the number the column shows (owner, 11.10)
       sold: { t: 'Sold', u: '%', step: 5, hint: 'share of its tokens sold', get: o => +o.sold || 0 },
       real: { t: 'PnL', u: '$', step: 10, hint: 'realized, in dollars; a loss is negative', get: o => +o.real || 0 },
       mult: { t: 'ROI', u: '×', step: 0.5, hint: 'average exit ÷ average entry', get: o => +o.mult || 0 },
-      hold: { t: 'Held', u: 'min', step: 5, hint: 'from its entry to its first sale', get: o => o.hold == null ? null : +o.hold },
+      hold: { t: 'Held', u: 'min', step: 5, hint: 'how long it held what it sold, weighted by amount', get: o => o.hold == null ? null : +o.hold },
       buys: { t: 'Buys', u: '', step: 1, hint: 'its buys on this token', get: o => +o.buys || 0 },
     };
     const HIDE_TAGS = Object.keys(CFG.tags).filter(x => !['seen-before', 'pre-range', 're-bought'].includes(x));
@@ -55,6 +55,13 @@
     f.hide = (f.hide || []).filter(x => HIDE_TAGS.includes(x));     // a saved hide these chips no longer offer could not be undone
     f.exits = f.profit = f.repeat = f.mine = false; f.only = f.q = f.bundle = '';   // a finding's filter and a search are for this visit
     const saveF = () => { try { localStorage.setItem(FKEY, JSON.stringify(f)); } catch (e) {} };
+    // saved sets of filters (owner, 12.10, after Phanes' «Views»): the numbers, the hidden tags, the toggles and the order,
+    // kept in this browser for every analysis. The wallet search and a funder or bundle pick belong to one analysis: out
+    const VKEY = 'early:views', MAX_VIEWS = 8;
+    const loadViews = () => { try { const v = JSON.parse(localStorage.getItem(VKEY) || '[]'); return Array.isArray(v) ? v.filter(x => x && x.name && x.f && x.sort) : []; } catch (e) { return []; } };
+    const saveViews = v => { try { localStorage.setItem(VKEY, JSON.stringify(v.slice(0, MAX_VIEWS))); } catch (e) {} };
+    const viewOf = () => ({ f: { r: JSON.parse(JSON.stringify(f.r)), hide: f.hide.slice(), mine: !!f.mine, profit: !!f.profit, exits: !!f.exits,
+      repeat: !!f.repeat, only: f.only || '' }, sort: [sortKey, sortDir] });
     const ftoggle = document.getElementById('ftoggle');
     const isOn = k => { const v = f.r[k]; return !!v && (v[0] != null || v[1] != null); };
     function syncHeads() {                                      // which funnels hold a filter, and the money unit's mark
@@ -70,6 +77,7 @@
 
     // what arrives after the page: the background checks (funders, ages, names) and the account (repeats, lists)
     let funders = {}, bundle = {}, crossings = {}, idents = {}, ages = {}, ageDone = false, palette = new Map();
+    let LAUNCH = null;                                          // the launch check: its summary and tags, after the page
     let DORM = {};                                             // wallet → days it was quiet before its first buy here
     let services = new Set();                                  // funders that are exchanges or apps: they make no bundle
     // known exchange hot wallets: the funder column names the exchange, and one click shows every
@@ -158,8 +166,9 @@
     // address and its marks, under them what it put in and how much it sold; PnL and ROI on the right. The picture is
     // drawn from the address once; the line is hidden on a wider screen, where the columns say the same
     const FACES = new Map(), face = w => { let f = FACES.get(w); if (!f) { f = EarlyCard.identicon(w); FACES.set(w, f); } return f; };
-    const msub = o => (SOLON && o.invsol != null ? '<span class="insol">' + EarlyCur.sol(o.invsol) + '</span>' : money(o.inv))
-      + ' at ' + (o.entry ? fm(o.entry) : '—') + ' cap'
+    const extra = o => o.tot > o.inv + 0.01;                   // it bought outside the range too: before it, after it or both
+    const msub = o => (SOLON && o.totsol != null ? '<span class="insol">' + EarlyCur.sol(o.totsol) + '</span>' : money(o.tot || o.inv))
+      + (extra(o) ? ' · ' + money(o.inv) + ' in range' : ' at ' + (o.entry ? fm(o.entry) : '—') + ' cap')
       + (o.sells == null ? '' : o.sold >= 99 ? ' · sold out' : o.sold > 0 ? ' · sold ' + soldPct(o.sold) : ' · holding all');
     function rowHtml(o, n, i) {
       const oc = onChart.find(x => x.wallet === o.w), tg = tagsHtml(o);
@@ -176,9 +185,10 @@
         + '<button type="button" class="mk" title="Show its buys and sells on the chart" aria-label="Show on the chart">' + CHARTIC + '</button>'
         + '<button type="button" class="wname" title="Open the wallet\'s card: its trades here, its PnL on every token, its funder"><span class="mono">' + short(o.w) + '</span></button>'
         + '</span><span class="tags">' + tg + '</span><span class="msub">' + msub(o) + '</span></td>'
-        + '<td class="num two c-inv" data-h="Bought" title="Bought in the range at a ' + cap(o.entry) + ' market cap'
-        + (o.tot > o.inv + 0.01 ? ' · ' + money(o.tot) + ' in total on this token' : '') + '">' + amount(o.inv, o.invsol, '')
-        + '<small>' + cap(o.entry) + '</small></td>'
+        + '<td class="num two c-inv" data-h="Bought" title="' + money(o.tot || o.inv) + ' bought of this token in all'
+        + (extra(o) ? ', ' + money(o.inv) + ' of it inside the range' : ', all of it inside the range') + ' · its first buy in the range at a ' + cap(o.entry) + ' market cap">'
+        + amount(o.tot || o.inv, o.totsol != null ? o.totsol : o.invsol, '')
+        + '<small>' + (extra(o) ? money(o.inv) + ' in range · ' : '') + cap(o.entry) + '</small></td>'
         + '<td class="num two c-sold" data-h="Sold"' + (o.exitcap ? ' title="Sold at a ' + fm(o.exitcap) + ' market cap on average'
           + (vs != null ? ', ' + (vs > 0 ? '+' : '') + vs + '% against its average entry' : '') + ' · ' + soldPct(o.sold) + ' of its tokens sold"' : unk ? ' title="' + UNK + '"' : '') + '>'
         + (o.got ? amount(o.got, o.gotsol, '') : '<b class="mono">—</b>') + '<small>' + (o.exitcap ? fm(o.exitcap) + ' · ' + soldPct(o.sold) : '') + '</small></td>'
@@ -202,7 +212,8 @@
     const okRow = o => inRange(o) && qOk(o) && (!f.profit || o.real > 0) &&
       (!f.exits || o.exit) && (!f.mine || inList(o.w)) &&
       (!f.funder || fundKey(o.w) === f.funder) && (!f.bundle || (!!bundle[o.w] && bundle[o.w].funder === f.bundle)) && (!f.repeat || !!crossings[o.w]) && !f.hide.some(t => o.tags.includes(t)) &&
-      (!f.only || (f.only === 'cex' ? !!(funders[o.w] && EXCH[funders[o.w]]) : o.tags.includes(f.only)));
+      (!f.only || (f.only === 'cex' ? !!(funders[o.w] && EXCH[funders[o.w]])
+        : f.only === 'launch' ? (o.tags.includes('own-bundle') || o.tags.includes('launch-bundle')) : o.tags.includes(f.only)));
     function draw() {
       // the first `limit` rows that pass, plus any wallet pinned to the chart further down; a pinned wallet the
       // filters reject is drawn last and without a number, and is not in `pass`, so no action counts it. The same
@@ -255,6 +266,19 @@
     function findings() {
       const el = document.getElementById('finds'); if (!el) return;
       const inv = o => +o.inv || 0, tot = all.reduce((s, o) => s + inv(o), 0) || 1, n = all.length, out = [];
+      // an organised launch (owner, 14.10): wallets on both sides of one Jito bundle, the creator's own bundle, the
+      // creator fee sent elsewhere. Facts in the tooltip, a click shows exactly those wallets
+      const ls = LAUNCH && LAUNCH.summary;
+      if (ls && (ls.pairs || ls.launch_wallets || ls.fee_to)) {
+        const nOwn = all.filter(o => o.tags.includes('own-bundle') || o.tags.includes('launch-bundle')).length;
+        const bits = [];
+        if (ls.pairs) bits.push(ls.pairs + ' Jito bundles where one wallet sold and another bought' + (ls.bought_back_pct ? ': ' + ls.bought_back_pct + '% of the supply' : ''));
+        if (ls.launch_wallets) bits.push(plural(ls.launch_wallets, 'wallet') + " in the creator's own launch bundle");
+        if (ls.fee_to) bits.push('the creator fee goes to ' + ls.fee_to.map(x => x[0].slice(0, 4) + '…' + x[0].slice(-4) + (x[1] < 10000 ? ' (' + x[1] / 100 + '%)' : '')).join(', ')
+          + (ls.fee_sol ? ', ' + (+ls.fee_sol).toFixed(1) + ' SOL paid out so far' : ''));
+        out.push({ k: 'launch', sev: 'bad', act: nOwn ? ['only', 'launch'] : null, v: ls.bought_back_pct ? ls.bought_back_pct + '%' : String(nOwn || '✓'),
+          l: 'organised launch', tip: 'Organised launch: ' + bits.join('; ') + '.' });
+      }
       const dev = all.find(o => o.tags.includes('dev'));
       if (dev) out.push({ k: 'dev', sev: 'bad', act: ['only', 'dev'], v: money(dev.inv), l: 'creator bought',
         tip: "The token's creator bought here: " + money(dev.inv) + ' in' + (dev.got ? ', ' + money(dev.got) + ' out' : ', nothing sold yet') });
@@ -314,7 +338,8 @@
       (document.querySelector('.row.toolbar') || document.getElementById('facts')).scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     // the one filter a click can set without the panel open is named beside the count, with its own ×
-    const ONLY = { bundle: 'Only bundles', dev: 'Only the creator', fresh: 'Only fresh wallets', cex: 'Only funded from exchanges' };
+    const ONLY = { bundle: 'Only bundles', dev: 'Only the creator', fresh: 'Only fresh wallets', cex: 'Only funded from exchanges',
+      launch: "Only the launch's own wallets" };
     function activeNote() {
       const el = document.getElementById('factive'); if (!el) return;
       const n = f.only ? ONLY[f.only] : f.repeat ? 'Only early in your other pumps' : f.funder ? 'Funded by ' + fundLabel(f.funder)
@@ -401,7 +426,10 @@
         + '<div class="fp-nums">' + PANEL_NUMS.map(k => '<label class="fnum" title="' + esc(RANGES[k].hint) + '"><span>' + RANGES[k].t + (RANGES[k].u ? ', ' + RANGES[k].u : '')
           + '</span>' + numIn(k, 0, null) + '<i>–</i>' + numIn(k, 1, null) + '</label>').join('') + '</div>'
         + '<div class="fp-hide"><span class="fph">Hide</span>' + HIDE_TAGS.map(x => '<button type="button" class="tagchip t-' + x + '" data-hide="' + x + '" aria-pressed="false" title="Hide wallets tagged '
-          + x + ': ' + esc(TAGDEF[x] || '') + '">' + (EarlyTags.ICON[x] || '') + x + '</button>').join('') + '</div>';
+          + x + ': ' + esc(TAGDEF[x] || '') + '">' + (EarlyTags.ICON[x] || '') + x + '</button>').join('') + '</div>'
+        + '<div class="fp-views"><span class="fph">Views</span><span class="fvlist"></span>'
+        + '<button type="button" class="ghost fvsave" title="Keep these filters and this order under a name, for any analysis">Save these filters</button>'
+        + '<input type="text" class="fvname" maxlength="24" placeholder="Name, then Enter" aria-label="Name of the saved filters" hidden></div>';
       fillPanel();
     }
     function fillPanel() {                                     // the values from the state, never under the field being typed in
@@ -410,6 +438,12 @@
       const m = fp.querySelector('.fmine'); m.hidden = !(hasLists || f.mine); m.querySelector('input').checked = !!f.mine;
       fp.querySelectorAll('input[data-k]').forEach(x => { if (x !== document.activeElement) { const v = (f.r[x.dataset.k] || [null, null])[+x.dataset.i]; x.value = v == null ? '' : v; } });
       fp.querySelectorAll('[data-hide]').forEach(b => { const on = f.hide.includes(b.dataset.hide); b.classList.toggle('off', on); b.setAttribute('aria-pressed', String(on)); });
+      const vs = loadViews(), cur = JSON.stringify(viewOf());
+      fp.querySelector('.fvlist').innerHTML = vs.map((v, i) => '<span class="vchip' + (JSON.stringify({ f: v.f, sort: v.sort }) === cur ? ' on' : '') + '">'
+        + '<button type="button" data-view="' + i + '" title="Apply these filters and this order">' + esc(v.name) + '</button>'
+        + '<button type="button" class="vx" data-vdel="' + i + '" title="Delete" aria-label="Delete ' + esc(v.name) + '">×</button></span>').join('');
+      const plain = !nActive() && sortKey === 'real' && sortDir === -1;   // nothing set: nothing to save
+      fp.querySelector('.fvsave').hidden = plain || vs.length >= MAX_VIEWS || !fp.querySelector('.fvname').hidden;
     }
     const fpanel = document.getElementById('fpanel');
     ftoggle.addEventListener('click', () => {
@@ -430,11 +464,37 @@
         saveF(); syncHeads(); limit = LIMIT; apply(); EarlyUI.use('filter', { k });
       }, 400);
     });
+    fpanel.addEventListener('keydown', e => {
+      const inp = e.target; if (!inp.classList || !inp.classList.contains('fvname')) return;
+      if (e.key === 'Escape') { e.stopPropagation(); inp.hidden = true; fillPanel(); return; }
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const name = inp.value.trim().slice(0, 24); if (!name) return;
+      const vs = loadViews().filter(v => v.name !== name);     // the same name again replaces it
+      vs.unshift(Object.assign({ name }, viewOf())); saveViews(vs);
+      inp.hidden = true; fillPanel(); EarlyUI.use('view-save', { count: Math.min(vs.length, MAX_VIEWS) });
+    });
+    fpanel.addEventListener('focusout', e => {
+      const inp = e.target; if (inp.classList && inp.classList.contains('fvname')) setTimeout(() => { if (document.activeElement !== inp) { inp.hidden = true; fillPanel(); } }, 150);
+    });
     fpanel.addEventListener('change', e => {
       if (!e.target.matches('[data-mine]')) return;
       f.mine = e.target.checked; saveF(); limit = LIMIT; apply();
     });
     fpanel.addEventListener('click', e => {
+      const vb = e.target.closest('[data-view]');
+      if (vb) {
+        const v = loadViews()[+vb.dataset.view]; if (!v) return;
+        Object.assign(f, fresh0(), JSON.parse(JSON.stringify(v.f))); saveF(); syncHeads(); closeFilter();
+        sortBy(v.sort[0], v.sort[1], v.sort[0] === 'funder'); fillPanel(); EarlyUI.use('view-apply');
+        return;
+      }
+      const vd = e.target.closest('[data-vdel]');
+      if (vd) { const vs = loadViews(); vs.splice(+vd.dataset.vdel, 1); saveViews(vs); fillPanel(); EarlyUI.use('view-delete'); return; }
+      if (e.target.closest('.fvsave')) {
+        const inp = fpanel.querySelector('.fvname'); inp.hidden = false; inp.value = 'View ' + (loadViews().length + 1);
+        fillPanel(); inp.focus(); inp.select(); return;
+      }
       const b = e.target.closest('[data-hide]'); if (!b) return;
       const tg = b.dataset.hide, on = !f.hide.includes(tg);
       f.hide = on ? f.hide.concat([tg]) : f.hide.filter(y => y !== tg);
@@ -442,7 +502,7 @@
     });
     // Reset beside Filters, there whenever filters or the order differ from how the table came (owner, 02.10)
     const freset = document.getElementById('freset');
-    function resetAll() { Object.assign(f, fresh0()); saveF(); syncHeads(); closeFilter(); sortBy('real', -1); EarlyUI.use('filters-reset'); }
+    function resetAll() { Object.assign(f, fresh0()); saveF(); syncHeads(); closeFilter(); sortBy('real', -1); fillPanel(); EarlyUI.use('filters-reset'); }
     freset.addEventListener('click', resetAll);
 
     // the account: a wallet goes to a list by its star, the whole analysis to «My analyses»; no wallet yet → connect
@@ -584,7 +644,7 @@
     const msort = document.getElementById('msort');
     function sortBy(k, dir, text) {
       sortKey = k; sortDir = dir;
-      const val = o => k === 'funder' ? fundKey(o.w) : o[k];
+      const val = o => k === 'funder' ? fundKey(o.w) : k === 'inv' ? (+o.tot || +o.inv || 0) : o[k];   // Bought sorts by the number it shows
       order.sort((a, b) => text ? String(val(a) || '').localeCompare(String(val(b) || '')) * dir : ((+val(a) || 0) - (+val(b) || 0)) * dir);
       limit = LIMIT;
       table.querySelectorAll('th.sortable').forEach(x => x.classList.toggle('desc', x.dataset.key === k && dir < 0));
@@ -715,9 +775,9 @@
           const c = document.createElement('span'); c.className = 'chipw';
           c.innerHTML = '<span class="mono">' + short(o.wallet) + '</span> ';
           c.title = 'Stays visible when filtered · click for the story';
-          c.addEventListener('click', ev => { if (!ev.target.closest('.x')) { cardSrc = 'chart'; openStory(o); } });
+          c.addEventListener('click', ev => { if (!ev.target.closest('.x')) { cardSrc = 'chart'; dropViaCard(o.wallet); openStory(o); } });
           const x = document.createElement('button'); x.type = 'button'; x.className = 'ghost x'; x.textContent = '×'; x.title = 'Remove from chart';
-          x.addEventListener('click', () => { onChart.splice(onChart.indexOf(o), 1); if (drawer.dataset.w === o.wallet) closeCard(); renderOnChart(); });
+          x.addEventListener('click', () => { if (viaCard === o.wallet) viaCard = null; onChart.splice(onChart.indexOf(o), 1); if (drawer.dataset.w === o.wallet) closeCard(); renderOnChart(); });
           c.appendChild(x); bar.appendChild(c);
         });
       }
@@ -911,12 +971,14 @@
       const o = rowOf(w), el = document.getElementById('dtally'); if (!o) { el.innerHTML = ''; return; }
       const amt = (usd, sol) => SOLON && sol != null ? '<span class="insol">' + EarlyCur.sol(sol) + '</span>' : money(usd);
       const cell = (v, l, cls, tip) => '<span class="tc"' + (tip ? ' title="' + esc(tip) + '"' : '') + '><b class="' + (cls || '') + '">' + v + '</b><i>' + l + '</i></span>';
-      el.innerHTML = cell(amt(o.inv, o.invsol), 'bought', '', 'At a ' + (o.entry ? fm(o.entry) : '—') + ' market cap')
+      const more = o.tot > o.inv + 0.01;                        // owner, 11.10: «bought $32, sold $13K» read as a mistake
+      el.innerHTML = cell(amt(o.tot || o.inv, o.totsol != null ? o.totsol : o.invsol), 'bought', '',
+          (more ? money(o.inv) + ' of it inside the range, at a ' : 'All of it inside the range, at a ') + (o.entry ? fm(o.entry) : '—') + ' market cap')
         + cell(o.got ? amt(o.got, o.gotsol) : '—', 'sold', '', soldPct(o.sold) + ' of its tokens' + (o.exitcap ? ', at a ' + fm(o.exitcap) + ' cap on average' : ''))
         + (o.sells == null ? cell('—', 'PnL', '', 'Its sells were not read: only the largest buyers\' are')
           : cell(amt(o.real, o.realsol), 'PnL', o.real > 0 ? 'pos' : o.real < 0 ? 'neg' : '', o.unreal ? money(o.unreal) + ' on ' + leftPct(o.sold) + ' left' : ''))
         + cell(roiX(o.mult), 'ROI', o.mult ? (o.mult >= 1 ? 'pos' : 'neg') : '', o.mult ? roiPct(o.mult) : 'Nothing sold yet')
-        + cell(holdText(o.hold), 'held', '', 'From its entry to its first sale');
+        + cell(holdText(o.hold), 'held', '', 'How long it held what it sold, on average, weighted by amount');
     }
     let cardSrc = 'row';                                       // where the card was opened from, for the owner's log
     function openStory(o) {
@@ -977,9 +1039,18 @@
     });
     dtags.addEventListener('focusout', e => { const inp = e.target.closest('.tagin'); if (inp && !inp.value.trim()) setTimeout(() => { if (document.activeElement !== inp) renderTags(drawer.dataset.w); }, 150); });
     let lastAsked = null;                                      // the card a click asked for last: a slower answer for an earlier one does not replace it
+    // the wallet a card put on the chart, not one pinned with the row's chart icon: the next card takes its place, so
+    // opening three cards in a row leaves one wallet's trades on the chart, not three (owner, 11.10)
+    let viaCard = null;
+    const dropViaCard = keep => {
+      if (!viaCard || viaCard === keep) return;
+      const j = onChart.findIndex(o => o.wallet === viaCard); viaCard = null;
+      if (j >= 0) { onChart.splice(j, 1); renderOnChart(); }
+    };
     async function toggleWallet(w, story) {
-      if (story) lastAsked = w;
+      if (story) { lastAsked = w; dropViaCard(w); }
       const i = onChart.findIndex(o => o.wallet === w);
+      if (!story && w === viaCard) viaCard = null;             // the chart icon on that wallet: from now on it is the user's own choice
       if (i >= 0) { if (story) { openStory(onChart[i]); return; } onChart.splice(i, 1); if (drawer.dataset.w === w) closeCard(); renderOnChart(); return; }
       const full = onChart.length >= MAX_ON_CHART;
       if (full && !story) { EarlyUI.toast(MAX_ON_CHART + ' wallets on the chart is the limit — remove one to add another'); return; }   // before paying for the trades
@@ -1000,6 +1071,8 @@
         else if (!story) EarlyUI.toast(MAX_ON_CHART + ' wallets on the chart is the limit — remove one to add another');
         return;
       }
+      if (story && lastAsked !== w) return;                    // a card asked for earlier and left: its trades do not land on the chart
+      if (story) viaCard = w;
       onChart.push(o); renderOnChart(); if (story && lastAsked === w) openStory(o);
     }
     // every button in a row answers here, so a redrawn row needs no listeners of its own
@@ -1170,6 +1243,10 @@
         if (v[2] === 'exchange') EXCH[a] = v[1] ? [v[0], v[1]] : [v[0], '', 1]; else FLAB[a] = [v[0], v[1], KIND_TXT[v[2]] || 'a known service']; });
       if (newL) changed = true;
       Object.entries(d.dormant || {}).forEach(([w, n]) => { DORM[w] = n; const o = byW.get(w); if (o && !o.tags.includes('dormant')) { o.tags.push('dormant'); added++; } });
+      if (d.launch && !LAUNCH) {                              // the launch check (14.10): its tags join the rows once
+        LAUNCH = d.launch; changed = true;
+        Object.entries(d.launch.tags || {}).forEach(([w, ts]) => { const o = byW.get(w); if (o) ts.forEach(t => { if (!o.tags.includes(t)) { o.tags.push(t); added++; } }); });
+      }
       if (newF || newS) {
         rebundle();
         byW.forEach((o, w) => {                               // the tag follows the recount both ways

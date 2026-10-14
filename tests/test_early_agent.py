@@ -25,6 +25,12 @@ RESULT = {
 
 
 class TestDigest(unittest.TestCase):
+
+    def test_field_names_never_reach_the_reader_glued(self):
+        # «watch_candidates» без підкреслення ставало «watchcandidates» (зйомка демо, 10.10)
+        self.assertEqual(agent._clean("See watch_candidates first"), "See the method's picks first")
+        self.assertEqual(agent._clean("from first_sol and sold_out"), "from first sol and sold out")
+        self.assertEqual(agent._clean("a *bold* word"), "a bold word")
     def test_numbers_come_from_the_result_and_the_filter_from_the_method(self):
         d, wmap = digest(RESULT, {"min_roi": 3, "min_hold_min": 10, "exclude": ["bot-like", "fresh"], "n": 5})
         self.assertEqual((d["wallets"]["bought_in_range"], d["wallets"]["in_profit"], d["wallets"]["at_a_loss"]), (5, 4, 1))
@@ -163,7 +169,8 @@ class TestWhoLine(unittest.TestCase):
     def test_the_line_says_who_from_the_labels(self):
         s = agent.short
         self.assertEqual(agent.who_line(self.r, W[0]), s(W[0]) + ": @wirelyss on X; a trader, no bot signs; trades through pump.fun app")
-        self.assertEqual(agent.who_line(self.r, W[1]), s(W[1]) + ": no X account; likely a bot or arbitrage wallet")
+        # Solana Tracker's «likely bot» is not shown (owner, 11.10): a bot is only what its trades here say (bot-like)
+        self.assertEqual(agent.who_line(self.r, W[1]), s(W[1]) + ": no X account; a trader, no bot signs")
         self.assertEqual(agent.who_line(self.r, W[2]), s(W[2]) + ": no X account; trades like a bot here")
         line = agent.who_line(self.r, W[3])
         self.assertTrue(line.startswith(s(W[3]) + ": no X account, named FlowerJungleCat; a trader, no bot signs; trades through FOMO"), line)

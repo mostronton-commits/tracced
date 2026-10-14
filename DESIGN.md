@@ -280,12 +280,18 @@ from 04.10, owner; they pair with the Carbon icons. Geist stays in `static/fonts
   and the footer sits at the bottom.
 - **A token's page is one page from the token to its wallets** (owner, 09.10: «юзер вводить токен і на тій самій
   сторінці виділяє діапазон і отримує результат»). Top to bottom: the token's head with its chips, the chart, the
-  token's analyses as tabs (each in its band's shade: «Pump 1 · 765 wallets», a dashed «+ New range»), then the bar of
-  a marked range (its times, ✎ for exact minutes, Cancel, *Get wallets*), the run's line while it goes, and the chosen
+  token's analyses as tabs (each in its band's shade: «Pump 1 · 765 wallets», a dashed «+ New range»), the run's line
+  while it goes, and the chosen
   result: the tally (the counts and the insights in one strip), the toolbar, the table with its filters in its head.
   The wallet card slides in from the right.
-  - The chart is the control: two clicks mark a range and the bar with *Get wallets* appears under the chart. Nothing
-    runs until it is pressed (owner, 09.10: variant A). A result on screen stays while a new range is marked.
+  - The chart is the control: two clicks mark a range and a small navy bar appears on the chart itself, top centre,
+    where the hint was: the range's times, ✎ for exact minutes, Cancel, *Get wallets* (owner, 14.10, variant B: under
+    the chart nobody saw it). Nothing under the chart repeats it. Nothing runs until it is pressed (owner, 09.10:
+    variant A). A result on screen stays while a new range is marked.
+  - A first-visit tour (owner, 14.10): four steps, each shown when its part of the page appears — the chart (mark the
+    zone), the bar on the chart (Get wallets), the result's table, a wallet's card. A spotlight dims the rest without
+    blocking it; a light card says what the part does in one or two sentences. Once per browser, Skip ends it; on a
+    phone the card is a sheet at the bottom.
   - The run (owner, 09.10: «бігуча строка»): a navy line under the chart fills with the run's own steps — Token,
     Trades, Exits, Checks, Wallets — its phase and count in words («Checking where they sold · 329 / 765 wallets»), a
     light passing along the filled part, and the range's band on the chart glows with a light moving left to right.
@@ -360,6 +366,16 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   click on the word does nothing (owner, 02.10: tags went by accident).
 - **Tables** are white, with 1 px row lines, a sticky uppercase header, numbers right-aligned in mono, and a sage bar
   behind PnL (a red-tinted bar for a loss). The first 100 rows are drawn and the rest wait behind "Show more".
+- **Bought is everything the wallet bought of the token** (owner, 11.10: «bought $32, sold $13K» read as a mistake):
+  before, inside and after the range, the same base as Sold, PnL and ROI. Under it, small: what it bought inside the
+  range and the cap there ("$32 in range · 169K"), or the cap alone when it bought only inside. Its funnel and its sort
+  use the number on screen. The card's "bought" says the same.
+- **A bot mark is ours only** (owner, 11.10): the bot picture means the bot-like tag, from the wallet's own trades on
+  this token. Solana Tracker's «known bot», «likely bot or arbitrage» labels are not drawn anywhere, so Hide bot-like
+  hides every row that shows one. The exchange and exploit marks from public labels stay.
+- **One card's trades on the chart at a time** (owner, 11.10: three cards in a row left a mess of arrows): a card puts
+  its wallet on the chart, and the next card takes its place. A wallet put there with the row's chart mark stays until
+  its × or the mark again.
 - **Filters live in the table's head** (owner, 02.10). A head reads, on one line: the money key where there is one,
   the sort mark, the name, the funnel. Only the numbers sort; the address does not, and there is no Funded by column:
   the card says who funded a wallet. Funnels stand only by numbers and open one small window: "from … to …", Reset, Apply; Enter applies and
@@ -368,6 +384,9 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
   watchlist, then every number from and to, then the tags to hide, struck through when hidden. It applies as you type,
   and it and the funnels edit the same numbers. On a phone or a tablet, where the table has no head, it is the way in.
   **Reset** stands beside Filters whenever a filter is on or the order is not "PnL, highest first", and clears both.
+  **Views** (owner, 12.10, after Phanes): the last row of the panel. "Save these filters" asks for a name and keeps the
+  numbers, the hidden tags, the toggles and the order in this browser for any analysis; a chip applies one (sage when
+  it is in force), its × deletes it, eight at most. The button shows only when something is set.
 - **The star and the chart mark** before an address come out with the row under the pointer and are gone without it
   (owner, 04.10). One click on an empty star saves the wallet to the watchlist, and the star turns filled amber. A
   filled star always shows and opens the lists menu; the chart mark of a wallet on the chart stays in its colour.

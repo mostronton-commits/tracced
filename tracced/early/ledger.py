@@ -39,7 +39,8 @@ class Ledger:
                  "buys_after_window", "sold_without_buy", "oversold", "unbacked_qty", "buy_times", "sell_times",
                  "invested_sol", "proceeds_sol", "invested_in_window_sol", "cost_sol", "realized_sol",
                  "sol_seen", "sol_gap",
-                 "first_range_buy_t", "first_range_buy_price", "buys_before_range", "invested_before_range")
+                 "first_range_buy_t", "first_range_buy_price", "buys_before_range", "invested_before_range",
+                 "time_qty", "held_ms_qty", "held_qty")
 
     def __init__(self, wallet):
         self.wallet = wallet
@@ -62,6 +63,11 @@ class Ledger:
         self.unbacked_qty = 0.0               # скільки токенів продано понад куплене: прийшли не покупкою
         self.buy_times = []                   # для тегів-фактів (утримання, швидкі пари)
         self.sell_times = []
+        # утримання з вагою за кількістю (власник, 13.10: «купив на $1000, продав $999 за 2 с, $1 тримав добу»):
+        # час покупки — так само середній, як собівартість; кожен проданий токен приносить свій час утримання
+        self.time_qty = 0.0                   # Σ кількість × час покупки відкритої позиції
+        self.held_ms_qty = 0.0                # Σ продана кількість × скільки її тримали
+        self.held_qty = 0.0
         self.first_range_buy_t = None         # перша покупка САМЕ в діапазоні [range_from … t_to] — «ранній вхід»
         self.first_range_buy_price = None
         self.buys_before_range = 0            # купував ще до діапазону (lifetime-масштаб)
@@ -158,6 +164,7 @@ def build(trades, t_from, t_to, t_exit, range_from=None):
             else:
                 l.sol_gap = True
             l.bought_qty += qty
+            l.time_qty += qty * t
             if l.first_buy_t is None:
                 l.first_buy_t, l.first_buy_price = t, price
             l.last_buy_t = t
@@ -186,6 +193,10 @@ def build(trades, t_from, t_to, t_exit, range_from=None):
             l.sell_times.append(t)
             part = min(qty, l.qty)
             avg = l.cost / l.qty
+            avg_t = l.time_qty / l.qty
+            l.held_ms_qty += part * max(0.0, t - avg_t)
+            l.held_qty += part
+            l.time_qty -= avg_t * part
             got = usd * (part / qty)
             l.realized += got - avg * part
             l.proceeds += got
@@ -233,11 +244,10 @@ def facts(l, supply, price_at_exit):
     sold_share = (l.sold_qty / l.bought_qty * 100) if l.bought_qty else 0.0
     unrealized = (l.qty * price_at_exit - l.cost) if (l.qty > 0 and price_at_exit) else 0.0
     sol_ok = l.sol_seen and not l.sol_gap    # половина сум у SOL гірша за жодної: тоді чесніше лишити долари
-    hold_min = None
-    entry_t = l.first_range_buy_t if l.first_range_buy_t is not None else l.first_buy_t
-    first_sell_after = next((t for t in l.sell_times if entry_t is not None and t >= entry_t), None)
-    if first_sell_after is not None:
-        hold_min = (first_sell_after - entry_t) / 60_000    # від входу в діапазоні до першого продажу після нього
+    # скільки в середньому тримали кожен проданий токен, з вагою за кількістю (власник, 13.10): $999 за 2 с і $1
+    # за добу — це ~1.5 хв, а не 2 с (перший продаж) і не доба (останній). Непродане сюди не входить: його видно
+    # в «holding»
+    hold_min = (l.held_ms_qty / l.held_qty / 60_000) if l.held_qty > 0 else None
     return {
         "wallet": l.wallet,
         "first_buy_ms": l.first_buy_t,

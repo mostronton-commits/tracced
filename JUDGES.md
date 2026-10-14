@@ -38,15 +38,17 @@ token + range ──► Solana Tracker swaps (cached by time span) ──► wal
 | Wallet age and first funder, straight from Solana RPC | `tracced/early/wallet_age.py` |
 | Queue of runs, results on disk | `tracced/web/jobs.py` |
 | The token page: chart, ranges as tabs, the live run line | `tracced/web/static/tokenpage.js`, `chart.js` |
-| The result: table, filters, wallet card | `tracced/web/static/result.js`, `card.js` |
+| The result: table, filters, saved views, wallet card | `tracced/web/static/result.js`, `card.js` |
 
 ## The numbers, defined
 
-- **Bought:** what the wallet bought inside the range, and the market cap there.
+- **Bought:** everything the wallet bought of this token, before, inside and after the range. Under it: what it bought
+  inside the range and the market cap there.
 - **Sold:** what it received for its sells, and the share of its tokens sold.
 - **PnL:** received minus what the sold tokens cost at the wallet's average price. Unsold tokens are shown apart.
 - **ROI:** average exit market cap ÷ average entry market cap.
-- **Held:** from its entry into the range to its first sale.
+- **Held:** how long it held what it sold, on average, weighted by amount: $999 sold after 2 seconds and $1 after a
+  day is about a minute and a half, not 2 seconds and not a day. Tokens still held are not in it.
 
 We check our numbers against the chain. On 7 October, 28 wallets from 3 public analyses: all 584 of our trades are in
 GMGN too; a trade's amount is within 1% of the chain (median); the realized profit of wallets that sold out is within
@@ -61,6 +63,10 @@ GMGN too; a trade's amount is within 1% of the chain (median); the realized prof
 - **AI agent:** answers questions about the analysis on screen only. The numbers come from the code, the model only
   picks and words them, and the code checks every answer against the analysis before it is shown
   (`tracced/early/agent.py`).
+- **Organised launches:** after each analysis, the launch's first minutes are checked at Jito: a wallet that bought in
+  the same bundle where another sold is one hand on both sides, and the creator fee is traced to where it is sent
+  (`tracced/early/launch.py`). On AI6 it found the fee wallet's 174 SOL and the bundles that made the launch's own
+  wallets look like its best traders; they never enter the ready lists.
 - **Ready lists:** last month's top traders, people only, profit counted by our ledger (`tracced/early/ready.py`).
 - **Partner API (beta):** a token check by rules for other apps (`tracced/web/partner_api.py`); a team from this
   hackathon uses it.

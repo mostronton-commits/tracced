@@ -152,8 +152,10 @@ document.addEventListener('click', e => {
   e.stopPropagation();
   EarlyUI.use('copy', { what: b.closest('#drawer') ? 'card' : b.closest('tr') ? 'row' : 'page' });   // where, never what
   navigator.clipboard.writeText(b.dataset.copy).then(() => {
-    if (!b.dataset.was) b.dataset.was = b.innerHTML;
-    b.textContent = '✓'; clearTimeout(b._h); b._h = setTimeout(() => { b.innerHTML = b.dataset.was; delete b.dataset.was; }, 1200);
+    // the tick keeps the button's width: in the card the address shrank to one ✓ and the chips beside it jumped
+    if (!b.dataset.was) { b.dataset.was = b.innerHTML; b.style.minWidth = b.getBoundingClientRect().width + 'px'; }
+    b.textContent = '✓'; clearTimeout(b._h);
+    b._h = setTimeout(() => { b.innerHTML = b.dataset.was; delete b.dataset.was; b.style.minWidth = ''; }, 1200);
   });
 });
 
@@ -210,14 +212,16 @@ window.EarlyTags = (function () {
     dev: I('dev'), sniper: I('sniper'), fresh: I('fresh'), bundle: I('bundle'), 'bot-like': I('bot'),
     'pre-range': I('time'), 're-bought': I('renew'), 'transfer-in': I('transfer'), 'never-sold': I('gem'), dormant: I('asleep'),
     'seen-before': I('link', 'lnk'), kol: I('kol'), exchange: I('exchange'), hacker: I('hacker'),
+    'launch-bundle': I('bundle', 'ins'), 'own-bundle': I('transfer', 'ins'),
     x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>',
   };
   // trading platforms a wallet is labelled with, and the file of each one's own icon in /static/brands
   const BRANDS = { axiom: ['axiom', 'Axiom'], 'axiom-flash': ['axiom', 'Axiom'], gmgn: ['gmgn', 'GMGN'], fomo: ['fomo', 'Fomo'],
     'pumpfun-app': ['pumpfun', 'the pump.fun app'], pumpfun: ['pumpfun', 'the pump.fun app'], terminal: ['terminal', 'Terminal (Padre)'],
     padre: ['terminal', 'Terminal (Padre)'], photon: ['photon', 'Photon'], bloom: ['bloom', 'Bloom'], bullx: ['bullx', 'BullX'] };
-  const ROLES = { exchange: 'An exchange wallet', hacker: 'A known exploit or scam wallet', bot: 'A known bot',
-    potential_bot: 'Likely a bot or arbitrage wallet', arbitrage: 'An arbitrage wallet' };
+  // no «bot» labels from others (owner, 11.10): a bot mark means our own rule from its trades here, the bot-like tag,
+  // so the filter that hides it hides every row that shows it
+  const ROLES = { exchange: 'An exchange wallet', hacker: 'A known exploit or scam wallet' };
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const handle = idn => String((idn && idn.twitter) || '').replace(/^@/, '').replace(/[^A-Za-z0-9_]/g, '');
   const isKol = idn => !!idn && (idn.type === 'kol' || (idn.tags || []).includes('kol'));
@@ -254,7 +258,7 @@ window.EarlyTags = (function () {
       out.push('<span class="idm brand" title="Trades through ' + esc(name) + (who && !isKol(idn) ? ' as ' + who : '') + '"><img src="/static/brands/' + f + '.png" alt="' + esc(name) + '"></span>');
     });
     [...new Set([idn.type].concat(idn.tags || []))].filter(r => ROLES[r]).forEach(r => {
-      const icon = r === 'exchange' ? ICON.exchange : r === 'hacker' ? ICON.hacker : ICON['bot-like'];
+      const icon = r === 'exchange' ? ICON.exchange : ICON.hacker;
       out.push('<span class="idm role r-' + r + '" title="' + ROLES[r] + '">' + icon + '</span>');
     });
     return out.join('');

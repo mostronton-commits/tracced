@@ -231,8 +231,7 @@ def mentioned(text, rows, limit=5):
     return list(dict.fromkeys(out))[:limit]
 
 
-ROLES = {"exchange": "an exchange wallet", "hacker": "a known exploit or scam wallet", "bot": "a known bot",
-         "potential_bot": "likely a bot or arbitrage wallet", "arbitrage": "an arbitrage wallet"}   # як у ui.js
+ROLES = {"exchange": "an exchange wallet", "hacker": "a known exploit or scam wallet"}   # як у ui.js: чужих «бот» міток нема (власник, 11.10)
 MINE_MAX = 12            # збережених гаманців людини у вижимці питання
 
 
@@ -494,8 +493,16 @@ def _ok_number(tok, known):
     return any(abs(v - k) <= tol * abs(k) for k in known if abs(k) >= 1000)
 
 
+# назви полів вижимки, які модель іноді вставляє в текст попри заборону. Підкреслення далі вирізається як розмітка,
+# і з «watch_candidates» виходило «watchcandidates» (помічено на зйомці демо, 10.10): спершу людські слова
+_FIELDS = {"watch_candidates": "the method's picks", "top_by_pnl": "the top by profit", "top_by_roi": "the top by ROI",
+           "your_lists": "your lists", "asked_about": "the wallet you asked about", "by_app": "by app"}
+
+
 def _clean(text):
     t = re.sub(r"<[^>]*>|\[([^\]]*)\]\([^)]*\)|https?://\S+|www\.\S+", r"\1", str(text or ""))
+    t = re.sub(r"\b(" + "|".join(_FIELDS) + r")\b", lambda m: _FIELDS[m.group(1)], t)
+    t = re.sub(r"(?<=[A-Za-z])_(?=[A-Za-z])", " ", t)   # будь-яка інша назва поля: слова через пробіл, не злиті
     t = re.sub(r"[`*_#>|]", "", t)
     return " ".join(t.split())[:MAX_BULLET]
 
@@ -579,18 +586,15 @@ WHO_WORDS = {
     "English": {"x": "@{h} on X", "no_x": "no X account", "named": "named {n}", "kol": "a known trader (KOL)",
                 "trader": "a trader", "no_bot": "no bot signs", "bot_like": "trades like a bot here", "dev": "the token's creator",
                 "apps": "trades through {a}", "sniper": "bought in the first minute", "bundle": "in a bundle: its first SOL came from the same wallet as {n} more here",
-                "first_sol": "first SOL from {x}", "roles": {"exchange": "an exchange wallet", "hacker": "a known exploit or scam wallet",
-                "bot": "a known bot", "potential_bot": "likely a bot or arbitrage wallet", "arbitrage": "an arbitrage wallet"}},
+                "first_sol": "first SOL from {x}", "roles": {"exchange": "an exchange wallet", "hacker": "a known exploit or scam wallet"}},
     "Ukrainian": {"x": "@{h} в X", "no_x": "без X-акаунта", "named": "ім'я {n}", "kol": "відомий трейдер (KOL)",
                   "trader": "трейдер", "no_bot": "без ознак бота", "bot_like": "тут торгує як бот", "dev": "творець токена",
                   "apps": "торгує через {a}", "sniper": "купив у першу хвилину", "bundle": "у бандлі: перший SOL з того самого гаманця, що й ще в {n}",
-                  "first_sol": "перший SOL з {x}", "roles": {"exchange": "гаманець біржі", "hacker": "відомий гаманець злому чи скаму",
-                  "bot": "відомий бот", "potential_bot": "схоже, бот чи арбітраж", "arbitrage": "арбітражний гаманець"}},
+                  "first_sol": "перший SOL з {x}", "roles": {"exchange": "гаманець біржі", "hacker": "відомий гаманець злому чи скаму"}},
     "Russian": {"x": "@{h} в X", "no_x": "без X-аккаунта", "named": "имя {n}", "kol": "известный трейдер (KOL)",
                 "trader": "трейдер", "no_bot": "без признаков бота", "bot_like": "здесь торгует как бот", "dev": "создатель токена",
                 "apps": "торгует через {a}", "sniper": "купил в первую минуту", "bundle": "в бандле: первый SOL с того же кошелька, что и ещё у {n}",
-                "first_sol": "первый SOL с {x}", "roles": {"exchange": "кошелёк биржи", "hacker": "известный кошелёк взлома или скама",
-                "bot": "известный бот", "potential_bot": "похоже, бот или арбитраж", "arbitrage": "арбитражный кошелёк"}},
+                "first_sol": "первый SOL с {x}", "roles": {"exchange": "кошелёк биржи", "hacker": "известный кошелёк взлома или скама"}},
 }
 
 

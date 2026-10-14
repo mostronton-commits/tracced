@@ -42,11 +42,14 @@ DEFAULTS = {
     # свіжі пампи на головній (власник, 01.10): створені за 48 год, капа зараз ≥ $250K, ліквідність ≥ $25K, пік ≥ $2M (було
     # доба, $1M і $80K: 2 токени на день); обіг за добу ≥ 0.2 капи відсікає накручені клони (у них 0.00–0.08); холдери й
     # угоди — щоб верх не займало сміття
-    "fresh_on": True, "fresh_hours": 48, "fresh_min_mcap": 250_000, "fresh_min_liquidity": 25_000, "fresh_min_ath": 2_000_000,
-    "fresh_min_turnover": 0.2, "fresh_min_fees_sol": 5, "fresh_min_sell_ratio": 0.3, "fresh_min_holders": 500, "fresh_min_trades": 1000,
+    # власник, 12.10: пороги як у «Runners» Phanes — запуск до доби, капа від $100K, ліквідність від $20K, обіг за добу
+    # від $50K, 100+ холдерів; окремого порогу піку нема (він дорівнює порогу капи). Фільтри проти сміття нижче лишились
+    "fresh_on": True, "fresh_hours": 24, "fresh_min_mcap": 100_000, "fresh_min_liquidity": 20_000, "fresh_min_ath": 100_000,
+    "fresh_min_vol_24h": 50_000,
+    "fresh_min_turnover": 0.2, "fresh_min_fees_sol": 1, "fresh_min_sell_ratio": 0.3, "fresh_min_holders": 100, "fresh_min_trades": 200,
     # проти сміття (дослідження 30.09): «мийка» обсягу, фальшива капа чи пул з усім запасом, мертвий пул
-    "fresh_fees_per_musd": 10, "fresh_cap_liq": [2, 150], "fresh_min_vol_1h": 10_000,
-    "fresh_show": 8, "fresh_max_candidates": 60, "fresh_page": 500,   # 60: з капою від $250K старий пік може бути далеко внизу списку
+    "fresh_fees_per_musd": 10, "fresh_cap_liq": [2, 150], "fresh_min_vol_1h": 2_000,
+    "fresh_show": 12, "fresh_max_candidates": 30, "fresh_page": 500,   # 30 кандидатів = до 30 запитів піку на годину (кеш година)
     "fresh_refresh_min": 10, "fresh_ath_retry_min": 30, "fresh_max_refresh_per_day": 150, "fresh_stale_hours": 3,
     "alerts_size_usd": [1000, 10000],   # колір крапки — сума угоди: 🟢 до $1K, 🟡 до $10K, 🔴 від $10K (власник, 30.09)
     # потік: основна — api.mainnet-beta (від блоку до повідомлення ≈2 с; у publicnode ≈10 с, замір 01.10), запасна — publicnode
@@ -124,6 +127,9 @@ DEFAULTS = {
     "replay_s": 12,              # скільки секунд триває програвання демо-аналізу в терміналі
     "runs_per_day": 1,           # живих аналізів на добу на людину: гаманець і браузер рахуються разом (адмін — без ліміту)
     "runs_per_ip_per_day": 10,   # живих аналізів на добу з однієї мережі: інкогніто з новим гаманцем упирається сюди
+    "launch_on": True,           # перевірка запуску після аналізу: пакети Jito перших хвилин і комісія творця (14.10)
+    "launch_window_s": 180,      # скільки секунд після створення токена дивимось пакети (на AI6 «продаж своїм» — 2–17 с)
+    "launch_jito_max": 120,      # стеля продажів, перевірених у Jito за прогін (найбільші першими; ~3 виклики на секунду)
     "runs_per_day_new_wallet": 1,   # гаманцю, молодшому за new_wallet_days чи з балансом під new_wallet_min_sol SOL (власник, 05.10)
     "new_wallet_days": 7,
     "new_wallet_min_sol": 0.01,

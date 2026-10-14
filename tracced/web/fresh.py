@@ -48,7 +48,7 @@ def candidates(rows, s):
         cap, liq, vol = _num(r.get("marketCapUsd")), _num(r.get("liquidityUsd")), _num(r.get("volume_24h"))
         if cap < float(s.get("fresh_min_mcap", 1_000_000)) or liq < float(s.get("fresh_min_liquidity", 80_000)):
             continue
-        if vol < float(s.get("fresh_min_turnover", 0.2)) * cap:
+        if vol < float(s.get("fresh_min_turnover", 0.2)) * cap or vol < float(s.get("fresh_min_vol_24h", 0)):
             continue
         fees = _num((r.get("fees") or {}).get("total")) if isinstance(r.get("fees"), dict) else _num(r.get("fees"))
         buys, sells = _num(r.get("buys")), _num(r.get("sells"))

@@ -110,6 +110,20 @@ class TestLedger(unittest.TestCase):
         self.assertFalse(f["partial_history"])
         self.assertFalse(f["bought_after_range"])
 
+    def test_held_is_weighted_by_amount(self):
+        # власник, 13.10: майже все продано за 2 с, останній токен тримав довго — середнє з вагою, не перший продаж
+        # і не останній: 999 × 2 с + 1 × 50 хв = 4.998 с на токен
+        L, _ = self.run_one([tr(1, "buy", "W", 1000, 1.0), tr(1 + 2 / 60, "sell", "W", 999, 1.0),
+                             tr(51, "sell", "W", 1, 1.0)])
+        f = ledger.facts(L["W"], SUPPLY, 0)
+        self.assertAlmostEqual(f["hold_minutes"], (999 * 2 + 1 * 3000) / 1000 / 60, places=6)
+
+    def test_held_counts_from_the_average_buy_time(self):
+        # дві покупки по 100 о 1-й і 5-й хвилині, продаж усього на 11-й: у середньому тримали 8 хв
+        L, _ = self.run_one([tr(1, "buy", "V", 100, 1.0), tr(5, "buy", "V", 100, 1.0), tr(11, "sell", "V", 200, 2.0)])
+        f = ledger.facts(L["V"], SUPPLY, 0)
+        self.assertAlmostEqual(f["hold_minutes"], 8)
+
     def test_entry_mcap_first_is_first_price(self):
         L, _ = self.run_one([tr(1, "buy", "A", 100, 1.0), tr(2, "buy", "A", 100, 3.0)])
         f = ledger.facts(L["A"], SUPPLY, 0)

@@ -14,7 +14,8 @@ nothing: the trades are already here.
 
 ## Fresh pumps on the home page
 
-Tokens created in the last {{ s.fresh_hours|int }} hours that reached a real market cap and are really traded.
+Tokens created in the last {{ s.fresh_hours|int }} hours with a market cap of ${{ (s.fresh_min_mcap / 1000)|int }}K or more,
+${{ (s.fresh_min_liquidity / 1000)|int }}K of liquidity, ${{ (s.fresh_min_vol_24h / 1000)|int }}K traded in a day and {{ s.fresh_min_holders|int }}+ holders.
 Clones with huge caps and no trading, and charts bought by one bot, are filtered out. Each one shows its market cap
 now and the peak it reached. Biggest peak first; the list is refreshed at most every {{ s.fresh_refresh_min|int }}
 minutes. A click opens the chart, where you mark the range.
@@ -78,6 +79,11 @@ cap at that exact trade.
 
 The chart can have a gap, often right after a token leaves pump.fun, and that is usually the pump itself. Once a
 range is analyzed, the chart fills the gap with candles built from that analysis's own trades.
+
+**Held** is how long a wallet held what it sold, on average, weighted by amount. A wallet that sells $999 of its
+$1,000 two seconds after buying and keeps the last $1 for a day held about a minute and a half, not two seconds and
+not a day. What it still holds is not counted: the table shows it apart. The card's **average hold** over 7 or 30
+days is counted the same way, position by position.
 
 The range is always read in full. The **i** after the counts above the chart says for how many wallets exits are
 known, and how many traded in the range but stay out of the table (too small, or only sold); it turns into **!** when
@@ -156,6 +162,24 @@ Until the check reaches a wallet, `fresh`, `bundle` and the filters that hide th
 the first {{ s.age_lookups_max }} they stay unknown unless a card is opened: a bundle there counts only the wallets
 that were checked. When the check is paused, the page says so.
 
+## Organised launches
+
+After the table, tracced checks how the token was launched, from two free sources, and adds only facts with a proof
+(owner, 14.10). There is no score.
+
+- **Jito bundles of the first {{ (s.launch_window_s / 60)|int }} minutes.** Each early sale is looked up at Jito: when
+  another wallet bought in the same bundle, both get `own-bundle`. Wallets in the creator's own launch bundle get
+  `launch-bundle`.
+- **The creator fee.** pump.fun lets a creator send the fee from every trade to another wallet. tracced reads where
+  it was sent and how much SOL it has paid out so far.
+
+When any of it is found, the strip above the table says **organised launch**, with the facts on hover; a click shows
+exactly those wallets. Such wallets are never in the ready lists of top traders.
+
+On one launch we checked by hand, 14 of the 20 most profitable early wallets belonged to the launch itself. These
+checks catch the ones that traded inside the launch's own bundles; wallets tied to it only by later shared signatures
+are not caught yet.
+
 ## The wallet card
 
 Click a wallet's address, or anywhere else in its row. The chart mark before it, which comes out with the star when the
@@ -179,8 +203,15 @@ bottom of the screen, and a tap above it or pulling it down closes it. The card 
    tokens, the latest tokens it traded. Click one of them: its chart opens right there, on the hours of the wallet's
    trades, with its buys and sells marked. The trades come with the 30 days; the candles cost what any chart costs.
 
+Bought, in the table and in the card, is everything the wallet bought of this token: before the range, inside it and
+after it. Under it: what it bought inside the range, and the market cap there. Sold, PnL and ROI count the same buys, so
+the four numbers add up: PnL is what the wallet received minus what the sold tokens cost at its average price.
+
+Filters you use often can be kept: open Filters, press "Save these filters" and name them. The set (the numbers, the
+hidden tags and the order) stays in your browser and applies to any analysis in one click.
+
 ROI, in the card and in its own column of the table, is the average exit cap over the average entry cap, buys
-before the range included: `2×` is +100%, `61.5×` is +6,050%. Hover it for the percent.
+before and after the range included: `2×` is +100%, `61.5×` is +6,050%. Hover it for the percent.
 
 The 30 days are counted by tracced from the wallet's own swaps, the same way as the table: average cost, and
 profit only on what the wallet actually bought. Profit counts on the day of the sale, as a broker counts it: a token
@@ -210,8 +241,8 @@ reaches the page, every number and wallet in it is checked against the analysis,
 It never tells you to buy or sell, never predicts a price and never calls a wallet good or a token safe.
 
 Ask who a wallet is, or who owns it, and the first line comes from tracced, not from the model: its X account or that
-it has none, a KOL, a known bot or an exchange when the labels say so, a bot-like trader when its trades here look like
-one, otherwise a trader, then the app it trades through and the exchange its first SOL came from.
+it has none, a KOL or an exchange when the labels say so, a bot-like trader when its trades here look like one,
+otherwise a trader, then the app it trades through and the exchange its first SOL came from.
 
 It knows your watchlist too: when you ask, it sees which of your saved wallets bought in this range, the lists that hold
 them and your own tags for them, so "which of my wallets are here?" or "what did my insiders do?" has an answer. When
