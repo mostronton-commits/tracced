@@ -2,7 +2,17 @@
 
 <div class="ulog" markdown="1">
 
-## 0.7.5 <span class="ud">Oct 12, 2026</span>
+## 0.7.6 <span class="ud">Oct 14, 2026</span>
+
+- Get wallets right on the chart
+- Organised launches marked, with proof
+- A short tour on your first visit
+- Bought shows everything a wallet bought
+- Held is weighted by amount
+- Saved sets of filters
+- More tokens in Fresh pumps
+
+## 0.7.5 <span class="ud">Oct 14, 2026</span>
 
 - Bigger link previews in X, Telegram and Discord
 
