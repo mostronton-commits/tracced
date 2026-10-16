@@ -259,6 +259,7 @@ class AccountStore:
         self.dir = str(dir)
         os.makedirs(self.dir, exist_ok=True)
         self.lock = threading.Lock()
+        self._out = {}                                   # гаманець → коли востаннє виходив (с); пам'ять процесу
 
     def path(self, pubkey):
         if not valid_pubkey(pubkey):
@@ -305,6 +306,25 @@ class AccountStore:
             a["last_seen_ms"] = _now_ms()
             self.save(a)
         return out
+
+    def signed_out_at(self, pubkey):
+        """Коли гаманець востаннє натискав «вийти» (с, 0 — ніколи). Куки, видані до цього, вже не діють (аудит 15.10:
+        вихід лише стирав куку в одному браузері, а її копія жила ще 30 днів). Читається раз на гаманець за життя процесу."""
+        v = self._out.get(pubkey)
+        if v is None:
+            v = int(self.load(pubkey).get("signed_out_at") or 0) if self.exists(pubkey) else 0
+            self._out[pubkey] = v
+        return v
+
+    def sign_out(self, pubkey, now=None):
+        """Вихід на всіх пристроях: кожна кука цього гаманця, видана до цієї секунди, більше не пускає."""
+        t = int(time.time() if now is None else now)
+        def fn(a):
+            a["signed_out_at"] = t
+            return t
+        self._update(pubkey, fn)
+        self._out[pubkey] = t
+        return t
 
     def touch(self, pubkey, wallet_app=None):
         """Перший вхід створює акаунт; кожен вхід рахується і запам'ятовує, яким гаманцем зайшли."""

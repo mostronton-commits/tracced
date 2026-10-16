@@ -397,7 +397,7 @@ def digest(r, watch=None, asked=None, mine=None, dossier=None):
             g["realized"] += float(x.get("realized_usd") or 0)
     by_app = {a: dict(g, realized=money(g["realized"])) for a, g in sorted(apps.items(), key=lambda kv: -kv[1]["wallets"])[:8]}
 
-    checked = len(r.get("ages") or {}) or min(len(rows), int((r.get("enrich") or {}).get("total") or 0))   # у кого вік справді є
+    checked = len(r.get("ages") or {}) or min(len(rows), int((r.get("enrich") or {}).get("done") or 0))   # у кого вік справді прочитано
     d = {
         "token": {"symbol": info.get("symbol"), "created": t(info.get("created_time")), "launchpad": info.get("launchpad"),
                   "moved_to_market": t((info.get("migration") or {}).get("ms")), "mcap_now": money(info.get("mcap"))},

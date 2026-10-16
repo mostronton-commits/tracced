@@ -2526,6 +2526,47 @@ if AioHTTPTestCase:
             r = await self.client.post("/me/lists", json={"name": "L2"}, headers=h)
             self.assertEqual(r.status, 429)                                     # безкоштовний гаманець не роздує журнал циклом
 
+        async def test_sign_out_ends_every_copy_of_the_cookie(self):
+            # аудит 15.10: вихід лише стирав куку в цьому браузері, а її копія діяла ще 30 днів
+            sk = SigningKey.generate()
+            r, pk, _, _ = await self._sign_in(sk)
+            h = self._hdr(r)
+            self.assertEqual((await self.client.get("/me.json", headers=h)).status, 200)
+            self.assertEqual((await self.client.post("/auth/logout", headers=h)).status, 200)
+            self.assertEqual((await self.client.get("/me.json", headers=h)).status, 401)        # стара копія більше не пускає
+            self.assertEqual((await self.client.post("/me/lists", json={"name": "x"}, headers=h)).status, 401)
+            r2, _, _, _ = await self._sign_in(sk)                                                # новий вхід — одразу працює,
+            self.assertEqual((await self.client.get("/me.json", headers=self._hdr(r2))).status, 200)   # навіть у ту ж секунду
+            self.app["accounts"]._out.clear()                                                    # і після перезапуску процесу
+            self.assertEqual((await self.client.get("/me.json", headers=h)).status, 401)
+
+        async def test_sign_in_only_under_this_sites_own_names(self):
+            # аудит 15.10: без WEB_DOMAIN домен для підпису брався з Host — підпис фішингового сайту можна було переслати сюди
+            evil = {"Host": "evil.example", "Origin": "https://evil.example"}
+            r = await self.client.post("/auth/nonce", headers=evil)
+            self.assertEqual(r.status, 403)
+            r = await self.client.post("/auth/verify", json={"pubkey": "x", "signature": "y", "message": "z"}, headers=evil)
+            self.assertEqual(r.status, 401)
+            r = await self.client.post("/auth/nonce", headers={"Host": "www.tracced.xyz", "Origin": "https://www.tracced.xyz"})
+            self.assertEqual(((r.status), (await r.json())["domain"]), (200, "www.tracced.xyz"))
+
+        async def test_the_export_opens_only_from_this_site(self):
+            # аудит 15.10: перехід з чужого сайту чи <img> з кукою Lax з'їдали денну стелю змін гаманця
+            self.app["s"]["acct_writes_per_day"] = 3
+            r, pk, _, _ = await self._sign_in()
+            cookie = {"Cookie": f"early_acct={r.cookies['early_acct'].value}"}
+            for extra in ({"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Dest": "document"},
+                          {"Sec-Fetch-Site": "same-site", "Sec-Fetch-Dest": "document"},
+                          {"Sec-Fetch-Site": "same-origin", "Sec-Fetch-Dest": "image"},
+                          {"Referer": "https://evil.example/page.html"}):
+                rr = await self.client.get("/me/wallets.csv", headers={**cookie, **extra})
+                self.assertEqual(rr.status, 403, extra)
+            self.assertEqual(self.app["usage_daily"].left("w:" + pk, 3), 3)                    # нічого не списано
+            for extra in ({"Sec-Fetch-Site": "same-origin", "Sec-Fetch-Dest": "document"}, {"Sec-Fetch-Site": "none"}, {}):
+                rr = await self.client.get("/me/wallets.csv", headers={**cookie, **extra})
+                self.assertEqual(rr.status, 200, extra)
+                self.assertEqual(rr.headers.get("Cache-Control"), "no-store")                   # свій список не лежить у кеші
+
         def _hdr(self, r):
             """Куки явно в заголовку: тестовий клієнт не шле Secure-куки по http."""
             return {"Cookie": f"early_acct={r.cookies['early_acct'].value}", "Origin": self.origin}
@@ -2743,6 +2784,36 @@ if AioHTTPTestCase:
             html = await (await self.client.get(f"/token?mint={OTHER_MINT}", headers=self._hdr(r_in))).text()
             self.assertIn('data-demo="0"', html)                              # a live token: new ranges on the chart
             self.assertIn('data-max-tabs="3"', html)
+
+        async def test_shared_cards_wait_for_the_background_checks_and_follow_new_facts(self):
+            # аудит 15.10: картки, зроблені до фонових перевірок, застигали для всіх наступних глядачів
+            seed_demo(self.tmp.name, self.app)
+            self.app["admins"] = set()
+            calls = []
+
+            class FakeAgent:
+                model = "fake"
+
+                def cards(self, result, cfg, lang):
+                    calls.append(1)
+                    return {"story": ["1 wallet bought."], "risks": [], "watch": [], "method": "m", "model": "fake"}, [], {"cost": 0.001}
+            self.app["agent"] = FakeAgent()
+            if self.app["jobs"].enricher is None:
+                self.app["jobs"].enricher = lambda job, save: None
+            job = self.app["jobs"].get(OTHER_JID)
+            job.result["enrich"] = {"done": 0, "total": 1, "fresh": 0, "failed": 0, "funders_done": 0}
+            r_in, _, _, _ = await self._sign_in()
+            h, url = self._hdr(r_in), f"/job/{OTHER_JID}/agent/cards"
+            for _ in range(2):                                                  # перевірки ще йдуть: відповідь є, у результат не йде
+                self.assertFalse((await (await self.client.post(url, json={"lang": "en"}, headers=h)).json())["cached"])
+            self.assertEqual(job.result.get("agent_cards") or {}, {})
+            job.result["enrich"].update(done=1, funders_done=1)
+            self.assertFalse((await (await self.client.post(url, json={"lang": "en"}, headers=h)).json())["cached"])
+            self.assertTrue((await (await self.client.post(url, json={"lang": "en"}, headers=h)).json())["cached"])
+            self.assertEqual(len(calls), 3)                                     # перевірки завершено — картки спільні
+            job.result["info"]["mcap"] = 5_000_000                              # факти змінились — нові картки, старі прибрано
+            self.assertFalse((await (await self.client.post(url, json={"lang": "en"}, headers=h)).json())["cached"])
+            self.assertEqual(len(job.result["agent_cards"]), 1)
 
         async def test_the_agent_needs_a_wallet_and_keeps_its_limits(self):
             seed_demo(self.tmp.name, self.app)

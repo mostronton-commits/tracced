@@ -763,6 +763,8 @@ async def _security_headers(request, response):
     Server не називає версію aiohttp."""
     for k, v in SECURITY_HEADERS.items():
         response.headers.setdefault(k, v)
+    if request.path.startswith(("/me", "/admin")):          # свої списки, експорт, сторінки власника, ключ партнера
+        response.headers.setdefault("Cache-Control", "no-store")   # (аудит 15.10): ні браузер, ні проксі їх не зберігають
     response.headers["Server"] = "tracced"
 
 
@@ -1469,16 +1471,37 @@ def _next_midnight_ms(now=None):
 
 
 def _acct(request):
-    return acct_mod.read_acct(_acct_secret(), request.cookies.get(ACCT_COOKIE))
+    """Гаманець з куки, або None. Кука, видана до останнього «вийти» цього гаманця, не діє (аудит 15.10: її копія інакше
+    жила б ще 30 днів після виходу). Час видачі = кінець дії мінус ACCT_DAYS: формат куки той самий, нікого не розлогінює."""
+    token = request.cookies.get(ACCT_COOKIE)
+    pk = acct_mod.read_acct(_acct_secret(), token)
+    if pk and int(token.split(".")[1]) - ACCT_DAYS * 86400 <= request.app["accounts"].signed_out_at(pk):
+        return None
+    return pk
 
 
 def _short(pk):
     return f"{pk[:4]}…{pk[-4:]}"
 
 
+def _site_hosts(app):
+    """Імена, під якими цей сервер приймає вхід: свій (SITE_URL або WEB_DOMAIN, інакше tracced.xyz), його www і закриті
+    копії з налаштувань."""
+    host = (urllib.parse.urlparse(_site_url(app)).hostname or "").lower().rstrip(".")
+    names = {host, "www." + host} | {str(h).lower().rstrip(".") for h in (app["s"].get("private_hosts") or [])}
+    return {n for n in names if n and n != "www."}
+
+
 def _expected_domain(request):
-    """Домен у тексті для підпису: Caddy передає Host як є, тож зазвичай це request.host."""
-    return os.getenv("WEB_DOMAIN") or request.host
+    """Домен у тексті для підпису, або None, якщо запит прийшов під чужим ім'ям. Caddy передає Host як є, тож зазвичай це
+    request.host; але лише з власних імен сайту (аудит 15.10: інакше підпис, зібраний фішинговим сайтом для свого
+    домену, можна було б переслати сюди з його Host). localhost — для тестів і локального запуску: через Caddy так не дійти."""
+    if os.getenv("WEB_DOMAIN"):
+        return os.getenv("WEB_DOMAIN")
+    name = (request.host or "").split(":")[0].lower().rstrip(".")
+    if name in _site_hosts(request.app) | {"localhost", "127.0.0.1"}:
+        return request.host
+    return None
 
 
 def _same_origin(request):
@@ -1515,6 +1538,16 @@ async def _json_body(request, limit=16_384):
 WRITE_ROUTES = {"me_wallets_csv"}          # GET, але пише в журнал (експорт): рахується, як і будь-який POST
 
 
+def _foreign_get(request):
+    """GET, що щось змінює (експорт), прийшов не зі сторінки цього сайту. Кука SameSite=Lax їде і на перехід з чужого
+    сайту, і на <img> (аудит 15.10: так чужа сторінка чи картинка токена з'їдала б денну стелю змін гаманця). Браузер
+    каже, звідки запит (Sec-Fetch-*); без цих заголовків — чужий Referer теж відмова, а без жодного (не браузер) — можна."""
+    site, dest = request.headers.get("Sec-Fetch-Site"), request.headers.get("Sec-Fetch-Dest")
+    if site is not None:
+        return site not in ("same-origin", "none") or (dest is not None and dest not in ("document", "empty"))
+    return _cross_origin(request)
+
+
 def _acct_route(fn):
     """Маршрут акаунта: лише з цього сайту (для POST) і лише з кукою гаманця → fn(request, pubkey). Зміни акаунта
     (POST і експорт) — не більше `acct_writes_per_day` на гаманець: кожна перечитує й переписує файл акаунта і пише
@@ -1522,6 +1555,8 @@ def _acct_route(fn):
     async def wrapped(request):
         if request.method == "POST" and not _same_origin(request):
             return _jerr("Requests must come from this site.", 403)
+        if request.method == "GET" and fn.__name__ in WRITE_ROUTES and _foreign_get(request):
+            return _jerr("Open the export from your page on tracced.", 403)
         pk = request.get("acct")
         if not pk:
             return _jerr("Sign in with your wallet first.", 401)
@@ -2488,8 +2523,11 @@ async def auth_nonce(request):
     wait = request.app["auth_throttle"].wait_s(ip, now) or request.app["nonce_throttle"].wait_s(ip, now)
     if wait:
         return _jerr(_wait_text(wait), 429)
+    domain = _expected_domain(request)
+    if not domain:
+        return _jerr("Sign in on tracced.xyz.", 403)
     request.app["nonce_throttle"].miss(ip, now)
-    return web.json_response({"nonce": request.app["nonces"].issue(now), "domain": _expected_domain(request),
+    return web.json_response({"nonce": request.app["nonces"].issue(now), "domain": domain,
                               "issued_at": acct_mod.issued_at(now), "statement": acct_mod.STATEMENT},
                              headers={"Cache-Control": "no-store"})
 
@@ -2503,7 +2541,7 @@ def _signin_problem(app, request, pubkey, signature, message, now):
         m = acct_mod.parse_message(message)
     except ValueError:
         return "The signed message has an unexpected format."
-    if m["domain"] != _expected_domain(request):
+    if not _expected_domain(request) or m["domain"] != _expected_domain(request):
         return "The message was made for another site."
     if not acct_mod.valid_pubkey(pubkey) or m["pubkey"] != pubkey:
         return "The wallet address does not match the message."
@@ -2546,7 +2584,8 @@ async def auth_verify(request):
     app["accounts"].touch(pubkey, wallet_app)
     app["events"].add(pubkey, "signin", wallet=wallet_app)
     resp = web.json_response({"ok": True, "pubkey": pubkey, "short": _short(pubkey)})
-    resp.set_cookie(ACCT_COOKIE, acct_mod.sign_acct(_acct_secret(), pubkey, int(now) + ACCT_DAYS * 86400),
+    issued = max(int(now), app["accounts"].signed_out_at(pubkey) + 1)    # новий вхід у ту ж секунду, що й вихід
+    resp.set_cookie(ACCT_COOKIE, acct_mod.sign_acct(_acct_secret(), pubkey, issued + ACCT_DAYS * 86400),
                     httponly=True, samesite="Lax", secure=True, max_age=ACCT_DAYS * 86400)
     return resp
 
@@ -2555,8 +2594,10 @@ async def auth_logout(request):
     if not _same_origin(request):
         return _jerr("Requests must come from this site.", 403)
     pk = request.get("acct")
-    if pk and request.app["usage_daily"].take("w:" + pk, int(request.app["s"].get("acct_writes_per_day", 500))):
-        request.app["events"].add(pk, "signout")      # кука ще тут: хто саме вийшов (повтор тієї самої куки — під стелею змін)
+    if pk:
+        request.app["accounts"].sign_out(pk)          # кожна видана кука цього гаманця більше не пускає — завжди, не під стелею
+        if request.app["usage_daily"].take("w:" + pk, int(request.app["s"].get("acct_writes_per_day", 500))):
+            request.app["events"].add(pk, "signout")  # а рядок журналу — під стелею змін
     resp = web.json_response({"ok": True})
     resp.del_cookie(ACCT_COOKIE)
     return resp
@@ -4909,6 +4950,24 @@ def _agent_left(app, pk):
     return app["assistant_daily"].left(f"agent-ask:{pk}", int(app["s"].get("agent_questions_per_day", 10)))
 
 
+def _cards_rev(result, watch):
+    """Відбиток фактів, з яких пишуться картки: вік, свіжі, спонсори, бандли чи імена, що доїхали пізніше, дають нові
+    картки, а не старі з порожніх тегів (аудит 15.10)."""
+    d, _ = agent_mod.digest(result, watch)
+    return hashlib.sha256(json.dumps(d, sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest()[:12]
+
+
+def _checks_running(app, job):
+    """Фонові перевірки живого аналізу ще йдуть: у черзі (стану ще нема) або рахують, і не на паузі бюджету."""
+    if job.replay or app["jobs"].enricher is None:
+        return False
+    e = job.result.get("enrich")
+    if e is None:
+        return True
+    total = int(e.get("total") or 0)
+    return not e.get("paused") and (int(e.get("done") or 0) < total or int(e.get("funders_done") or 0) < total)
+
+
 async def job_agent_cards(request):
     """Три картки про аналіз мовою браузера. Зроблені раз — безкоштовні для всіх: лежать у результаті (у спільного демо —
     у пам'яті) під мовою і версією методики. Нові — з добової стелі гаманця на картки і спільної стелі агента."""
@@ -4921,14 +4980,16 @@ async def job_agent_cards(request):
     jid = job.canon or job.id
     demo_ids = _demo_job_ids(app)
     shared = bool(job.replay) or job.id in demo_ids or (job.canon or "") in demo_ids
-    ckey = (job.canon or job.id, cfg["v"], lang)
+    rev = await asyncio.to_thread(_cards_rev, job.result, cfg["watch"])
+    ckey = (job.canon or job.id, cfg["v"], lang, rev)
     store = app["agent_cache"] if shared else job.result.setdefault("agent_cards", {})
-    skey = ckey if shared else f"{cfg['v']}:{lang}"
+    skey = ckey if shared else f"{cfg['v']}:{lang}:{rev}"
+    keep = shared or not _checks_running(app, job)            # картки посеред перевірок відповідаємо, але не зберігаємо
 
     def reply(cards, cached):
         return web.json_response({"cards": cards, "cached": cached, "chips": cfg["chips"], "left": _agent_left(app, pk)},
                                  headers={"Cache-Control": "no-store"})
-    if store.get(skey):
+    if keep and store.get(skey):
         _agent_event(app, pk, "cards", jid, t0, free=True, ok=1, cached=1, lang=lang)
         return reply(store[skey], True)
     busy = app["agent_inflight"].get(ckey)
@@ -4955,9 +5016,13 @@ async def job_agent_cards(request):
         return _jerr(str(e), 502)
     finally:
         app["agent_inflight"].pop(ckey, None)
-    store[skey] = cards
+    if keep:
+        if not shared:
+            for k in [k for k in store if str(k).split(":")[:2] == [str(cfg["v"]), lang]]:
+                store.pop(k, None)                              # картки зі старших фактів більше не потрібні
+        store[skey] = cards
     fut.set_result(cards)
-    if not shared:
+    if keep and not shared:
         _save_soon(app, job)
     app["agent_store"].log({"pk": pk, "job": jid, "kind": "cards", "lang": lang, "v": cfg["v"],
                             "dropped": dropped, "usage": usage, "model": cards.get("model")})

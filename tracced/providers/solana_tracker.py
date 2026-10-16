@@ -22,9 +22,10 @@ def _text(v, n):
 def _image(v):
     """Картинка токена — від його творця, тож у сторінку йде лише https-адреса без лапок і пробілів, не довша за 600.
     Solana Tracker віддає її через свій проксі (image.solanatracker.io)."""
-    if not isinstance(v, str) or not v.startswith("https://") or len(v) > 600 or any(c in v for c in "\"'<> \t\n"):
-        return None
-    return v
+    if not isinstance(v, str) or not v.startswith("https://image.solanatracker.io/") or len(v) > 600 \
+            or any(c in v for c in "\"'<> \t\n"):
+        return None                     # лише проксі ST (як у стрічці свіжих пампів): чужий хост бачив би відвідувачів, а адреса
+    return v                            # самого сайту в <img> робила б запити з кукою гаманця (аудит 15.10)
 
 
 def _usd(v):
