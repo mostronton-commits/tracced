@@ -13,6 +13,7 @@ from ..config import load_config
 from ..early import settings
 from ..early.st_client import EarlyST
 from ..early.assistant import Assistant
+from ..early.claude import Chain, Claude
 from ..early.labels import InsightX
 from ..early.wallet_age import MonthBudget, WalletAge
 from .app import create_app
@@ -50,6 +51,10 @@ def main():
         assistant = Assistant(os.getenv("ASSISTANT_KEY"), url=os.getenv("ASSISTANT_URL"), model=os.getenv("ASSISTANT_MODEL"),
                               fallbacks=os.getenv("ASSISTANT_FALLBACKS"))
         logging.getLogger("early.web").info("assistant: %s @ %s", assistant.model, assistant.url)
+    if os.getenv("ANTHROPIC_API_KEY"):                    # Claude — основна модель, OpenRouter (якщо є) — запасна (власник, 18.10)
+        claude = Claude(os.getenv("ANTHROPIC_API_KEY"), model=os.getenv("CLAUDE_MODEL"))
+        assistant = Chain(claude, assistant) if assistant is not None else claude
+        logging.getLogger("early.web").info("assistant: %s (Anthropic)%s", claude.model, ", backup on" if isinstance(assistant, Chain) else "")
     app = create_app(st, s, cfg, ages=ages, assistant=assistant, background=True, labels=labels)   # фон дашборда власника: лише живий сервер
 
     async def more_threads(_app):

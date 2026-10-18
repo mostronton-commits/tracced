@@ -11,7 +11,7 @@ try:
 except ImportError:  # host without aiohttp: page tests are skipped
     AioHTTPTestCase = None
 
-from tracced.early import settings
+from tracced.early import assistant as assistant_mod, settings
 
 try:
     from tests.test_early_pipeline import TRADES, FakeST, T0, MIN, H
@@ -2900,6 +2900,18 @@ if AioHTTPTestCase:
                 self.assertEqual(r.status, 200, await r.text())
                 self.assertEqual(seen, [("Try this.", "preview", "Ukrainian", MINT)])   # спроба на демо, не збережена
                 self.assertEqual(self.app["agent_store"].config()["method"], "Read exits first.")
+
+                class Broken(FakeAgent):
+                    model = "claude-x"
+
+                    def cards(self, result, cfg, lang):
+                        raise assistant_mod.AssistantError("The agent's budget for its model is used up. The owner has been told.", {"cost": 0})
+                self.app["agent_compare"] = [Broken(), FakeAgent()]                # дві моделі: обидві на тому ж демо, поруч
+                d = await (await self.client.post("/admin/agent/preview", json={"config": {"method": "Try this."}}, headers=ha)).json()
+                self.assertEqual([x["model"] for x in d["compare"]], ["claude-x", "fake"])
+                self.assertIn("budget", d["compare"][0]["error"])                   # одна впала — друга все одно показана
+                self.assertEqual(d["compare"][1]["cards"]["story"], ["x"])
+                self.app["agent_compare"] = []
                 html = await (await self.client.get("/admin?tab=method", headers=ha)).text()
                 self.assertIn("method v2", html)
                 self.assertIn("Read exits first.", html)

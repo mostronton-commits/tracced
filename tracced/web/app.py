@@ -569,6 +569,9 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.on_cleanup.append(_flush_on_exit)          # після зупинки фону: потік не дописує лічильники в уже записаний файл
     app["assistant"] = assistant                                   # транспорт до моделі; None — агента на цьому сервері нема
     app["agent"] = agent_mod.Agent(assistant.json_chat, assistant.model) if assistant is not None else None
+    # дві моделі (Claude і запасна): у /admin спроба на демо показує обидві поруч, кожну окремо
+    app["agent_compare"] = [agent_mod.Agent(a.json_chat, a.model) for a in (assistant.primary, assistant.backup)] \
+        if getattr(assistant, "backup", None) is not None else []
     app["agent_store"] = AgentStore(Path(out_dir).parent / "agent")   # методика власника, її версії, журнал питань
     app["agent_cache"], app["agent_inflight"] = {}, {}             # картки спільного демо (у файл не пишуться) і ті, що вже пишуться
     app["st"], app["s"], app["cfg"] = st, s, cfg or {}
@@ -3090,6 +3093,20 @@ async def admin_agent_preview(request):
     rng = next((r for r in demo["ranges"] if r["job"] == body.get("job")), demo["ranges"][0])
     cfg = dict(agent_mod.normalize_config(body.get("config") or {}), v="preview")
     lang, t0 = agent_mod.lang_name(body.get("lang")), time.monotonic()
+    if app.get("agent_compare"):
+        async def one(ag):
+            t = time.monotonic()
+            try:
+                cards, dropped, usage = await asyncio.to_thread(ag.cards, rng["result"], cfg, lang)
+            except assistant_mod.AssistantError as e:
+                _agent_event(app, pk, "preview", rng["job"], t, usage=e.usage, ok=0, err=str(e)[:80], lang=lang)
+                return {"model": ag.model, "error": str(e), "usage": e.usage, "ms": int((time.monotonic() - t) * 1000)}
+            _agent_event(app, pk, "preview", rng["job"], t, usage=usage, ok=1, dropped=len(dropped) or None, lang=lang)
+            return {"model": ag.model, "cards": cards, "dropped": dropped, "usage": usage, "ms": int((time.monotonic() - t) * 1000)}
+        both = await asyncio.gather(*(one(ag) for ag in app["agent_compare"]))
+        app["agent_store"].log({"pk": pk, "job": rng["job"], "kind": "preview", "lang": lang,
+                                "compare": [{k: x.get(k) for k in ("model", "usage", "ms", "error")} for x in both]})
+        return web.json_response({"compare": both, "range": rng.get("label")})
     try:
         cards, dropped, usage = await asyncio.to_thread(app["agent"].cards, rng["result"], cfg, lang)
     except assistant_mod.AssistantError as e:

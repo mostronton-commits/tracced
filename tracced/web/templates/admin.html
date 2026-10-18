@@ -75,10 +75,19 @@
     stat.textContent = 'writing the three cards for the demo…'; out.hidden = true;
     const { ok, d } = await post('/admin/agent/preview', { config: form(), lang: $('alang').value });
     if (!ok) { stat.textContent = d.error || 'did not work'; return; }
-    const c = d.cards || {}, list = a => '<ul>' + (a || []).map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>';
-    out.innerHTML = '<h4>What happened</h4>' + list(c.story) + '<h4>What to weigh</h4>' + list(c.risks)
+    const list = a => '<ul>' + (a || []).map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>';
+    const block = (c, dropped) => '<h4>What happened</h4>' + list(c.story) + '<h4>What to weigh</h4>' + list(c.risks)
       + '<h4>Who to watch</h4><p class="muted small">' + esc(c.method) + '</p><ul>' + (c.watch || []).map(w => '<li><span class="mono">' + esc(w.short) + '</span> ' + esc(w.why) + '</li>').join('') + '</ul>'
-      + ((d.dropped || []).length ? '<p class="muted small">The check dropped ' + d.dropped.length + ': ' + d.dropped.map(x => esc(x.why + ' — ' + x.text)).join('; ') + '</p>' : '');
+      + ((dropped || []).length ? '<p class="muted small">The check dropped ' + dropped.length + ': ' + dropped.map(x => esc(x.why + ' — ' + x.text)).join('; ') + '</p>' : '');
+    if (d.compare) {                                  // two models on this server: the same demo, side by side
+      out.innerHTML = '<div class="acmp">' + d.compare.map(x => '<div><p class="small"><b>' + esc(x.model) + '</b> <span class="muted">· '
+        + (x.ms / 1000).toFixed(1) + ' s' + (x.usage && x.usage.cost ? ' · $' + (+x.usage.cost).toFixed(4) : '') + '</span></p>'
+        + (x.error ? '<p class="muted small">' + esc(x.error) + '</p>' : block(x.cards || {}, x.dropped)) + '</div>').join('') + '</div>';
+      out.hidden = false;
+      stat.textContent = (d.range || 'demo') + ' · both models · not saved';
+      return;
+    }
+    out.innerHTML = block(d.cards || {}, d.dropped);
     out.hidden = false;
     stat.textContent = (d.range || 'demo') + ' · ' + ((d.usage && d.usage.cost) ? '$' + (+d.usage.cost).toFixed(4) : '') + ' · not saved';
   });
