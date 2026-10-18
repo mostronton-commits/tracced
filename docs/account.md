@@ -6,6 +6,8 @@ no fee.
 Works with Phantom, Backpack and Solflare. On a phone, open tracced inside the wallet's own app: the Connect button
 takes you there.
 
+You stay signed in for 30 days. **Sign out** ends the session on every device at once, not only in this browser.
+
 ## Your watchlist and saved analyses
 
 The wallets you keep are your watchlist. In a result, point at a wallet's row: a star (☆) comes out before its address.

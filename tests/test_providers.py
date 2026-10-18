@@ -162,7 +162,9 @@ class TestTokenInfoText(unittest.TestCase):
         st = SolanaTracker("k", pause=0)
         ok = "https://image.solanatracker.io/proxy?url=https%3A%2F%2Fipfs-forward.solanatracker.io%2Fipfs%2FQm1"
         for img, want in ((ok, ok), ("http://x.io/a.png", None), ('https://x.io/a.png" onerror="alert(1)', None),
-                          ("https://x.io/" + "a" * 700, None), (None, None), (42, None)):
+                          ("https://x.io/" + "a" * 700, None), (None, None), (42, None),
+                          ("https://x.io/a.png", None),                                   # чужий хост бачив би відвідувачів
+                          ("https://tracced.xyz/me/wallets.csv?list=1", None)):            # і сам сайт не стане «картинкою»
             st._get = lambda path, img=img: {"token": {"symbol": "A", "image": img}, "pools": []}
             self.assertEqual(st.token_info("M" * 40)["image"], want)
 

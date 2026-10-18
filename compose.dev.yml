@@ -9,6 +9,8 @@ services:
     env_file: .env
     environment:
       - WEB_PORT=8095
+      # своя адреса закритої копії: замок «закрито під будь-яким ім'ям» не залежить від .env (аудит 15.10)
+      - SITE_URL=https://dev.tracced.xyz
     volumes:
       - ./output:/app/output
       - ./cache:/app/cache
