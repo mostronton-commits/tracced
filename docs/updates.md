@@ -2,6 +2,11 @@
 
 <div class="ulog" markdown="1">
 
+## 0.7.8 <span class="ud">Oct 18, 2026</span>
+
+- Sign out ends your session on every device
+- Safer sign-in, export and AI summary
+
 ## 0.7.7 <span class="ud">Oct 14, 2026</span>
 
 - Shorter tips in the tour
