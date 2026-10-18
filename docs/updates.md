@@ -2,6 +2,12 @@
 
 <div class="ulog" markdown="1">
 
+## 0.7.9 <span class="ud">Oct 18, 2026</span>
+
+- The AI agent reads traders' words: sold the top, dev dump, snipers, insiders
+- Yes-or-no questions get a clear answer first
+- The agent names the snipers and the wallets that sold at the peak
+
 ## 0.7.8 <span class="ud">Oct 18, 2026</span>
 
 - Sign out ends your session on every device
