@@ -89,6 +89,62 @@ class TestBundles(unittest.TestCase):
         self.assertEqual(f["pairs"][0]["buyers"], [["SMALL", 1_000_000.0]])   # the curve holds most of the supply: not a buyer
 
 
+class TestLaunchFix(unittest.TestCase):
+    """18.10: спайк на 3 свіжих токенах — пакет творця не знаходився, частина продажів лишалась без перевірки, 429 валив."""
+
+    def test_the_launch_bundle_is_found_from_the_creation_tx_without_a_creator_buy(self):
+        trades = [tr("A6u4", "buy", 0, 33_000_000, "c2"), tr("D9v7", "buy", 0, 37_000_000, "c3")]   # покупки творця нема
+        jito = FakeJito({"LAUNCH": {"txs": ["create", "c2", "c3"], "tippers": ["CREATOR"]}})
+
+        def rpc(method, params):
+            return {"meta": {"err": None, "preTokenBalances": [], "postTokenBalances": []}}
+        f = launch.buybacks(trades, T0, 180_000, jito, creator="CREATOR", rpc=rpc, mint="M", supply=SUPPLY, created_tx="create")
+        self.assertEqual(f["launch"]["wallets"], ["A6u4", "D9v7"])
+
+    def test_the_creation_tx_is_the_creators_signature_at_launch_that_holds_the_mint(self):
+        sigs = [{"signature": "old", "blockTime": T0 // 1000 - 3600}, {"signature": "near", "blockTime": T0 // 1000 + 1},
+                {"signature": "create", "blockTime": T0 // 1000}]
+
+        def rpc(method, params):
+            keys = ["CREATOR", "M"] if params[0] == "create" else ["CREATOR", "OTHER"]
+            return {"transaction": {"message": {"accountKeys": [{"pubkey": k} for k in keys]}}}
+        self.assertEqual(launch.creation_tx(rpc, "CREATOR", "M", T0, sigs=sigs), "create")
+        self.assertIsNone(launch.creation_tx(rpc, "CREATOR", "NOPE", T0, sigs=sigs))
+
+    def test_a_busy_creators_history_is_paged_back_to_the_launch(self):
+        pages = {None: [{"signature": f"n{i}", "blockTime": T0 // 1000 + 9_000 - i} for i in range(1000)],
+                 "n999": [{"signature": "create", "blockTime": T0 // 1000}, {"signature": "older", "blockTime": T0 // 1000 - 500}]}
+        asked = []
+
+        def rpc(method, params):
+            asked.append(params[1].get("before"))
+            return pages.get(params[1].get("before"), [])
+        sigs = launch.creator_sigs(rpc, "CREATOR", T0)
+        self.assertIn("create", [x["signature"] for x in sigs])
+        self.assertEqual(asked, [None, "n999"])                                    # друга сторінка — і досить
+
+    def test_sells_with_a_buy_in_the_same_second_are_checked_first(self):
+        trades = [tr("BIG", "sell", 5, 90_000_000, "s_big"),                       # великий, але без покупки поруч
+                  tr("SMALL", "sell", 20, 1_000_000, "s_small"), tr("BUYER", "buy", 20, 990_000, "b_small")]
+        jito = FakeJito({"P": {"txs": ["s_small", "b_small"], "tippers": []}})
+        f = launch.buybacks(trades, T0, 180_000, jito, max_lookups=1)
+        self.assertEqual([p["seller"] for p in f["pairs"]], ["SMALL"])
+        self.assertEqual((f["checked"], f["sells"], f["capped"]), (1, 2, True))
+
+    def test_a_rate_limit_is_waited_out_as_the_server_asks(self):
+        import urllib.error
+        slept, calls = [], []
+
+        def fn():
+            calls.append(1)
+            if len(calls) < 4:
+                raise urllib.error.HTTPError("u", 429, "busy", {"Retry-After": "7"}, None)
+            return "ok"
+        p = launch.Paced(0, sleep=slept.append)
+        self.assertEqual(p.call(fn), "ok")
+        self.assertEqual((p.throttled, [x for x in slept if x]), (3, [7.0, 7.0, 7.0]))
+
+
 class TestFee(unittest.TestCase):
     def test_the_last_update_names_the_wallet_and_the_paid_sol_is_summed(self):
         pk = launch.b58decode("5MGjUr4SWqNRD8z2bae7Jo4TG73XqDeCqn62pJsosdJ4")

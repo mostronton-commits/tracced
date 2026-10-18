@@ -167,9 +167,9 @@ that were checked. When the check is paused, the page says so.
 After the table, tracced checks how the token was launched, from two free sources, and adds only facts with a proof
 (owner, 14.10). There is no score.
 
-- **Jito bundles of the first {{ (s.launch_window_s / 60)|int }} minutes.** Each early sale is looked up at Jito: when
-  another wallet bought in the same bundle, both get `own-bundle`. Wallets in the creator's own launch bundle get
-  `launch-bundle`.
+- **Jito bundles of the first {{ (s.launch_window_s / 60)|int }} minutes.** Each early sale is looked up at Jito, first
+  those with another wallet's buy in the same second: when that wallet bought in the same bundle, both get
+  `own-bundle`. Wallets in the bundle of the transaction that created the token get `launch-bundle`.
 - **The creator fee.** pump.fun lets a creator send the fee from every trade to another wallet. tracced reads where
   it was sent and how much SOL it has paid out so far.
 

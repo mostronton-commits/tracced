@@ -129,6 +129,7 @@ class SolanaTracker(PumpDataSource):
             "name": _text(tok.get("name"), NAME_MAX),
             "image": _image(tok.get("image")),         # стрічка «Live on tracced» і картка демо на головній
             "created_time": to_ms((tok.get("creation") or {}).get("created_time")),
+            "created_tx": creation.get("created_tx") or None,   # транзакція створення: від неї шукаємо пакет творця
             "supply": (p.get("tokenSupply") or 0) or None,
             "price_usd": (p.get("price") or {}).get("usd"),
             "mcap": _usd(p.get("marketCap")),

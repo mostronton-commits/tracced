@@ -402,21 +402,26 @@ def _launch_check(r, rows, s, job, save):
     out = {"rev": launch_mod.REV, "pairs": [], "launch": None}
     jito, rpc = launch_mod.Jito(), launch_mod.Rpc()
     try:
+        sigs = launch_mod.creator_sigs(rpc, creator, created) if creator and mint and created else []
+        created_tx = info.get("created_tx") or launch_mod.creation_tx(rpc, creator, mint, created, sigs=sigs)
+        if created_tx:
+            out["created_tx"] = created_tx
         if trades and created:
             out.update(launch_mod.buybacks(trades, created, int(float(s.get("launch_window_s", 180)) * 1000), jito,
-                                           creator=creator, max_lookups=int(s.get("launch_jito_max", 120)),
-                                           rpc=rpc, mint=mint, supply=supply))
+                                           creator=creator, max_lookups=int(s.get("launch_jito_max", 300)),
+                                           rpc=rpc, mint=mint, supply=supply, created_tx=created_tx))
         else:
             out["no_tx"] = True                         # результат до 14.10: підписів перших хвилин у ньому нема
         if creator and mint and created:
-            fee = launch_mod.fee_shares(rpc, creator, mint, created)
+            fee = launch_mod.fee_shares(rpc, creator, mint, created, sigs=sigs)
             if fee and fee.get("config") and fee.get("to"):
                 fee["paid"] = launch_mod.fee_paid(rpc, fee["config"], fee["to"][0][0])
             out["fee"] = fee
     except Exception as ex:  # noqa: BLE001 — перевірка запуску — лише додаток до результату
         out["failed"] = str(ex)[:120]
         job.log.append(f"launch check failed: {str(ex)[:80]}")
-    out["calls"] = {"jito": jito.calls, "rpc": rpc.calls}
+    out["calls"] = {"jito": jito.calls, "rpc": rpc.calls, "throttled": jito.p.throttled + rpc.p.throttled,
+                    "failed": jito.p.failed + rpc.p.failed}
     r["launch"] = out
     lt = launch_mod.wallet_tags(out)
     r["launch_tags"] = lt
