@@ -2,6 +2,11 @@
 
 <div class="ulog" markdown="1">
 
+## 0.7.10 <span class="ud">Oct 18, 2026</span>
+
+- Organised launches: the creator's own bundle is found from the token's creation
+- Every early sale is checked, not only the largest
+
 ## 0.7.9 <span class="ud">Oct 18, 2026</span>
 
 - The AI agent reads traders' words: sold the top, dev dump, snipers, insiders

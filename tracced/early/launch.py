@@ -17,7 +17,7 @@ import time
 import urllib.error
 import urllib.request
 
-REV = 1                                   # версія перевірки: результат зі старшою перераховується при збагаченні
+REV = 2                     # 18.10: пакет творця від створення, продажі тієї ж секунди першими, терпіння до 429
 JITO_API = "https://bundles.jito.wtf/api/v1"
 FEE_PROGRAM = "pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ"
 UPDATE_SHARES = bytes.fromhex("bd0d8863bba4ed23")   # дискримінатор UpdateFeeShares: далі vec<(Pubkey, u16 bps)>
@@ -68,23 +68,30 @@ def _get_json(url, body=None, timeout=20):
 
 
 class Paced:
-    """Не частіше одного виклику за `pace` секунд; 429 — пауза і ще дві спроби."""
-    def __init__(self, pace):
+    """Не частіше одного виклику за `pace` секунд. 429 — чекаємо, скільки просить сервер (Retry-After, до 20 с), і
+    пробуємо ще, до п'яти разів: спайк 18.10 — публічна нода дає 10 getTransaction за 10 с, і після третьої відмови
+    перевірка здавалась і казала «нічого не знайдено» (`throttled` рахує такі паузи)."""
+    def __init__(self, pace, sleep=time.sleep):
         self.pace, self.last, self.lock = pace, 0.0, threading.Lock()
-        self.failed = 0
+        self.failed, self.throttled, self.sleep = 0, 0, sleep
 
     def call(self, fn):
-        for attempt in range(3):
+        for attempt in range(6):
             with self.lock:
                 wait = self.pace - (time.monotonic() - self.last)
                 if wait > 0:
-                    time.sleep(wait)
+                    self.sleep(wait)
                 self.last = time.monotonic()
             try:
                 return fn()
             except urllib.error.HTTPError as e:
-                if e.code == 429 and attempt < 2:
-                    time.sleep(2 + 3 * attempt)
+                if e.code == 429 and attempt < 5:
+                    self.throttled += 1
+                    try:
+                        ra = float((e.headers or {}).get("Retry-After") or 0)
+                    except (TypeError, ValueError):
+                        ra = 0
+                    self.sleep(min(20.0, ra) if ra > 0 else 2 + 3 * attempt)
                     continue
                 if e.code in (400, 404):
                     return None
@@ -124,8 +131,8 @@ class Jito:
 
 
 class Rpc:
-    """Публічна нода Solana (0 кредитів), з паузою: вона тримає ~40 викликів за 10 с на метод."""
-    def __init__(self, url="https://api.mainnet-beta.solana.com", pace=0.6, post=None):
+    """Публічна нода Solana (0 кредитів), з паузою: getTransaction — 10 викликів за 10 с з однієї адреси (виміряно 18.10)."""
+    def __init__(self, url="https://api.mainnet-beta.solana.com", pace=1.05, post=None):
         self.url, self.p, self.post = url, Paced(pace), post or _get_json
         self.calls = 0
 
@@ -156,7 +163,42 @@ def receivers(rpc, sig, mint, supply):
             if post[o] - pre.get(o, 0.0) > 0 and pre.get(o, 0.0) <= big and post[o] <= big]   # крива отримує випуск при створенні
 
 
-def buybacks(trades, created_ms, window_ms, jito, creator=None, max_lookups=120, rpc=None, mint=None, supply=None):
+def creator_sigs(rpc, creator, created_ms, max_pages=5):
+    """Підписи творця від нових до моменту запуску: у зайнятого гаманця сотні нових транзакцій затуляють старт (спайк
+    18.10, токен $1), тож гортаємо назад сторінками по 1000, поки не дійдемо до хвилини перед створенням."""
+    out, before = [], None
+    for _ in range(max_pages):
+        p = {"limit": 1000}
+        if before:
+            p["before"] = before
+        page = rpc("getSignaturesForAddress", [creator, p]) or []
+        out += page
+        if len(page) < 1000 or (page[-1].get("blockTime") or 0) <= created_ms / 1000 - 60:
+            break
+        before = page[-1]["signature"]
+    return out
+
+
+def creation_tx(rpc, creator, mint, created_ms, sigs=None, max_tx=10):
+    """Підпис транзакції створення токена: серед підписів творця — найближчий до часу створення (±60 с), у якому є сам
+    випуск. Solana Tracker покупки творця в угодах не віддає (спайк 18.10: на 3 з 3 токенів), тож пакет запуску
+    шукаємо від створення, а не від покупки."""
+    if not (rpc and creator and mint and created_ms):
+        return None
+    sigs = sigs if sigs is not None else (rpc("getSignaturesForAddress", [creator, {"limit": 1000}]) or [])
+    t0 = created_ms / 1000
+    near = sorted((x for x in sigs if x.get("blockTime") and abs(x["blockTime"] - t0) <= 60 and not x.get("err")),
+                  key=lambda x: (abs(x["blockTime"] - t0), x.get("slot") or 0))
+    for x in near[:max_tx]:
+        tx = rpc("getTransaction", [x["signature"], {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}])
+        keys = [k.get("pubkey") if isinstance(k, dict) else k for k in ((tx or {}).get("transaction") or {}).get("message", {}).get("accountKeys", [])]
+        if mint in keys:
+            return x["signature"]
+    return None
+
+
+def buybacks(trades, created_ms, window_ms, jito, creator=None, max_lookups=300, rpc=None, mint=None, supply=None,
+             created_tx=None):
     """Угоди (wallet, type, time, qty, tx) → що знайшли пакети Jito.
 
     Продажі перших `window_ms` після запуску перевіряються по одному: якщо продаж у пакеті, а в тому ж пакеті
@@ -166,8 +208,15 @@ def buybacks(trades, created_ms, window_ms, jito, creator=None, max_lookups=120,
     end = created_ms + window_ms
     # найбільші продажі першими: пакет «продаж своїм» переносить відсотки випуску, а не крихти, і стеля лишається
     # на них (на AI6 — 3–4% кожен у перші 17 секунд)
-    sells = sorted((t for t in by_tx.values() if t["type"] == "sell" and created_ms <= (t["time"] or 0) <= end),
-                   key=lambda t: -(t.get("qty") or 0))
+    sells = [t for t in by_tx.values() if t["type"] == "sell" and created_ms <= (t["time"] or 0) <= end]
+    # пакет виконується в одному блоці: «продав своєму» можливо, лише коли в ту ж секунду купив інший гаманець — такі
+    # продажі першими (спайк 18.10: на 323 продажі перших хвилин стеля 120 лишала без перевірки до 63%)
+    buy_s = {}
+    for t in by_tx.values():
+        if t["type"] == "buy" and t.get("time"):
+            buy_s.setdefault(int(t["time"]) // 1000, set()).add(t["wallet"])
+    same = lambda t: any(buy_s.get(int(t["time"] or 0) // 1000 + d, set()) - {t["wallet"]} for d in (-1, 0, 1))   # noqa: E731
+    sells.sort(key=lambda t: (not same(t), -(t.get("qty") or 0)))
     pairs, seen_b, looked = [], set(), 0
     for sell in sells[:max_lookups]:
         looked += 1
@@ -190,9 +239,10 @@ def buybacks(trades, created_ms, window_ms, jito, creator=None, max_lookups=120,
     if creator:
         first = sorted((t for t in by_tx.values() if t["wallet"] == creator and t["type"] == "buy"
                         and (t["time"] or 0) <= created_ms + 10_000), key=lambda t: t["time"])
-        if first:
+        start = created_tx or (first[0]["tx"] if first else None)      # створення токена, інакше перша покупка творця
+        if start:
             looked += 1
-            bid = jito.bundle_of(first[0]["tx"])
+            bid = jito.bundle_of(start)
             if bid:
                 b = jito.bundle(bid)
                 ws = {by_tx[s]["wallet"] for s in b["txs"] if s in by_tx and by_tx[s]["type"] == "buy"}
@@ -201,16 +251,18 @@ def buybacks(trades, created_ms, window_ms, jito, creator=None, max_lookups=120,
                         ws |= {o for o, _ in receivers(rpc, s, mint, supply)}
                 ws = sorted(ws - {creator})
                 launch = {"bundle": bid, "wallets": ws, "tippers": b["tippers"][:3]}
-    return {"pairs": pairs, "launch": launch, "lookups": looked, "sells": len(sells), "capped": len(sells) > max_lookups}
+    checked = min(len(sells), max_lookups)
+    return {"pairs": pairs, "launch": launch, "lookups": looked, "sells": len(sells), "checked": checked,
+            "capped": len(sells) > max_lookups}
 
 
 # ── 2. комісія творця ──
 
-def fee_shares(rpc, creator, mint, created_ms, max_tx=30):
+def fee_shares(rpc, creator, mint, created_ms, max_tx=30, sigs=None):
     """Кому творець переписав комісію: остання UpdateFeeShares по цьому токену за першу добу.
 
     {"to": [[гаманець, bps]], "tx": підпис, "config": рахунок налаштування} або None."""
-    sigs = rpc("getSignaturesForAddress", [creator, {"limit": 1000}]) or []
+    sigs = sigs if sigs is not None else (rpc("getSignaturesForAddress", [creator, {"limit": 1000}]) or [])
     lo, hi = created_ms / 1000 - 60, created_ms / 1000 + 86_400
     near = sorted((x for x in sigs if x.get("blockTime") and lo <= x["blockTime"] <= hi and not x.get("err")),
                   key=lambda x: x.get("slot") or 0)
