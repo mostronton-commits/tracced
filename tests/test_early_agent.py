@@ -99,6 +99,12 @@ class TestDigest(unittest.TestCase):
         system, user = agent.prompt_ask(d, "m", "Who sold the top?", "English")
         self.assertIn("top_by_exit_mcap", user)                                      # і модель знає, де це шукати
 
+    def test_the_snipers_are_named_and_the_creators_sells_are_not_guessed(self):
+        r = dict(RESULT, rows=[row(W[0], 134_000, 16.82, 106, ["sniper"]), row(W[1], 90_000, 12.7, 2818)])
+        d, _ = digest(r)
+        self.assertEqual([x["wallet"] for x in d["snipers_list"]], [agent.short(W[0])])
+        self.assertEqual(d["token_creator_sells"], "not tracked by this analysis")      # творець не купував: його продажів не видно
+
     def test_a_wallet_name_is_a_label_not_an_instruction(self):
         d, _ = digest(RESULT)
         name = d["top_by_pnl"][0]["name"]

@@ -115,14 +115,14 @@ How to read traders' words (in any language) and which facts answer them:
   top_by_exit_mcap. That is not who made the most money; give profit only as a second point.
 - "Who made the most", "biggest winner": profit, from top_by_pnl. "Best multiple", "who did 10x": ROI, from top_by_roi.
 - "Bagholders", "diamond hands", "who is still holding": still_holding and the wallets with the most value still held.
-- "Did the dev dump", "the creator", "the deployer": token_creator_bought_in_range and the creator's facts. When the
-  digest shows nothing about the creator selling, say these facts do not show it.
+- "Did the dev dump", "the creator", "the deployer": token_creator_bought_in_range and token_creator_sells. When
+  token_creator_sells is "not tracked by this analysis", the answer starts with "These facts do not say" (never No).
 - "Insiders", "cabal", "coordinated", "bundled": bundles (shared funder), fresh wallets and their share of the range's
   buying. "Snipers": the snipers count and the wallets tagged sniper. "Bots": bot_like and the bot-like tag.
 - "Smart money", "KOL", "alpha wallets": wallets with known_trader_kol or an x_account; if none, say no wallet here
   has a public trader label. "KOLs selling while shilling": those wallets' sold share and exit market cap.
 - "Dumped at once" or "farmed the chart" (sold gradually): a wallet's sold share, number of sells and how long it held.
-- "Who sniped the launch and sold at 2x": wallets tagged sniper, with their ROI and exit market cap.
+- "Who sniped the launch and sold at 2x": snipers_list, with their ROI and exit market cap.
 - "Who got in at 10k", "how many x's": entry market cap (entry_mcap) and ROI; "x" means the multiple.
 - "One person?", "same funder, same timing": bundles (one funder behind several wallets) and fresh wallets; say what
   links them, and that the facts show a shared funder, not who owns the wallets.
@@ -440,9 +440,12 @@ def digest(r, watch=None, asked=None, mine=None, dossier=None):
                  "funded_straight_from_exchanges": dict(Counter(n for n in map(exchanges.name_of, funders.values()) if n).most_common(6))},
         "bundles": bundles,
         "token_creator_bought_in_range": facts(rowmap[creator]) if creator in rowmap else "no",
+        # 18.10: «Дев слил?» — модель відповідала «ні», бо творець не купував; продажів творця аналіз не рахує
+        "token_creator_sells": "not tracked by this analysis" if creator not in rowmap else "in its facts above",
         "top_by_pnl": [facts(x) for x in rows[:12]],
         "top_by_roi": {"bought_at_least": money(ROI_MIN_BOUGHT), "wallets": [facts(x) for x in by_roi[:8]]},
         # «хто продав на піку» (18.10): дешева модель плутала це з «хто більше заробив» — відповідь рахує код
+        "snipers_list": [facts(x) for x in rows if "sniper" in (x.get("tag_list") or [])][:8],     # «хто снайпнув», не лише скільки
         "top_by_exit_mcap": [facts(x) for x in sorted((x for x in sellers if x.get("exit_mcap_avg")),
                                                       key=lambda x: -x["exit_mcap_avg"])[:8]],
         "by_app": by_app,
@@ -522,7 +525,8 @@ def _ok_number(tok, known):
 # назви полів вижимки, які модель іноді вставляє в текст попри заборону. Підкреслення далі вирізається як розмітка,
 # і з «watch_candidates» виходило «watchcandidates» (помічено на зйомці демо, 10.10): спершу людські слова
 _FIELDS = {"watch_candidates": "the method's picks", "top_by_pnl": "the top by profit", "top_by_roi": "the top by ROI",
-           "top_by_exit_mcap": "the top by exit market cap",
+           "top_by_exit_mcap": "the top by exit market cap", "snipers_list": "the snipers",
+           "token_creator_sells": "the creator's sells", "token_creator_bought_in_range": "the creator's buys",
            "your_lists": "your lists", "asked_about": "the wallet you asked about", "by_app": "by app"}
 
 
