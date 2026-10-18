@@ -91,6 +91,14 @@ class TestDigest(unittest.TestCase):
         self.assertEqual(q("Напиши стих про солнце"), "Russian")
         self.assertEqual(q("ок"), "Ukrainian")                                             # Cyrillic, no telling words
 
+    def test_who_sold_the_top_is_counted_by_the_code(self):
+        r = dict(RESULT, rows=[row(W[0], 134_000, 16.82, 106, exitcap=1_000_000), row(W[1], 90_000, 12.7, 2818, exitcap=9_000_000),
+                               row(W[2], 50_000, 5.0, 3, exitcap=4_000_000), row(W[4], -500, 0.5, 20, exitcap=None, sells=0)])
+        d, _ = digest(r)
+        self.assertEqual([x["wallet"] for x in d["top_by_exit_mcap"]], [agent.short(W[1]), agent.short(W[2]), agent.short(W[0])])
+        system, user = agent.prompt_ask(d, "m", "Who sold the top?", "English")
+        self.assertIn("top_by_exit_mcap", user)                                      # і модель знає, де це шукати
+
     def test_a_wallet_name_is_a_label_not_an_instruction(self):
         d, _ = digest(RESULT)
         name = d["top_by_pnl"][0]["name"]
@@ -125,9 +133,22 @@ class TestCheck(unittest.TestCase):
         self.assertIn("25", dropped[0]["why"])                                         # 25x — вигадане
 
     def test_cards_may_state_a_fact_without_a_number_but_answers_may_not(self):
-        text = ["The token's creator did not buy in the range."]
+        text = ["Nobody can say what happens next."]
         self.assertEqual(check_bullets(text, self.d, self.wmap, need_fact=False)[0], text)
         self.assertEqual(check_bullets(text, self.d, self.wmap)[0], [])
+
+    def test_the_creator_not_buying_is_a_fact_when_the_digest_says_so(self):
+        # 18.10: «Did the dev dump?» — перевірка різала єдину правдиву відповідь, бо в ній нема числа
+        for text in ("The token's creator did not buy in the range.", "Творець токена не купував у діапазоні."):
+            self.assertEqual(check_bullets([text], self.d, self.wmap)[0], [text])
+
+    def test_a_short_verdict_leads_when_facts_follow_and_goes_alone(self):
+        keep, _ = check_bullets(["Partly.", "PAID drew 5 buyers."], self.d, self.wmap, verdict=True)
+        self.assertEqual(keep, ["Partly.", "PAID drew 5 buyers."])
+        keep, dropped = check_bullets(["Partly.", "Roses are red."], self.d, self.wmap, verdict=True)
+        self.assertEqual((keep, dropped[0]["text"]), ([], "Partly."))               # висновок без жодного факту — ні
+        keep, _ = check_bullets(["Partly.", "PAID drew 5 buyers."], self.d, self.wmap)
+        self.assertEqual(keep, ["PAID drew 5 buyers."])                              # картки: як і було
 
     def test_only_wallets_of_this_list(self):
         ok, dropped = check_wallets([{"wallet": agent.short(W[0]), "why": "ROI 16.82x"}, {"wallet": "Hack…1234", "why": "5"}],

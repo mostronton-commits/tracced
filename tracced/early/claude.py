@@ -6,7 +6,7 @@ json_chat(system, user) → (dict, usage), кидає AssistantError з людс
 """
 from .assistant import MAX_CALLS, AssistantError, parse_json
 
-DEFAULT_MODEL = "claude-sonnet-5-5"
+DEFAULT_MODEL = "claude-haiku-5-5"      # власник, 18.10: Haiku з інструкцією — запасна модель до DeepSeek
 # $ за мільйон токенів (вхід, вихід) — для журналу витрат у /admin; ціни Anthropic на 06.10.2026
 PRICES = {"claude-sonnet-5-5": (2.0, 10.0), "claude-sonnet-5": (2.0, 10.0), "claude-opus-5-5": (4.0, 20.0),
           "claude-haiku-5-5": (0.10, 0.50)}
@@ -36,10 +36,10 @@ class Claude:
         import anthropic
         self.calls += 1
         try:
-            r = self.client.beta.messages.create(
+            extra = {} if self.model.startswith("claude-haiku") else {"betas": [FALLBACK_BETA], "fallbacks": "default"}
+            r = self.client.beta.messages.create(                     # Haiku не має серверного запасного варіанта
                 model=self.model, max_tokens=MAX_TOKENS, system=system,
-                messages=[{"role": "user", "content": user}],
-                output_config={"effort": EFFORT}, betas=[FALLBACK_BETA], fallbacks="default")
+                messages=[{"role": "user", "content": user}], output_config={"effort": EFFORT}, **extra)
         except anthropic.RateLimitError as e:
             raise AssistantError("The agent's model is busy right now. Try again in a minute.") from e
         except anthropic.BadRequestError as e:

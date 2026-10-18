@@ -26,7 +26,7 @@ class FakeClient:
 class TestClaude(unittest.TestCase):
     def test_json_answer_and_its_price(self):
         fc = FakeClient(reply('Here: {"story": ["1 wallet bought."]}'))
-        out, usage = claude.Claude("k", client=fc).json_chat("rules", "digest")
+        out, usage = claude.Claude("k", model="claude-sonnet-5-5", client=fc).json_chat("rules", "digest")
         self.assertEqual(out, {"story": ["1 wallet bought."]})
         self.assertAlmostEqual(usage["cost"], (4000 * 2 + 500 * 10) / 1e6)        # Sonnet 5.5: $2 / $10 за мільйон
         kw = fc.sent[0]
@@ -34,11 +34,18 @@ class TestClaude(unittest.TestCase):
                          ("claude-sonnet-5-5", "rules", {"effort": "low"}, "default"))
         self.assertIn(claude.FALLBACK_BETA, kw["betas"])
 
+    def test_haiku_is_the_default_and_is_sent_without_a_server_fallback(self):
+        fc = FakeClient(reply('{"a": 1}', model="claude-haiku-5-5"))
+        out, usage = claude.Claude("k", client=fc).json_chat("s", "u")
+        self.assertEqual(fc.sent[0]["model"], "claude-haiku-5-5")
+        self.assertNotIn("fallbacks", fc.sent[0])                                    # Haiku його не має: «default» нічого не дає
+        self.assertAlmostEqual(usage["cost"], (4000 * 0.10 + 500 * 0.50) / 1e6)
+
     def test_a_broken_answer_is_asked_once_more_and_both_are_paid(self):
         fc = FakeClient(reply("no json here"), reply('{"answer": ["ok"]}'))
         out, usage = claude.Claude("k", client=fc).json_chat("s", "u")
         self.assertEqual((out, len(fc.sent)), ({"answer": ["ok"]}, 2))
-        self.assertAlmostEqual(usage["cost"], 2 * (4000 * 2 + 500 * 10) / 1e6)
+        self.assertAlmostEqual(usage["cost"], 2 * (4000 * 2 + 500 * 10) / 1e6)       # ціна — тієї моделі, що відповіла
 
     def test_a_refusal_is_a_readable_error_that_carries_its_cost(self):
         fc = FakeClient(reply("", out=0, stop="refusal"))
@@ -104,7 +111,7 @@ class TestRealSdkRequest(unittest.TestCase):
                 "usage": {"input_tokens": 100, "output_tokens": 20}})
         client = anthropic.Anthropic(api_key="test", max_retries=0,
                                      http_client=anthropic.DefaultHttpxClient(transport=httpx2.MockTransport(handler)))
-        out, usage = claude.Claude("test", client=client).json_chat("rules", "digest")
+        out, usage = claude.Claude("test", model="claude-sonnet-5-5", client=client).json_chat("rules", "digest")
         self.assertEqual(out, {"story": ["ok"]})
         self.assertTrue(seen["url"].endswith("/v1/messages?beta=true") or seen["url"].endswith("/v1/messages"))
         self.assertIn("server-side-fallback-2026-07-01", seen["beta"])
