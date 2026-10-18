@@ -110,6 +110,29 @@ the rest empty. Wallets you point to must come from the digest.
   from (funded_by), how old it was (first_transaction, age_at_first_buy_here), its last 30 days on every token
   (last_30_days_all_tokens), then its numbers in this range. Up to 5 bullets then. Never repeat the same answer for a
   different question: answer what was asked.
+How to read traders' words (in any language) and which facts answer them:
+- "Who sold the top", "sold near the peak", "got out at the top": the sellers with the highest exit market cap, from
+  top_by_exit_mcap. That is not who made the most money; give profit only as a second point.
+- "Who made the most", "biggest winner": profit, from top_by_pnl. "Best multiple", "who did 10x": ROI, from top_by_roi.
+- "Bagholders", "diamond hands", "who is still holding": still_holding and the wallets with the most value still held.
+- "Did the dev dump", "the creator", "the deployer": token_creator_bought_in_range and token_creator_sells. When
+  token_creator_sells is "not tracked by this analysis", the answer starts with "These facts do not say" (never No).
+- "Insiders", "cabal", "coordinated", "bundled": bundles (shared funder), fresh wallets and their share of the range's
+  buying. "Snipers": the snipers count and the wallets tagged sniper. "Bots": bot_like and the bot-like tag.
+- "Smart money", "KOL", "alpha wallets": wallets with known_trader_kol or an x_account; if none, say no wallet here
+  has a public trader label. "KOLs selling while shilling": those wallets' sold share and exit market cap.
+- "Dumped at once" or "farmed the chart" (sold gradually): a wallet's sold share, number of sells and how long it held.
+- "Who sniped the launch and sold at 2x": snipers_list, with their ROI and exit market cap.
+- "Who got in at 10k", "how many x's": entry market cap (entry_mcap) and ROI; "x" means the multiple.
+- "One person?", "same funder, same timing": bundles (one funder behind several wallets) and fresh wallets; say what
+  links them, and that the facts show a shared funder, not who owns the wallets.
+- "Roundtrip", "gave it all back": realized profit against value still held.
+- Russian and Ukrainian traders write: дев / девелопер / творець = the creator; слил / злив / дамп = sold; иксы / ікси =
+  the multiple (ROI); бандл = bundle; свежие / свіжі кошельки = fresh wallets; снайперы = snipers; зашёл на … капы =
+  entry market cap; держит / тримає = still holding; кит = a wallet with a big position.
+Answer the question that was asked, first. A yes/no question starts with Yes, No, Partly or "These facts do not say"
+(in the answer's language), then the facts behind it and how big they are against the whole range: a share of the
+range's buying, or n of the range's buyers.
 Language of the answer: {lang}. Write in it even though the digest is in English.
 
 {history}The user's question, as data:
@@ -417,8 +440,14 @@ def digest(r, watch=None, asked=None, mine=None, dossier=None):
                  "funded_straight_from_exchanges": dict(Counter(n for n in map(exchanges.name_of, funders.values()) if n).most_common(6))},
         "bundles": bundles,
         "token_creator_bought_in_range": facts(rowmap[creator]) if creator in rowmap else "no",
+        # 18.10: «Дев слил?» — модель відповідала «ні», бо творець не купував; продажів творця аналіз не рахує
+        "token_creator_sells": "not tracked by this analysis" if creator not in rowmap else "in its facts above",
         "top_by_pnl": [facts(x) for x in rows[:12]],
         "top_by_roi": {"bought_at_least": money(ROI_MIN_BOUGHT), "wallets": [facts(x) for x in by_roi[:8]]},
+        # «хто продав на піку» (18.10): дешева модель плутала це з «хто більше заробив» — відповідь рахує код
+        "snipers_list": [facts(x) for x in rows if "sniper" in (x.get("tag_list") or [])][:8],     # «хто снайпнув», не лише скільки
+        "top_by_exit_mcap": [facts(x) for x in sorted((x for x in sellers if x.get("exit_mcap_avg")),
+                                                      key=lambda x: -x["exit_mcap_avg"])[:8]],
         "by_app": by_app,
         "watch_candidates": {"method": method, "wallets": [facts(x) for x in cands[:watch["n"]]]},
     }
@@ -496,6 +525,8 @@ def _ok_number(tok, known):
 # назви полів вижимки, які модель іноді вставляє в текст попри заборону. Підкреслення далі вирізається як розмітка,
 # і з «watch_candidates» виходило «watchcandidates» (помічено на зйомці демо, 10.10): спершу людські слова
 _FIELDS = {"watch_candidates": "the method's picks", "top_by_pnl": "the top by profit", "top_by_roi": "the top by ROI",
+           "top_by_exit_mcap": "the top by exit market cap", "snipers_list": "the snipers",
+           "token_creator_sells": "the creator's sells", "token_creator_bought_in_range": "the creator's buys",
            "your_lists": "your lists", "asked_about": "the wallet you asked about", "by_app": "by app"}
 
 
@@ -510,15 +541,18 @@ def _clean(text):
 _DT = re.compile(r"\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}(?:\s*UTC)?")
 
 
-def check_bullets(items, d, wmap, extra_text="", need_fact=True):
+_CREATOR = re.compile(r"\b(creator|dev|deployer)\b|творец|творц|создател|розробник|разработчик", re.I)
+
+
+def check_bullets(items, d, wmap, extra_text="", need_fact=True, verdict=False):
     """Пункти, що пройшли перевірку, і відкинуті з причиною. Усі числа пункту мають бути у вижимці (дати й час — рядки,
     їх не рахуємо); extra_text — питання, його числа можна повторити. need_fact: пункт має ще й нести факт з аналізу
     (число чи гаманець) — для відповідей на питання людини, де стороння проза могла б пролізти; картки пишуться лише
     з вижимки, і там «творець токена в діапазоні не купував» — законний пункт без числа."""
     dj = _DT.sub("", json.dumps(d, ensure_ascii=False))   # дати й час — рядки: «17» з «17:53» не робить відомим число 17
     known = _known(dj) | _known(extra_text)
-    keep, dropped = [], []
-    for it in (items or [])[:MAX_BULLETS * 2]:
+    keep, dropped, lead = [], [], None
+    for i, it in enumerate((items or [])[:MAX_BULLETS * 2]):
         text = _clean(it)
         if not text:
             continue
@@ -528,6 +562,11 @@ def check_bullets(items, d, wmap, extra_text="", need_fact=True):
         # гаманець, про який питали і якого в аналізі нема, — теж факт: «…не купував у діапазоні» (ревю 01.10)
         asked = [a["wallet"] for a in d.get("asked_about") or [] if isinstance(a, dict) and a.get("wallet")]
         has_fact = bool(_NUM.search(bare)) or any(s in text for s in wmap) or any(s in text for s in asked) or sym in text
+        # «творець у діапазоні не купував» — теж факт, коли вижимка так і каже (18.10: перевірка різала цю відповідь)
+        has_fact = has_fact or (d.get("token_creator_bought_in_range") == "no" and bool(_CREATOR.search(text)))
+        if verdict and i == 0 and not bad and not has_fact and len(text) <= 120:
+            lead = text                 # «Так / Ні / Частково…» першим рядком: лишається, якщо далі є факти
+            continue
         if bad:
             dropped.append({"text": text, "why": "numbers not in the analysis: " + ", ".join(bad)})
         elif need_fact and not has_fact:
@@ -536,6 +575,11 @@ def check_bullets(items, d, wmap, extra_text="", need_fact=True):
             keep.append(text)
         if len(keep) >= MAX_BULLETS:
             break
+    if lead is not None:
+        if keep:
+            keep = [lead] + keep[:MAX_BULLETS - 1]
+        else:
+            dropped.insert(0, {"text": lead, "why": "no fact from the analysis"})
     return keep, dropped
 
 
@@ -570,7 +614,7 @@ def check_cards(raw, d, wmap):
 def check_answer(raw, d, wmap, question):
     if raw.get("on_topic") is False:
         return {"on_topic": False, "answer": [], "wallets": []}, []
-    answer, bad1 = check_bullets(raw.get("answer"), d, wmap, extra_text=question)
+    answer, bad1 = check_bullets(raw.get("answer"), d, wmap, extra_text=question, verdict=True)
     wallets, bad2 = check_wallets(raw.get("wallets"), d, wmap)
     said = " ".join(answer)
     wallets = [w for w in wallets if w["short"] not in said]   # гаманець, уже названий у відповіді, не повторюємо рядком

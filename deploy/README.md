@@ -46,7 +46,10 @@ needs no GitHub secret: it only reads a public repository, so the only way to de
 ## Backups and logs
 
 Everything users create is under `output/early` (accounts, saved analyses, events, daily counters, the demo snapshot).
-A daily copy, kept two weeks:
-`0 4 * * * tar czf /var/backups/tracced/early-$(date +\%F).tgz -C /opt/tracced output/early && find /var/backups/tracced -name 'early-*.tgz' -mtime +14 -delete`
-(create `/var/backups/tracced` once). Copy the archives off the box now and then. Container logs are capped by the
-compose files (5 × 20 MB per container).
+`deploy/backup.sh` packs `output/`, `config.yaml` and `.env` every night into `/root/backups/tracced/` (root-only
+files, the last 7 kept). Root's crontab on the VPS:
+`0 3 * * * sh /opt/tracced/deploy/backup.sh >> /var/log/tracced-backup.log 2>&1`
+The archives leave the box every day: the owner's Mac pulls new ones to an external SSD (a launchd job, run after a
+missed time when the Mac wakes; it warns when the SSD has had no fresh archive for 3 days). To restore: stop the
+container, unpack an archive into `/opt/tracced`, start it again. Container logs are capped by the compose files
+(5 × 20 MB per container).
