@@ -120,7 +120,16 @@ How to read traders' words (in any language) and which facts answer them:
 - "Insiders", "cabal", "coordinated", "bundled": bundles (shared funder), fresh wallets and their share of the range's
   buying. "Snipers": the snipers count and the wallets tagged sniper. "Bots": bot_like and the bot-like tag.
 - "Smart money", "KOL", "alpha wallets": wallets with known_trader_kol or an x_account; if none, say no wallet here
-  has a public trader label.
+  has a public trader label. "KOLs selling while shilling": those wallets' sold share and exit market cap.
+- "Dumped at once" or "farmed the chart" (sold gradually): a wallet's sold share, number of sells and how long it held.
+- "Who sniped the launch and sold at 2x": wallets tagged sniper, with their ROI and exit market cap.
+- "Who got in at 10k", "how many x's": entry market cap (entry_mcap) and ROI; "x" means the multiple.
+- "One person?", "same funder, same timing": bundles (one funder behind several wallets) and fresh wallets; say what
+  links them, and that the facts show a shared funder, not who owns the wallets.
+- "Roundtrip", "gave it all back": realized profit against value still held.
+- Russian and Ukrainian traders write: дев / девелопер / творець = the creator; слил / злив / дамп = sold; иксы / ікси =
+  the multiple (ROI); бандл = bundle; свежие / свіжі кошельки = fresh wallets; снайперы = snipers; зашёл на … капы =
+  entry market cap; держит / тримає = still holding; кит = a wallet with a big position.
 Answer the question that was asked, first. A yes/no question starts with Yes, No, Partly or "These facts do not say"
 (in the answer's language), then the facts behind it and how big they are against the whole range: a share of the
 range's buying, or n of the range's buyers.
