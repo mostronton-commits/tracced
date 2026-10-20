@@ -53,3 +53,10 @@ The archives leave the box every day: the owner's Mac pulls new ones to an exter
 missed time when the Mac wakes; it warns when the SSD has had no fresh archive for 3 days). To restore: stop the
 container, unpack an archive into `/opt/tracced`, start it again. Container logs are capped by the compose files
 (5 × 20 MB per container).
+
+## Which copy runs the Telegram bot
+
+Telegram lets one server read a bot's messages, and production and dev share `TELEGRAM_BOT_TOKEN`, so only one copy has
+`ALERTS=1` at a time: that one answers `/start`, `/stop` and `/early`, and sends the alerts.
+`sh /opt/tracced-dev/deploy/tg_bot_switch.sh dev` moves the bot to dev for a test, `... prod` brings it back. It copies
+both `.env` files first and stops if either copy is running an analysis.
