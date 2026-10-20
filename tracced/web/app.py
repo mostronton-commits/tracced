@@ -2006,7 +2006,7 @@ async def _tg_early(app, http, msg, mint):
         if not app["runs_daily"].take(f"tg:cmd:{chat}", int(app["s"].get("tg_commands_per_chat", 60))):
             return                                              # хтось засипає чат адресами: мовчимо до завтра
         sent = await _tg_call(http, app["tg"]["token"], "sendMessage", chat_id=chat, parse_mode="HTML",
-                              text=f"Looking at <code>{html_mod.escape(mint)}</code>…", disable_web_page_preview=True,
+                              text=f"Looking at {html_mod.escape(tgbot.short(mint))}…", disable_web_page_preview=True,
                               reply_parameters={"message_id": msg.get("message_id"), "allow_sending_without_reply": True})
         mid = sent["message_id"]
         job, how = _tg_existing(app, mint), None
@@ -2063,9 +2063,8 @@ async def _tg_watch(app, http, e):
                 if p != phase:                                  # правка лише на зміну етапу: Telegram рахує й правки
                     phase = p
                     await _tg_edit(app, http, chat, mid,
-                                   f"Looking at <code>{html_mod.escape(job.mint)}</code>\n"
-                                   f"Pump window: {tgbot.span(job.t_from, job.t_to)} UTC "
-                                   f"({html_mod.escape(e['how'])})\nAnalysing the early wallets: {html_mod.escape(str(p))}…")
+                                   f"<b>${html_mod.escape(str(job.symbol or tgbot.short(job.mint))[:16])}</b> · pump "
+                                   f"{tgbot.span(job.t_from, job.t_to)} UTC\nFinding the early wallets ({html_mod.escape(str(p))})…")
                 await asyncio.sleep(5)
                 continue
             r = job.result
@@ -2073,7 +2072,7 @@ async def _tg_watch(app, http, e):
             info = r.get("info") or {}
             fresh = (job.finished_ms or 0) > (time.time() - 3600) * 1000      # старий аналіз: перевірки запуску вже не буде
             waiting = r.get("launch") is None and bool(s.get("launch_on")) and fresh and time.time() < launch_until
-            text = tgbot.early_text(job.symbol or info.get("symbol"), job.mint, job.t_from, job.t_to, e["how"], rows,
+            text = tgbot.early_text(job.symbol or info.get("symbol"), job.mint, job.t_from, job.t_to, rows,
                                     r.get("identities") or {}, r, creator=info.get("creator") or info.get("deployer"),
                                     waiting=waiting)
             if text != last:

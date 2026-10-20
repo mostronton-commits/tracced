@@ -3,6 +3,7 @@ Telegram and a fake data provider — an analysed token answers for free, a new 
 Follow saves the wallets with their bells only for a linked Telegram."""
 import asyncio
 import json
+import re
 import tempfile
 import time
 import unittest
@@ -76,53 +77,65 @@ class TestText(unittest.TestCase):
         self.assertEqual([r["wallet"] for r in tgbot.top_rows(rows)], ["B", "A", "W5", "W4", "W3"])
         self.assertEqual(tgbot.top_rows([row("L", -5)]), [])
 
+    def test_short_addresses_and_round_money(self):
+        self.assertEqual(tgbot.short("5sQ7soAbCdEfGhJkx9sv"), "5sQ…9sv")              # owner, 20.10: three and three
+        self.assertEqual([tgbot.money(v) for v in (618_600, 9_540, 37.4, 1_230_000, -2_000, 100_000)],
+                         ["$619K", "$9.5K", "$37", "$1.2M", "-$2K", "$100K"])
+
     def test_a_wallet_line_carries_facts_and_escapes_names(self):
         w = "CE44oKS3wpUerx8afyeii56u5oQjBLZknzm4Q2CYHUz9"
-        line = tgbot.wallet_line(1, row(w, 22_600, entry_range_mcap=4_400, exit_mcap_avg=382_000, sold_share_pct=91.0,
-                                        tag_list=["sniper", "my-own"]), {w: {"name": "<b>x</b>", "twitter": "ape"}})
-        self.assertIn(f'href="https://solscan.io/account/{w}"', line)
+        line = tgbot.wallet_line(row(w, 22_600, entry_range_mcap=4_400, exit_mcap_avg=382_000, sold_share_pct=76.0,
+                                     tag_list=["sniper", "my-own"]), {w: {"name": "<b>x</b>", "twitter": "ape"}})
+        self.assertIn(f'<a href="https://solscan.io/account/{w}">CE4…Uz9</a>', line)
+        self.assertNotIn(w + "<", line.replace(f'account/{w}"', ""))               # the full address only in the link
         self.assertIn("@ape", line)                                       # X handle first
         self.assertIn("$4.4K → $382K", line)
         self.assertIn("<b>+$22.6K</b>", line)
-        self.assertIn("holds 9%", line)
+        self.assertIn("holds 24%", line)
         self.assertIn("sniper", line)
         self.assertNotIn("my-own", line)                                  # a person's own tags stay theirs
-        line = tgbot.wallet_line(2, row(w, 5, exit_mcap_avg=None), {w: {"name": "<script>"}})
+        line = tgbot.wallet_line(row(w, 5, exit_mcap_avg=None), {w: {"name": "<script>"}})
         self.assertIn("&lt;script&gt;", line)
         self.assertIn("→ holding", line)
+        self.assertNotIn("holds", tgbot.wallet_line(row(w, 5, sold_share_pct=99.7), {}))
 
     def test_launch_facts_only_with_proof_never_clean(self):
-        self.assertIn("running", tgbot.launch_lines({})[0])
-        self.assertIn("not run", tgbot.launch_lines({}, waiting=False)[0])
+        self.assertEqual(tgbot.launch_lines({}), ["Launch check: running…"])
+        self.assertEqual(tgbot.launch_lines({}, waiting=False), [])         # not run for an old analysis: no line
         self.assertIn("did not finish", tgbot.launch_lines({"launch": {"failed": "429"}})[0])
         found = {"launch": {"launch": {"bundle": "b0", "wallets": ["X", "Y"]},
                             "pairs": [{"bundle": f"b{i}", "seller": "S", "buyers": [["B", 1]]} for i in range(1, 5)],
                             "fee": {"to": [["FeeTaker111", 10000]], "paid": {"sol": 174.021}}, "sells": 113, "checked": 113}}
-        text = "\n".join(tgbot.launch_lines(found, creator="Creator"))
+        lines = tgbot.launch_lines(found, creator="Creator")
+        text = "\n".join(lines)
+        self.assertEqual(len(lines), 4)
+        self.assertIn("one bundle with 2 wallets", text)
         self.assertIn("explorer.jito.wtf/bundle/b0", text)
-        self.assertIn("2 more wallets", text)
-        self.assertIn("4 early sales", text)
-        self.assertIn("explorer.jito.wtf/bundle/b3", text)
-        self.assertNotIn("bundle/b4", text)                               # three links, then «…»
+        self.assertIn("4 early sales bought back", text)
+        self.assertIn("explorer.jito.wtf/bundle/b1", text)
+        self.assertIn("Fee…111", text)
         self.assertIn("174.021 SOL", text)
         own_fee = {"launch": {"pairs": [], "launch": None, "fee": {"to": [["Creator", 10000]]}, "sells": 48, "checked": 48}}
-        text = "\n".join(tgbot.launch_lines(own_fee, creator="Creator"))
-        self.assertIn("no proof of an organised launch found (48 of 48 early sales checked", text)
-        self.assertIn("not available", tgbot.launch_lines({"launch": {"no_tx": True, "pairs": []}})[0])
+        self.assertEqual(tgbot.launch_lines(own_fee, creator="Creator"), ["Launch: nothing organised found · 48 early sales checked"])
+        self.assertEqual(tgbot.launch_lines({"launch": {"pairs": [], "sells": 0}}), ["Launch: nothing organised found"])
+        self.assertEqual(tgbot.launch_lines({"launch": {"no_tx": True, "pairs": []}}), [])
         for r in ({}, found, own_fee):
             self.assertNotIn("clean", " ".join(tgbot.launch_lines(r)).lower())
 
-    def test_the_whole_answer_fits_telegram(self):
+    def test_the_whole_answer_is_short_and_fits_telegram(self):
         rows = [row("W" * 44, 10 ** 6, tag_list=list(tgbot.SHOWN_TAGS)) for _ in range(6)]
         names = {"W" * 44: {"name": "<" * 200}}
-        text = tgbot.early_text("<SYM>" * 10, MINT, T, T + 16 * MIN, "launch → first 3x", rows, names, {})
+        text = tgbot.early_text("<SYM>" * 10, MINT, T, T + 16 * MIN, rows, names, {})
         self.assertLessEqual(len(text), 4000)
         self.assertIn("$&lt;SYM&gt;", text)
-        self.assertIn(f"<code>{MINT}</code>", text)
-        self.assertIn(tgbot.span(T, T + 16 * MIN) + " UTC", text)
-        self.assertIn("top 5 by realized profit, of 6", text)
-        empty = tgbot.early_text("TST", MINT, T, T + 30 * MIN, "x", [row("L", -1)], {}, {})
-        self.assertIn("none has taken a profit yet", empty)
+        self.assertNotIn(MINT, text)                                       # the token's address: the person just sent it
+        self.assertIn("pump " + tgbot.span(T, T + 16 * MIN) + " UTC", text)
+        self.assertIn("Top 5 of 6 early wallets", text)
+        tower = [row(f"{c}" * 44, p) for c, p in zip("ABCDE", (168, 37, 22, 12, 9))] + [row(f"Z{i}" * 22, -1) for i in range(13)]
+        shown = re.sub(r"<[^>]+>", "", tgbot.early_text("TOWER", MINT, T, T + 25 * MIN, tower, {}, {"launch": {"pairs": [], "sells": 0}}))
+        self.assertLess(len(shown), 330)                                   # what a person reads, links aside (was ~620)
+        empty = tgbot.early_text("TST", MINT, T, T + 30 * MIN, [row("L", -1)], {}, {})
+        self.assertIn("1 early wallet, none in profit yet", empty)
 
     def test_span_shows_the_date_again_past_midnight(self):
         a = 1_790_035_200_000 - 10 * MIN                                 # 23:50 UTC
@@ -205,8 +218,8 @@ if AioHTTPTestCase:
             self.assertEqual(tg.of("sendMessage")[0]["reply_parameters"]["message_id"], 5)
             last = tg.of("editMessageText")[-1]
             self.assertIn("$TST", last["text"])
-            self.assertIn(W1[:6], last["text"])
-            self.assertIn("not run for this analysis", last["text"])         # an old result: no launch check is coming
+            self.assertIn(W1[:3] + "…" + W1[-3:], last["text"])
+            self.assertNotIn("Launch check", last["text"])                     # an old result: no launch check is coming
             self.assertEqual(last["reply_markup"]["inline_keyboard"][0][0]["callback_data"], "f:" + OTHER_JID)
             self.assertEqual(self.app["runs_daily"].left("tg:-100", 5), 5)     # a ready answer takes no new analysis
             self.assertEqual(self.app["tg_pending"], {})                       # nothing left to update after a restart

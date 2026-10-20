@@ -8,8 +8,6 @@ import html
 import re
 import time
 
-from . import alerts as alerts_mod
-
 MIN, HOUR = 60_000, 3_600_000
 ADDR = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 TOP = 5
@@ -82,17 +80,35 @@ def _who(idn):
     return str(idn.get("name") or "")[:24]
 
 
-def wallet_line(i, r, names):
+def short(w):
+    """«5sQ…9sv»: власник, 20.10 — у чаті не повні адреси, а перші й останні три знаки (посилання веде на повну)."""
+    w = str(w or "")
+    return f"{w[:3]}…{w[-3:]}" if len(w) > 8 else w
+
+
+def money(v):
+    """$619K, $1.2M, $9.5K, $37: у чаті без зайвих знаків після крапки."""
+    v = float(v or 0)
+    a = abs(v)
+    s = (f"{a / 1e9:.1f}B" if a >= 1e9 else f"{a / 1e6:.1f}M" if a >= 1e6 else f"{a / 1e3:.0f}K" if a >= 1e5
+         else f"{a / 1e3:.1f}K" if a >= 1e3 else f"{a:.0f}")
+    return ("-$" if v < 0 else "$") + s.replace(".0B", "B").replace(".0M", "M").replace(".0K", "K")
+
+
+def link(w, url="https://solscan.io/account/"):
+    return f'<a href="{url}{html.escape(w)}">{html.escape(short(w))}</a>'
+
+
+def wallet_line(r, names):
     w = r["wallet"]
-    out = f'{i}. <a href="https://solscan.io/account/{html.escape(w)}">{html.escape(alerts_mod.short(w))}</a>'
+    out = link(w)
     who = _who((names or {}).get(w))
     if who:
-        out += " " + html.escape(who)
+        out += " " + html.escape(who[:14])
     entry, exit_ = r.get("entry_range_mcap") or r.get("entry_mcap_avg"), r.get("exit_mcap_avg")
-    out += f" · {alerts_mod.money(entry)} → {alerts_mod.money(exit_) if exit_ else 'holding'}"
-    out += f" · <b>+{alerts_mod.money(r.get('realized_usd'))}</b>"
+    out += f" · {money(entry)} → {money(exit_) if exit_ else 'holding'} · <b>+{money(r.get('realized_usd'))}</b>"
     sold = r.get("sold_share_pct")
-    if sold is not None and float(sold) < 99.95:
+    if sold is not None and float(sold) < 99.5:
         out += f" · holds {round(100 - float(sold)):g}%"
     tags = [t for t in SHOWN_TAGS if t in (r.get("tag_list") or [])]
     if tags:
@@ -105,54 +121,49 @@ def plural(n, word):
 
 
 def launch_lines(r, creator=None, waiting=True):
-    """What the launch check found: only facts, each with its proof link; or what it checked and found nothing; or that
-    it is still running (waiting) or did not run for this analysis. r: the analysis result → HTML lines."""
+    """What the launch check found: only facts, each with its proof link; or one line that it found nothing and how much
+    it checked (never «clean»); or that it is still running. Nothing when it did not run for this analysis."""
     lc = r.get("launch")
     if lc is None:
-        return ["<b>Launch check:</b> " + ("running, this message updates when it is done." if waiting
-                                           else "not run for this analysis.")]
+        return ["Launch check: running…"] if waiting else []
     if lc.get("failed"):
-        return ["<b>Launch check:</b> did not finish this time."]
+        return ["Launch check: did not finish."]
+    jito = "https://explorer.jito.wtf/bundle/"
     out = []
     launch = lc.get("launch") or {}
     if launch.get("wallets"):
-        out.append(f'The creator launched in a <a href="https://explorer.jito.wtf/bundle/{html.escape(launch["bundle"])}">'
-                   f'Jito bundle</a> together with {plural(len(launch["wallets"]), "more wallet")}.')
+        out.append(f'creator launched in one bundle with {plural(len(launch["wallets"]), "wallet")} '
+                   f'(<a href="{jito}{html.escape(launch["bundle"])}">proof</a>)')
     pairs = lc.get("pairs") or []
     if pairs:
-        links = ", ".join(f'<a href="https://explorer.jito.wtf/bundle/{html.escape(p["bundle"])}">{i + 1}</a>'
-                          for i, p in enumerate(pairs[:3]))
-        out.append(f"{plural(len(pairs), 'early sale')} landed in one Jito bundle with a buy by another wallet "
-                   f"(bundles {links}{', …' if len(pairs) > 3 else ''}).")
+        out.append(f'{plural(len(pairs), "early sale")} bought back in the same bundle '
+                   f'(<a href="{jito}{html.escape(pairs[0]["bundle"])}">proof</a>)')
     fee = lc.get("fee") or {}
     to = [x[0] for x in fee.get("to") or [] if x and x[0] != creator]
     if to:
         paid = (fee.get("paid") or {}).get("sol")
-        out.append(f'The creator fee is redirected to <a href="https://solscan.io/account/{html.escape(to[0])}">'
-                   f'{html.escape(alerts_mod.short(to[0]))}</a>' + (f", {paid:g} SOL paid out so far." if paid else "."))
+        out.append(f"creator fee goes to {link(to[0])}" + (f", {paid:g} SOL paid" if paid else ""))
     if out:
-        return ["<b>Organised launch, on chain:</b>"] + ["• " + x for x in out]
+        return ["<b>Organised launch:</b>"] + ["• " + x for x in out]
     if lc.get("no_tx"):
-        return ["<b>Launch check:</b> not available for this older analysis."]
-    sells, checked = int(lc.get("sells") or 0), int(lc.get("checked", lc.get("sells") or 0) or 0)
-    what = f"{checked} of {plural(sells, 'early sale')} checked" if sells else "no early sales to check"
-    return [f"<b>Launch check:</b> no proof of an organised launch found ({what}; the creator's launch was not bundled "
-            "with other wallets; the creator fee is not redirected)."]
+        return []
+    checked = int(lc.get("checked", lc.get("sells") or 0) or 0)
+    return ["Launch: nothing organised found" + (f" · {plural(checked, 'early sale')} checked" if checked else "")]
 
 
-def early_text(symbol, mint, t_from, t_to, how, rows, names, result, creator=None, waiting=True):
-    """The whole answer. rows: the analysis rows; names: identities by wallet. Stays under Telegram's 4096."""
-    sym = html.escape(str(symbol or mint[:6])[:16])
-    lines = [f"<b>${sym}</b> · <code>{html.escape(mint)}</code>",
-             f"Pump window: {span(t_from, t_to)} UTC ({html.escape(how)})", ""]
+def early_text(symbol, mint, t_from, t_to, rows, names, result, creator=None, waiting=True):
+    """The whole answer, short (owner, 20.10: «забагато тексту»): the token and its pump, the top wallets, the launch.
+    rows: the analysis rows; names: identities by wallet. Stays under Telegram's 4096."""
+    sym = html.escape(str(symbol or short(mint))[:16])
+    lines = [f"<b>${sym}</b> · pump {span(t_from, t_to)} UTC", ""]
     top = top_rows(rows)
     if top:
-        lines.append(f"<b>Early wallets</b> · top {len(top)} by realized profit, of {len(rows):,}")
-        lines += [wallet_line(i + 1, r, names) for i, r in enumerate(top)]
+        lines.append(f"<b>Top {len(top)} of {len(rows):,} early wallets</b>")
+        lines += [wallet_line(r, names) for r in top]
     else:
-        lines.append(f"<b>Early wallets:</b> {len(rows or []):,} bought in this window, none has taken a profit yet.")
-    lines += [""] + launch_lines(result or {}, creator, waiting)
-    return "\n".join(lines)[:4000]
+        lines.append(f"{plural(len(rows or []), 'early wallet')}, none in profit yet.")
+    launch = launch_lines(result or {}, creator, waiting)
+    return "\n".join(lines + ([""] + launch if launch else []))[:4000]
 
 
 def keyboard(job_id, site, follow=True):
