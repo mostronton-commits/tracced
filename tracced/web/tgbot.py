@@ -28,12 +28,12 @@ def parse_early(text, bot_name="", private=False):
     t = str(text or "").strip()
     if not t:
         return None
-    head, _, rest = t.partition(" ")
-    cmd, _, to = head.partition("@")
+    parts = t.split()                                       # пробіл чи новий рядок: адреса часто вставляється з нового
+    cmd, _, to = parts[0].partition("@")
     if cmd.lower() == "/early":
         if to and bot_name and to.lower() != bot_name.lower():
             return None
-        arg = rest.split()[0] if rest.split() else ""
+        arg = parts[1] if len(parts) > 1 else ""
         return arg if ADDR.match(arg) else ""
     if private and not t.startswith("/") and ADDR.match(t):
         return t

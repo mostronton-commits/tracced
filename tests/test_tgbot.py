@@ -30,6 +30,7 @@ class TestParse(unittest.TestCase):
         self.assertEqual(tgbot.parse_early(f"/early {MINT}", "tracced_bot"), MINT)
         self.assertEqual(tgbot.parse_early(f"/early@tracced_bot  {MINT} please", "tracced_bot"), MINT)
         self.assertEqual(tgbot.parse_early(f"/EARLY@Tracced_Bot {MINT}", "tracced_bot"), MINT)
+        self.assertEqual(tgbot.parse_early(f"/early\n{MINT}", "tracced_bot"), MINT)            # pasted on a new line
         self.assertIsNone(tgbot.parse_early(f"/early@other_bot {MINT}", "tracced_bot"))     # another bot's command
         self.assertEqual(tgbot.parse_early("/early", "tracced_bot"), "")                      # → how to use it
         self.assertEqual(tgbot.parse_early("/early not-an-address", "tracced_bot"), "")
