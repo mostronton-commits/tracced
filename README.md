@@ -64,7 +64,8 @@ app it trades through.
 
 Keep what you find in your watchlist, in several named lists, tag wallets in your own words, and export a list as CSV or TXT. A bell
 on a wallet, or on a whole list, sends its buys and sells to Telegram about two seconds after the block, and each row
-counts the wallet's trades of the last 7 days. No token to start from? The home page has last month's top traders, KOLs and the best of the market who trade like
+counts the wallet's trades of the last 7 days. In Telegram, `/early <token>` to [@tracced_bot](https://t.me/tracced_bot), in a chat or a
+group, answers with the token's early wallets and its launch facts, and one button follows them. No token to start from? The home page has last month's top traders, KOLs and the best of the market who trade like
 people, each wallet's profit counted by tracced from its own swaps, to follow in one click with their alerts.
 [Your account →](https://tracced.xyz/docs/account)
 

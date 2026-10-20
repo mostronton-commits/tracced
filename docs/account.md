@@ -58,6 +58,28 @@ The chip above the table filters the list down to those wallets.
     It is the intersection of analyses saved to **your** account. Other people's saved analyses are never part of
     it, nothing leaves the server, and it costs no requests.
 
+## Ask in Telegram
+
+Send `/early <token address>` to [@tracced_bot](https://t.me/tracced_bot), or add the bot to a group and send the
+same command there (in a group with several bots, `/early@tracced_bot`). In a private chat a pasted address is enough.
+The answer is one message that fills in as the work goes:
+
+- the pump window: the range already analysed on tracced for this token, or, for a token nobody has analysed, from its
+  launch to the first minute its market cap reached three times its value ten minutes after launch (no such minute in
+  the first {{ s.max_window_hours }} hours: its first 30 minutes);
+- the five early wallets with the most realized profit, each with its entry and exit market cap, the profit, what it
+  still holds, its tags, and a link to the wallet on Solscan;
+- the launch check: what it found on chain, each fact with a link to its proof (the Jito bundle, the fee
+  transaction), or how many early sales it checked and found nothing in. It never calls a launch clean.
+
+*Follow these wallets* saves the five to a list named after the token, with their bells on while there is room under
+your cap. It works once this Telegram is connected to your wallet (see below). *Open on tracced* opens the whole
+analysis.
+
+A token already analysed answers at once and costs nothing. A new one is a real analysis: up to
+{{ s.tg_runs_per_chat }} a day per chat or group, and {{ s.tg_runs_per_day }} a day from the bot for everyone, within
+the site's own budget.
+
 ## Telegram alerts
 
 Click the bell by a wallet, in its row or in its card: its buys and sells come to Telegram, a few seconds after they
@@ -129,3 +151,6 @@ Only the owner sees it. It is never sold or shared, and it is kept for 13 months
 
 Without a wallet, the log holds nothing about you: visits are counted by Umami, which sets no cookies and never gets
 a wallet address.
+
+The Telegram bot logs which token was asked about and whether in a private chat or a group, not who asked. It keeps
+the chat and its answer's message only while that answer is still being updated, at most two hours.
