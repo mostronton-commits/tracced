@@ -1975,13 +1975,24 @@ async def _tg_window(app, mint, info, who):
     return best["start"] // MINUTE * MINUTE, min(-(-best["end"] // MINUTE) * MINUTE, now // MINUTE * MINUTE)
 
 
-async def _tg_new_job(app, chat, mint, who=None):
+def _tg_admin(app, user_id):
+    """Чи пише власник: його Telegram прив'язаний до гаманця з ADMIN_WALLETS (власник, 21.10: уперся в 5 аналізів на день,
+    перевіряючи бота). Як на сайті — без денних лічильників чату й бота; стеля одного прогону лишається."""
+    if not isinstance(user_id, int) or not app["admins"]:
+        return False
+    return any((app["accounts"].load(pk).get("telegram") or {}).get("chat") == user_id for pk in app["admins"])
+
+
+async def _tg_new_job(app, chat, mint, who=None, admin=False):
     """Новий аналіз для /early: вікно — з _tg_window. Стелі: чат і бот за добу, прогони водночас, місячний резерв і денний
-    бюджет запитів — ті самі, що в Analyze на сайті. Витрати пишуться на чат (who). → (job, чи це новий аналіз)."""
+    бюджет запитів — ті самі, що в Analyze на сайті; власник — без денних лічильників. Витрати пишуться на чат (who).
+    → (job, чи це новий аналіз)."""
     s, rd = app["s"], app["runs_daily"]
     if not s.get("tg_early_on", True):
         raise WebError("New analyses from Telegram are paused for now. Tokens analysed already still answer.")
     per_chat, per_day = int(s.get("tg_runs_per_chat", 5)), int(s.get("tg_runs_per_day", 20))
+    if admin:
+        per_chat = per_day = 10 ** 9
     if rd.left(f"tg:{chat}", per_chat) <= 0:
         raise WebError(f"This chat has used its {per_chat} new analyses for today. Tokens analysed already still "
                        "answer; more after 00:00 UTC.")
@@ -2011,9 +2022,11 @@ async def _tg_new_job(app, chat, mint, who=None):
     if day_rq and day_rq - rd.left("req:global", day_rq) + (_tg_in_flight(app) + 1) * worst > day_rq:
         raise WebError("Today's data budget for new analyses is used up. Tokens analysed already still answer.")
     # від перевірки до submit — без await: два /early водночас не проскочать повз стелю
-    if not rd.take(f"tg:{chat}", per_chat):
+    if admin:
+        pass
+    elif not rd.take(f"tg:{chat}", per_chat):
         raise WebError(f"This chat has used its {per_chat} new analyses for today.")
-    if not rd.take("tg:global", per_day):
+    elif not rd.take("tg:global", per_day):
         rd.add(f"tg:{chat}", -1)
         raise WebError("I have used today's new analyses. More after 00:00 UTC.")
     job = app["jobs"].submit(mint, t_from, t_to, symbol=info.get("symbol"), owner="system",
@@ -2031,7 +2044,8 @@ async def _tg_early(app, http, msg, mint):
         return
     app["tg_busy"].add(key)
     try:
-        if not app["runs_daily"].take(f"tg:cmd:{chat}", int(app["s"].get("tg_commands_per_chat", 60))):
+        admin = await asyncio.to_thread(_tg_admin, app, (msg.get("from") or {}).get("id"))
+        if not admin and not app["runs_daily"].take(f"tg:cmd:{chat}", int(app["s"].get("tg_commands_per_chat", 60))):
             return                                              # хтось засипає чат адресами: мовчимо до завтра
         sent = await _tg_call(http, app["tg"]["token"], "sendMessage", chat_id=chat, parse_mode="HTML",
                               text=f"Looking at {html_mod.escape(tgbot.short(mint))}…", disable_web_page_preview=True,
@@ -2040,7 +2054,7 @@ async def _tg_early(app, http, msg, mint):
         job, new, who = _tg_existing(app, mint), False, _tg_who(chat_o)
         try:
             if job is None:
-                job, new = await _tg_new_job(app, chat, mint, who)
+                job, new = await _tg_new_job(app, chat, mint, who, admin)
         except WebError as e:
             app["events"].add("system", "tg_early", mint=mint, refused=str(e)[:80], **who)
             await _tg_edit(app, http, chat, mid, html_mod.escape(str(e), quote=False))

@@ -327,6 +327,12 @@ if AioHTTPTestCase:
             self.assertIn("used its 1 new analyses", tg.of("editMessageText")[-1]["text"])
             self.assertIsNone(next((j for j in self.app["jobs"].jobs.values() if j.mint == mint3), None))
             self.assertEqual(self.app["runs_daily"].left("tg:global", 20), 19)
+            self.app["accounts"].set_telegram(TEST_PK, 555, "@owner")                  # the owner's Telegram: no daily caps
+            with mock.patch.object(app_mod, "_tg_call", tg), mock.patch.object(app_mod, "_tg_watch", mock.AsyncMock()) as watch:
+                await app_mod._tg_early(self.app, None, self.msg(f"/early {mint3}"), mint3)
+            self.assertEqual(self.app["jobs"].get(watch.call_args[0][2]["job"]).mint, mint3)
+            self.assertEqual(self.app["runs_daily"].left("tg:global", 20), 19)              # and it takes none of the day
+            await asyncio.to_thread(self.app["jobs"].q.join)
 
         async def test_each_chat_is_recorded_and_the_owner_sees_it(self):
             self.seed()
