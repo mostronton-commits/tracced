@@ -305,7 +305,12 @@ if AioHTTPTestCase:
                 self.assertEqual((job.t_from, job.t_to), (created // MIN * MIN, -(-(created + 41 * MIN) // MIN) * MIN))
                 await asyncio.to_thread(self.app["jobs"].q.join)
                 await app_mod._tg_early(self.app, None, self.msg(f"/early {mint2}"), mint2)   # the same token: reused
-                self.assertEqual(watch.call_args[0][2]["job"], job.id)
+                self.assertEqual(watch.call_args[0][2]["job"], job.id)                     # the rule gives the same window
+                old = self.app["jobs"].submit(mint2, job.t_from - 60 * MIN, job.t_from - 30 * MIN, owner="system")
+                await asyncio.to_thread(self.app["jobs"].q.join)
+                await app_mod._tg_early(self.app, None, self.msg(f"/early {mint2}"), mint2)   # an old rule's window is not
+                self.assertEqual(watch.call_args[0][2]["job"], job.id)                     # what the bot answers with
+                self.assertNotEqual(old.id, job.id)
                 mint3 = "D" * 40
                 await app_mod._tg_early(self.app, None, self.msg(f"/early {mint3}"), mint3)  # the chat's cap
             self.assertIn("used its 1 new analyses", tg.of("editMessageText")[-1]["text"])

@@ -1923,8 +1923,10 @@ def _tg_pending_set(app, key, entry):
 
 
 def _tg_existing(app, mint):
-    """Аналіз цього токена, який бот покаже замість нового: найсвіжіший готовий, інакше той, що йде."""
-    js = [j for j in list(app["jobs"].jobs.values()) if j.mint == mint and not j.replay
+    """Аналіз цього токена, який бот покаже замість нового: розмічений людиною на сайті, найсвіжіший готовий, інакше той,
+    що йде. Свої аналізи бот бере, лише коли чинне правило дає те саме вікно (тоді його id збігається в _tg_new_job):
+    вікно старого правила (до 21.10 — від запуску, ще до міграції) не повертається."""
+    js = [j for j in list(app["jobs"].jobs.values()) if j.mint == mint and not j.replay and j.owner != "system"
           and (j.status in ("queued", "running") or (j.status == "done" and j.result))]
     return max(js, key=lambda j: (j.status == "done", j.finished_ms or j.created_ms or 0), default=None)
 
