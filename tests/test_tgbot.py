@@ -151,6 +151,30 @@ class TestText(unittest.TestCase):
         self.assertEqual(kb, [[{"text": "Open on tracced", "url": "https://tracced.xyz/job/2bCCHQ_20261015-2016_2050"}]])
 
 
+class TestChatUsage(unittest.TestCase):
+    def test_each_chat_its_asks_and_what_its_analyses_cost(self):
+        from tracced.web import usage
+        now = T + 5 * HOUR
+        g = {"tg_chat": -100, "tg_kind": "group", "tg_name": "Pump club"}
+        p = {"tg_chat": 555, "tg_kind": "private", "tg_name": "@ape"}
+        ev = [dict(g, ts_ms=T, pubkey="system", event="spend", what="overview", st=2),
+              dict(g, ts_ms=T, pubkey="system", event="spend", what="tg-window", st=1),
+              dict(g, ts_ms=T, pubkey="system", event="analyze", job="J1", via="tg"),
+              dict(g, ts_ms=T, pubkey="system", event="tg_early", job="J1", new=1),
+              {"ts_ms": T + MIN, "pubkey": "system", "event": "run", "job": "J1", "st": 480},
+              {"ts_ms": T + 2 * MIN, "pubkey": "system", "event": "spend", "what": "names", "job": "J1", "st": 3},
+              {"ts_ms": T + 3 * MIN, "pubkey": "system", "event": "spend", "what": "enrich", "job": "J1", "rpc": 900},
+              {"ts_ms": T + 4 * MIN, "pubkey": "Wallet1", "event": "run", "job": "J1", "st": 50},   # someone re-ran it on the site
+              dict(p, ts_ms=T + HOUR, pubkey="system", event="tg_early", job="J1", new=0),
+              dict(p, ts_ms=T + 2 * HOUR, pubkey="system", event="tg_early", mint="M", refused="limit")]
+        u = usage.tg_usage(ev, now)
+        club, ape = u["chats"]
+        self.assertEqual((club["name"], club["asks"], club["new"], club["st"], club["rpc"]), ("Pump club", 1, 1, 486, 900))
+        self.assertEqual((ape["name"], ape["kind"], ape["asks"], ape["refused"], ape["st"]), ("@ape", "private", 2, 1, 0))
+        self.assertEqual((u["total"]["asks"], u["total"]["chats"], u["total"]["groups"], u["total"]["st"]), (3, 2, 1, 486))
+        self.assertEqual(u["recent"][0]["refused"], "limit")
+
+
 try:
     from aiohttp.test_utils import AioHTTPTestCase
 except ImportError:
@@ -164,10 +188,10 @@ if AioHTTPTestCase:
     from tracced.web.app import create_app, tg_reply
     try:
         from tests.test_early_pipeline import TRADES
-        from tests.test_web import FakeWebST, TEST_PK, W1, OTHER_MINT, OTHER_JID, DEMO_A, DEMO_B, _result, _job_file
+        from tests.test_web import FakeWebST, TEST_PK, W1, OTHER_MINT, OTHER_JID, DEMO_A, DEMO_B, _result, _job_file, wallet_cookie
     except ImportError:
         from test_early_pipeline import TRADES
-        from test_web import FakeWebST, TEST_PK, W1, OTHER_MINT, OTHER_JID, DEMO_A, DEMO_B, _result, _job_file
+        from test_web import FakeWebST, TEST_PK, W1, OTHER_MINT, OTHER_JID, DEMO_A, DEMO_B, _result, _job_file, wallet_cookie
 
     class FakeTelegram:
         def __init__(self):
@@ -244,6 +268,27 @@ if AioHTTPTestCase:
             self.assertIn("used its 1 new analyses", tg.of("editMessageText")[-1]["text"])
             self.assertIsNone(next((j for j in self.app["jobs"].jobs.values() if j.mint == mint3), None))
             self.assertEqual(self.app["runs_daily"].left("tg:global", 20), 19)
+
+        async def test_each_chat_is_recorded_and_the_owner_sees_it(self):
+            self.seed()
+            tg = FakeTelegram()
+            group = {"message_id": 5, "chat": {"id": -100, "type": "supergroup", "title": "Pump club"}, "text": "x"}
+            private = {"message_id": 6, "chat": {"id": 555, "type": "private", "username": "ape", "first_name": "A"}, "text": "x"}
+            self.app["s"]["tg_early_on"] = False                                  # a new token is refused, a ready one answers
+            with mock.patch.object(app_mod, "_tg_call", tg):
+                await app_mod._tg_early(self.app, None, group, OTHER_MINT)
+                await app_mod._tg_early(self.app, None, private, OTHER_MINT)
+                await app_mod._tg_early(self.app, None, private, "E" * 40)
+            asks = [e for e in self.app["events"].read(0) if e.get("event") == "tg_early"]
+            self.assertEqual([(e["tg_name"], e["tg_kind"], e.get("new"), bool(e.get("refused"))) for e in asks],
+                             [("Pump club", "group", 0, False), ("@ape", "private", 0, False), ("@ape", "private", None, True)])
+            r = await self.client.get("/admin?tab=tg", headers={"Cookie": wallet_cookie(TEST_PK)})
+            html = await r.text()
+            self.assertEqual(r.status, 200, html[:300])
+            for want in ("Pump club", "@ape", "refused: New analyses from Telegram", "chats · 1 group<"):
+                self.assertIn(want, html)
+            r = await self.client.get("/admin?tab=tg", headers={"Cookie": wallet_cookie(W1)})
+            self.assertEqual(r.status, 403)                                      # the owner's page only
 
         async def test_the_answer_survives_a_restart(self):
             self.seed()

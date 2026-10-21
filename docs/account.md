@@ -153,5 +153,6 @@ Only the owner sees it. It is never sold or shared, and it is kept for 13 months
 Without a wallet, the log holds nothing about you: visits are counted by Umami, which sets no cookies and never gets
 a wallet address.
 
-The Telegram bot logs which token was asked about and whether in a private chat or a group, not who asked. It keeps
-the chat and its answer's message only while that answer is still being updated, at most two hours.
+The Telegram bot logs each `/early`: the token, the answer, what a new analysis cost, and the chat it came from. A
+group is recorded by its name; a private chat by the person's Telegram username (or first name when there is none).
+That is how the owner sees what each chat uses of its daily limit. It is kept like the rest of this log.
