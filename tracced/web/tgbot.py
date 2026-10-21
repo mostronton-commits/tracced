@@ -43,7 +43,6 @@ ZONE_X, PUMP_X, NEW_HIGH_X = 1.5, 3.0, 2.0   # a range: highest close within 1.5
                                          # the range it had kept for two days is not a pump)
 ZONE_MAX, ZONE_MIN = HOUR, 8 * MIN       # the range before a breakout: at most an hour back, at least 8 minutes
 TOP_SPAN = 3 * HOUR                      # a pump's size: what the cap gained in its first 3 hours
-B36 = "0123456789abcdefghijklmnopqrstuvwxyz"
 
 
 def caps(candles, supply):
@@ -91,12 +90,12 @@ def pumps(pts):
     return out
 
 
-def pick(found, more=2):
-    """The default pump and up to `more` others for buttons: the biggest first, by the dollars of market cap it added in
-    its first TOP_SPAN. A multiple would crown the launch spike from $20K; dollars pick what the owner picked on all five
-    charts of 21.10 (Gato's first pump, hi's four days after the launch, GLITCH's next evening, «1», COLLECTOOOR)."""
-    ranked = sorted(found or [], key=lambda p: (-p["gain"], p["end"]))
-    return (ranked[0], ranked[1:1 + more]) if ranked else (None, [])
+def pick(found):
+    """The pump to answer about: the biggest, by the dollars of market cap it added in its first TOP_SPAN. A multiple
+    would crown the launch spike from $20K; dollars pick the owner's pump on four of five charts of 21.10 (hi four days
+    after the launch, GLITCH the next evening, «1», COLLECTOOOR) and his second range on Gato. One answer, no buttons for
+    the others (owner, 21.10: «зайве»): another range is marked on the site. → the pump or None."""
+    return min(found or [], key=lambda p: (-p["gain"], p["end"]), default=None)
 
 
 def refine(coarse, fine):
@@ -115,33 +114,6 @@ def launch_state(info):
     if "pump.fun" in str(info.get("launchpad") or "") and (not info.get("pools") or any(c < 100 for c in curves)):
         return "curve", None
     return "dex", info.get("created_time")
-
-
-def _b36(n):
-    out = ""
-    while True:
-        n, r = divmod(int(n), 36)
-        out = B36[r] + out
-        if not n:
-            return out
-
-
-def pump_data(mint, a, b):
-    """A button's data for another pump's window: p:<mint>:<from>.<to>, minutes in base 36 (fits Telegram's 64 bytes)."""
-    return f"p:{mint}:{_b36(a // MIN)}.{_b36(b // MIN)}"
-
-
-def parse_pump(data):
-    """→ (mint, from_ms, to_ms) or None."""
-    m = re.fullmatch(r"p:([1-9A-HJ-NP-Za-km-z]{32,44}):([0-9a-z]{1,7})\.([0-9a-z]{1,7})", str(data or ""))
-    if not m:
-        return None
-    a, b = int(m.group(2), 36) * MIN, int(m.group(3), 36) * MIN
-    return (m.group(1), a, b) if a < b else None
-
-
-def pump_label(p):
-    return f"{utc(p['end'])} → {money(p['top'])}"
 
 
 def top_rows(rows, n=TOP, min_profit=0, min_mult=0, creator=None):
@@ -249,13 +221,10 @@ def early_text(symbol, mint, t_from, t_to, rows, names, result, creator=None, wa
     return "\n".join(lines + ([""] + launch if launch else []))[:4000]
 
 
-def keyboard(job_id, site, more=()):
-    """Open on tracced; under it the other pumps found (owner, 21.10), each a new answer for its window. No «follow all
-    five» (owner, 20.10): one tap would add wallets nobody picked; a single wallet is followed from its row there."""
-    rows = [[{"text": "Open on tracced", "url": f"{site}/job/{job_id}"}]]
-    if more:
-        rows.append([{"text": label, "callback_data": data} for label, data in more])
-    return {"inline_keyboard": rows}
+def keyboard(job_id, site):
+    """One button: the whole analysis on the site. No «follow all five» (owner, 20.10): one tap would add wallets nobody
+    picked; a single wallet is followed from its row there. No other pumps either (owner, 21.10: «зайве»)."""
+    return {"inline_keyboard": [[{"text": "Open on tracced", "url": f"{site}/job/{job_id}"}]]}
 
 
 def utc(ms, short=False):

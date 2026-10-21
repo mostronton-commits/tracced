@@ -67,8 +67,8 @@ The answer is one message that fills in as the work goes:
 - the pump window: the range already analysed on tracced for this token. For a token nobody has analysed, the trading
   range right before a pump since its migration from the launchpad: from where the price settled into that range (at
   most an hour back) to the minute it broke out. A pump is a close 1.5x above the range's low that goes on to double it
-  before falling below it; of several, the one that added the most market cap in its first three hours. Up to two
-  others are buttons under the answer, each a new answer for its own window. A token still on pump.fun's curve, or with
+  before falling below it, or doubles it to a new high since the migration; of several, the one that added the most
+  market cap in its first three hours. Another range is marked on the site. A token still on pump.fun's curve, or with
   no pump since its migration, gets an answer that says so;
 - up to five early wallets worth a look: the most realized profit among those that sold at
   {{ s.tg_top_min_multiple }}x their entry or more on average and took at least ${{ s.tg_top_min_profit_usd }}. Bot-like
