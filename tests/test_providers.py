@@ -37,6 +37,14 @@ class TestMigration(unittest.TestCase):
     def test_a_token_launched_straight_on_a_dex_has_no_migration(self):
         self.assertIsNone(_migration([pool("raydium-clmm", BORN), pool("meteora-dlmm", BORN + 5000)]))
 
+    def test_a_pump_fun_token_whose_curve_pool_is_gone_migrated_into_pumpswap(self):
+        # GLITCH, 21.10: Solana Tracker gave only the PumpSwap pool; DexScreener's pair has the same creation time
+        pools = [pool("pumpfun-amm", BORN + 1_446_000), pool("raydium-clmm", BORN + 9_000_000)]
+        m = _migration(pools, "https://pump.fun")
+        self.assertEqual((m["ms"], m["market"], m["from"]), (BORN + 1_446_000, "pumpfun-amm", "pumpfun"))
+        self.assertIsNone(_migration(pools))                       # not from pump.fun: a PumpSwap pool proves nothing
+        self.assertIsNone(_migration([pool("raydium-clmm", BORN)], "https://pump.fun"))
+
     def test_the_launch_pool_is_the_one_with_the_curve(self):
         pools = [pool("raydium-clmm", BORN - 999), pool("pumpfun", BORN, curve=100)]
         self.assertEqual(_launch_pool(pools)["market"], "pumpfun")   # не найстаріший, а саме з кривою
