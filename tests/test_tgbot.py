@@ -67,6 +67,15 @@ class TestPumpWindow(unittest.TestCase):
         (p,) = tgbot.pumps(series((100_000, 180), (300_000, 20)))
         self.assertEqual((p["start"], p["end"]), (T + 120 * MIN, T + 180 * MIN))
 
+    def test_a_bounce_inside_an_old_range_is_not_a_pump(self):
+        # LILLY, 21.10: launched at $566K, two days between $200K and $550K; a 2x bounce under the old high is no pump
+        lilly = series((566_000, 10), (260_000, 60), (540_000, 30))
+        self.assertEqual(tgbot.pumps(lilly), [])
+        (p,) = tgbot.pumps(series((300_000, 10), (260_000, 60), (540_000, 30)))          # 2x to a new high is one
+        self.assertEqual(p["top"], 540_000)
+        (p,) = tgbot.pumps(series((900_000, 10), (100_000, 60), (320_000, 30)))          # 3x is one even under the old high
+        self.assertEqual(p["top"], 320_000)
+
     def test_no_pump_without_doubling_or_after_falling_out_of_the_range(self):
         self.assertEqual(tgbot.pumps(series((100_000, 30), (180_000, 30))), [])        # +80%: not a pump
         self.assertEqual(tgbot.pumps(series((100_000, 30), (160_000, 2), (90_000, 5), (250_000, 5))), [])   # broke down first

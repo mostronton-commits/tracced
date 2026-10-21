@@ -1967,7 +1967,8 @@ async def _tg_window(app, mint, info, who):
                 _spend(app, "system", "tg-window", st=st.requests_here() - req0, mint=mint, **who)
     best, more = tgbot.pick(tgbot.pumps(tgbot.caps(await asyncio.to_thread(load, "5m", start, now), supply)))
     if not best:
-        raise WebError("No pump since its migration yet: the market cap has not doubled out of a trading range.")
+        raise WebError("No pump since its migration: the market cap has not tripled out of a trading range, or doubled "
+                       "to a new high. Mark a range on tracced to analyse it anyway.")
     a, b = max(start, best["start"] - 70 * MINUTE), min(now, best["end"] + 70 * MINUTE)
     fine = [p for p in tgbot.caps(await asyncio.to_thread(load, "1m", a, b), supply) if p[0] >= start]
     best = tgbot.refine(best, fine)

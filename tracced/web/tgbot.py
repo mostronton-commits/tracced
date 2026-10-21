@@ -38,7 +38,9 @@ def parse_early(text, bot_name="", private=False):
     return None
 
 
-ZONE_X, PUMP_X = 1.5, 2.0               # a trading range: highest close within 1.5x the lowest; a pump: 2x that low
+ZONE_X, PUMP_X, NEW_HIGH_X = 1.5, 3.0, 2.0   # a range: highest close within 1.5x the lowest; a pump: 3x its low,
+                                         # or 2x to a new high since the migration (LILLY, 21.10: a 2x bounce inside
+                                         # the range it had kept for two days is not a pump)
 ZONE_MAX, ZONE_MIN = HOUR, 8 * MIN       # the range before a breakout: at most an hour back, at least 8 minutes
 TOP_SPAN = 3 * HOUR                      # a pump's size: what the cap gained in its first 3 hours
 B36 = "0123456789abcdefghijklmnopqrstuvwxyz"
@@ -65,11 +67,13 @@ def _range_before(pts, e):
 def pumps(pts):
     """Pumps and the window before each (owner's markup of 21.10 on six charts: the window is the trading range right
     before the breakout; the end matched within minutes, the start within ~20). A breakout: the close crosses ZONE_X x
-    the range's low and the cap reaches PUMP_X x that low before falling below it. `top`: the highest cap in the first
+    the range's low; a pump: before the cap falls below that low it reaches PUMP_X x the low, or NEW_HIGH_X x the low
+    and above everything since the migration. `top`: the highest cap in the first
     TOP_SPAN after the breakout, while it stays above the range's low; `gain` = top - low, in dollars.
     → [{start, end, low, top, gain}] by time."""
-    out, last = [], -1
+    out, last, high = [], -1, 0.0
     for e in range(1, len(pts)):
+        high = max(high, pts[e - 1][1])                         # the highest cap before this candle
         s, lo = _range_before(pts, e)
         if s <= last or lo <= 0 or pts[e][0] - pts[s][0] < ZONE_MIN or pts[e][1] <= ZONE_X * lo:
             continue
@@ -80,7 +84,7 @@ def pumps(pts):
             peak = max(peak, m)
             if t - pts[e][0] <= TOP_SPAN:
                 top = max(top, m)
-        if peak >= PUMP_X * lo:
+        if peak >= PUMP_X * lo or (peak >= NEW_HIGH_X * lo and peak > high):
             out.append({"start": pts[s][0], "end": pts[e][0], "low": lo, "top": top, "gain": top - lo})
             last = e
     return out
