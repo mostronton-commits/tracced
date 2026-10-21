@@ -44,25 +44,65 @@ class TestParse(unittest.TestCase):
             self.assertIsNone(tgbot.parse_early(text, "tracced_bot", private=True))
 
 
-class TestWindow(unittest.TestCase):
-    def test_launch_to_the_first_3x_of_the_cap_at_ten_minutes(self):
-        closes = [1.0] * 12 + [1.5, 2.0, 2.9, 3.1, 3.5]                    # 3x of +10 min is reached at minute 15 (high 2.93 < 3)
-        a, b, how = tgbot.auto_window(candles(closes), T, 1_000_000, T + 6 * HOUR)
-        self.assertEqual((a, b, how), (T, T + 16 * MIN, "launch → first 3x"))
+def series(*legs, start=T, step=MIN):
+    """[(t, cap)]: each leg is (cap, minutes) — that cap held for that many minutes."""
+    out, t = [], start
+    for cap, n in legs:
+        for _ in range(n):
+            out.append((t, cap))
+            t += step
+    return out
 
-    def test_no_3x_falls_back_to_the_first_half_hour(self):
-        a, b, how = tgbot.auto_window(candles([1.0] * 120), T, 1_000_000, T + 6 * HOUR)
-        self.assertEqual((a, b), (T, T + 30 * MIN))
-        self.assertIn("no 3x", how)
-        late = candles([1.0] * 11 + [1.0] * 400)                        # 3x only after six hours: not this rule's pump
-        late[-1]["high"] = 10.0
-        self.assertEqual(tgbot.auto_window(late, T, 1_000_000, T + 8 * HOUR)[1], T + 30 * MIN)
 
-    def test_too_new_or_no_data(self):
-        self.assertIsNone(tgbot.auto_window([], T, 1_000_000, T + MIN))     # a minute old: nothing to analyse yet
-        self.assertIsNone(tgbot.auto_window(candles([1.0]), T, 0, T + HOUR))
-        self.assertIsNone(tgbot.auto_window(candles([1.0]), None, 1_000_000, T + HOUR))
-        self.assertEqual(tgbot.auto_window([], T, 1_000_000, T + 10 * MIN)[1], T + 10 * MIN)   # never past now
+class TestPumpWindow(unittest.TestCase):
+    """Owner, 21.10: after the migration only; the window is the trading range right before the breakout."""
+
+    def test_the_range_before_the_breakout(self):
+        pts = series((300_000, 20), (100_000, 30), (120_000, 10), (400_000, 30))   # a drop, a range, a breakout
+        (p,) = tgbot.pumps(pts)
+        self.assertEqual((p["start"], p["end"]), (T + 20 * MIN, T + 60 * MIN))       # from where the range began
+        self.assertEqual((p["low"], p["top"], p["gain"]), (100_000, 400_000, 300_000))
+
+    def test_the_range_is_at_most_an_hour(self):
+        (p,) = tgbot.pumps(series((100_000, 180), (300_000, 20)))
+        self.assertEqual((p["start"], p["end"]), (T + 120 * MIN, T + 180 * MIN))
+
+    def test_no_pump_without_doubling_or_after_falling_out_of_the_range(self):
+        self.assertEqual(tgbot.pumps(series((100_000, 30), (180_000, 30))), [])        # +80%: not a pump
+        self.assertEqual(tgbot.pumps(series((100_000, 30), (160_000, 2), (90_000, 5), (250_000, 5))), [])   # broke down first
+        self.assertEqual(tgbot.pumps(series((100_000, 5), (400_000, 10))), [])         # no range to speak of (under 8 min)
+
+    def test_the_biggest_pump_in_dollars_first_the_others_for_buttons(self):
+        pts = series((20_000, 30), (100_000, 240), (120_000, 30), (350_000, 30))    # a launch spike, hours later the pump
+        launch, later = tgbot.pumps(pts)
+        self.assertGreater(launch["top"] / launch["low"], later["top"] / later["low"])   # ×5 against ×3.5 ...
+        best, more = tgbot.pick([launch, later])
+        self.assertIs(best, later)                                                  # ... but +$250K against +$80K
+        self.assertEqual(more, [launch])
+        self.assertEqual(tgbot.pick([]), (None, []))
+
+    def test_minute_candles_refine_the_bounds(self):
+        coarse = {"start": T, "end": T + 60 * MIN, "low": 1, "top": 4, "gain": 3}
+        fine = series((100_000, 46), (120_000, 12), (400_000, 20), start=T + 5 * MIN)
+        self.assertEqual(tgbot.refine(coarse, fine)["end"], T + 63 * MIN)
+        self.assertIs(tgbot.refine(coarse, series((100_000, 90))), coarse)
+
+    def test_where_a_window_may_start(self):
+        self.assertEqual(tgbot.launch_state({"migration": {"ms": T}, "launchpad": "pump.fun"}), ("migrated", T))
+        on_curve = {"launchpad": "https://pump.fun", "pools": [{"market": "pumpfun", "curve": 64.0}], "created_time": T}
+        self.assertEqual(tgbot.launch_state(on_curve), ("curve", None))
+        dex = {"launchpad": None, "pools": [{"market": "raydium-cpmm", "curve": None}], "created_time": T}
+        self.assertEqual(tgbot.launch_state(dex), ("dex", T))
+
+    def test_another_pumps_button(self):
+        a = T // MIN * MIN                                                             # windows are whole minutes
+        data = tgbot.pump_data(MINT, a, a + 47 * MIN)
+        self.assertLessEqual(len(data.encode()), 64)                                  # Telegram's limit
+        self.assertEqual(tgbot.parse_pump(data), (MINT, a, a + 47 * MIN))
+        for bad in ("p:x:1.2", f"p:{MINT}:z9.z8", "f:abc", None):
+            self.assertIsNone(tgbot.parse_pump(bad))
+        self.assertEqual(tgbot.pump_label({"end": T, "top": 1_640_000}), tgbot.utc(T) + " → $1.6M")
+
 
 class TestText(unittest.TestCase):
     def test_top_wallets_profitable_only_most_first(self):
@@ -146,9 +186,11 @@ class TestText(unittest.TestCase):
         self.assertNotIn(" ", tgbot.span(a, a + 5 * MIN).split("–")[1])
         self.assertIn(" ", tgbot.span(a, a + 20 * MIN).split("–")[1])
 
-    def test_one_button_the_whole_analysis(self):
+    def test_buttons_the_whole_analysis_and_other_pumps(self):
         kb = tgbot.keyboard("2bCCHQ_20261015-2016_2050", "https://tracced.xyz")["inline_keyboard"]
         self.assertEqual(kb, [[{"text": "Open on tracced", "url": "https://tracced.xyz/job/2bCCHQ_20261015-2016_2050"}]])
+        kb = tgbot.keyboard("j", "https://x", [("17 Oct 20:51 · ×2.5", "p:a"), ("17 Oct 23:15 · ×2.1", "p:b")])["inline_keyboard"]
+        self.assertEqual([b["callback_data"] for b in kb[1]], ["p:a", "p:b"])
 
 
 class TestChatUsage(unittest.TestCase):
@@ -257,9 +299,10 @@ if AioHTTPTestCase:
                 job = self.app["jobs"].get(entry["job"])
                 self.assertEqual((job.mint, job.owner), (mint2, "system"))
                 self.assertEqual(job.s_over["run_cap_requests"], 1500)
-                # the fake's chart: 1.0 for 40 min from creation, then 3x at minute 43; bounds in whole minutes
+                # the fake's chart: a flat 40 min from creation (no curve: launched on a DEX), then the breakout at
+                # minute 41; bounds in whole minutes
                 created = FakeWebST(TRADES).token_info(mint2)["created_time"]
-                self.assertEqual((job.t_from, job.t_to), (created // MIN * MIN, -(-(created + 44 * MIN) // MIN) * MIN))
+                self.assertEqual((job.t_from, job.t_to), (created // MIN * MIN, -(-(created + 41 * MIN) // MIN) * MIN))
                 await asyncio.to_thread(self.app["jobs"].q.join)
                 await app_mod._tg_early(self.app, None, self.msg(f"/early {mint2}"), mint2)   # the same token: reused
                 self.assertEqual(watch.call_args[0][2]["job"], job.id)
@@ -289,6 +332,30 @@ if AioHTTPTestCase:
                 self.assertIn(want, html)
             r = await self.client.get("/admin?tab=tg", headers={"Cookie": wallet_cookie(W1)})
             self.assertEqual(r.status, 403)                                      # the owner's page only
+
+        async def test_another_pumps_button_answers_for_its_window(self):
+            tg, mint4 = FakeTelegram(), "F" * 40
+            created = FakeWebST(TRADES).token_info(mint4)["created_time"] // MIN * MIN
+            cq = {"id": "q", "from": {"id": 555}, "data": tgbot.pump_data(mint4, created + 10 * MIN, created + 40 * MIN),
+                  "message": {"message_id": 9, "chat": {"id": -100, "type": "group", "title": "Pump club"}}}
+            with mock.patch.object(app_mod, "_tg_call", tg), mock.patch.object(app_mod, "_tg_watch", mock.AsyncMock()) as watch:
+                await app_mod._tg_pump_button(self.app, None, cq)
+                await app_mod._tg_pump_button(self.app, None, dict(cq, data="p:junk"))
+            job = self.app["jobs"].get(watch.call_args[0][2]["job"])
+            self.assertEqual((job.mint, job.t_from, job.t_to), (mint4, created + 10 * MIN, created + 40 * MIN))
+            self.assertEqual([p["text"] for p in tg.of("answerCallbackQuery")], ["Looking at that pump…", "This button is out of date."])
+            await asyncio.to_thread(self.app["jobs"].q.join)
+
+        async def test_a_token_still_on_the_curve_is_not_analysed(self):
+            tg, mint5 = FakeTelegram(), "G" * 40
+            real = self.app["st"].token_info
+
+            def on_curve(mint):
+                return dict(real(mint), launchpad="https://pump.fun", pools=[{"market": "pumpfun", "curve": 40.0}])
+            with mock.patch.object(self.app["st"], "token_info", on_curve), mock.patch.object(app_mod, "_tg_call", tg):
+                await app_mod._tg_early(self.app, None, self.msg(f"/early {mint5}"), mint5)
+            self.assertIn("still on pump.fun's curve", tg.of("editMessageText")[-1]["text"])
+            self.assertIsNone(next((j for j in self.app["jobs"].jobs.values() if j.mint == mint5), None))
 
         async def test_the_answer_survives_a_restart(self):
             self.seed()

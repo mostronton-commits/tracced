@@ -1945,10 +1945,40 @@ def _tg_who(chat_o):
     return {"tg_chat": chat_o.get("id"), "tg_kind": "private" if private else "group", "tg_name": name[:60] or None}
 
 
-async def _tg_new_job(app, chat, mint, who=None):
-    """Новий аналіз для /early: вікно — від запуску токена до першого 3x (правило А спайку 18.10). Стелі: чат і бот за
-    добу, прогони водночас, місячний резерв і денний бюджет запитів — ті самі, що в Analyze на сайті. Витрати пишуться
-    на чат (who). → (job, чи це новий аналіз)."""
+async def _tg_window(app, mint, info, who):
+    """Вікно для токена, якого ніхто не розмічав (власник, 21.10, розмітка шести графіків): лише після міграції;
+    проторговка перед ривком найрізкішого пампу; інші пампи — кнопками. 5-хвилинні свічки з міграції (кеш спільний із
+    графіком сайту), далі хвилинні довкола вибраного пампу. → ((from, to), [(підпис, дані кнопки)])."""
+    state, start = tgbot.launch_state(info)
+    if state == "curve":
+        raise WebError("This token is still on pump.fun's curve. Early wallets count from its migration: ask again then.")
+    now, supply, st = int(time.time() * 1000), info.get("supply") or 0, app["st"]
+    if not start or not supply:
+        raise WebError("No launch data came back for this token.")
+
+    def load(tf, a, b):
+        with st.meter():
+            req0 = st.requests_here()
+            try:
+                return pipeline._chart(st, mint, tf, a, b, info)
+            finally:
+                _spend(app, "system", "tg-window", st=st.requests_here() - req0, mint=mint, **who)
+    best, more = tgbot.pick(tgbot.pumps(tgbot.caps(await asyncio.to_thread(load, "5m", start, now), supply)))
+    if not best:
+        raise WebError("No pump since its migration yet: the market cap has not doubled out of a trading range.")
+    a, b = max(start, best["start"] - 70 * MINUTE), min(now, best["end"] + 70 * MINUTE)
+    fine = [p for p in tgbot.caps(await asyncio.to_thread(load, "1m", a, b), supply) if p[0] >= start]
+    best = tgbot.refine(best, fine)
+    t_from, t_to = best["start"] // MINUTE * MINUTE, min(-(-best["end"] // MINUTE) * MINUTE, now // MINUTE * MINUTE)
+    buttons = [(tgbot.pump_label(p), tgbot.pump_data(mint, p["start"] // MINUTE * MINUTE, -(-p["end"] // MINUTE) * MINUTE))
+               for p in more]
+    return (t_from, t_to), buttons
+
+
+async def _tg_new_job(app, chat, mint, who=None, chosen=None):
+    """Новий аналіз для /early: вікно — з _tg_window, або те, що вибрали кнопкою іншого пампу. Стелі: чат і бот за добу,
+    прогони водночас, місячний резерв і денний бюджет запитів — ті самі, що в Analyze на сайті. Витрати пишуться на чат
+    (who). → (job, чи це новий аналіз, кнопки інших пампів)."""
     s, rd = app["s"], app["runs_daily"]
     if not s.get("tg_early_on", True):
         raise WebError("New analyses from Telegram are paused for now. Tokens analysed already still answer.")
@@ -1962,29 +1992,18 @@ async def _tg_new_job(app, chat, mint, who=None):
         raise WebError("A few analyses are running already. Try again in a few minutes.")
     who = who or {}
     info, _ = await _overview(app, mint, None, "system", via="tg", **who)
-    created, supply, now = info.get("created_time"), info.get("supply") or 0, int(time.time() * 1000)
-    if not created or not supply:
-        raise WebError("No launch data came back for this token.")
+    now, buttons = int(time.time() * 1000), []
+    if chosen:
+        t_from, t_to = chosen
+    else:
+        (t_from, t_to), buttons = await _tg_window(app, mint, info, who)
     max_h = float(s.get("max_window_hours", 6) or 6)
-    st = app["st"]
-
-    def load():
-        with st.meter():
-            req0 = st.requests_here()
-            try:
-                return pipeline._chart(st, mint, "1m", created, min(now, created + int(max_h * HOUR)), info)
-            finally:
-                _spend(app, "system", "tg-window", st=st.requests_here() - req0, mint=mint, **who)
-    w = tgbot.auto_window(await asyncio.to_thread(load), created, supply, now, max_hours=max_h)
-    if not w:
-        raise WebError("This token launched a minute ago. Try again in a few minutes.")
-    t_from, t_to = w[0] // MINUTE * MINUTE, min(-(-w[1] // MINUTE) * MINUTE, now // MINUTE * MINUTE)   # хвилини, як на сайті
-    errs = window.validate(t_from, t_to, created, now, max_window_ms=int(max_h * HOUR))
+    errs = window.validate(t_from, t_to, info.get("created_time"), now, max_window_ms=int(max_h * HOUR))
     if errs:
         raise WebError(" ".join(errs))
     cur = app["jobs"].get(make_id(mint, t_from, t_to))
     if cur and cur.mint == mint and (cur.status in ("queued", "running") or (cur.status == "done" and cur.result)):
-        return cur, False
+        return cur, False, buttons
     worst = int(s.get("tg_run_cap_requests", 1500))
     reserve = _credits_reserve(s)
     if reserve:
@@ -2004,14 +2023,15 @@ async def _tg_new_job(app, chat, mint, who=None):
     job = app["jobs"].submit(mint, t_from, t_to, symbol=info.get("symbol"), owner="system",
                              s_over={"budget_guard_pct": 0, "run_cap_requests": worst})
     app["events"].add("system", "analyze", job=job.id, symbol=info.get("symbol") or mint[:6], via="tg", **who)
-    return job, True
+    return job, True, buttons
 
 
-async def _tg_early(app, http, msg, mint):
+async def _tg_early(app, http, msg, mint, chosen=None):
     """/early <mint>: одразу «дивлюсь», далі те саме повідомлення оновлюється — гаманці, коли аналіз готовий, і факти
-    запуску, коли пройде перевірка. Готовий аналіз токена нічого не коштує; новий — у межах стель _tg_new_job."""
+    запуску, коли пройде перевірка. Готовий аналіз токена нічого не коштує; новий — у межах стель _tg_new_job.
+    chosen: вікно іншого пампу з кнопки під попередньою відповіддю."""
     chat_o = msg.get("chat") or {}
-    chat, key = chat_o.get("id"), (chat_o.get("id"), mint)
+    chat, key = chat_o.get("id"), (chat_o.get("id"), mint, chosen)
     if key in app["tg_busy"]:                                   # той самий токен у тому ж чаті вже в роботі
         return
     app["tg_busy"].add(key)
@@ -2022,16 +2042,16 @@ async def _tg_early(app, http, msg, mint):
                               text=f"Looking at {html_mod.escape(tgbot.short(mint))}…", disable_web_page_preview=True,
                               reply_parameters={"message_id": msg.get("message_id"), "allow_sending_without_reply": True})
         mid = sent["message_id"]
-        job, new, who = _tg_existing(app, mint), False, _tg_who(chat_o)
+        job, new, who, buttons = None if chosen else _tg_existing(app, mint), False, _tg_who(chat_o), []
         try:
             if job is None:
-                job, new = await _tg_new_job(app, chat, mint, who)
+                job, new, buttons = await _tg_new_job(app, chat, mint, who, chosen)
         except WebError as e:
             app["events"].add("system", "tg_early", mint=mint, refused=str(e)[:80], **who)
-            await _tg_edit(app, http, chat, mid, html_mod.escape(str(e)))
+            await _tg_edit(app, http, chat, mid, html_mod.escape(str(e), quote=False))
             return
         app["events"].add("system", "tg_early", job=job.id, symbol=job.symbol, new=int(new), **who)
-        entry = {"chat": chat, "mid": mid, "job": job.id, "at": time.time()}
+        entry = {"chat": chat, "mid": mid, "job": job.id, "at": time.time(), "more": buttons}
         await _tg_watch(app, http, entry)
     except asyncio.CancelledError:
         raise
@@ -2082,7 +2102,7 @@ async def _tg_watch(app, http, e):
                                     waiting=waiting, min_profit=float(s.get("tg_top_min_profit_usd", 250)),
                                     min_mult=float(s.get("tg_top_min_multiple", 2)))
             if text != last:
-                await _tg_edit(app, http, chat, mid, text, tgbot.keyboard(job.id, site))
+                await _tg_edit(app, http, chat, mid, text, tgbot.keyboard(job.id, site, e.get("more") or ()))
                 last = text
             named = r.get("identities_done") or app["jobs"].namer is None or time.time() * 1000 - (job.finished_ms or 0) > 180_000
             if not waiting and named:
@@ -2090,6 +2110,18 @@ async def _tg_watch(app, http, e):
             await asyncio.sleep(15)
     finally:
         _tg_pending_set(app, pkey, None)
+
+
+async def _tg_pump_button(app, http, cq):
+    """Кнопка іншого пампу під відповіддю: нова відповідь у тому ж чаті для вікна перед тим пампом."""
+    got, m = tgbot.parse_pump(cq.get("data")), cq.get("message") or {}
+    with contextlib.suppress(Exception):
+        await _tg_call(http, app["tg"]["token"], "answerCallbackQuery", callback_query_id=cq.get("id"),
+                       text="Looking at that pump…" if got and m.get("chat") else "This button is out of date.")
+    if got and m.get("chat"):
+        mint, a, b = got
+        await _tg_early(app, http, {"chat": m["chat"], "message_id": m.get("message_id"), "from": cq.get("from")},
+                        mint, chosen=(a, b))
 
 
 async def _tg_bot_loop(app):
@@ -2110,9 +2142,13 @@ async def _tg_bot_loop(app):
                     app["alerts_state"]["bot"] = app["tg"]["name"]
                     with contextlib.suppress(Exception):        # підказка команд у полі вводу: без неї бот працює так само
                         await _tg_call(http, token, "setMyCommands", commands=tgbot.COMMANDS)
-                ups = await _tg_call(http, token, "getUpdates", offset=offset, timeout=30, allowed_updates=["message"])
+                ups = await _tg_call(http, token, "getUpdates", offset=offset, timeout=30,
+                                     allowed_updates=["message", "callback_query"])
                 for u in ups or []:
                     offset = max(offset, int(u.get("update_id") or 0) + 1)
+                    if u.get("callback_query"):
+                        _tg_task(app, _tg_pump_button(app, http, u["callback_query"]))
+                        continue
                     m = u.get("message") or {}
                     chat_o = m.get("chat") or {}
                     mint = tgbot.parse_early(m.get("text"), app["tg"]["name"], chat_o.get("type") == "private")

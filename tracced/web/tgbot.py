@@ -11,7 +11,6 @@ import time
 MIN, HOUR = 60_000, 3_600_000
 ADDR = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 TOP = 5
-FALLBACK_MIN = 30
 SHOWN_TAGS = ("bundle", "sniper", "fresh")
 SKIP_TAGS = {"bot-like", "dev", "launch-bundle", "own-bundle"}
 HELP = ("Send <code>/early &lt;token address&gt;</code> and I show the wallets that bought before its pump: entry and "
@@ -39,25 +38,105 @@ def parse_early(text, bot_name="", private=False):
     return None
 
 
-def auto_window(candles, created, supply, now, max_hours=6):
-    """The pump window when nobody marked one (spike of 18.10, rule A matched by eye on 3 of 3 tokens): from the
-    token's creation to the first minute its market cap reached 3x its value at +10 min, within the first `max_hours`.
-    Never reached → the first 30 minutes. `candles`: 1m price candles with time (ms), close and high.
-    → (from, to, how) or None without data."""
-    if not created or not supply:
+ZONE_X, PUMP_X = 1.5, 2.0               # a trading range: highest close within 1.5x the lowest; a pump: 2x that low
+ZONE_MAX, ZONE_MIN = HOUR, 8 * MIN       # the range before a breakout: at most an hour back, at least 8 minutes
+TOP_SPAN = 3 * HOUR                      # a pump's size: what the cap gained in its first 3 hours
+B36 = "0123456789abcdefghijklmnopqrstuvwxyz"
+
+
+def caps(candles, supply):
+    """Price candles → [(t_ms, market cap)] by time, closes only."""
+    return sorted((int(c["time"]), float(c["close"]) * supply) for c in candles or []
+                  if c.get("close") and c.get("time") is not None and supply)
+
+
+def _range_before(pts, e):
+    """The trading range right before candle e: back while the highest close stays within ZONE_X of the lowest, no
+    further than ZONE_MAX. → (index of its first candle, its lowest cap)."""
+    s, hi, lo = e - 1, pts[e - 1][1], pts[e - 1][1]
+    while s > 0 and pts[e][0] - pts[s - 1][0] <= ZONE_MAX:
+        m = pts[s - 1][1]
+        if max(hi, m) > ZONE_X * min(lo, m):
+            break
+        s, hi, lo = s - 1, max(hi, m), min(lo, m)
+    return s, lo
+
+
+def pumps(pts):
+    """Pumps and the window before each (owner's markup of 21.10 on six charts: the window is the trading range right
+    before the breakout; the end matched within minutes, the start within ~20). A breakout: the close crosses ZONE_X x
+    the range's low and the cap reaches PUMP_X x that low before falling below it. `top`: the highest cap in the first
+    TOP_SPAN after the breakout, while it stays above the range's low; `gain` = top - low, in dollars.
+    → [{start, end, low, top, gain}] by time."""
+    out, last = [], -1
+    for e in range(1, len(pts)):
+        s, lo = _range_before(pts, e)
+        if s <= last or lo <= 0 or pts[e][0] - pts[s][0] < ZONE_MIN or pts[e][1] <= ZONE_X * lo:
+            continue
+        peak = top = pts[e][1]
+        for t, m in pts[e:]:
+            if m < lo:
+                break                                           # fell out of the range: the pump is over
+            peak = max(peak, m)
+            if t - pts[e][0] <= TOP_SPAN:
+                top = max(top, m)
+        if peak >= PUMP_X * lo:
+            out.append({"start": pts[s][0], "end": pts[e][0], "low": lo, "top": top, "gain": top - lo})
+            last = e
+    return out
+
+
+def pick(found, more=2):
+    """The default pump and up to `more` others for buttons: the biggest first, by the dollars of market cap it added in
+    its first TOP_SPAN. A multiple would crown the launch spike from $20K; dollars pick what the owner picked on all five
+    charts of 21.10 (Gato's first pump, hi's four days after the launch, GLITCH's next evening, «1», COLLECTOOOR)."""
+    ranked = sorted(found or [], key=lambda p: (-p["gain"], p["end"]))
+    return (ranked[0], ranked[1:1 + more]) if ranked else (None, [])
+
+
+def refine(coarse, fine):
+    """The same pump on minute candles: the minute pump whose breakout is nearest (within 15 min); else the coarse one."""
+    near = [p for p in pumps(fine) if abs(p["end"] - coarse["end"]) <= 15 * MIN]
+    return min(near, key=lambda p: abs(p["end"] - coarse["end"])) if near else coarse
+
+
+def launch_state(info):
+    """Where the window may start (owner, 21.10: «до міграції нас не цікавить»): → ("migrated", ms), ("curve", None)
+    for a pump.fun token whose curve is not finished, or ("dex", created) for a token launched straight on an exchange."""
+    mig = (info.get("migration") or {}).get("ms")
+    if mig:
+        return "migrated", int(mig)
+    curves = [p.get("curve") for p in info.get("pools") or [] if p.get("curve") is not None]
+    if "pump.fun" in str(info.get("launchpad") or "") and (not info.get("pools") or any(c < 100 for c in curves)):
+        return "curve", None
+    return "dex", info.get("created_time")
+
+
+def _b36(n):
+    out = ""
+    while True:
+        n, r = divmod(int(n), 36)
+        out = B36[r] + out
+        if not n:
+            return out
+
+
+def pump_data(mint, a, b):
+    """A button's data for another pump's window: p:<mint>:<from>.<to>, minutes in base 36 (fits Telegram's 64 bytes)."""
+    return f"p:{mint}:{_b36(a // MIN)}.{_b36(b // MIN)}"
+
+
+def parse_pump(data):
+    """→ (mint, from_ms, to_ms) or None."""
+    m = re.fullmatch(r"p:([1-9A-HJ-NP-Za-km-z]{32,44}):([0-9a-z]{1,7})\.([0-9a-z]{1,7})", str(data or ""))
+    if not m:
         return None
-    mc = sorted((int(c["time"]), float(c["close"]) * supply, float(c.get("high") or c["close"]) * supply)
-                for c in candles or [] if c.get("close") and c.get("time") is not None)
-    ref = created + 10 * MIN
-    before = [x for x in mc if x[0] <= ref - MIN] or mc[:1]
-    end_cap = min(now, created + max_hours * HOUR)
-    if before and before[-1][1] > 0:
-        base = before[-1][1]
-        for t, _, hi in mc:
-            if ref <= t <= end_cap and hi >= 3 * base:
-                return created, min(t + MIN, end_cap), "launch → first 3x"
-    to = min(created + FALLBACK_MIN * MIN, now)
-    return (created, to, f"first {FALLBACK_MIN} min, no 3x in {max_hours} h") if to - created >= 2 * MIN else None
+    a, b = int(m.group(2), 36) * MIN, int(m.group(3), 36) * MIN
+    return (m.group(1), a, b) if a < b else None
+
+
+def pump_label(p):
+    return f"{utc(p['end'])} → {money(p['top'])}"
 
 
 def top_rows(rows, n=TOP, min_profit=0, min_mult=0, creator=None):
@@ -165,10 +244,13 @@ def early_text(symbol, mint, t_from, t_to, rows, names, result, creator=None, wa
     return "\n".join(lines + ([""] + launch if launch else []))[:4000]
 
 
-def keyboard(job_id, site):
-    """One button: the whole analysis on the site. No «follow all five» (owner, 20.10): one tap would add wallets nobody
-    picked; a single wallet is followed from its row there."""
-    return {"inline_keyboard": [[{"text": "Open on tracced", "url": f"{site}/job/{job_id}"}]]}
+def keyboard(job_id, site, more=()):
+    """Open on tracced; under it the other pumps found (owner, 21.10), each a new answer for its window. No «follow all
+    five» (owner, 20.10): one tap would add wallets nobody picked; a single wallet is followed from its row there."""
+    rows = [[{"text": "Open on tracced", "url": f"{site}/job/{job_id}"}]]
+    if more:
+        rows.append([{"text": label, "callback_data": data} for label, data in more])
+    return {"inline_keyboard": rows}
 
 
 def utc(ms, short=False):
