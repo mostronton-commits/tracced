@@ -1965,13 +1965,13 @@ async def _tg_window(app, mint, info, who):
                 return pipeline._chart(st, mint, tf, a, b, info)
             finally:
                 _spend(app, "system", "tg-window", st=st.requests_here() - req0, mint=mint, **who)
-    best = tgbot.pick(tgbot.pumps(tgbot.caps(await asyncio.to_thread(load, "5m", start, now), supply)))
+    best = tgbot.choose(tgbot.caps(await asyncio.to_thread(load, "5m", start, now), supply))
     if not best:
         raise WebError("No pump since its migration: the market cap has not tripled out of a trading range, or doubled "
                        "to a new high. Mark a range on tracced to analyse it anyway.")
     a, b = max(start, best["start"] - 70 * MINUTE), min(now, best["end"] + 70 * MINUTE)
     fine = [p for p in tgbot.caps(await asyncio.to_thread(load, "1m", a, b), supply) if p[0] >= start]
-    best = tgbot.refine(best, fine)
+    best = best if best.get("slow") else tgbot.refine(best, fine)    # a slow climb has no minute breakout to snap to
     return best["start"] // MINUTE * MINUTE, min(-(-best["end"] // MINUTE) * MINUTE, now // MINUTE * MINUTE)
 
 

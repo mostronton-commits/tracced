@@ -88,6 +88,19 @@ class TestPumpWindow(unittest.TestCase):
         self.assertIs(tgbot.pick([launch, later]), later)                           # ... but +$250K against +$80K
         self.assertIsNone(tgbot.pick([]))
 
+    def test_a_slow_pump_days_later_wins_over_the_launch(self):
+        # Macca, 21.10: a launch pump, days in a range, then a climb over hours to a new high: the owner looks there
+        five = 5 * MIN
+        pts = [(t, c, c) for t, c in series((20_000, 6), (100_000, 470), (104_000, 12), (120_000, 12), (150_000, 12),
+                                            (180_000, 12), (220_000, 12), (260_000, 24), step=five)]
+        self.assertEqual(tgbot.pick(tgbot.pumps(pts))["end"], T + 6 * five)          # 5-minute candles see the launch only
+        slow = tgbot.choose(pts)
+        self.assertTrue(slow.get("slow"))
+        self.assertEqual(slow["end"], T + (6 + 470 + 12) * five)                     # where the climb began
+        self.assertEqual(slow["end"] - slow["start"], tgbot.SLOW_WINDOW)              # three hours of the range before it
+        flat = [(t, c, c) for t, c in series((20_000, 6), (100_000, 470), (104_000, 12), (150_000, 60), step=five)]
+        self.assertFalse(tgbot.choose(flat).get("slow"))                              # no new high: the launch stays
+
     def test_minute_candles_refine_the_bounds(self):
         coarse = {"start": T, "end": T + 60 * MIN, "low": 1, "top": 4, "gain": 3}
         fine = series((100_000, 46), (120_000, 12), (400_000, 20), start=T + 5 * MIN)
@@ -130,7 +143,7 @@ class TestText(unittest.TestCase):
                                      tag_list=["sniper", "my-own"]), {w: {"name": "<b>x</b>", "twitter": "ape"}})
         self.assertIn(f'<a href="https://solscan.io/account/{w}">CE4…Uz9</a>', line)
         self.assertNotIn(w + "<", line.replace(f'account/{w}"', ""))               # the full address only in the link
-        self.assertIn("@ape", line)                                       # X handle first
+        self.assertIn('<a href="https://x.com/ape">@ape</a>', line)       # X handle first, linked to X, not Telegram
         self.assertIn("$4.4K → $382K", line)
         self.assertIn("<b>+$22.6K</b>", line)
         self.assertIn("holds 24%", line)
@@ -139,6 +152,8 @@ class TestText(unittest.TestCase):
         line = tgbot.wallet_line(row(w, 5, exit_mcap_avg=None), {w: {"name": "<script>"}})
         self.assertIn("&lt;script&gt;", line)
         self.assertIn("→ holding", line)
+        line = tgbot.wallet_line(row(w, 5), {w: {"name": "@Dior100x", "twitter": "not a handle!"}})
+        self.assertNotIn("@", line)                                       # a bare @word would open a Telegram stranger
         self.assertNotIn("holds", tgbot.wallet_line(row(w, 5, sold_share_pct=99.7), {}))
 
     def test_launch_facts_only_with_proof_never_clean(self):
@@ -172,7 +187,7 @@ class TestText(unittest.TestCase):
         self.assertIn("$&lt;SYM&gt;", text)
         self.assertNotIn(MINT, text)                                       # the token's address: the person just sent it
         self.assertIn("pump " + tgbot.span(T, T + 16 * MIN) + " UTC", text)
-        self.assertIn("<b>5 of 6 early wallets</b> · in profit", text)
+        self.assertNotIn("early wallets", text)                            # no «5 of 6» line: the wallets speak
         tower = [row(f"{c}" * 44, p) for c, p in zip("ABCDE", (168, 37, 22, 12, 9))] + [row(f"Z{i}" * 22, -1) for i in range(13)]
         shown = re.sub(r"<[^>]+>", "", tgbot.early_text("TOWER", MINT, T, T + 25 * MIN, tower, {}, {"launch": {"pairs": [], "sells": 0}}))
         self.assertLess(len(shown), 330)                                   # what a person reads, links aside (was ~620)

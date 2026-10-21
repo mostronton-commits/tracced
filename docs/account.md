@@ -68,13 +68,14 @@ The answer is one message that fills in as the work goes:
   range right before a pump since its migration from the launchpad: from where the price settled into that range (at
   most an hour back) to the minute it broke out. A pump is a close 1.5x above the range's low that goes on to double it
   before falling below it, or doubles it to a new high since the migration; of several, the one that added the most
-  market cap in its first three hours. Another range is marked on the site. A token still on pump.fun's curve, or with
-  no pump since its migration, gets an answer that says so;
+  market cap in its first three hours. A token that has traded for days and later climbed over hours to a new high is
+  asked about for that climb: the window is up to three hours of the range before it began. Another range is marked on
+  the site. A token still on pump.fun's curve, or with no pump since its migration, gets an answer that says so;
 - up to five early wallets worth a look: the most realized profit among those that sold at
   {{ s.tg_top_min_multiple }}x their entry or more on average and took at least ${{ s.tg_top_min_profit_usd }}. Bot-like
   wallets, the token's creator and the wallets of the launch's own bundles never make it (those show as launch facts).
   Each has its entry and exit market cap, the profit, what it still holds and its tags; its short address opens it
-  on Solscan. When none qualifies, the answer says so;
+  on Solscan, its X account on X. When none qualifies, the answer says so;
 - the launch check: what it found on chain, each fact with a link to its proof (the Jito bundle, the fee
   transaction), or how many early sales it checked and found nothing in. It never calls a launch clean.
 

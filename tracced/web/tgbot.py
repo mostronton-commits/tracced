@@ -43,6 +43,11 @@ ZONE_X, PUMP_X, NEW_HIGH_X = 1.5, 3.0, 2.0   # a range: highest close within 1.5
                                          # the range it had kept for two days is not a pump)
 ZONE_MAX, ZONE_MIN = HOUR, 8 * MIN       # the range before a breakout: at most an hour back, at least 8 minutes
 TOP_SPAN = 3 * HOUR                      # a pump's size: what the cap gained in its first 3 hours
+# a slow pump (Macca, 21.10: out of a 17-hour range over two hours, then on to a new high a day later) only shows on hourly
+# candles: the range up to a day back and at least 3 h, its size over 12 h; its window up to 3 h before the climb
+SLOW = {"zone_max": 24 * HOUR, "zone_min": 3 * HOUR, "top_span": 12 * HOUR}
+SLOW_WINDOW, SLOW_FLAT, LATER = 3 * HOUR, 1.05, 6 * HOUR   # the climb begins past 1.05x the range's low; a slow pump
+                                         # wins only 6 h+ after the fast one (on «1» a continuation came 2 h later)
 
 
 def caps(candles, supply):
@@ -51,11 +56,12 @@ def caps(candles, supply):
                   for c in candles or [] if c.get("close") and c.get("time") is not None and supply)
 
 
-def _range_before(pts, e):
+def _range_before(pts, e, zone_max=None):
     """The trading range right before candle e: back while the highest close stays within ZONE_X of the lowest, no
-    further than ZONE_MAX. → (index of its first candle, its lowest cap)."""
+    further than zone_max (ZONE_MAX). → (index of its first candle, its lowest cap)."""
+    zone_max = zone_max or ZONE_MAX
     s, hi, lo = e - 1, pts[e - 1][1], pts[e - 1][1]
-    while s > 0 and pts[e][0] - pts[s - 1][0] <= ZONE_MAX:
+    while s > 0 and pts[e][0] - pts[s - 1][0] <= zone_max:
         m = pts[s - 1][1]
         if max(hi, m) > ZONE_X * min(lo, m):
             break
@@ -63,29 +69,31 @@ def _range_before(pts, e):
     return s, lo
 
 
-def pumps(pts):
+def pumps(pts, zone_max=None, zone_min=None, top_span=None):
     """Pumps and the window before each (owner's markup of 21.10 on six charts: the window is the trading range right
     before the breakout; the end matched within minutes, the start within ~20). A breakout: the close crosses ZONE_X x
     the range's low; a pump: before the cap falls below that low it reaches PUMP_X x the low, or NEW_HIGH_X x the low
     and above everything since the migration. `top`: the highest cap in the first
     TOP_SPAN after the breakout, while it stays above the range's low; `gain` = top - low, in dollars.
     → [{start, end, low, top, gain}] by time."""
+    zone_min, top_span = zone_min or ZONE_MIN, top_span or TOP_SPAN
     out, last, high = [], -1, 0.0
     for e in range(1, len(pts)):
         high = max(high, pts[e - 1][-1])                        # the highest cap before this candle (its wick: a launch
                                                                 # spike to $566K lives in the highs, not the closes)
-        s, lo = _range_before(pts, e)
-        if s <= last or lo <= 0 or pts[e][0] - pts[s][0] < ZONE_MIN or pts[e][1] <= ZONE_X * lo:
+        s, lo = _range_before(pts, e, zone_max)
+        if s <= last or lo <= 0 or pts[e][0] - pts[s][0] < zone_min or pts[e][1] <= ZONE_X * lo:
             continue
         peak = top = pts[e][1]
         for t, m, *_ in pts[e:]:
             if m < lo:
                 break                                           # fell out of the range: the pump is over
             peak = max(peak, m)
-            if t - pts[e][0] <= TOP_SPAN:
+            if t - pts[e][0] <= top_span:
                 top = max(top, m)
         if peak >= PUMP_X * lo or (peak >= NEW_HIGH_X * lo and peak > high):
-            out.append({"start": pts[s][0], "end": pts[e][0], "low": lo, "top": top, "gain": top - lo})
+            out.append({"start": pts[s][0], "end": pts[e][0], "low": lo, "top": top, "gain": top - lo,
+                        "new_high": peak > high})                   # over the whole run: Macca's came a day later
             last = e
     return out
 
@@ -96,6 +104,39 @@ def pick(found):
     after the launch, GLITCH the next evening, «1», COLLECTOOOR) and his second range on Gato. One answer, no buttons for
     the others (owner, 21.10: «зайве»): another range is marked on the site. → the pump or None."""
     return min(found or [], key=lambda p: (-p["gain"], p["end"]), default=None)
+
+
+def hourly(pts):
+    """5-minute caps → hourly: the last close of each hour and its highest high."""
+    out = {}
+    for t, c, *h in pts:
+        k = t - t % HOUR
+        o = out.get(k)
+        out[k] = (k, c, max(h[0] if h else c, o[2] if o else 0))
+    return [out[k] for k in sorted(out)]
+
+
+def slow_pumps(pts):
+    """Pumps over hours, on hourly candles, mapped back to the 5-minute caps: the window ends where the climb began (the
+    last 5-minute close still within SLOW_FLAT x the range's low before the hourly breakout) and reaches up to
+    SLOW_WINDOW back into the range."""
+    out = []
+    for p in pumps(hourly(pts), **SLOW):
+        flat = [i for i, q in enumerate(pts) if q[0] < p["end"] + HOUR and q[1] <= SLOW_FLAT * p["low"]]
+        if not flat or flat[-1] + 1 >= len(pts):
+            continue
+        e = flat[-1] + 1
+        s, _ = _range_before(pts, e, SLOW_WINDOW)
+        out.append(dict(p, start=pts[s][0], end=pts[e][0], slow=True))
+    return out
+
+
+def choose(pts):
+    """The pump to answer about: the biggest fast pump (pick); but when a slow pump to a new high came later, that one —
+    a token that has traded for days and pumped again is asked about for its latest pump (owner on Macca, 21.10)."""
+    best = pick(pumps(pts))
+    later = [p for p in slow_pumps(pts) if p["new_high"] and (best is None or p["end"] > best["end"] + LATER)]
+    return later[-1] if later else best
 
 
 def refine(coarse, fine):
@@ -126,11 +167,18 @@ def top_rows(rows, n=TOP, min_profit=0, min_mult=0, creator=None):
     return sorted(ok, key=lambda r: -r["realized_usd"])[:n]
 
 
+X_HANDLE = re.compile(r"^@?([A-Za-z0-9_]{1,15})$")
+
+
 def _who(idn):
+    """Who the wallet is, as HTML: an X handle links to x.com (owner, 21.10: a bare @name opened a stranger's Telegram —
+    Telegram links every @word to its own users); any other name has no @ for Telegram to pick up."""
     idn = idn if isinstance(idn, dict) else {}
-    if idn.get("twitter"):
-        return "@" + str(idn["twitter"]).lstrip("@")[:24]
-    return str(idn.get("name") or "")[:24]
+    m = X_HANDLE.match(str(idn.get("twitter") or ""))
+    if m:
+        return f'<a href="https://x.com/{m.group(1)}">@{m.group(1)}</a>'
+    name = str(idn.get("name") or "").lstrip("@").replace("@", "\uff20")[:14]
+    return html.escape(name) if name else ""
 
 
 def short(w):
@@ -157,7 +205,7 @@ def wallet_line(r, names):
     out = link(w)
     who = _who((names or {}).get(w))
     if who:
-        out += " " + html.escape(who[:14])
+        out += " " + who
     entry, exit_ = r.get("entry_range_mcap") or r.get("entry_mcap_avg"), r.get("exit_mcap_avg")
     out += f" · {money(entry)} → {money(exit_) if exit_ else 'holding'} · <b>+{money(r.get('realized_usd'))}</b>"
     sold = r.get("sold_share_pct")
@@ -209,14 +257,12 @@ def early_text(symbol, mint, t_from, t_to, rows, names, result, creator=None, wa
     launch. rows: the analysis rows; names: identities by wallet. Stays under Telegram's 4096."""
     sym = html.escape(str(symbol or short(mint))[:16])
     lines = [f"<b>${sym}</b> · pump {span(t_from, t_to)} UTC", ""]
-    bar = f"{min_mult:g}x+ and {money(min_profit)}+ profit" if min_profit or min_mult else "in profit"
     top = top_rows(rows, min_profit=min_profit, min_mult=min_mult, creator=creator)
-    n = len(rows or [])
-    if top:
-        lines.append(f"<b>{len(top)} of {n:,} early wallets</b> · {bar}")
+    if top:                                             # no «5 of 615 early wallets» line (owner, 21.10: says little)
         lines += [wallet_line(r, names) for r in top]
     else:
-        lines.append(f"{plural(n, 'early wallet')}, none {bar}.")
+        bar = f"{min_mult:g}x+ and {money(min_profit)}+ profit" if min_profit or min_mult else "in profit"
+        lines.append(f"{plural(len(rows or []), 'early wallet')}, none {bar}.")
     launch = launch_lines(result or {}, creator, waiting)
     return "\n".join(lines + ([""] + launch if launch else []))[:4000]
 
