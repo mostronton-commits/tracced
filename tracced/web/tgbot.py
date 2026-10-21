@@ -47,9 +47,9 @@ B36 = "0123456789abcdefghijklmnopqrstuvwxyz"
 
 
 def caps(candles, supply):
-    """Price candles → [(t_ms, market cap)] by time, closes only."""
-    return sorted((int(c["time"]), float(c["close"]) * supply) for c in candles or []
-                  if c.get("close") and c.get("time") is not None and supply)
+    """Price candles → [(t_ms, cap at the close, cap at the high)] by time."""
+    return sorted((int(c["time"]), float(c["close"]) * supply, float(c.get("high") or c["close"]) * supply)
+                  for c in candles or [] if c.get("close") and c.get("time") is not None and supply)
 
 
 def _range_before(pts, e):
@@ -73,12 +73,13 @@ def pumps(pts):
     → [{start, end, low, top, gain}] by time."""
     out, last, high = [], -1, 0.0
     for e in range(1, len(pts)):
-        high = max(high, pts[e - 1][1])                         # the highest cap before this candle
+        high = max(high, pts[e - 1][-1])                        # the highest cap before this candle (its wick: a launch
+                                                                # spike to $566K lives in the highs, not the closes)
         s, lo = _range_before(pts, e)
         if s <= last or lo <= 0 or pts[e][0] - pts[s][0] < ZONE_MIN or pts[e][1] <= ZONE_X * lo:
             continue
         peak = top = pts[e][1]
-        for t, m in pts[e:]:
+        for t, m, *_ in pts[e:]:
             if m < lo:
                 break                                           # fell out of the range: the pump is over
             peak = max(peak, m)
