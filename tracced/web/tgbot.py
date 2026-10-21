@@ -46,6 +46,7 @@ TOP_SPAN = 3 * HOUR                      # a pump's size: what the cap gained in
 # a slow pump (Macca, 21.10: out of a 17-hour range over two hours, then on to a new high a day later) only shows on hourly
 # candles: the range up to a day back and at least 3 h, its size over 12 h; its window up to 3 h before the climb
 SLOW = {"zone_max": 24 * HOUR, "zone_min": 3 * HOUR, "top_span": 12 * HOUR}
+HOLD_X = 1.45                            # ... back under 1.45x its range's low (a touch of 1.48x on Gato is not a fall)
 SLOW_WINDOW, SLOW_FLAT, LATER = 3 * HOUR, 1.05, 6 * HOUR   # the climb begins past 1.05x the range's low; a slow pump
                                          # wins only 6 h+ after the fast one (on «1» a continuation came 2 h later)
 
@@ -56,12 +57,13 @@ def caps(candles, supply):
                   for c in candles or [] if c.get("close") and c.get("time") is not None and supply)
 
 
-def _range_before(pts, e, zone_max=None):
+def _range_before(pts, e, zone_max=None, floor=0):
     """The trading range right before candle e: back while the highest close stays within ZONE_X of the lowest, no
-    further than zone_max (ZONE_MAX). → (index of its first candle, its lowest cap)."""
+    further than zone_max (ZONE_MAX) and not into the previous breakout (index floor).
+    → (index of its first candle, its lowest cap)."""
     zone_max = zone_max or ZONE_MAX
     s, hi, lo = e - 1, pts[e - 1][1], pts[e - 1][1]
-    while s > 0 and pts[e][0] - pts[s - 1][0] <= zone_max:
+    while s > floor and pts[e][0] - pts[s - 1][0] <= zone_max:
         m = pts[s - 1][1]
         if max(hi, m) > ZONE_X * min(lo, m):
             break
@@ -81,15 +83,20 @@ def pumps(pts, zone_max=None, zone_min=None, top_span=None):
     for e in range(1, len(pts)):
         high = max(high, pts[e - 1][-1])                        # the highest cap before this candle (its wick: a launch
                                                                 # spike to $566K lives in the highs, not the closes)
-        s, lo = _range_before(pts, e, zone_max)
-        if s <= last or lo <= 0 or pts[e][0] - pts[s][0] < zone_min or pts[e][1] <= ZONE_X * lo:
+        if e - 1 <= last:
+            continue                                            # right after a breakout: no range yet
+        s, lo = _range_before(pts, e, zone_max, last + 1)       # PHP, 21.10: the range before the second wave starts
+                                                                # after the first one's breakout, it is not a repeat
+        if lo <= 0 or pts[e][0] - pts[s][0] < zone_min or pts[e][1] <= ZONE_X * lo:
             continue
         peak = top = pts[e][1]
+        held = True
         for t, m, *_ in pts[e:]:
             if m < lo:
                 break                                           # fell out of the range: the pump is over
             peak = max(peak, m)
-            if t - pts[e][0] <= top_span:
+            held = held and m > HOLD_X * lo                     # a wave that fell back under its breakout level is over:
+            if held and t - pts[e][0] <= top_span:              # what came later is the next wave's (PHP's first wave)
                 top = max(top, m)
         if peak >= PUMP_X * lo or (peak >= NEW_HIGH_X * lo and peak > high):
             out.append({"start": pts[s][0], "end": pts[e][0], "low": lo, "top": top, "gain": top - lo,
@@ -118,11 +125,12 @@ def hourly(pts):
 
 def slow_pumps(pts):
     """Pumps over hours, on hourly candles, mapped back to the 5-minute caps: the window ends where the climb began (the
-    last 5-minute close still within SLOW_FLAT x the range's low before the hourly breakout) and reaches up to
-    SLOW_WINDOW back into the range."""
+    last 5-minute close still within SLOW_FLAT x the lowest close of the 6 hours before the hourly breakout) and reaches
+    up to SLOW_WINDOW back into the range."""
     out = []
     for p in pumps(hourly(pts), **SLOW):
-        flat = [i for i, q in enumerate(pts) if q[0] < p["end"] + HOUR and q[1] <= SLOW_FLAT * p["low"]]
+        ref = min((q[1] for q in pts if p["end"] - 6 * HOUR <= q[0] < p["end"] + HOUR), default=p["low"])
+        flat = [i for i, q in enumerate(pts) if q[0] < p["end"] + HOUR and q[1] <= SLOW_FLAT * ref]
         if not flat or flat[-1] + 1 >= len(pts):
             continue
         e = flat[-1] + 1
@@ -132,10 +140,18 @@ def slow_pumps(pts):
 
 
 def choose(pts):
-    """The pump to answer about: the biggest fast pump (pick); but when a slow pump to a new high came later, that one —
-    a token that has traded for days and pumped again is asked about for its latest pump (owner on Macca, 21.10)."""
+    """The pump to answer about: the biggest fast pump (pick); but when a slow pump to a new high came later and started
+    a new run — the cap had fallen back under the first one's breakout level in between — that one: a token that has
+    traded for days and pumped again is asked about for its latest pump (owner on Macca, 21.10). GLITCH's climb the next
+    morning only went on from its evening pump, which stays."""
     best = pick(pumps(pts))
-    later = [p for p in slow_pumps(pts) if p["new_high"] and (best is None or p["end"] > best["end"] + LATER)]
+
+    def new_run(p):
+        if best is None:
+            return True
+        between = [q[1] for q in pts if best["end"] < q[0] < p["start"]]
+        return p["end"] > best["end"] + LATER and bool(between) and min(between) < ZONE_X * best["low"]
+    later = [p for p in slow_pumps(pts) if p["new_high"] and new_run(p)]
     return later[-1] if later else best
 
 

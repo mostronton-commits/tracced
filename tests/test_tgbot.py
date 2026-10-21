@@ -89,17 +89,18 @@ class TestPumpWindow(unittest.TestCase):
         self.assertIsNone(tgbot.pick([]))
 
     def test_a_slow_pump_days_later_wins_over_the_launch(self):
-        # Macca, 21.10: a launch pump, days in a range, then a climb over hours to a new high: the owner looks there
+        # Macca, 21.10: a launch pump that fell back, a day in a range, then a climb over hours to a new high
         five = 5 * MIN
-        pts = [(t, c, c) for t, c in series((20_000, 6), (100_000, 470), (104_000, 12), (120_000, 12), (150_000, 12),
-                                            (180_000, 12), (220_000, 12), (260_000, 24), step=five)]
+        climb = [(36_000, 12), (43_000, 12), (52_000, 12), (62_000, 12), (75_000, 12), (90_000, 12), (108_000, 12),
+                 (130_000, 24)]                                                       # +20% an hour: no fast breakout
+        pts = [(t, c, c) for t, c in series((20_000, 6), (100_000, 60), (28_000, 60), (30_000, 288), *climb, step=five)]
         self.assertEqual(tgbot.pick(tgbot.pumps(pts))["end"], T + 6 * five)          # 5-minute candles see the launch only
         slow = tgbot.choose(pts)
         self.assertTrue(slow.get("slow"))
-        self.assertEqual(slow["end"], T + (6 + 470 + 12) * five)                     # where the climb began
+        self.assertEqual(slow["end"], T + (6 + 60 + 60 + 288) * five)                 # where the climb began
         self.assertEqual(slow["end"] - slow["start"], tgbot.SLOW_WINDOW)              # three hours of the range before it
-        flat = [(t, c, c) for t, c in series((20_000, 6), (100_000, 470), (104_000, 12), (150_000, 60), step=five)]
-        self.assertFalse(tgbot.choose(flat).get("slow"))                              # no new high: the launch stays
+        held = [(t, c, c) for t, c in series((20_000, 6), (100_000, 60), (95_000, 348), *climb, step=five)]
+        self.assertFalse(tgbot.choose(held).get("slow"))                              # stayed above the launch breakout: same run
 
     def test_minute_candles_refine_the_bounds(self):
         coarse = {"start": T, "end": T + 60 * MIN, "low": 1, "top": 4, "gain": 3}
