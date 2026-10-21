@@ -67,14 +67,15 @@ The answer is one message that fills in as the work goes:
 - the pump window: the range already analysed on tracced for this token, or, for a token nobody has analysed, from its
   launch to the first minute its market cap reached three times its value ten minutes after launch (no such minute in
   the first {{ s.max_window_hours }} hours: its first 30 minutes);
-- the five early wallets with the most realized profit, each with its entry and exit market cap, the profit, what it
-  still holds, its tags, and a link to the wallet on Solscan;
+- up to five early wallets worth a look: the most realized profit among those that sold at
+  {{ s.tg_top_min_multiple }}x their entry or more on average and took at least ${{ s.tg_top_min_profit_usd }}. Bot-like
+  wallets, the token's creator and the wallets of the launch's own bundles never make it (those show as launch facts).
+  Each has its entry and exit market cap, the profit, what it still holds and its tags; its short address opens it
+  on Solscan. When none qualifies, the answer says so;
 - the launch check: what it found on chain, each fact with a link to its proof (the Jito bundle, the fee
   transaction), or how many early sales it checked and found nothing in. It never calls a launch clean.
 
-*Follow these wallets* saves the five to a list named after the token, with their bells on while there is room under
-your cap. It works once this Telegram is connected to your wallet (see below). *Open on tracced* opens the whole
-analysis.
+*Open on tracced* opens the whole analysis: there a wallet you pick gets its bell, one at a time.
 
 A token already analysed answers at once and costs nothing. A new one is a real analysis: up to
 {{ s.tg_runs_per_chat }} a day per chat or group, and {{ s.tg_runs_per_day }} a day from the bot for everyone, within

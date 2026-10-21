@@ -12,7 +12,8 @@ MIN, HOUR = 60_000, 3_600_000
 ADDR = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 TOP = 5
 FALLBACK_MIN = 30
-SHOWN_TAGS = ("launch-bundle", "own-bundle", "bundle", "sniper", "fresh", "bot-like")
+SHOWN_TAGS = ("bundle", "sniper", "fresh")
+SKIP_TAGS = {"bot-like", "dev", "launch-bundle", "own-bundle"}
 HELP = ("Send <code>/early &lt;token address&gt;</code> and I show the wallets that bought before its pump: entry and "
         "exit market cap, realized profit, and what the launch looked like on chain, each fact with its proof link.\n"
         "Add me to a group and the same command works there.")
@@ -59,18 +60,14 @@ def auto_window(candles, created, supply, now, max_hours=6):
     return (created, to, f"first {FALLBACK_MIN} min, no 3x in {max_hours} h") if to - created >= 2 * MIN else None
 
 
-def how_of(job_owner, t_from, t_to, created):
-    """How the window of an analysis the bot reuses was chosen: by the bot (from the token's creation) or by a person."""
-    if job_owner == "system" and created and abs(t_from - created) < MIN:
-        return (f"first {FALLBACK_MIN} min after launch" if abs(t_to - t_from - FALLBACK_MIN * MIN) < MIN
-                else "launch → first 3x")
-    return "range marked on tracced"
-
-
-def top_rows(rows, n=TOP):
-    """The wallets the message shows and Follow saves: most realized profit first, profitable ones only."""
-    win = [r for r in rows or [] if (r.get("realized_usd") or 0) > 0]
-    return sorted(win, key=lambda r: -r["realized_usd"])[:n]
+def top_rows(rows, n=TOP, min_profit=0, min_mult=0, creator=None):
+    """The wallets worth a look (owner, 20.10: «чи відфільтровується сміття?»): most realized profit first, among those
+    that sold at min_mult x their entry on average and took at least min_profit dollars; never a bot-like wallet, the
+    token's creator, or a wallet of the launch's own bundles (those are the launch's facts, not someone to follow)."""
+    ok = [r for r in rows or [] if (r.get("realized_usd") or 0) > 0 and (r.get("realized_usd") or 0) >= min_profit
+          and (r.get("multiple") or 0) >= min_mult and not set(r.get("tag_list") or ()) & SKIP_TAGS
+          and r.get("wallet") != creator]
+    return sorted(ok, key=lambda r: -r["realized_usd"])[:n]
 
 
 def _who(idn):
@@ -151,36 +148,27 @@ def launch_lines(r, creator=None, waiting=True):
     return ["Launch: nothing organised found" + (f" · {plural(checked, 'early sale')} checked" if checked else "")]
 
 
-def early_text(symbol, mint, t_from, t_to, rows, names, result, creator=None, waiting=True):
-    """The whole answer, short (owner, 20.10: «забагато тексту»): the token and its pump, the top wallets, the launch.
-    rows: the analysis rows; names: identities by wallet. Stays under Telegram's 4096."""
+def early_text(symbol, mint, t_from, t_to, rows, names, result, creator=None, waiting=True, min_profit=0, min_mult=0):
+    """The whole answer, short (owner, 20.10: «забагато тексту»): the token and its pump, the wallets worth a look, the
+    launch. rows: the analysis rows; names: identities by wallet. Stays under Telegram's 4096."""
     sym = html.escape(str(symbol or short(mint))[:16])
     lines = [f"<b>${sym}</b> · pump {span(t_from, t_to)} UTC", ""]
-    top = top_rows(rows)
+    bar = f"{min_mult:g}x+ and {money(min_profit)}+ profit" if min_profit or min_mult else "in profit"
+    top = top_rows(rows, min_profit=min_profit, min_mult=min_mult, creator=creator)
+    n = len(rows or [])
     if top:
-        lines.append(f"<b>Top {len(top)} of {len(rows):,} early wallets</b>")
+        lines.append(f"<b>{len(top)} of {n:,} early wallets</b> · {bar}")
         lines += [wallet_line(r, names) for r in top]
     else:
-        lines.append(f"{plural(len(rows or []), 'early wallet')}, none in profit yet.")
+        lines.append(f"{plural(n, 'early wallet')}, none {bar}.")
     launch = launch_lines(result or {}, creator, waiting)
     return "\n".join(lines + ([""] + launch if launch else []))[:4000]
 
 
-def keyboard(job_id, site, follow=True):
-    row = [{"text": "Open on tracced", "url": f"{site}/job/{job_id}"}]
-    if follow:
-        row.insert(0, {"text": "Follow these wallets", "callback_data": f"f:{job_id}"[:64]})
-    return {"inline_keyboard": [row]}
-
-
-def follow_job(data):
-    """The analysis id a Follow button carries, or None."""
-    d = str(data or "")
-    return d[2:] if d.startswith("f:") and re.fullmatch(r"[A-Za-z0-9_-]{1,62}", d[2:]) else None
-
-
-def list_name(symbol, mint):
-    return f"{str(symbol or mint[:6])[:20]} early (Telegram)"[:32]
+def keyboard(job_id, site):
+    """One button: the whole analysis on the site. No «follow all five» (owner, 20.10): one tap would add wallets nobody
+    picked; a single wallet is followed from its row there."""
+    return {"inline_keyboard": [[{"text": "Open on tracced", "url": f"{site}/job/{job_id}"}]]}
 
 
 def utc(ms, short=False):
