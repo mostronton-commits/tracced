@@ -138,26 +138,26 @@ class TestText(unittest.TestCase):
         self.assertEqual([tgbot.money(v) for v in (618_600, 9_540, 37.4, 1_230_000, -2_000, 100_000)],
                          ["$619K", "$9.5K", "$37", "$1.2M", "-$2K", "$100K"])
 
-    def test_a_wallet_line_carries_facts_and_escapes_names(self):
+    def test_a_wallet_says_what_it_put_in_and_took_out(self):
         w = "CE44oKS3wpUerx8afyeii56u5oQjBLZknzm4Q2CYHUz9"
-        line = tgbot.wallet_line(row(w, 22_600, entry_range_mcap=4_400, exit_mcap_avg=382_000, sold_share_pct=76.0,
+        line = tgbot.wallet_line(row(w, 22_600, entry_mcap_avg=4_400, exit_mcap_avg=382_000, sold_share_pct=76.0,
                                      invested_usd=400, proceeds_usd=23_000, tag_list=["sniper", "my-own"]),
                                  {w: {"name": "<b>x</b>", "twitter": "ape"}})
-        self.assertIn(f'<a href="https://solscan.io/account/{w}">CE4…Uz9</a>', line)
-        self.assertNotIn(w + "<", line.replace(f'account/{w}"', ""))               # the full address only in the link
-        self.assertIn('<a href="https://x.com/ape">@ape</a>', line)       # X handle first, linked to X, not Telegram
-        self.assertIn("$4.4K → $382K", line)
-        self.assertIn("<b>×86.8</b> · $400 in, $23K out", line)          # owner, 23.10: the x, what went in and out
-        self.assertIn("holds 24%", line)
-        self.assertIn("sniper", line)
+        head, words = line.split("\n")
+        self.assertIn(f'<a href="https://solscan.io/account/{w}">CE4…Uz9</a>', head)
+        self.assertIn('<a href="https://x.com/ape">@ape</a>', head)       # X handle first, linked to X, not Telegram
+        self.assertIn("sniper", head)
         self.assertNotIn("my-own", line)                                  # a person's own tags stay theirs
-        line = tgbot.wallet_line(row(w, 5, exit_mcap_avg=None), {w: {"name": "<script>"}})
-        self.assertIn("&lt;script&gt;", line)
-        self.assertIn("→ holding", line)
-        self.assertNotIn("×", line)                                       # no exit, no x, nothing out
+        self.assertEqual(words, "bought $400 at $4.4K mc, sold $23K at $382K mc (<b>×86.8</b>), holds 24%")
+        held = tgbot.wallet_line(row(w, 5, entry_mcap_avg=20_000, exit_mcap_avg=None, invested_usd=300), {w: {"name": "<script>"}})
+        self.assertIn("&lt;script&gt;", held)
+        self.assertTrue(held.endswith("bought $300 at $20K mc, holds all"))
+        self.assertNotIn("×", held)                                       # no exit, no x
+        all_out = tgbot.wallet_line(row(w, 5, entry_mcap_avg=105_000, exit_mcap_avg=304_500, sold_share_pct=100.0,
+                                        invested_usd=400, proceeds_usd=1_160), {})
+        self.assertTrue(all_out.endswith("bought $400 at $105K mc, sold $1.2K at $304K mc (<b>×2.9</b>)"))
         line = tgbot.wallet_line(row(w, 5), {w: {"name": "@Dior100x", "twitter": "not a handle!"}})
         self.assertNotIn("@", line)                                       # a bare @word would open a Telegram stranger
-        self.assertNotIn("holds", tgbot.wallet_line(row(w, 5, sold_share_pct=99.7), {}))
 
     def test_launch_facts_only_with_proof_never_clean(self):
         self.assertEqual(tgbot.launch_lines({}), ["Launch check: running…"])
@@ -193,7 +193,7 @@ class TestText(unittest.TestCase):
         self.assertNotIn("early wallets", text)                            # no «5 of 6» line: the wallets speak
         tower = [row(f"{c}" * 44, p) for c, p in zip("ABCDE", (168, 37, 22, 12, 9))] + [row(f"Z{i}" * 22, -1) for i in range(13)]
         shown = re.sub(r"<[^>]+>", "", tgbot.early_text("TOWER", MINT, T, T + 25 * MIN, tower, {}, {"launch": {"pairs": [], "sells": 0}}))
-        self.assertLess(len(shown), 330)                                   # what a person reads, links aside (was ~620)
+        self.assertLess(len(shown), 600)                                   # two lines a wallet, in words (owner, 23.10)
         empty = tgbot.early_text("TST", MINT, T, T + 30 * MIN, [row("L", -1)], {}, {})
         self.assertIn("1 early wallet, none in profit.", empty)
 

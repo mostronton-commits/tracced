@@ -217,25 +217,30 @@ def link(w, url="https://solscan.io/account/"):
 
 
 def wallet_line(r, names):
+    """Two lines (owner, 23.10: «вклав 400, забрав 1060, це x2.9» — say it in words): the wallet, who it is and its tags;
+    then what it bought at which market cap, what it sold at which, and the x. The x is from the average entry to the
+    average exit, so on the part it sold it is exactly what came out over what went in."""
     w = r["wallet"]
-    out = link(w)
+    head = link(w)
     who = _who((names or {}).get(w))
     if who:
-        out += " " + who
-    entry, exit_ = r.get("entry_range_mcap") or r.get("entry_mcap_avg"), r.get("exit_mcap_avg")
-    out += f" · {money(entry)} → {money(exit_) if exit_ else 'holding'}"
-    if entry and exit_:                                 # owner, 23.10: how many x, what went in, what came out
-        out += f" · <b>×{exit_ / entry:.1f}</b>"
-    out += f" · {money(r.get('invested_usd'))} in"
-    if r.get("proceeds_usd"):
-        out += f", {money(r.get('proceeds_usd'))} out"
-    sold = r.get("sold_share_pct")
-    if sold is not None and float(sold) < 99.5:
-        out += f" · holds {round(100 - float(sold)):g}%"
+        head += " " + who
     tags = [t for t in SHOWN_TAGS if t in (r.get("tag_list") or [])]
     if tags:
-        out += " · " + ", ".join(tags)
-    return out
+        head += " · " + ", ".join(tags)
+    entry = r.get("entry_mcap_avg") or r.get("entry_range_mcap")
+    exit_, out = r.get("exit_mcap_avg"), r.get("proceeds_usd")
+    words = f"bought {money(r.get('invested_usd'))} at {money(entry)} mc"
+    if exit_ and out:
+        words += f", sold {money(out)} at {money(exit_)} mc"
+        if entry:
+            words += f" (<b>×{exit_ / entry:.1f}</b>)"
+        sold = r.get("sold_share_pct")
+        if sold is not None and float(sold) < 99.5:
+            words += f", holds {round(100 - float(sold)):g}%"
+    else:
+        words += ", holds all"
+    return head + "\n" + words
 
 
 def plural(n, word):
