@@ -58,6 +58,34 @@ The chip above the table filters the list down to those wallets.
     It is the intersection of analyses saved to **your** account. Other people's saved analyses are never part of
     it, nothing leaves the server, and it costs no requests.
 
+## Ask in Telegram
+
+Send `/early <token address>` to [@tracced_bot](https://t.me/tracced_bot), or add the bot to a group and send the
+same command there (in a group with several bots, `/early@tracced_bot`). In a private chat a pasted address is enough.
+The answer is one message that fills in as the work goes:
+
+- the pump window: the range already analysed on tracced for this token. For a token nobody has analysed, the trading
+  range right before a pump since its migration from the launchpad: from where the price settled into that range (at
+  most an hour back) to the minute it broke out. A pump is a close 1.5x above the range's low that goes on to double it
+  before falling below it, or doubles it to a new high since the migration; of several, the one that added the most
+  market cap in its first three hours. A token that has traded for days and later climbed over hours to a new high is
+  asked about for that climb: the window is up to three hours of the range before it began. Another range is marked on
+  the site. A token still on pump.fun's curve, or with no pump since its migration, gets an answer that says so;
+- up to five early wallets worth a look: the most realized profit among those that sold at
+  {{ s.tg_top_min_multiple }}x their entry or more on average and took at least ${{ s.tg_top_min_profit_usd }}. Bot-like
+  wallets, the token's creator and the wallets of the launch's own bundles never make it (those show as launch facts).
+  Each has the market cap it came in and went out at (its averages), its PnL — what it took plus its unsold tokens at
+  today's price, less what it put in — and its ROI, that over what it put in. Its short address opens it
+  on Solscan, its X account on X. When none qualifies, the answer says so;
+- the launch check: what it found on chain, each fact with a link to its proof (the Jito bundle, the fee
+  transaction), or how many early sales it checked and found nothing in. It never calls a launch clean.
+
+*Open on tracced* opens the whole analysis: there a wallet you pick gets its bell, one at a time.
+
+A token already analysed answers at once; it costs nothing but a look at the token's price today. A new one is a real analysis: up to
+{{ s.tg_runs_per_chat }} a day per chat or group, and {{ s.tg_runs_per_day }} a day from the bot for everyone, within
+the site's own budget.
+
 ## Telegram alerts
 
 Click the bell by a wallet, in its row or in its card: its buys and sells come to Telegram, a few seconds after they
@@ -129,3 +157,7 @@ Only the owner sees it. It is never sold or shared, and it is kept for 13 months
 
 Without a wallet, the log holds nothing about you: visits are counted by Umami, which sets no cookies and never gets
 a wallet address.
+
+The Telegram bot logs each `/early`: the token, the answer, what a new analysis cost, and the chat it came from. A
+group is recorded by its name; a private chat by the person's Telegram username (or first name when there is none).
+That is how the owner sees what each chat uses of its daily limit. It is kept like the rest of this log.

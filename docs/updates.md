@@ -2,6 +2,14 @@
 
 <div class="ulog" markdown="1">
 
+## 0.8.0 <span class="ud">Oct 23, 2026</span>
+
+- Telegram bot: /early with a token's address, in a chat or a group
+- It finds the pump on its own, after the migration
+- The early wallets worth a look, with PnL and ROI
+- The launch check's facts, each with its proof
+- The migration on the chart for more pump.fun tokens
+
 ## 0.7.10 <span class="ud">Oct 18, 2026</span>
 
 - Organised launches: the creator's own bundle is found from the token's creation

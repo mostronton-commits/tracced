@@ -331,6 +331,32 @@
 </section>
 {% endif %}
 
+{% if tab == 'tg' and tg_stats %}{% set t = tg_stats.total %}
+<section class="card me usage tgadm">
+  <div class="row mehead"><h2>Telegram</h2><span class="muted small">{% if tg_bot %}@{{ tg_bot }} · {% endif %}/early, this month{% if not tg_here %} · the bot is not on this server now{% endif %}</span></div>
+  <div class="stats">
+    <div title="/early asks this month, ready answers and new analyses together"><b>{{ t.asks }}</b><span>asks</span></div>
+    <div title="Chats that asked this month: groups by name, private chats by the person's username"><b>{{ t.chats }}</b><span>chats · {{ t.groups }} group{{ '' if t.groups == 1 else 's' }}</span></div>
+    <div title="New analyses the bot started: today (UTC) and this month"><b>{{ t.new }}</b><span>new analyses · {{ t.new_today }} today</span></div>
+    <div title="Solana Tracker requests the bot's analyses cost this month: the token, the window, the run and its names"><b>{{ '{:,}'.format(t.st) }}</b><span>Solana Tracker requests</span></div>
+  </div>
+  {% if tg_stats.chats %}
+  <div class="tablewrap"><table class="facts melist"><thead><tr><th>Chat</th><th>Type</th><th>Asks</th><th title="New analyses today, against the chat's daily limit">New today</th><th>New this month</th><th>Solana Tracker</th><th>Helius</th><th>Last ask</th></tr></thead><tbody>
+  {% for c in tg_stats.chats %}<tr><td>{{ c.name or '—' }} <span class="mono muted small">{{ c.chat }}</span></td><td>{{ c.kind }}</td>
+    <td>{{ c.asks }}{% if c.refused %} <span class="muted small">({{ c.refused }} refused)</span>{% endif %}</td>
+    <td>{{ c.new_today }} of {{ s.tg_runs_per_chat }}</td><td>{{ c.new }}</td><td>{{ '{:,}'.format(c.st) }}</td><td>{{ '{:,}'.format(c.rpc) }}</td>
+    <td class="small">{% if c.last_ms %}<span class="dtc" data-ms="{{ c.last_ms }}">{{ c.last_ms|dt }}</span>{% else %}—{% endif %}</td></tr>{% endfor %}
+  </tbody></table></div>
+  <h3 class="small">Recent asks</h3>
+  <div class="tablewrap"><table class="facts melist"><thead><tr><th>When</th><th>Chat</th><th>Token</th><th>Answer</th></tr></thead><tbody>
+  {% for e in tg_stats.recent %}<tr><td class="small"><span class="dtc" data-ms="{{ e.ts_ms }}">{{ e.ts_ms|dt }}</span></td><td>{{ e.tg_name or e.tg_chat }}</td>
+    <td>{% if e.job %}<a href="/job/{{ e.job }}">{{ e.symbol or e.job }}</a>{% else %}<a class="mono" href="/token?mint={{ e.mint }}">{{ (e.mint or '')[:4] }}…</a>{% endif %}</td>
+    <td>{% if e.refused %}<span class="neg">refused: {{ e.refused }}</span>{% elif e.new %}new analysis{% else %}ready{% endif %}</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% else %}<p class="muted">Nobody has asked the bot this month.</p>{% endif %}
+</section>
+{% endif %}
+
 {% if tab == 'api' %}
 {% set names = {} %}{% for k in api_keys %}{% set _ = names.update({k.id: k.name}) %}{% endfor %}
 <section class="card me usage apiadm">

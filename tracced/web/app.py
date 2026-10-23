@@ -11,6 +11,7 @@ import contextvars
 import csv
 import hashlib
 import hmac
+import html as html_mod
 import ipaddress
 import datetime
 import os
@@ -46,6 +47,7 @@ from . import demo as demo_mod
 from . import replay
 from . import partner_api as api_mod
 from . import usage as usage_mod
+from . import tgbot
 from .agent_store import AgentStore
 from .feedback import FeedbackStore, KINDS as FEEDBACK_KINDS, MAX_CONTACT as FEEDBACK_CONTACT, MAX_PAGE as FEEDBACK_PAGE, MAX_TEXT as FEEDBACK_TEXT
 from .feedback import links as feedback_links
@@ -55,6 +57,7 @@ log = logging.getLogger("early.web")
 HERE = Path(__file__).resolve().parent
 DOCS_DIR = HERE.parent.parent / "docs"      # сторінки документації лежать у репозиторії поруч із кодом
 HOUR = 3_600_000
+MINUTE = 60_000
 MINT_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 MAX_CANDLES = 1500          # скільки свічок має сенс просити за раз: більше — і джерело мовчки обріже відповідь
 ACCT_COOKIE = "early_acct"          # вхід гаманцем — єдиний вхід на сайті
@@ -632,6 +635,9 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["tg"] = {"token": os.getenv("TELEGRAM_BOT_TOKEN") or "", "name": os.getenv("TELEGRAM_BOT_NAME") or "",
                  "on": os.getenv("ALERTS") == "1"}
     app["tg_codes"] = alerts_mod.LinkCodes()
+    app["tg_busy"], app["tg_tasks"] = set(), set()                # /early, на які бот саме відповідає; їхні задачі
+    app["tg_pending_file"] = daily_dir / "tg_pending.json"         # відповіді, які ще оновлюються: переживають перезапуск
+    app["tg_pending"] = {k: v for k, v in (usage_mod.load_json(app["tg_pending_file"], {}) or {}).items() if isinstance(v, dict)}
     app["alerts_state"] = {"on": False, "connected": False, "url": "", "wallets": 0, "events": 0, "sent": 0, "last_ms": None, "errors": 0}
     app["alerts_wm"], app["alerts_seen"], app["alerts_tok"], app["alerts_hour"], app["sol_px"] = {}, {}, {}, {}, [0.0, 0.0]
     app["alerts_ca"] = {}             # чат → токени, адресу яких він уже отримав (у пам'яті: після перезапуску адреса прийде ще раз)
@@ -1799,7 +1805,10 @@ def tg_reply(app, update):
     site, acc = _site_url(app), app["accounts"]
     if text.startswith("/start"):
         parts = text.split(maxsplit=1)
-        pk = app["tg_codes"].consume(parts[1].strip() if len(parts) > 1 else "")
+        if len(parts) < 2:                                  # прийшов у бота сам, не з сайту: що бот уміє (20.10)
+            return chat, (f"{tgbot.HELP}\n\nTo get buys and sells of the wallets you follow, connect this chat at "
+                          f"{site}/me (<b>Connect Telegram</b>).")
+        pk = app["tg_codes"].consume(parts[1].strip())
         if not pk:
             return chat, f"This link has expired or was used already. Open {site}/me and press <b>Connect Telegram</b> again."
         # один чат — один гаманець. Уже прив'язаний до іншого — не переходить мовчки: інакше чуже посилання, надіслане
@@ -1822,7 +1831,8 @@ def tg_reply(app, update):
                 app["events"].add(a["pubkey"], "telegram", on=0, via="bot")
                 n += 1
         return chat, (f"Alerts stopped. Connect again at {site}/me." if n else "This chat is not connected to any wallet.")
-    return chat, f"I send buys and sells of the wallets in your tracced lists. Connect at {site}/me."
+    return chat, (f"{tgbot.HELP}\n\nI also send buys and sells of the wallets in your tracced lists. "
+                  f"Connect at {site}/me.")
 
 
 class TgError(RuntimeError):
@@ -1869,19 +1879,292 @@ async def _tg_send(app, http, chat, text, pk=None):
     return False
 
 
+def _tg_task(app, coro):
+    """Відповідь на /early живе своєю задачею: бот тим часом слухає далі. Посилання тримаємо, інакше задачу прибере GC."""
+    t = asyncio.get_running_loop().create_task(coro)
+    app["tg_tasks"].add(t)
+    t.add_done_callback(app["tg_tasks"].discard)
+    return t
+
+
+async def _tg_edit(app, http, chat, mid, text, markup=None):
+    """Оновити відповідь бота. «Нічого не змінилось» — не помилка; 429 — одна пауза, скільки просить Telegram."""
+    params = dict(chat_id=chat, message_id=mid, text=text, parse_mode="HTML", disable_web_page_preview=True)
+    if markup:
+        params["reply_markup"] = markup
+    for attempt in (0, 1):
+        try:
+            await _tg_call(http, app["tg"]["token"], "editMessageText", **params)
+            return True
+        except TgError as e:
+            if "not modified" in str(e):
+                return True
+            if e.code == 429 and attempt == 0 and (e.retry or 0) <= 30:
+                await asyncio.sleep(float(e.retry or 3))
+                continue
+            log.warning("telegram edit in %s: %s", str(chat)[-4:], e)
+            return False
+        except Exception as e:  # noqa: BLE001 — мережа: лише в журнал
+            log.warning("telegram edit in %s: %s", str(chat)[-4:], e)
+            return False
+    return False
+
+
+def _tg_pending_set(app, key, entry):
+    if entry is None:
+        app["tg_pending"].pop(key, None)
+    else:
+        app["tg_pending"][key] = entry
+    try:
+        app["tg_pending_file"].parent.mkdir(parents=True, exist_ok=True)
+        usage_mod.save_json(app["tg_pending_file"], app["tg_pending"])
+    except OSError:
+        pass
+
+
+def _tg_existing(app, mint):
+    """Аналіз цього токена, який бот покаже замість нового: розмічений людиною на сайті, найсвіжіший готовий, інакше той,
+    що йде. Свої аналізи бот бере, лише коли чинне правило дає те саме вікно (тоді його id збігається в _tg_new_job):
+    вікно старого правила (до 21.10 — від запуску, ще до міграції) не повертається."""
+    js = [j for j in list(app["jobs"].jobs.values()) if j.mint == mint and not j.replay and j.owner != "system"
+          and (j.status in ("queued", "running") or (j.status == "done" and j.result))]
+    return max(js, key=lambda j: (j.status == "done", j.finished_ms or j.created_ms or 0), default=None)
+
+
+def _tg_in_flight(app, bot_only=False):
+    return sum(1 for j in list(app["jobs"].jobs.values()) if j.status in ("queued", "running") and not j.replay
+               and j.owner and j.owner not in app["admins"] and (j.owner == "system" or not bot_only))
+
+
+def _tg_who(chat_o):
+    """Хто питає бота (власник, 21.10: «скільки ліміту витрачає кожен чат; хто користується в боті — як конкретного
+    користувача»): група — за назвою, особистий чат — за ніком людини (чи ім'ям, коли ніка нема)."""
+    private = chat_o.get("type") == "private"
+    if private:
+        name = "@" + str(chat_o["username"]) if chat_o.get("username") else str(chat_o.get("first_name") or "")
+    else:
+        name = str(chat_o.get("title") or "")
+    return {"tg_chat": chat_o.get("id"), "tg_kind": "private" if private else "group", "tg_name": name[:60] or None}
+
+
+async def _tg_window(app, mint, info, who):
+    """Вікно для токена, якого ніхто не розмічав (власник, 21.10, розмітка шести графіків): лише після міграції;
+    проторговка перед ривком найбільшого пампу. 5-хвилинні свічки з міграції (кеш спільний із графіком сайту), далі
+    хвилинні довкола вибраного пампу. → (from, to)."""
+    state, start = tgbot.launch_state(info)
+    if state == "curve":
+        raise WebError("This token is still on pump.fun's curve. Early wallets count from its migration: ask again then.")
+    now, supply, st = int(time.time() * 1000), info.get("supply") or 0, app["st"]
+    if not start or not supply:
+        raise WebError("No launch data came back for this token.")
+
+    def load(tf, a, b):
+        with st.meter():
+            req0 = st.requests_here()
+            try:
+                return pipeline._chart(st, mint, tf, a, b, info)
+            finally:
+                _spend(app, "system", "tg-window", st=st.requests_here() - req0, mint=mint, **who)
+    best = tgbot.choose(tgbot.caps(await asyncio.to_thread(load, "5m", start, now), supply))
+    if not best:
+        raise WebError("No pump since its migration: the market cap has not tripled out of a trading range, or doubled "
+                       "to a new high. Mark a range on tracced to analyse it anyway.")
+    a, b = max(start, best["start"] - 70 * MINUTE), min(now, best["end"] + 70 * MINUTE)
+    fine = [p for p in tgbot.caps(await asyncio.to_thread(load, "1m", a, b), supply) if p[0] >= start]
+    best = best if best.get("slow") else tgbot.refine(best, fine)    # a slow climb has no minute breakout to snap to
+    return best["start"] // MINUTE * MINUTE, min(-(-best["end"] // MINUTE) * MINUTE, now // MINUTE * MINUTE)
+
+
+def _tg_admin(app, user_id):
+    """Чи пише власник: його Telegram прив'язаний до гаманця з ADMIN_WALLETS (власник, 21.10: уперся в 5 аналізів на день,
+    перевіряючи бота). Як на сайті — без денних лічильників чату й бота; стеля одного прогону лишається."""
+    if not isinstance(user_id, int) or not app["admins"]:
+        return False
+    return any((app["accounts"].load(pk).get("telegram") or {}).get("chat") == user_id for pk in app["admins"])
+
+
+async def _tg_new_job(app, chat, mint, who=None, admin=False):
+    """Новий аналіз для /early: вікно — з _tg_window. Стелі: чат і бот за добу, прогони водночас, місячний резерв і денний
+    бюджет запитів — ті самі, що в Analyze на сайті; власник — без денних лічильників. Витрати пишуться на чат (who).
+    → (job, чи це новий аналіз)."""
+    s, rd = app["s"], app["runs_daily"]
+    if not s.get("tg_early_on", True):
+        raise WebError("New analyses from Telegram are paused for now. Tokens analysed already still answer.")
+    per_chat, per_day = int(s.get("tg_runs_per_chat", 5)), int(s.get("tg_runs_per_day", 20))
+    if admin:
+        per_chat = per_day = 10 ** 9
+    if rd.left(f"tg:{chat}", per_chat) <= 0:
+        raise WebError(f"This chat has used its {per_chat} new analyses for today. Tokens analysed already still "
+                       "answer; more after 00:00 UTC.")
+    if rd.left("tg:global", per_day) <= 0:
+        raise WebError("I have used today's new analyses. Tokens analysed already still answer; more after 00:00 UTC.")
+    if _tg_in_flight(app, bot_only=True) >= int(s.get("tg_inflight_max", 3)):
+        raise WebError("A few analyses are running already. Try again in a few minutes.")
+    who = who or {}
+    info, _ = await _overview(app, mint, None, "system", via="tg", **who)
+    now = int(time.time() * 1000)
+    t_from, t_to = await _tg_window(app, mint, info, who)
+    max_h = float(s.get("max_window_hours", 6) or 6)
+    errs = window.validate(t_from, t_to, info.get("created_time"), now, max_window_ms=int(max_h * HOUR))
+    if errs:
+        raise WebError(" ".join(errs))
+    cur = app["jobs"].get(make_id(mint, t_from, t_to))
+    if cur and cur.mint == mint and (cur.status in ("queued", "running") or (cur.status == "done" and cur.result)):
+        return cur, False
+    worst = int(s.get("tg_run_cap_requests", 1500))
+    reserve = _credits_reserve(s)
+    if reserve:
+        left = await _credits_left(app)
+        if left is not None and left - (_tg_in_flight(app) + 1) * worst < reserve:
+            raise WebError("This month's data budget is nearly used up, so new analyses wait until it renews. "
+                           "Tokens analysed already still answer.")
+    day_rq = int(s.get("run_requests_per_day", 0) or 0)
+    if day_rq and day_rq - rd.left("req:global", day_rq) + (_tg_in_flight(app) + 1) * worst > day_rq:
+        raise WebError("Today's data budget for new analyses is used up. Tokens analysed already still answer.")
+    # від перевірки до submit — без await: два /early водночас не проскочать повз стелю
+    if admin:
+        pass
+    elif not rd.take(f"tg:{chat}", per_chat):
+        raise WebError(f"This chat has used its {per_chat} new analyses for today.")
+    elif not rd.take("tg:global", per_day):
+        rd.add(f"tg:{chat}", -1)
+        raise WebError("I have used today's new analyses. More after 00:00 UTC.")
+    job = app["jobs"].submit(mint, t_from, t_to, symbol=info.get("symbol"), owner="system",
+                             s_over={"budget_guard_pct": 0, "run_cap_requests": worst})
+    app["events"].add("system", "analyze", job=job.id, symbol=info.get("symbol") or mint[:6], via="tg", **who)
+    return job, True
+
+
+async def _tg_early(app, http, msg, mint):
+    """/early <mint>: одразу «дивлюсь», далі те саме повідомлення оновлюється — гаманці, коли аналіз готовий, і факти
+    запуску, коли пройде перевірка. Готовий аналіз токена нічого не коштує; новий — у межах стель _tg_new_job."""
+    chat_o = msg.get("chat") or {}
+    chat, key = chat_o.get("id"), (chat_o.get("id"), mint)
+    if key in app["tg_busy"]:                                   # той самий токен у тому ж чаті вже в роботі
+        return
+    app["tg_busy"].add(key)
+    try:
+        admin = await asyncio.to_thread(_tg_admin, app, (msg.get("from") or {}).get("id"))
+        if not admin and not app["runs_daily"].take(f"tg:cmd:{chat}", int(app["s"].get("tg_commands_per_chat", 60))):
+            return                                              # хтось засипає чат адресами: мовчимо до завтра
+        sent = await _tg_call(http, app["tg"]["token"], "sendMessage", chat_id=chat, parse_mode="HTML",
+                              text=f"Looking at {html_mod.escape(tgbot.short(mint))}…", disable_web_page_preview=True,
+                              reply_parameters={"message_id": msg.get("message_id"), "allow_sending_without_reply": True})
+        mid = sent["message_id"]
+        job, new, who = _tg_existing(app, mint), False, _tg_who(chat_o)
+        try:
+            if job is None:
+                job, new = await _tg_new_job(app, chat, mint, who, admin)
+        except WebError as e:
+            app["events"].add("system", "tg_early", mint=mint, refused=str(e)[:80], **who)
+            await _tg_edit(app, http, chat, mid, html_mod.escape(str(e), quote=False))
+            return
+        app["events"].add("system", "tg_early", job=job.id, symbol=job.symbol, new=int(new), **who)
+        entry = {"chat": chat, "mid": mid, "job": job.id, "at": time.time()}
+        await _tg_watch(app, http, entry)
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:  # noqa: BLE001 — одна відповідь не валить бота
+        log.warning("telegram /early in %s: %s", str(chat)[-4:], e)
+    finally:
+        app["tg_busy"].discard(key)
+
+
+async def _tg_price_ratio(app, mint, r):
+    """Сьогоднішня ціна токена до ціни, за якою аналіз оцінив непродане: огляд токена з кешу (10 хв), інакше 1-2 запити.
+    Збій — 1.0: тоді непродане за ціною аналізу."""
+    then = r.get("price_at_end")
+    try:
+        info, _ = await _overview(app, mint, None, "system", via="tg")
+        now = info.get("price_usd")
+    except WebError:
+        now = None
+    return (float(now) / float(then)) if now and then else 1.0
+
+
+async def _tg_watch(app, http, e):
+    """Тримає одну відповідь бота в актуальному стані, поки аналіз іде і поки йде перевірка запуску. Записано на диск:
+    перезапуск сервера (автодеплой) продовжує з того самого повідомлення."""
+    s, site = app["s"], _site_url(app)
+    chat, mid, pkey = e["chat"], e["mid"], f"{e['chat']}:{e['mid']}"
+    _tg_pending_set(app, pkey, e)
+    run_until = e["at"] + 60 * float(s.get("tg_wait_run_min", 20))
+    launch_until = e["at"] + 60 * float(s.get("tg_wait_launch_min", 60))
+    last, phase, ratio = None, None, None
+    try:
+        while True:
+            job = app["jobs"].get(e["job"])
+            if job is None:
+                await _tg_edit(app, http, chat, mid, "This analysis was removed.")
+                return
+            if job.status == "error":
+                await _tg_edit(app, http, chat, mid, "The analysis stopped: " + html_mod.escape(str(job.error or "no data came back")[:300]))
+                return
+            if job.status != "done" or not job.result:
+                if time.time() > run_until:
+                    await _tg_edit(app, http, chat, mid, "Still running. Open it on tracced in a few minutes.",
+                                   tgbot.keyboard(job.id, site))
+                    return
+                p = (job.progress or {}).get("phase") or job.status
+                if p != phase:                                  # правка лише на зміну етапу: Telegram рахує й правки
+                    phase = p
+                    await _tg_edit(app, http, chat, mid,
+                                   f"<b>${html_mod.escape(str(job.symbol or tgbot.short(job.mint))[:16])}</b> · pump "
+                                   f"{tgbot.span(job.t_from, job.t_to)} UTC\nFinding the early wallets ({html_mod.escape(str(p))})…")
+                await asyncio.sleep(5)
+                continue
+            r = job.result
+            rows, _ = await _rows_async(app, r, "all")
+            info = r.get("info") or {}
+            if ratio is None:                               # непродане — за сьогоднішньою ціною, а не ціною аналізу
+                ratio = await _tg_price_ratio(app, job.mint, r)
+            fresh = (job.finished_ms or 0) > (time.time() - 3600) * 1000      # старий аналіз: перевірки запуску вже не буде
+            waiting = r.get("launch") is None and bool(s.get("launch_on")) and fresh and time.time() < launch_until
+            text = tgbot.early_text(job.symbol or info.get("symbol"), job.mint, job.t_from, job.t_to, rows,
+                                    r.get("identities") or {}, r, creator=info.get("creator") or info.get("deployer"),
+                                    waiting=waiting, min_profit=float(s.get("tg_top_min_profit_usd", 250)),
+                                    min_mult=float(s.get("tg_top_min_multiple", 2)), price_ratio=ratio)
+            if text != last:
+                await _tg_edit(app, http, chat, mid, text, tgbot.keyboard(job.id, site))
+                last = text
+            named = r.get("identities_done") or app["jobs"].namer is None or time.time() * 1000 - (job.finished_ms or 0) > 180_000
+            if not waiting and named:
+                return
+            await asyncio.sleep(15)
+    finally:
+        _tg_pending_set(app, pkey, None)
+
+
 async def _tg_bot_loop(app):
-    """Бот: довге опитування getUpdates, відповіді на /start і /stop. Ключ не потрапляє в журнал."""
+    """Бот: довге опитування getUpdates. /start і /stop — прив'язка сповіщень; /early — ранні гаманці токена (20.10),
+    кожна відповідь своєю задачею. Ключ не потрапляє в журнал."""
     token, offset = app["tg"]["token"], 0
     async with aiohttp.ClientSession(headers=UA_HEADERS) as http:
+        for e in list(app["tg_pending"].values()):             # відповіді, які оновлювались до перезапуску
+            if time.time() - float(e.get("at") or 0) < 2 * 3600 and e.get("chat") and e.get("mid") and e.get("job"):
+                _tg_task(app, _tg_watch(app, http, e))
+            else:
+                _tg_pending_set(app, f"{e.get('chat')}:{e.get('mid')}", None)
         while True:
             try:
                 if not app["tg"].get("checked"):    # ім'я — завжди від самого Telegram: у .env могла бути описка чи «@»
                     app["tg"]["name"] = (await _tg_call(http, token, "getMe") or {}).get("username") or ""
                     app["tg"]["checked"] = bool(app["tg"]["name"])
                     app["alerts_state"]["bot"] = app["tg"]["name"]
+                    with contextlib.suppress(Exception):        # підказка команд у полі вводу: без неї бот працює так само
+                        await _tg_call(http, token, "setMyCommands", commands=tgbot.COMMANDS)
                 ups = await _tg_call(http, token, "getUpdates", offset=offset, timeout=30, allowed_updates=["message"])
                 for u in ups or []:
                     offset = max(offset, int(u.get("update_id") or 0) + 1)
+                    m = u.get("message") or {}
+                    chat_o = m.get("chat") or {}
+                    mint = tgbot.parse_early(m.get("text"), app["tg"]["name"], chat_o.get("type") == "private")
+                    if mint is not None and isinstance(chat_o.get("id"), int):
+                        if mint:
+                            _tg_task(app, _tg_early(app, http, m, mint))
+                        else:
+                            await _tg_send(app, http, chat_o["id"], tgbot.HELP)
+                        continue
                     reply = await asyncio.to_thread(tg_reply, app, u)
                     if reply:
                         await _tg_send(app, http, *reply)
@@ -3147,7 +3430,7 @@ def _beta(app):
 
 USAGE_TTL = 60
 ADMIN_TABS = {"overview": "Overview", "analyses": "Analyses", "agent": "Agent", "wallets": "Wallets", "behavior": "Behavior",
-              "costs": "Costs", "api": "API", "feedback": "Feedback", "log": "Log", "method": "Agent method"}
+              "costs": "Costs", "api": "API", "tg": "Telegram", "feedback": "Feedback", "log": "Log", "method": "Agent method"}
 
 
 async def _budget(app):
@@ -3200,9 +3483,15 @@ async def admin_page(request):
         now_ms = int(time.time() * 1000)
         month = await asyncio.to_thread(app["events"].read, usage_mod.month_start_ms(now_ms))
         api_keys, api_stats = app["api_keys"].all(), usage_mod.api_usage(month, now_ms)
+    tg_stats = None
+    if tab == "tg":                                      # бот /early: кожен чат за місяць і що він коштував
+        now_ms = int(time.time() * 1000)
+        month = await asyncio.to_thread(app["events"].read, usage_mod.month_start_ms(now_ms))
+        tg_stats = usage_mod.tg_usage(month, now_ms)
     return render("admin.html", request, u=u, budget=budget, meters=meters, beta=sorted(_beta(app)), events=events, period=period,
                   labels=_admin_labels(app) if tab == "wallets" else {},
                   api_keys=api_keys, api_stats=api_stats, api_rules=api_mod.THRESHOLD_RULES,
+                  tg_stats=tg_stats, tg_bot=app["tg"].get("name") or "", tg_here=_alerts_live(app),
                   include_team=include_team, tab=tab, tabs=ADMIN_TABS,
                   feedback=feedback, feedback_new=sum(1 for f in feedback if not f.get("read")),
                   usage_tz=app["s"].get("usage_tz") or "UTC", periods=list(usage_mod.PERIODS),
@@ -3530,7 +3819,7 @@ def _mint(v):
     return v
 
 
-async def _overview(app, mint, charge=None, who=None):
+async def _overview(app, mint, charge=None, who=None, **extra):
     """token_info + detector hints, cached in memory for 10 minutes (a failure for 2, so a bad address is not bought
     again on every hit). Concurrent viewers of one new token share a single load. `charge(n)` gets the number of
     requests that really went out, success or failure; the usage log gets them too, on `who` (a wallet or a guest)."""
@@ -3558,7 +3847,7 @@ async def _overview(app, mint, charge=None, who=None):
                 n = st.requests_here() - req0
                 if charge:
                     charge(n)
-                _spend(app, who, "overview", st=n, mint=mint)
+                _spend(app, who, "overview", st=n, mint=mint, **extra)   # extra: чат бота, який спитав (21.10)
     try:
         try:
             info, ov = await asyncio.to_thread(load)
