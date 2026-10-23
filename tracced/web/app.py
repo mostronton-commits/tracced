@@ -2070,6 +2070,18 @@ async def _tg_early(app, http, msg, mint):
         app["tg_busy"].discard(key)
 
 
+async def _tg_price_ratio(app, mint, r):
+    """Сьогоднішня ціна токена до ціни, за якою аналіз оцінив непродане: огляд токена з кешу (10 хв), інакше 1-2 запити.
+    Збій — 1.0: тоді непродане за ціною аналізу."""
+    then = r.get("price_at_end")
+    try:
+        info, _ = await _overview(app, mint, None, "system", via="tg")
+        now = info.get("price_usd")
+    except WebError:
+        now = None
+    return (float(now) / float(then)) if now and then else 1.0
+
+
 async def _tg_watch(app, http, e):
     """Тримає одну відповідь бота в актуальному стані, поки аналіз іде і поки йде перевірка запуску. Записано на диск:
     перезапуск сервера (автодеплой) продовжує з того самого повідомлення."""
@@ -2078,7 +2090,7 @@ async def _tg_watch(app, http, e):
     _tg_pending_set(app, pkey, e)
     run_until = e["at"] + 60 * float(s.get("tg_wait_run_min", 20))
     launch_until = e["at"] + 60 * float(s.get("tg_wait_launch_min", 60))
-    last, phase = None, None
+    last, phase, ratio = None, None, None
     try:
         while True:
             job = app["jobs"].get(e["job"])
@@ -2104,12 +2116,14 @@ async def _tg_watch(app, http, e):
             r = job.result
             rows, _ = await _rows_async(app, r, "all")
             info = r.get("info") or {}
+            if ratio is None:                               # непродане — за сьогоднішньою ціною, а не ціною аналізу
+                ratio = await _tg_price_ratio(app, job.mint, r)
             fresh = (job.finished_ms or 0) > (time.time() - 3600) * 1000      # старий аналіз: перевірки запуску вже не буде
             waiting = r.get("launch") is None and bool(s.get("launch_on")) and fresh and time.time() < launch_until
             text = tgbot.early_text(job.symbol or info.get("symbol"), job.mint, job.t_from, job.t_to, rows,
                                     r.get("identities") or {}, r, creator=info.get("creator") or info.get("deployer"),
                                     waiting=waiting, min_profit=float(s.get("tg_top_min_profit_usd", 250)),
-                                    min_mult=float(s.get("tg_top_min_multiple", 2)))
+                                    min_mult=float(s.get("tg_top_min_multiple", 2)), price_ratio=ratio)
             if text != last:
                 await _tg_edit(app, http, chat, mid, text, tgbot.keyboard(job.id, site))
                 last = text

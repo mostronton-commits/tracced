@@ -11,7 +11,8 @@ import time
 MIN, HOUR = 60_000, 3_600_000
 ADDR = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 TOP = 5
-SHOWN_TAGS = ("bundle", "sniper", "fresh")
+SHOWN_TAGS = ("bundle", "sniper", "fresh", "re-bought", "transfer-in")   # the last two explain «in»: it bought more
+                                                                          # later, or got tokens it did not pay for
 SKIP_TAGS = {"bot-like", "dev", "launch-bundle", "own-bundle"}
 HELP = ("Send <code>/early &lt;token address&gt;</code> and I show the wallets that bought before its pump: entry and "
         "exit market cap, realized profit, and what the launch looked like on chain, each fact with its proof link.\n"
@@ -216,10 +217,20 @@ def link(w, url="https://solscan.io/account/"):
     return f'<a href="{url}{html.escape(w)}">{html.escape(short(w))}</a>'
 
 
-def wallet_line(r, names):
-    """Two lines (owner, 23.10: «вклав 400, забрав 1060, це x2.9» — say it in words): the wallet, who it is and its tags;
-    then what it bought at which market cap, what it sold at which, and the x. The x is from the average entry to the
-    average exit, so on the part it sold it is exactly what came out over what went in."""
+def unsold_now(r, price_ratio=1.0):
+    """What the unsold part is worth now: its cost (average) plus its paper profit at the analysis's price, moved to
+    today's price. None when it sold everything."""
+    sold = r.get("sold_share_pct")
+    if sold is not None and float(sold) >= 99.5:
+        return None
+    left = (r.get("invested_usd") or 0) * (1 - float(sold or 0) / 100)
+    return max(0.0, (left + (r.get("unrealized_usd") or 0)) * (price_ratio or 1.0))
+
+
+def wallet_line(r, names, price_ratio=1.0):
+    """Two lines (owner, 23.10, his pick of three): the wallet, who it is and its tags; then the market cap it came in
+    and went out at (averages), what it put in, took out and still holds unsold at today's price, and the x — what came
+    out plus what is left, over what went in, so the numbers add up by eye."""
     w = r["wallet"]
     head = link(w)
     who = _who((names or {}).get(w))
@@ -228,18 +239,15 @@ def wallet_line(r, names):
     tags = [t for t in SHOWN_TAGS if t in (r.get("tag_list") or [])]
     if tags:
         head += " · " + ", ".join(tags)
-    entry = r.get("entry_mcap_avg") or r.get("entry_range_mcap")
-    exit_, out = r.get("exit_mcap_avg"), r.get("proceeds_usd")
-    words = f"bought {money(r.get('invested_usd'))} at {money(entry)} mc"
-    if exit_ and out:
-        words += f", sold {money(out)} at {money(exit_)} mc"
-        if entry:
-            words += f" (<b>×{exit_ / entry:.1f}</b>)"
-        sold = r.get("sold_share_pct")
-        if sold is not None and float(sold) < 99.5:
-            words += f", holds {round(100 - float(sold)):g}%"
-    else:
-        words += ", holds all"
+    entry, exit_ = r.get("entry_mcap_avg") or r.get("entry_range_mcap"), r.get("exit_mcap_avg")
+    put, took, left = r.get("invested_usd") or 0, r.get("proceeds_usd") or 0, unsold_now(r, price_ratio)
+    words = f"mc {money(entry)} → {money(exit_) if exit_ and took else 'holding'} · in {money(put)}"
+    if took:
+        words += f", out {money(took)}"
+    if left is not None:
+        words += f", {money(left)} unsold"
+    if put:
+        words += f" · <b>×{(took + (left or 0)) / put:.1f}</b>"
     return head + "\n" + words
 
 
@@ -278,14 +286,15 @@ def launch_lines(r, creator=None, waiting=True):
     return ["Launch: nothing organised found" + (f" · {plural(checked, 'early sale')} checked" if checked else "")]
 
 
-def early_text(symbol, mint, t_from, t_to, rows, names, result, creator=None, waiting=True, min_profit=0, min_mult=0):
+def early_text(symbol, mint, t_from, t_to, rows, names, result, creator=None, waiting=True, min_profit=0, min_mult=0,
+               price_ratio=1.0):
     """The whole answer, short (owner, 20.10: «забагато тексту»): the token and its pump, the wallets worth a look, the
     launch. rows: the analysis rows; names: identities by wallet. Stays under Telegram's 4096."""
     sym = html.escape(str(symbol or short(mint))[:16])
     lines = [f"<b>${sym}</b> · pump {span(t_from, t_to)} UTC", ""]
     top = top_rows(rows, min_profit=min_profit, min_mult=min_mult, creator=creator)
     if top:                                             # no «5 of 615 early wallets» line (owner, 21.10: says little)
-        lines += [wallet_line(r, names) for r in top]
+        lines += [wallet_line(r, names, price_ratio) for r in top]
     else:
         bar = f"{min_mult:g}x+ and {money(min_profit)}+ profit" if min_profit or min_mult else "in profit"
         lines.append(f"{plural(len(rows or []), 'early wallet')}, none {bar}.")

@@ -74,15 +74,16 @@ The answer is one message that fills in as the work goes:
 - up to five early wallets worth a look: the most realized profit among those that sold at
   {{ s.tg_top_min_multiple }}x their entry or more on average and took at least ${{ s.tg_top_min_profit_usd }}. Bot-like
   wallets, the token's creator and the wallets of the launch's own bundles never make it (those show as launch facts).
-  Each has its entry and exit market cap, how many x that is, what it put in and took out, what it still holds and
-  its tags; its short address opens it
+  Each has its average entry and exit market cap, what it put in, what it took out and what its unsold tokens are
+  worth at today's price, and the x: what came out plus what is left, over what went in. Its tags say when it bought
+  more later or got tokens by transfer; its short address opens it
   on Solscan, its X account on X. When none qualifies, the answer says so;
 - the launch check: what it found on chain, each fact with a link to its proof (the Jito bundle, the fee
   transaction), or how many early sales it checked and found nothing in. It never calls a launch clean.
 
 *Open on tracced* opens the whole analysis: there a wallet you pick gets its bell, one at a time.
 
-A token already analysed answers at once and costs nothing. A new one is a real analysis: up to
+A token already analysed answers at once; it costs nothing but a look at the token's price today. A new one is a real analysis: up to
 {{ s.tg_runs_per_chat }} a day per chat or group, and {{ s.tg_runs_per_day }} a day from the bot for everyone, within
 the site's own budget.
 

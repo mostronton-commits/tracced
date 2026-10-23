@@ -138,26 +138,27 @@ class TestText(unittest.TestCase):
         self.assertEqual([tgbot.money(v) for v in (618_600, 9_540, 37.4, 1_230_000, -2_000, 100_000)],
                          ["$619K", "$9.5K", "$37", "$1.2M", "-$2K", "$100K"])
 
-    def test_a_wallet_says_what_it_put_in_and_took_out(self):
-        w = "CE44oKS3wpUerx8afyeii56u5oQjBLZknzm4Q2CYHUz9"
-        line = tgbot.wallet_line(row(w, 22_600, entry_mcap_avg=4_400, exit_mcap_avg=382_000, sold_share_pct=76.0,
-                                     invested_usd=400, proceeds_usd=23_000, tag_list=["sniper", "my-own"]),
-                                 {w: {"name": "<b>x</b>", "twitter": "ape"}})
-        head, words = line.split("\n")
-        self.assertIn(f'<a href="https://solscan.io/account/{w}">CE4…Uz9</a>', head)
-        self.assertIn('<a href="https://x.com/ape">@ape</a>', head)       # X handle first, linked to X, not Telegram
-        self.assertIn("sniper", head)
-        self.assertNotIn("my-own", line)                                  # a person's own tags stay theirs
-        self.assertEqual(words, "bought $400 at $4.4K mc, sold $23K at $382K mc (<b>×86.8</b>), holds 24%")
-        held = tgbot.wallet_line(row(w, 5, entry_mcap_avg=20_000, exit_mcap_avg=None, invested_usd=300), {w: {"name": "<script>"}})
-        self.assertIn("&lt;script&gt;", held)
-        self.assertTrue(held.endswith("bought $300 at $20K mc, holds all"))
-        self.assertNotIn("×", held)                                       # no exit, no x
-        all_out = tgbot.wallet_line(row(w, 5, entry_mcap_avg=105_000, exit_mcap_avg=304_500, sold_share_pct=100.0,
-                                        invested_usd=400, proceeds_usd=1_160), {})
-        self.assertTrue(all_out.endswith("bought $400 at $105K mc, sold $1.2K at $304K mc (<b>×2.9</b>)"))
-        line = tgbot.wallet_line(row(w, 5), {w: {"name": "@Dior100x", "twitter": "not a handle!"}})
-        self.assertNotIn("@", line)                                       # a bare @word would open a Telegram stranger
+    def test_a_wallet_says_what_it_put_in_took_out_and_holds(self):
+        # owner, 23.10, his pick: «mc $124K → $301K · in $521, out $623, $380 unsold · ×1.9» (MEMEMAN's 47s…NSB)
+        w = "47sX" + "1" * 36 + "xNSB"
+        mememan = row(w, 366, entry_mcap_avg=124_227, exit_mcap_avg=301_003, sold_share_pct=49.0, invested_usd=521,
+                      proceeds_usd=623, unrealized_usd=117, tag_list=["re-bought", "my-own"])
+        head, words = tgbot.wallet_line(mememan, {w: {"twitter": "ape"}}).split("\n")
+        self.assertIn(f'<a href="https://solscan.io/account/{w}">47s…NSB</a>', head)
+        self.assertIn('<a href="https://x.com/ape">@ape</a>', head)       # X handle, linked to X, not Telegram
+        self.assertIn("re-bought", head)                                  # why «in» is more than the early buy
+        self.assertNotIn("my-own", head)                                  # a person's own tags stay theirs
+        self.assertEqual(words, "mc $124K → $301K · in $521, out $623, $383 unsold · <b>×1.9</b>")   # (623 + 383) / 521
+        self.assertIn("$191 unsold · <b>×1.6</b>", tgbot.wallet_line(mememan, {}, price_ratio=0.5))  # at today's price
+        all_out = row(w, 760, entry_mcap_avg=105_000, exit_mcap_avg=304_000, sold_share_pct=100.0, invested_usd=400,
+                      proceeds_usd=1_160)
+        self.assertTrue(tgbot.wallet_line(all_out, {}).endswith("mc $105K → $304K · in $400, out $1.2K · <b>×2.9</b>"))
+        holder = row(w, 0, entry_mcap_avg=20_000, exit_mcap_avg=None, sold_share_pct=0.0, invested_usd=300,
+                     proceeds_usd=None, unrealized_usd=150)
+        self.assertTrue(tgbot.wallet_line(holder, {}).endswith("mc $20K → holding · in $300, $450 unsold · <b>×1.5</b>"))
+        named = tgbot.wallet_line(row(w, 5), {w: {"name": "<script>"}})
+        self.assertIn("&lt;script&gt;", named)
+        self.assertNotIn("@", tgbot.wallet_line(row(w, 5), {w: {"name": "@Dior100x", "twitter": "not a handle!"}}))
 
     def test_launch_facts_only_with_proof_never_clean(self):
         self.assertEqual(tgbot.launch_lines({}), ["Launch check: running…"])
@@ -293,7 +294,7 @@ if AioHTTPTestCase:
             tg, before = FakeTelegram(), self.st.requests
             with mock.patch.object(app_mod, "_tg_call", tg):
                 await app_mod._tg_early(self.app, None, self.msg(f"/early {OTHER_MINT}"), OTHER_MINT)
-            self.assertEqual(self.st.requests, before)                         # nothing bought
+            self.assertLessEqual(self.st.requests - before, 2)                 # no run: only today's price of the token
             self.assertEqual(tg.of("sendMessage")[0]["reply_parameters"]["message_id"], 5)
             last = tg.of("editMessageText")[-1]
             self.assertIn("$TST", last["text"])
