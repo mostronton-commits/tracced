@@ -11,8 +11,7 @@ import time
 MIN, HOUR = 60_000, 3_600_000
 ADDR = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 TOP = 5
-SHOWN_TAGS = ("bundle", "sniper", "fresh", "re-bought", "transfer-in")   # the last two explain «in»: it bought more
-                                                                          # later, or got tokens it did not pay for
+SHOWN_TAGS = ("bundle", "sniper", "fresh")
 SKIP_TAGS = {"bot-like", "dev", "launch-bundle", "own-bundle"}
 HELP = ("Send <code>/early &lt;token address&gt;</code> and I show the wallets that bought before its pump: entry and "
         "exit market cap, realized profit, and what the launch looked like on chain, each fact with its proof link.\n"
@@ -232,9 +231,9 @@ def signed(v):
 
 
 def wallet_line(r, names, price_ratio=1.0):
-    """A position, as an exchange shows one (owner, 23.10: «pnl, upnl — як на біржах»): the wallet, who it is and its
-    tags; Entry → Exit market cap (averages) and Size (what it put in); PnL (taken), uPnL (on what is unsold, at today's
-    price) and ROI, the two over the size."""
+    """Two lines (owner, 23.10: «менше інфи»): the wallet, who it is and its tags; the market cap it came in and went out
+    at (averages), its PnL — what it took plus its unsold tokens at today's price, less what it put in — and ROI, that
+    over what it put in. Size, the taken/unsold split and the sells are on the analysis page."""
     w = r["wallet"]
     head = link(w)
     who = _who((names or {}).get(w))
@@ -245,19 +244,11 @@ def wallet_line(r, names, price_ratio=1.0):
         head += " · " + ", ".join(tags)
     entry, exit_ = r.get("entry_mcap_avg") or r.get("entry_range_mcap"), r.get("exit_mcap_avg")
     size, took, left = r.get("invested_usd") or 0, r.get("proceeds_usd") or 0, unsold_now(r, price_ratio)
-    sold = float(r.get("sold_share_pct") or 0)
-    pos = f"Entry {money(entry)} → Exit {money(exit_)} mc" if exit_ and took else f"Entry {money(entry)} mc"
-    pos += f" · Size {money(size)}"
-    pnl = r.get("realized_usd") or 0
-    upnl = (left - size * (1 - sold / 100)) if left is not None else None
-    res = []
-    if took:
-        res.append(f"PnL {signed(pnl)}")
-    if upnl is not None:
-        res.append(f"uPnL {signed(upnl)}")
+    line = f"mc {money(entry)} → {money(exit_) if exit_ and took else 'holding'}"
     if size:
-        res.append(f"<b>ROI {'+' if pnl + (upnl or 0) >= 0 else '−'}{abs(pnl + (upnl or 0)) / size * 100:.0f}%</b>")
-    return "\n".join([head, pos, " · ".join(res)])
+        pnl = took + (left or 0) - size
+        line += f" · PnL {signed(pnl)} · <b>ROI {'+' if pnl >= 0 else '−'}{abs(pnl) / size * 100:.0f}%</b>"
+    return head + "\n" + line
 
 
 def plural(n, word):
