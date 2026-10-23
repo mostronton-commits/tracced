@@ -227,10 +227,14 @@ def unsold_now(r, price_ratio=1.0):
     return max(0.0, (left + (r.get("unrealized_usd") or 0)) * (price_ratio or 1.0))
 
 
+def signed(v):
+    return ("+" if v >= 0 else "−") + money(abs(v))
+
+
 def wallet_line(r, names, price_ratio=1.0):
-    """Two lines (owner, 23.10, his pick of three): the wallet, who it is and its tags; then the market cap it came in
-    and went out at (averages), what it put in, took out and still holds unsold at today's price, and the x — what came
-    out plus what is left, over what went in, so the numbers add up by eye."""
+    """A position, as an exchange shows one (owner, 23.10: «pnl, upnl — як на біржах»): the wallet, who it is and its
+    tags; Entry → Exit market cap (averages) and Size (what it put in); PnL (taken), uPnL (on what is unsold, at today's
+    price) and ROI, the two over the size."""
     w = r["wallet"]
     head = link(w)
     who = _who((names or {}).get(w))
@@ -240,15 +244,20 @@ def wallet_line(r, names, price_ratio=1.0):
     if tags:
         head += " · " + ", ".join(tags)
     entry, exit_ = r.get("entry_mcap_avg") or r.get("entry_range_mcap"), r.get("exit_mcap_avg")
-    put, took, left = r.get("invested_usd") or 0, r.get("proceeds_usd") or 0, unsold_now(r, price_ratio)
-    words = f"mc {money(entry)} → {money(exit_) if exit_ and took else 'holding'} · in {money(put)}"
+    size, took, left = r.get("invested_usd") or 0, r.get("proceeds_usd") or 0, unsold_now(r, price_ratio)
+    sold = float(r.get("sold_share_pct") or 0)
+    pos = f"Entry {money(entry)} → Exit {money(exit_)} mc" if exit_ and took else f"Entry {money(entry)} mc"
+    pos += f" · Size {money(size)}"
+    pnl = r.get("realized_usd") or 0
+    upnl = (left - size * (1 - sold / 100)) if left is not None else None
+    res = []
     if took:
-        words += f", out {money(took)}"
-    if left is not None:
-        words += f", {money(left)} unsold"
-    if put:
-        words += f" · <b>×{(took + (left or 0)) / put:.1f}</b>"
-    return head + "\n" + words
+        res.append(f"PnL {signed(pnl)}")
+    if upnl is not None:
+        res.append(f"uPnL {signed(upnl)}")
+    if size:
+        res.append(f"<b>ROI {'+' if pnl + (upnl or 0) >= 0 else '−'}{abs(pnl + (upnl or 0)) / size * 100:.0f}%</b>")
+    return "\n".join([head, pos, " · ".join(res)])
 
 
 def plural(n, word):

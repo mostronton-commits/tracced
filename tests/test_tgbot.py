@@ -138,24 +138,25 @@ class TestText(unittest.TestCase):
         self.assertEqual([tgbot.money(v) for v in (618_600, 9_540, 37.4, 1_230_000, -2_000, 100_000)],
                          ["$619K", "$9.5K", "$37", "$1.2M", "-$2K", "$100K"])
 
-    def test_a_wallet_says_what_it_put_in_took_out_and_holds(self):
-        # owner, 23.10, his pick: «mc $124K → $301K · in $521, out $623, $380 unsold · ×1.9» (MEMEMAN's 47s…NSB)
+    def test_a_wallet_reads_like_an_exchange_position(self):
+        # owner, 23.10: «pnl, upnl — як на біржах» (MEMEMAN's 47s…NSB: $521 in, $623 out, 49% sold)
         w = "47sX" + "1" * 36 + "xNSB"
         mememan = row(w, 366, entry_mcap_avg=124_227, exit_mcap_avg=301_003, sold_share_pct=49.0, invested_usd=521,
                       proceeds_usd=623, unrealized_usd=117, tag_list=["re-bought", "my-own"])
-        head, words = tgbot.wallet_line(mememan, {w: {"twitter": "ape"}}).split("\n")
+        head, pos, res = tgbot.wallet_line(mememan, {w: {"twitter": "ape"}}).split("\n")
         self.assertIn(f'<a href="https://solscan.io/account/{w}">47s…NSB</a>', head)
         self.assertIn('<a href="https://x.com/ape">@ape</a>', head)       # X handle, linked to X, not Telegram
-        self.assertIn("re-bought", head)                                  # why «in» is more than the early buy
+        self.assertIn("re-bought", head)                                  # why the size is more than the early buy
         self.assertNotIn("my-own", head)                                  # a person's own tags stay theirs
-        self.assertEqual(words, "mc $124K → $301K · in $521, out $623, $383 unsold · <b>×1.9</b>")   # (623 + 383) / 521
-        self.assertIn("$191 unsold · <b>×1.6</b>", tgbot.wallet_line(mememan, {}, price_ratio=0.5))  # at today's price
+        self.assertEqual(pos, "Entry $124K → Exit $301K mc · Size $521")
+        self.assertEqual(res, "PnL +$366 · uPnL +$117 · <b>ROI +93%</b>")              # (366 + 117) / 521
+        self.assertTrue(tgbot.wallet_line(mememan, {}, price_ratio=0.5).endswith("uPnL −$74 · <b>ROI +56%</b>"))  # today
         all_out = row(w, 760, entry_mcap_avg=105_000, exit_mcap_avg=304_000, sold_share_pct=100.0, invested_usd=400,
                       proceeds_usd=1_160)
-        self.assertTrue(tgbot.wallet_line(all_out, {}).endswith("mc $105K → $304K · in $400, out $1.2K · <b>×2.9</b>"))
+        self.assertTrue(tgbot.wallet_line(all_out, {}).endswith("Entry $105K → Exit $304K mc · Size $400\nPnL +$760 · <b>ROI +190%</b>"))
         holder = row(w, 0, entry_mcap_avg=20_000, exit_mcap_avg=None, sold_share_pct=0.0, invested_usd=300,
                      proceeds_usd=None, unrealized_usd=150)
-        self.assertTrue(tgbot.wallet_line(holder, {}).endswith("mc $20K → holding · in $300, $450 unsold · <b>×1.5</b>"))
+        self.assertTrue(tgbot.wallet_line(holder, {}).endswith("Entry $20K mc · Size $300\nuPnL +$150 · <b>ROI +50%</b>"))
         named = tgbot.wallet_line(row(w, 5), {w: {"name": "<script>"}})
         self.assertIn("&lt;script&gt;", named)
         self.assertNotIn("@", tgbot.wallet_line(row(w, 5), {w: {"name": "@Dior100x", "twitter": "not a handle!"}}))
@@ -194,7 +195,7 @@ class TestText(unittest.TestCase):
         self.assertNotIn("early wallets", text)                            # no «5 of 6» line: the wallets speak
         tower = [row(f"{c}" * 44, p) for c, p in zip("ABCDE", (168, 37, 22, 12, 9))] + [row(f"Z{i}" * 22, -1) for i in range(13)]
         shown = re.sub(r"<[^>]+>", "", tgbot.early_text("TOWER", MINT, T, T + 25 * MIN, tower, {}, {"launch": {"pairs": [], "sells": 0}}))
-        self.assertLess(len(shown), 600)                                   # two lines a wallet, in words (owner, 23.10)
+        self.assertLess(len(shown), 700)                                   # a position a wallet, as on an exchange (23.10)
         empty = tgbot.early_text("TST", MINT, T, T + 30 * MIN, [row("L", -1)], {}, {})
         self.assertIn("1 early wallet, none in profit.", empty)
 
