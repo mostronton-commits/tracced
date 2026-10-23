@@ -223,7 +223,12 @@ def wallet_line(r, names):
     if who:
         out += " " + who
     entry, exit_ = r.get("entry_range_mcap") or r.get("entry_mcap_avg"), r.get("exit_mcap_avg")
-    out += f" · {money(entry)} → {money(exit_) if exit_ else 'holding'} · <b>+{money(r.get('realized_usd'))}</b>"
+    out += f" · {money(entry)} → {money(exit_) if exit_ else 'holding'}"
+    if entry and exit_:                                 # owner, 23.10: how many x, what went in, what came out
+        out += f" · <b>×{exit_ / entry:.1f}</b>"
+    out += f" · {money(r.get('invested_usd'))} in"
+    if r.get("proceeds_usd"):
+        out += f", {money(r.get('proceeds_usd'))} out"
     sold = r.get("sold_share_pct")
     if sold is not None and float(sold) < 99.5:
         out += f" · holds {round(100 - float(sold)):g}%"

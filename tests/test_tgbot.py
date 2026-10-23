@@ -141,18 +141,20 @@ class TestText(unittest.TestCase):
     def test_a_wallet_line_carries_facts_and_escapes_names(self):
         w = "CE44oKS3wpUerx8afyeii56u5oQjBLZknzm4Q2CYHUz9"
         line = tgbot.wallet_line(row(w, 22_600, entry_range_mcap=4_400, exit_mcap_avg=382_000, sold_share_pct=76.0,
-                                     tag_list=["sniper", "my-own"]), {w: {"name": "<b>x</b>", "twitter": "ape"}})
+                                     invested_usd=400, proceeds_usd=23_000, tag_list=["sniper", "my-own"]),
+                                 {w: {"name": "<b>x</b>", "twitter": "ape"}})
         self.assertIn(f'<a href="https://solscan.io/account/{w}">CE4…Uz9</a>', line)
         self.assertNotIn(w + "<", line.replace(f'account/{w}"', ""))               # the full address only in the link
         self.assertIn('<a href="https://x.com/ape">@ape</a>', line)       # X handle first, linked to X, not Telegram
         self.assertIn("$4.4K → $382K", line)
-        self.assertIn("<b>+$22.6K</b>", line)
+        self.assertIn("<b>×86.8</b> · $400 in, $23K out", line)          # owner, 23.10: the x, what went in and out
         self.assertIn("holds 24%", line)
         self.assertIn("sniper", line)
         self.assertNotIn("my-own", line)                                  # a person's own tags stay theirs
         line = tgbot.wallet_line(row(w, 5, exit_mcap_avg=None), {w: {"name": "<script>"}})
         self.assertIn("&lt;script&gt;", line)
         self.assertIn("→ holding", line)
+        self.assertNotIn("×", line)                                       # no exit, no x, nothing out
         line = tgbot.wallet_line(row(w, 5), {w: {"name": "@Dior100x", "twitter": "not a handle!"}})
         self.assertNotIn("@", line)                                       # a bare @word would open a Telegram stranger
         self.assertNotIn("holds", tgbot.wallet_line(row(w, 5, sold_share_pct=99.7), {}))

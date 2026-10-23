@@ -74,7 +74,8 @@ The answer is one message that fills in as the work goes:
 - up to five early wallets worth a look: the most realized profit among those that sold at
   {{ s.tg_top_min_multiple }}x their entry or more on average and took at least ${{ s.tg_top_min_profit_usd }}. Bot-like
   wallets, the token's creator and the wallets of the launch's own bundles never make it (those show as launch facts).
-  Each has its entry and exit market cap, the profit, what it still holds and its tags; its short address opens it
+  Each has its entry and exit market cap, how many x that is, what it put in and took out, what it still holds and
+  its tags; its short address opens it
   on Solscan, its X account on X. When none qualifies, the answer says so;
 - the launch check: what it found on chain, each fact with a link to its proof (the Jito bundle, the fee
   transaction), or how many early sales it checked and found nothing in. It never calls a launch clean.
