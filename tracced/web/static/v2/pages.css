@@ -1,1 +1,215 @@
 /* design v2 · docs, contact, the connect sheet, the missing and private pages (canvas Docs, Contact, Connect, Rugged, Private). Loaded after v2/style.css on every v2 page; values come from v2/tokens.css only. */
+
+/* ───────── Docs (canvas «Docs»): the pages on the left, the page with no card around it, «On this page» on the right.
+   The rules of v2/style.css for .docs stay underneath; these take their place where the canvas differs ───────── */
+.docs { grid-template-columns: 240px minmax(0, 720px) 220px; gap: 48px; margin-top: 16px; align-items: start; justify-content: center; }
+.docs .dn-h { display: block; padding: 0 12px 10px; color: var(--faint); font-size: var(--fs-caption); }
+.dic { width: 15px; height: 15px; flex: none; display: block; }
+
+.docs-nav { position: sticky; top: 24px; }
+.docs-nav ul { gap: 2px; margin: 0; }
+.docs-nav a { gap: 10px; height: 36px; padding: 0 12px; border: 0; border-radius: var(--r-m); color: var(--muted); font-size: var(--fs-body);
+  transition: color var(--t-fast) ease, background-color var(--t-fast) ease; }
+.docs-nav a:hover { background: var(--surface); color: var(--ink); }
+.docs-nav a.on { background: var(--surface-2); color: var(--ink); font-weight: var(--w-semi); }
+.docs-nav a.on .dic { color: var(--mint); }
+
+.docs-crumb { color: var(--muted); font-size: var(--fs-small); }
+.docs .docs-body { padding: 0; margin: 0; border: 0; background: none; }
+.docs-body > h1:first-child { margin: 6px 0 0; font-size: var(--fs-h1); font-weight: var(--w-semi); line-height: 1.05; letter-spacing: -0.03em; }
+.docs-body > h1:first-child + p { margin: 18px 0 0; font-size: var(--fs-title); line-height: 1.5; color: var(--ink); }
+.docs-body > h1:first-child + p strong { font-weight: var(--w-regular); color: inherit; }
+.docs-body p { margin: 14px 0 0; color: var(--ink-2); font-size: var(--fs-read); line-height: var(--lh-read); }
+.docs-body strong { color: var(--ink); font-weight: var(--w-semi); }
+.docs-body h2 { margin: 44px 0 0; padding: 0; border: 0; font-size: var(--fs-num); font-weight: var(--w-semi); line-height: 1.25; letter-spacing: -0.01em;
+  scroll-margin-top: 24px; }
+.docs-body h3 { margin: 28px 0 0; font-size: var(--fs-lead); font-weight: var(--w-semi); line-height: 1.3; scroll-margin-top: 24px; }
+.docs-body ul { margin: 14px 0 0; padding-left: 20px; gap: 8px; color: var(--ink-2); font-size: var(--fs-read); }
+.docs-body li { line-height: 1.6; }
+.docs-body li > p { margin: 0; }
+.docs-body hr { margin: 32px 0; }
+/* numbered lists are steps: a number in a soft round mark, the rows split by hairlines */
+.docs-body ol { display: block; list-style: none; counter-reset: dstep; margin: 8px 0 0; padding: 0; }
+.docs-body ol > li { counter-increment: dstep; position: relative; padding: 14px 0 14px 48px; border-top: 1px solid var(--line);
+  color: var(--ink-2); font-size: var(--fs-read); line-height: 1.6; }
+.docs-body ol > li:first-child { border-top: 0; }
+.docs-body ol > li::before { content: counter(dstep); position: absolute; left: 0; top: 12px; width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; background: var(--mint-wash); color: var(--mint); font-size: var(--fs-body); font-weight: var(--w-semi); line-height: 1; }
+
+/* callouts: a soft tint of their meaning, the title's mark in a column of its own */
+.docs-body .admonition { margin: 18px 0 0; padding: 18px 20px; border: 0; border-radius: var(--r-l); background: var(--mint-wash);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mint) 14%, transparent); }
+.docs-body .admonition.info { background: color-mix(in srgb, var(--known) 7%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--known) 16%, transparent); }
+.docs-body .admonition.warning { background: color-mix(in srgb, var(--risk) 7%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--risk) 18%, transparent); }
+.docs-body .admonition.agent { border: 0; padding: 18px 20px; border-radius: var(--r-l); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.docs-body .admonition.has-ic { display: grid; grid-template-columns: 18px minmax(0, 1fr); column-gap: 14px; }
+.docs-body .admonition.has-ic > * { grid-column: 2; }
+.docs-body .admonition.has-ic > .adm-ic { grid-column: 1; grid-row: 1 / span 9; font-size: 15px; line-height: 21px; text-align: center; }
+.docs-body .admonition-title, .docs-body .admonition.agent .admonition-title { margin: 0; color: var(--ink); font-size: var(--fs-body); font-weight: var(--w-semi); line-height: 1.5; }
+.docs-body .admonition p:not(.admonition-title) { margin: 4px 0 0; font-size: var(--fs-body); line-height: 1.6; color: var(--ink-2); }
+.docs-body .admonition ul { font-size: var(--fs-body); margin-top: 6px; }
+
+/* tables sit on a surface with hairline rows; a table of the docs' own pages carries their marks */
+.docs-body .dtw { margin: 16px 0 0; border: 0; border-radius: var(--r-l); background: var(--surface); }
+.docs-body th { padding: 10px 16px; border-bottom: 1px solid var(--line); background: transparent; color: var(--faint);
+  font: var(--w-regular) var(--fs-caption)/1.4 var(--font); text-transform: none; letter-spacing: 0; }
+.docs-body td { padding: 12px 16px; border-bottom: 0; border-top: 1px solid var(--line); color: var(--ink-2); line-height: 1.5; }
+.docs-body tbody tr:first-child td { border-top: 0; }
+.docs-body tbody tr:hover td { background: transparent; }
+.docs-body td:first-child { color: var(--ink); }
+.docs-body .dtw.pages td { vertical-align: middle; color: var(--muted); }
+.docs-body .dtw.pages td:first-child { width: 190px; color: var(--ink); font-weight: var(--w-semi); }
+.docs-body .dtw.pages td:first-child a { display: inline-flex; align-items: center; gap: 10px; border: 0; color: var(--ink); }
+.docs-body .dtw.pages td:first-child a:hover { text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.docs-body .dtw.pages .dic { color: var(--mint); }
+.docs-body table.cmp td.us, .docs-body table.cmp th.us { background: var(--mint-wash); }
+.docs-body table.cmp th.us { color: var(--ink); }
+
+/* the Updates page keeps its rail; the newest dot is mint without a ring */
+.p-updates .ulog h2:first-of-type::before { box-shadow: none; }
+
+/* Previous / Next: quiet cards, the page's mark in mint */
+.docs-pager { display: flex; justify-content: space-between; gap: 12px; margin-top: 36px; }
+.docs-pager .pg { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border: 0; border-radius: var(--r-l); background: var(--surface);
+  color: var(--ink); transition: background-color var(--t-fast) ease; }
+.docs-pager .pg:hover { border: 0; background: var(--surface-2); }
+.docs-pager .pg.next { margin-left: auto; text-align: right; }
+.docs-pager .pg .pg-t { font-size: var(--fs-body); color: var(--ink); }
+.docs-pager .pg .pg-t > span { display: block; color: var(--muted); font-size: var(--fs-caption); }
+.docs-pager .pg .pg-t b { display: flex; align-items: center; gap: 8px; font-size: var(--fs-body); font-weight: var(--w-semi); }
+.docs-pager .pg.next .pg-t b { justify-content: flex-end; }
+.docs-pager .pg-t .dic { color: var(--mint); }
+.docs-pager .pg-ch { width: 16px; height: 16px; flex: none; color: var(--muted); }
+
+/* On this page */
+.docs-toc { position: sticky; top: 24px; font-size: var(--fs-small); }
+.docs-toc .dn-h { padding: 0 0 10px; }
+.docs-toc nav a { display: block; padding: 5px 0 5px 12px; border: 0; border-left: 2px solid var(--line); color: var(--muted); line-height: 1.4;
+  transition: color var(--t-fast) ease, border-color var(--t-fast) ease; }
+.docs-toc nav a:hover { color: var(--ink); border-left-color: var(--line-strong); }
+.docs-toc nav a.on { color: var(--ink); border-left-color: var(--mint); }
+
+@media (max-width: 1199px) {
+  .docs { grid-template-columns: 220px minmax(0, 720px); gap: 40px; }
+  .docs-toc { display: none; }
+}
+/* a tablet and a phone: the pages as a row of chips above the text, as before */
+@media (max-width: 860px) {
+  .docs { grid-template-columns: minmax(0, 1fr); gap: 20px; margin-top: 4px; }
+  .docs-nav { position: static; }
+  .docs-nav .dn-h { display: none; }
+  .docs-nav ul { display: flex; flex-wrap: wrap; gap: 6px; }
+  .docs-nav a { height: 34px; background: var(--surface); }
+  .docs-pager .pg { min-width: 0; }
+}
+@media (max-width: 640px) {
+  .docs-body > h1:first-child { font-size: var(--fs-h2); letter-spacing: var(--track-tight); }
+  .docs-body > h1:first-child + p { font-size: var(--fs-lead); }
+  .docs-body h2 { margin-top: 36px; font-size: var(--fs-title); }
+  .docs-body ol > li { padding-left: 42px; }
+  .docs-body .admonition { padding: 14px 16px; }
+  .docs-body .dtw.pages td:first-child { width: auto; }
+  .docs-body th, .docs-body td { padding-left: 12px; padding-right: 12px; }
+  .docs-pager { flex-direction: column; }
+  .docs-pager .pg.next { margin-left: 0; justify-content: space-between; }
+  .docs-pager .pg.prev { justify-content: flex-start; }
+}
+
+/* ───────── the small pages: one card in the middle of the window (canvas Contact, Connect, Rugged, Private); the widths
+   are the canvas's content plus its 32 px padding ───────── */
+.pcard { width: 100%; max-width: 504px; margin: 0 auto; padding: 32px; border-radius: var(--r-modal); background: var(--surface); box-shadow: var(--shadow-card); }
+.pcard.fbc { max-width: 584px; }
+.pcard.cc { max-width: 624px; }
+.pcard h1 { margin: 0; font-size: var(--fs-h2); font-weight: var(--w-semi); line-height: 1.2; letter-spacing: var(--track-tight); }
+.pc-sub { margin: 10px 0 0; color: var(--muted); font-size: var(--fs-body); }
+.pc-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 20px; }
+
+/* keys: pills, the label alone; pressing changes the fill, nothing moves */
+.pk { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 18px; border: 0; border-radius: var(--r-pill);
+  font: var(--w-semi) var(--fs-body)/1 var(--font); white-space: nowrap; cursor: pointer; text-decoration: none;
+  transition: background-color var(--t-fast) ease, color var(--t-fast) ease; }
+.pk.ink { background: var(--ink); color: var(--bg); }
+.pk.ink:hover { background: var(--ink-2); color: var(--bg); border: 0; }
+.pk.mint { background: var(--mint); color: var(--on-mint); }
+.pk.mint:hover { background: var(--mint-hover); color: var(--on-mint); border: 0; }
+.pk.mint:active { background: var(--mint-press); }
+.pk.quiet { background: var(--surface-2); color: var(--ink); }
+.pk.quiet:hover { background: var(--surface-3); color: var(--ink); border: 0; }
+.pk:focus-visible { outline: none; box-shadow: var(--focus); }
+.pk:disabled { opacity: .55; cursor: default; }
+.pc-quiet { border: 0; color: var(--muted); font-size: var(--fs-small); }
+.pc-quiet:hover { color: var(--ink); border: 0; }
+
+/* the missing page, the private one and the other errors */
+.pc-404 { text-align: center; }
+.rugline { display: block; width: 100%; height: auto; }
+.rugline .base { stroke: var(--line-strong); }
+.rugline .up { fill: none; stroke: var(--mint); stroke-width: 1.8; stroke-linejoin: round; }
+.rugline .area { fill: url(#rugfill); }
+.rugline stop { stop-color: var(--mint); }
+.rugline .drop { fill: none; stroke: var(--loss); stroke-width: 1.8; stroke-linejoin: round; }
+.rugline .peak { fill: var(--mint); }
+.rugline text { fill: var(--loss); font-family: var(--mono); font-size: 10px; }
+.pc-code { margin-top: 28px; color: var(--muted); font: var(--w-regular) var(--fs-small)/1.4 var(--mono); }
+.pc-404 h1 { margin-top: 6px; }
+.pc-404 .pc-acts { justify-content: center; margin-top: 22px; }
+.pc-err .pc-sub { color: var(--ink-2); line-height: 1.55; }
+.pc-err .pc-acts .pc-quiet { margin-left: auto; }
+
+/* Contact (canvas «Contact»): what it is about as chips, the message, how to reach you, Send */
+.fbc .fbkinds { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+.fbc .fbkind { position: relative; }
+.fbc .fbkind input { position: absolute; opacity: 0; pointer-events: none; }
+.fbc .fbkind span { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; border: 0; border-radius: var(--r-pill);
+  background: var(--surface-2); color: var(--muted); font-size: var(--fs-body); cursor: pointer; transition: color var(--t-fast) ease, background-color var(--t-fast) ease; }
+.fbc .fbkind span svg { width: 14px; height: 14px; flex: none; }
+.fbc .fbkind:hover input:not(:checked) + span { color: var(--ink); background: var(--surface-3); }
+.fbc .fbkind input:checked + span { background: color-mix(in srgb, var(--mint) 12%, transparent); color: var(--mint); box-shadow: inset 0 0 0 1px var(--mint-line); font-weight: var(--w-semi); }
+.fbc .fbkind input:focus-visible + span { box-shadow: var(--focus); }
+.fbc textarea, .fbc input[type=text] { display: block; width: 100%; min-width: 0; margin: 16px 0 0; padding: 16px 18px; border: 0; border-radius: var(--r-l);
+  background: var(--bg); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--ink); font: var(--w-regular) var(--fs-read)/1.5 var(--font);
+  resize: none; transition: box-shadow var(--t-fast) ease; }
+.fbc input[type=text] { height: 48px; margin-top: 10px; padding: 0 18px; }
+.fbc textarea::placeholder, .fbc input[type=text]::placeholder { color: var(--muted); }
+.fbc textarea:focus, .fbc input[type=text]:focus { outline: none; border: 0; box-shadow: inset 0 0 0 1px var(--mint-line), 0 0 0 3px var(--mint-wash); }
+.fbc .fbhp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.fbrow { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 18px; }
+.fbrow .pk { height: 46px; font-size: var(--fs-read); }
+.fbstat { color: var(--muted); font-size: var(--fs-small); }
+.fbc .fbdone { margin: 16px 0 0; color: var(--ink-2); font-size: var(--fs-read); }
+
+/* ───────── the connect sheet (canvas «Connect»): in the middle of the window, the wallet apps with their own logos ───────── */
+#wsheet { background: color-mix(in srgb, var(--bg-deep) 72%, transparent); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+#wsheet .sheet-card { max-width: 472px; padding: 26px; border: 0; border-radius: var(--r-modal); background: var(--surface); box-shadow: var(--shadow-modal); }
+#wsheet .sheet-head { position: relative; display: block; margin: 0; padding: 4px 40px; text-align: center; }
+#wsheet .sheet-head b { display: block; font-size: var(--fs-num); font-weight: var(--w-semi); line-height: 1.3; letter-spacing: -0.01em; }
+#wsheet .sheet-head .x { position: absolute; right: 0; top: 0; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%;
+  background: var(--surface-2); color: var(--muted); font-size: var(--fs-read); line-height: 1; }
+#wsheet .sheet-head .x:hover { background: var(--surface-3); color: var(--ink); }
+#wsheet .sheet-head .x:focus-visible { outline: none; box-shadow: var(--focus); }
+#wsheet .wnote { margin: 6px 0 0; padding: 0; background: none; color: var(--muted); font-size: var(--fs-small); text-align: center; }
+#wsheet .wlist { display: flex; flex-direction: column; gap: 8px; margin: 18px 0 0; }
+#wsheet .wrow { display: flex; align-items: center; gap: 14px; width: 100%; height: 60px; padding: 0 16px; border: 0; border-radius: var(--r-l);
+  background: var(--surface-2); color: var(--ink); font: var(--w-semi) var(--fs-read)/1 var(--font); text-align: left; cursor: pointer;
+  transition: background-color var(--t-fast) ease, box-shadow var(--t-fast) ease; }
+#wsheet .wrow:hover { background: var(--surface-3); border: 0; }
+#wsheet .wrow.found { box-shadow: inset 0 0 0 1px var(--mint-line); }
+#wsheet .wrow:focus-visible { outline: none; box-shadow: var(--focus); }
+#wsheet .wrow img { width: 38px; height: 38px; flex: none; border-radius: var(--r-m); }
+#wsheet .wrow .wn { flex: 1; min-width: 0; }
+#wsheet .wrow .ws { flex: none; color: var(--muted); font-size: var(--fs-caption); font-weight: var(--w-regular); }
+#wsheet .wrow.found .ws { color: var(--mint); font-weight: var(--w-semi); }
+#wsheet .wstate { margin: 14px 0 0; color: var(--ink-2); font-size: var(--fs-small); text-align: center; }
+#wsheet .wsafe { display: flex; align-items: flex-start; gap: 10px; margin: 16px 0 0; padding: 12px 14px; border-radius: var(--r-l); background: var(--mint-wash);
+  color: var(--ink-2); font-size: var(--fs-small); line-height: 1.45; }
+#wsheet .wsafe svg { width: 15px; height: 15px; flex: none; margin-top: 1px; color: var(--mint); }
+#wsheet .wdemo { display: block; margin: 14px 0 0; padding: 0; border: 0; color: var(--muted); font-size: var(--fs-small); font-weight: var(--w-regular); text-align: center; }
+#wsheet .wdemo:hover { color: var(--ink); text-decoration: none; }
+
+@media (max-width: 640px) {
+  .pcard { padding: 24px 20px; border-radius: var(--r-card); }
+  #wsheet { padding: 12px; }
+  #wsheet .sheet-card { padding: 20px 18px; border-radius: var(--r-card); }
+  #wsheet .sheet-head b { font-size: var(--fs-title); line-height: 32px; }
+  #wsheet .wrow { height: 56px; }
+}

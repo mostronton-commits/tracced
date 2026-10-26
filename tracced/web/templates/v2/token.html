@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% import "v2/_ag.html" as ag %}
+{% block title %}{{ info.symbol or mint[:8] }}{% if active %} · result{% endif %} · tracced{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block crumb %}{{ info.symbol or mint[:8] }}{% endblock %}
+{% block head %}<script src="/static/vendor/lightweight-charts.standalone.production.js?v={{ v }}"></script><script src="/static/chart.js?v={{ v }}"></script><script src="/static/card.js?v={{ v }}"></script><script src="/static/result.js?v={{ v }}"></script><script src="/static/tokenpage.js?v={{ v }}" defer></script><script src="/static/tour.js?v={{ v }}" defer></script>{% endblock %}
+{% block body %}
+{# design v2 of the token's page (canvas Analysis4, AnalysisMark, AnalysisRun; 26.10). The same one page as before
+   (owner, 09.10): the token's head, the chart with its toolbar and the range bar on it, the token's analyses as tabs
+   under the chart, the run's line, then the result. Only the look moved: the head, the chart and the tabs are one card;
+   the wallet card and the agent stand in a column on the right (static/v2/analysis.css) #}
+<section class="token ana" id="token" data-mint="{{ mint }}" data-symbol="{{ info.symbol or '' }}"
+         data-tabs='{{ tabs|tojson }}' data-active='{{ active|tojson }}' data-preset='{{ preset|tojson }}'
+         data-max-tabs="{{ max_tabs }}" data-taken="{{ taken }}" data-created="{{ created }}" data-now="{{ now }}"
+         data-demo="{{ 1 if is_demo else 0 }}" data-max-hours="{{ s.max_window_hours }}" data-reset="{{ reset_ms }}"
+         data-runs-left="{{ runs_left if runs_left is not none else '' }}" data-runs-cap="{{ runs_cap if runs_cap is not none else s.runs_per_day }}" data-limit-kind="{{ limit_kind or '' }}" data-notice="{{ notice or '' }}"
+         data-mcap="{{ info.mcap or '' }}" data-supply="{{ info.supply or '' }}"
+         {% if bounced %}data-bounced="Only the {{ "ranges" if n_demo > 1 else "range" }} below {{ "are" if n_demo > 1 else "is" }} recorded. Open one and press Get wallets."{% endif %}>
+  <div class="tbox">
+    <div class="tokenhead">
+      <div class="th-id">
+        <span class="limg h-img" data-l="{{ (info.symbol or '?')[:1]|upper }}" style="--h: {{ thue }}" aria-hidden="true">{% if timg %}<img src="{{ timg }}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span>
+        <div class="th-names">
+          <h1><span class="th-sym">{{ info.symbol or '?' }}</span>{% if info.name and info.name != info.symbol %}<span class="th-name">{{ info.name }}</span>{% endif %}{% if info.twitter %}<a class="th-ic" href="{{ info.twitter }}" target="_blank" rel="noopener" title="The project's X">{{ ag.g('x', "The project's X") }}</a>{% endif %}<a class="th-ic" href="https://solscan.io/token/{{ mint }}" target="_blank" rel="noopener" title="Token on Solscan">{{ ag.g('ext', 'Token on Solscan') }}</a>{% if is_demo %}<span class="chip demo" title="Recorded token · {{ n_demo }} pump{{ 's' if n_demo != 1 else '' }} replayed without requests">Demo</span>{% endif %}</h1>
+          {% set tc_created, tc_launchpad, tc_mint, tc_x = info.created_time, info.launchpad, mint, info.twitter %}{% include "v2/_tokchips.html" %}
+        </div>
+      </div>
+      <dl class="meta">
+        {% if info.mcap %}<div class="m-cap"><dt>Market cap</dt><dd>{{ info.mcap|mcap }}</dd></div>{% endif %}
+        {% if info.liquidity_usd %}<div><dt>Liquidity</dt><dd>{{ info.liquidity_usd|mcap }}</dd></div>{% endif %}
+        {% if info.holders %}<div><dt>Holders</dt><dd>{{ info.holders|num }}</dd></div>{% endif %}
+        {% if info.txns %}<div title="Buys and sells over the token's whole life"><dt>Trades</dt><dd>{{ info.txns|num }}</dd></div>{% endif %}
+        {% if info.supply %}<div><dt>Supply</dt><dd>{{ info.supply|mcap }}</dd></div>{% endif %}
+        <div><dt>Created</dt><dd class="dtc" data-ms="{{ info.created_time or 0 }}">{{ info.created_time|dt }}</dd></div>
+      </dl>
+    </div>
+
+    {# the chart's toolbar (owner, 26.10: UTC/Local where time is read, the money unit beside it): chart.js fills the
+       left part and the time zone; the wallets put on the chart stand after the left part (result.js) #}
+    <div class="ctools" id="ctools">
+      <span class="ct-l" id="ctl"></span>
+      <span class="ctw" id="ctw"></span>
+      <span class="ct-sp"></span>
+      <span class="ct-r" id="ctr"></span>
+      <button type="button" class="seg" id="cur" title="Show every amount in dollars or in SOL" aria-label="Money unit" onclick="EarlyCur.toggle()"><b class="on">USD</b><b>SOL</b></button>
+    </div>
+
+    <div class="chartbox" id="chart"><div class="charthint" id="charthint" hidden></div>
+      {# a marked range on the chart itself, top centre where the hint was (owner, 14.10, variant B): its times, ✎ for
+         exact minutes, Cancel, Get wallets; under it how many are left today. Nothing under the chart repeats it #}
+      <div class="pick" id="pick" hidden>
+        <span class="pick-bar">
+          <span class="pick-dot" aria-hidden="true"></span>
+          <span class="pick-text" id="picktext"></span>
+          <span class="pick-act">
+            <button type="button" class="ghost pick-ic" id="pickt" title="Type exact times" aria-label="Type exact times">{{ ag.g('edit', size=13) }}</button>
+            <button type="button" class="ghost" id="pickx" title="Clear this range">Cancel</button>
+            <button type="button" class="primary" id="getw">Get wallets</button>
+          </span>
+        </span>
+        <span class="pick-edit" id="pickedit" hidden>
+          <label class="fld"><span>From</span><input type="datetime-local" id="pfrom"></label>
+          <label class="fld"><span>To</span><input type="datetime-local" id="pto"></label>
+        </span>
+        <span class="pick-note" id="picknote">{% if is_demo %}Demo · replayed without requests{% elif not acct %}Free in beta · a wallet signature, no transaction{% elif beta %}Beta tester · no daily limit{% elif runs_left is not none %}{% if runs_left > 0 %}{{ runs_left }} of {{ runs_cap if runs_cap is not none else s.runs_per_day }} left today{% else %}None left today · resets at 00:00 UTC{% endif %}{% endif %}</span>
+      </div>
+    </div>
+
+    {# the token's analyses: one tab each, the one shown is the result below; drawn by tokenpage.js. On the right the
+       chosen range: its times, and once its result is here how far its trades go and Save (moved in by result.js) #}
+    <div class="atabs-row">
+      <div class="atabs" id="tabs" role="tablist" aria-label="This token's analyses"></div>
+      <div class="tabs-end"><span class="tabsum" id="tabsum"></span><span class="tabsres" id="tabsres"></span></div>
+    </div>
+  </div>
+
+  {# a run in progress: a line that fills with the run's own steps and counts (owner, 09.10: «бігуча строка»), and the
+     table's place held by empty rows until the result rises in #}
+  <div class="run" id="run" hidden aria-live="polite">
+    <div class="run-card">
+      <div class="run-top"><b class="run-phase" id="runphase">Starting</b><span class="run-count" id="runcount"></span><span class="run-clock mono" id="runclock">00:00</span></div>
+      <div class="run-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="runbar"><i id="runfill"></i></div>
+      <ol class="run-steps" id="runsteps"><li data-s="token">Token</li><li data-s="trades">Trades</li><li data-s="wallets">Exits</li><li data-s="tags">Checks</li><li data-s="done">Wallets</li></ol>
+      <p class="run-err" id="runerr" hidden></p>
+    </div>
+    <div class="run-skel" aria-hidden="true">{% for i in range(8) %}<i><b></b><b style="--w: {{ [70, 67, 64, 72, 61, 69, 66, 63][i] }}%"></b><b style="--w: {{ [55, 62, 69, 58, 66, 52, 60, 64][i] }}%"></b><b></b><b></b><b></b></i>{% endfor %}</div>
+  </div>
+
+  <div class="resultbox" id="result">{% if result_html %}{{ result_html }}{% endif %}</div>
+
+  {% if not result_html and not active %}<p class="muted small tokenfoot" id="tokenfoot">Up to {{ s.ranges_per_token }} ranges per token, {{ s.max_window_hours }} h each. {{ early_note }}</p>{% endif %}
+
+  {# a daily cap: which count ran out, when it resets; the range stays where it was #}
+  <div class="sheet" id="limitsheet" hidden role="dialog" aria-modal="true" aria-labelledby="limith">
+    <div class="sheet-card">
+      <div class="sheet-head"><b id="limith"></b><button type="button" class="ghost x" data-limit-close aria-label="Close">×</button></div>
+      <template id="limit-texts">
+        <p data-kind="sitecap" data-h="Today's live analyses are used up for the whole site">{{ early_note }}</p>
+        <p data-kind="netcap" data-h="Your network has used today's {{ s.runs_per_ip_per_day }} free analyses">An office or a phone carrier can share one address, so analyses run by others on it count here too.</p>
+        <p data-kind="newwallet" data-h="This wallet's free {{ 'analysis' if s.runs_per_day_new_wallet == 1 else 'analyses' }} for today {{ 'is' if s.runs_per_day_new_wallet == 1 else 'are' }} used">Connect your wallet: {{ s.runs_per_day }} analyses a day for active wallets.</p>
+        <p data-kind="limit" data-h="You've used your {{ s.runs_per_day }} free analyses for today">Each person gets {{ s.runs_per_day }} a day, whichever wallet is connected.</p>
+      </template>
+      <p><span id="limitwhy"></span> The count resets at midnight UTC, in <b data-reset></b>.</p>
+      {# owner, 05.10: whoever needs more is a lead, not an abuser to block: the window asks them to write #}
+      <p class="limitmore">Need more? Tell us how you use tracced, and we'll raise your limit.</p>
+      <p class="muted small">Ready results and the demo stay open.</p>
+      <div class="row limitact">{% if demo_mint and demo_mint != mint %}<a class="button" href="/token?mint={{ demo_mint }}">Open the demo</a>{% endif %}<button type="button" class="ghost" data-limit-close>Close</button><a class="button primary" href="/feedback?kind=limits">Write to us</a></div>
+    </div>
+  </div>
+</section>
+{% endblock %}

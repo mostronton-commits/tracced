@@ -277,7 +277,7 @@ Cyrillic of the agent's Ukrainian, the arrows, and a checkout without the files.
 - **The wallet fingerprint:** sha256 of the address; five rows of five dots, the left three columns mirrored to the
   right. Byte *i* of the hash (row by row, three per row) sets cell *i*: `% 4 == 0` an empty `faint` dot, `1` mint,
   else `ink`. The same address draws the same picture everywhere (`fingerprint()` on the server).
-- **The home header:** the hero's top right holds the X button and the account; the logo is the hero itself.
+- **The home header:** the small logo on the left, the X button and the account on the right, over the planet (canvas Home6).
 - **The footer** is one line on every page: Demo (when there is one), Docs, How it works, The project, What's new,
   Contact; then the Telegram and GitHub marks and the version. No logo, no status bar, no bell (owner, 26.10).
 - **Quiet light:** the top of every page carries a faint mint light (`radial-gradient` at 10 %) and a few stars
@@ -492,14 +492,19 @@ no second, dark line.
 ## The rebrand, phase by phase
 
 1. **Frame (26.10):** tokens, fonts, one dark theme, the header with the account pill, the one-line footer, the quiet
-   light; the chart in the new colours; UTC/Local on the chart; the AI agent an ink key. Pages keep their old layout;
-   the 404 picture is still the old one until phase 5.
-2. **Home:** the planet horizon with wallet-stars, a centred hero (84 px headline, one lead line, the hero input,
-   three counters), Fresh pumps as a market map (at most 6 tiles, area = market cap, tint = closeness to the peak, the
-   rest as "+N more"), Live on tracced beside it, Top 10 of the month beside Alerts in Telegram, a closing call with
-   orbiting real wallets.
-3. **Analysis:** the range bar on the chart with Get wallets, range tabs with a progress line, the tally's findings as
-   buttons, the toolbar with `⋯` holding Export, the AI agent panel, the wallet card without key hints.
-4. **Lists and Watchlist:** Telegram alerts as a header with three tiles (switches, a sum field, short text).
-5. **Docs and small pages:** Contact, the Connect sheet with the wallet apps' original logos, one "Page not found"
-   (a line that drops to zero) for both a missing and a private page.
+   light; the chart in the new colours; UTC/Local on the chart; the AI agent an ink key.
+2. **Every page after the canvas (26.10, first pass; the owner reviews each one next):**
+   - home (`v2/index.html`, `home.css`): the planet with real wallet-stars of the latest analysis (height = what it
+     made, mint at 3×+), the centred hero, Fresh pumps as a market map (6 tiles, «+N more», 2×2 on a phone; hidden
+     when the list is off or stale, «Quiet: no new pumps in 24 h» when it is fresh and empty), Live on tracced, Top 10
+     beside Alerts in Telegram, the closing call with the first buyers of that analysis on orbits;
+   - analysis (`v2/token.html`, `v2/_result.html`, `analysis.css`, v2 branches in result.js, tokenpage.js, chart.js,
+     card.js): toolbar above the chart (timeframes, Market cap | Price, back to range, first hours, wallets on the
+     chart, UTC | Local, USD | SOL), the range bar on the chart, tabs and the progress card, the tally of counts and
+     findings, the table with fingerprints and the trip line, a Columns menu that shows, hides and reorders columns
+     (Held, Buys/sells, First buy, Funded by live there), `⋯` with Export, the card as a right column from 1200 px with
+     Share (`/job/<id>?w=<wallet>` opens that card) and Watch;
+   - lists and watchlist (`v2/lists.html`, `v2/me.html`, `lists.css`): the leaderboard on one card, Telegram alerts as
+     a head and three tiles (Send me, Smallest trade, Today);
+   - docs, contact, the connect sheet (the wallet apps' original logos in `static/v2/wallets/`), one «Page not found»
+     with a line that drops to zero; the private page looks the same and keeps Connect in the header for the owner.

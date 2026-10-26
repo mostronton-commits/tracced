@@ -1,0 +1,169 @@
+{# design v2 of the result under the token's chart (canvas Analysis4, AnalysisMark; 26.10). The same part as before:
+   served inside /job/<id> and alone by /job/<id>/view; static/result.js mounts it and unmounts it, and what it needs
+   from the server is in #rcfg. The look moved: the tally is one strip of three counts and the findings as words, the
+   table sits on its own card with its toolbar (Find a wallet, Hide bots, Filters, Columns, Ask AI, ⋯), the wallet card
+   and the agent stand in the right column. The range line and Save go up into the tabs' row, the wallets on the chart
+   into the chart's toolbar (result.js moves them there and takes them back) #}
+{% import "v2/_ag.html" as ag %}
+{% set job_end = (result.window.end or job.t_exit or job.t_to) %}
+<div class="result" id="resultroot" data-id="{{ save_id }}">
+  <div class="rhead">
+    <span class="rrange"><span class="dtc" data-ms="{{ job.t_from }}">{{ job.t_from|dt }}</span> → <span class="dtc" data-ms="{{ job.t_to }}" data-short="1">{{ job.t_to|dt }}</span> · {{ ((job.t_to - job.t_from) / 60000)|round|int }} min · trades up to <span class="dtc" data-ms="{{ job_end }}">{{ job_end|dt }}</span></span>
+    <span class="rhead-act">
+      <button type="button" class="ghost savejob" id="savejob" title="Keep this analysis under My analyses" aria-label="Save analysis">{{ icon('star') }}<span>Save analysis</span></button>
+      {% if is_admin and not is_demo %}<button type="button" class="ghost" id="mkdemo" data-job="{{ job.id }}" title="Replace the demo token with this analysis (owner only)">Make it the demo</button>{% endif %}
+    </span>
+  </div>
+  {% set r = result %}{% set c = r.counts %}
+  <div class="onchart-bar" id="onchart" hidden></div>
+  <p class="muted small mhint" id="mhint" hidden></p>
+  {# what tracced counted and found, one strip (owner, 02.10: no pills, no sentence of counts): three counts large, then
+     the rest and the findings as words, each a click into exactly its wallets (findings() fills #finds) #}
+  {% set n0 = sm.n or 0 %}
+  {% set pso = [((100 * (sm.exited or 0) / n0)|round|int), (99 if (sm.exited or 0) < n0 else 100)]|min if n0 else 0 %}
+  {% set phd = [((100 * (sm.holding or 0) / n0)|round|int), (99 if (sm.holding or 0) < n0 else 100)]|min if n0 else 0 %}
+  {% set cv = r.coverage or {} %}{% set partial = cv and cv.mode != 'trades' and (cv.exits_known or 0) < (cv.total or 0) %}
+  <div class="tally" id="tally">
+    <span class="tbig" title="Wallets that bought inside the range: the list below"><b data-count="{{ sm.n }}" data-fmt="int">0</b><i>wallets bought</i><span class="kinfo tipt{{ ' warn' if partial }}" tabindex="0" title="{{ c.n_wallets|num }} traded in the range · {{ c.dust|num }} below ${{ s.min_invested_usd }} · {{ ((c.pre_range_only or 0) + (c.before_range_only or 0))|num }} sold only · {{ c.n_trades|num }} trades{% if cov_text %} · {{ cov_text }}{% endif %}" aria-label="{{ 'Exits are not known for every wallet' if partial else 'How these numbers were counted' }}">{{ '!' if partial else 'i' }}</span></span>
+    <span class="tbig" title="What these wallets spent inside the range"><b class="amt" data-usd="{{ (sm.invested_range or 0)|round(0)|int }}"{% if sm.invested_range_sol is not none %} data-sol="{{ sm.invested_range_sol|round(2) }}"{% endif %} data-count="{{ (sm.invested_range or 0)|round(0)|int }}" data-fmt="usd">0</b><i>spent</i></span>
+    <button type="button" class="tbig tc" data-act="profit" id="tprofit" hidden title="Wallets with a realized profit here · click to show them"><b class="pos" data-fmt="pct">0</b><i>in profit</i></button>
+    <span class="tline">
+      <button type="button" class="tc" data-act="sold" title="{{ (sm.exited or 0)|num }} of {{ n0|num }} sold 99% or more · click to show them"><b>{{ pso }}%</b> sold out</button><span class="tsep" aria-hidden="true">·</span>
+      <button type="button" class="tc" data-act="holding" title="{{ (sm.holding or 0)|num }} of {{ n0|num }} sold less than half · click to show them"><b>{{ phd }}%</b> still holding</button><span class="tsep" aria-hidden="true">·</span>
+      <button type="button" class="tc" data-act="best" title="Highest average exit cap ÷ average entry cap, buys before the range included · click to sort by ROI"><b>{{ (sm.best_multiple or 0)|round(1) if (sm.best_multiple or 0) < 10 else (sm.best_multiple or 0)|round|int }}×</b> best</button>
+      <span class="tfinds" id="finds"></span>
+    </span>
+  </div>
+
+  {% if not sm.has_sol %}<p class="muted small solnote" hidden>This analysis was saved before tracced started recording SOL amounts, so its figures stay in dollars.</p>{% endif %}
+
+  <div class="tcard">
+    <div class="row toolbar">
+      <label class="sortby"><span>Sorted by</span><select id="msort" aria-label="Sort the wallets">
+        <option value="real" selected>PnL</option><option value="inv">Bought</option>
+        <option value="etime" data-dir="1">First buy</option><option value="got">Sold</option>
+        <option value="mult">Multiple</option><option value="entry" data-dir="1">Entry cap</option>
+        <option value="hold">Hold time</option><option value="buys">Buys</option><option value="" hidden disabled>your order</option></select></label>
+      <span class="factive" id="factive" hidden></span>
+      <span class="tb-sp"></span>
+      <label class="tfind">{{ ag.g('search', size=13) }}<input type="text" id="tfind" maxlength="44" placeholder="Find a wallet" aria-label="Find a wallet: address, name or your tag" autocomplete="off" spellcheck="false"></label>
+      <button type="button" class="tbtn" id="hidebots" aria-pressed="false" title="Hide every wallet tagged bot-like: its own trades on this token look automated">{{ ag.g('bot', size=13) }}Hide bots</button>
+      <button type="button" class="tbtn" id="ftoggle" aria-expanded="false" aria-controls="fpanel">{{ ag.g('filter', size=13) }}<span id="ftext">Filters</span></button><button type="button" class="ghost frst" id="freset" hidden title="Back to no filters and the PnL order">Reset</button>
+      <div class="menu cols">
+        <button type="button" class="tbtn" id="colsbtn" aria-haspopup="true" aria-expanded="false" title="Show, hide and order the columns">{{ ag.g('columns', size=13) }}Columns</button>
+        <div class="colpanel" id="colpanel" hidden></div>
+      </div>
+      <div class="soonwrap" id="aiwrap">
+        <button type="button" class="ink askai" id="askbtn" title="{{ 'Ask about this pump: the agent reads this analysis only' if assistant_on else 'Coming soon' }}">{{ ag.g('ai', size=13) }}Ask AI</button>
+        <div class="soon-pop" id="aipop" hidden>
+          <b>Coming soon</b>
+          <span>The agent will read this analysis and tell you what happened in the range, what to weigh and whose wallets stand out, then answer your questions about it. It is not switched on on this server yet.</span>
+        </div>
+      </div>
+      <div class="menu">
+        <button type="button" class="tbtn tmore" id="xbtn" aria-haspopup="true" aria-expanded="false" title="Export the wallets shown: CSV, TXT or JSON" aria-label="Export">{{ ag.g('more', size=16) }}</button>
+        <div class="menu-panel r" id="xpanel" hidden>
+          <span class="mh">Export</span>
+          <button type="button" data-x="csv">CSV <small id="xcsv"></small></button>
+          <button type="button" data-x="txt">TXT <small id="xtxt"></small></button>
+          <button type="button" data-x="json">JSON <small id="xjson"></small></button>
+        </div>
+      </div>
+    </div>
+
+    {# the filters as a panel over the table, its full width (owner, 04.10: as it was, not a pop-up); filled by drawPanel() #}
+    <div class="fpanel" id="fpanel" hidden></div>
+    <div class="tablewrap">
+    <table class="facts" id="facts" data-id="{{ save_id }}">
+      {# drawn by result.js from the columns kept in this browser (Columns): a funnel by each number, «from … to …» in
+         one small window (owner, 02.10). The first draw has the default columns, so the page reads before the script #}
+      <thead>
+      <tr>
+        <th class="wh">Wallet</th>
+        <th class="c-trip sortable" data-key="entry" data-dir="1">Trip <span class="hsub">cap in → out · held</span></th>
+        <th class="num sortable" data-key="inv"><span class="thc"><span class="hl">Bought</span><button type="button" class="hfil" data-fil="inv" title="Filter by what it bought" aria-label="Filter Bought">{{ ag.g('filter', size=12) }}</button></span></th>
+        <th class="num sortable" data-key="got"><span class="thc"><span class="hl">Sold</span><button type="button" class="hfil" data-fil="sold" title="Filter by the share sold" aria-label="Filter Sold">{{ ag.g('filter', size=12) }}</button></span></th>
+        <th class="num sortable desc" data-key="real"><span class="thc"><span class="hl">PnL</span><button type="button" class="hfil" data-fil="real" title="Filter by PnL" aria-label="Filter PnL">{{ ag.g('filter', size=12) }}</button></span></th>
+        <th class="num sortable" data-key="mult"><span class="thc"><span class="hl">×</span><button type="button" class="hfil" data-fil="mult" title="Filter by the multiple" aria-label="Filter the multiple">{{ ag.g('filter', size=12) }}</button></span></th>
+        <th class="num sortable" data-key="hold" hidden><span class="thc"><span class="hl">Held</span><button type="button" class="hfil" data-fil="hold" title="Filter by hold time and buys" aria-label="Filter Held">{{ ag.g('filter', size=12) }}</button></span></th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+    </div>
+    <script type="application/json" id="rowsdata">{{ rows_json }}</script>
+    <div class="tfoot">
+      <span id="shown"></span>{% if s.age_lookups_max %}<span class="tipt" id="enrich" title="{{ TAGS.fresh }}">wallet age…</span>{% endif %}
+      <span class="tb-sp"></span>
+      <span class="more" id="more" hidden>
+        <button type="button" class="link" id="more100">Show 100 more</button>
+        <button type="button" class="link quiet" id="moreall">Show all <span id="moren"></span></button>
+      </span>
+    </div>
+  </div>
+
+  <aside class="drawer apanel" id="apanel" hidden aria-label="AI agent">
+    <div class="drawer-head"><span class="aic" aria-hidden="true">{{ ag.g('ai', size=13) }}</span><div class="aht"><b>AI agent</b><span>Reads this analysis only</span></div><button type="button" class="ghost x" id="aclose" title="Close" aria-label="Close">{{ ag.g('close', size=14) }}</button></div>
+    <div class="apanel-body">
+      <div class="aempty" id="aempty">
+        <p class="aintro">Ask about this pump</p>
+        <div class="aquick">
+          {% for q in agent_chips %}<button type="button" class="aqbtn" data-q="{{ q }}">{{ q }}</button>
+          {% endfor %}<button type="button" class="aqbtn asum" data-sum="1">Summary of this pump</button>
+        </div>
+        <p class="muted small aguest" id="aguest" hidden>Beta, free for now. Connect a wallet to ask.</p>
+      </div>
+      <div class="athread" id="athread"></div>
+    </div>
+    <div class="afoot">
+      <div class="achips" id="achips" hidden></div>
+      <form class="aask" id="aform"><input id="aq" maxlength="500" placeholder="Ask anything about this pump…" autocomplete="off" aria-label="Your question"><button type="submit" class="ink">Ask</button></form>
+      <p class="anote">Facts from this analysis only. Not advice. <span id="aleft"></span></p>
+    </div>
+  </aside>
+  <aside class="drawer wcard" id="drawer" hidden aria-label="Wallet card">
+    <div class="drawer-scroll">
+      <div class="drawer-head">
+        <div class="dh-id">
+          <span class="wav" id="dav" aria-hidden="true"></span>
+          <div class="dh-names">
+            <div class="dh-top"><b id="dname">Wallet</b></div>
+            <div class="dh-addr"><button type="button" class="dwc mono" id="dw" data-copy="" title="Copy the address" aria-label="Copy the address"></button><a class="ext" id="dsol" href="#" target="_blank" rel="noopener" title="This wallet on Solscan" aria-label="This wallet on Solscan">{{ ag.g('ext', size=13) }}</a></div>
+          </div>
+        </div>
+        <div class="dh-act">
+          <button type="button" class="dshare" id="dshare" title="Copy a link that opens this analysis with this wallet's card">{{ ag.g('share', size=14) }}<span>Share</span></button>
+          <button type="button" class="ghost x" id="dclose" title="Close" aria-label="Close">{{ ag.g('close', size=14) }}</button>
+        </div>
+      </div>
+      <div class="dids-row"><span class="ids" id="dids"></span><span class="dchips" id="dchips"></span></div>
+      <div class="dtags" id="dtags"></div>
+      {# owner, 08.10: a wallet's card is the same everywhere (a ready list's too); here it adds one thing, this token's
+         trades, on top, since this is what the analysis is about: its result large, its trip from the entry to the exit
+         and the cap now, then its buys and its sells, every trade behind «Show every trade» #}
+      <section class="dsec dtrades">
+        <div class="dpos" id="dpos"></div>
+        <div class="dsec-h"><h4>On {{ job.symbol }}</h4><span class="dtcount" id="dtcount"></span></div>
+        <div id="dtok">
+          <div class="dgroups" id="dgroups"></div>
+          <div class="tally dtally" id="dtally" hidden></div>
+          <table class="story clip" id="dtable" hidden><thead><tr><th>Time</th><th></th><th class="num">Amount</th><th class="num">Tokens</th><th class="num">Cap</th></tr></thead><tbody id="dtrades"></tbody></table>
+          <button type="button" class="link dmore" id="dmore" hidden></button>
+          <p class="dline" id="dnote"></p>
+        </div>
+      </section>
+      <button type="button" class="primary dstar" id="dstar" title="Add to your watchlist" aria-label="Add to your watchlist">{{ icon('star') }}</button>
+      <section class="dsec dperf">
+        <div class="dsec-h"><h4>Its days on every token <span class="dinfo" id="dprofi" hidden>i</span></h4>
+          <div class="seg" id="dper" role="tablist" aria-label="Period"><button type="button" data-p="7">7D</button><button type="button" data-p="30" class="on">30D</button></div></div>
+        <div id="dprof"></div>
+      </section>
+      <section class="dsec" id="dwsec" hidden>
+        <div class="dcross" id="dcross"></div>
+      </section>
+    </div>
+  </aside>
+  <script type="application/json" id="rcfg">{{ {"job": save_id, "mint": job.mint, "symbol": job.symbol, "from": job.t_from, "to": job.t_to,
+    "exit": scope_end or 0, "tags": TAGS, "exch": exchanges, "flab": flabels, "bundle_min": bundle_min, "burst_ms": burst_ms,
+    "verdict_pct": s.verdict_organised_pct or 90, "age_n": s.age_lookups_max or 0, "acct": acct is not none and acct != '',
+    "max_tags": max_my_tags, "age_read": age_read or 6000, "assist": assistant_on}|tojson }}</script>
+</div>

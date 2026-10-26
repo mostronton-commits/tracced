@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{# design v2 · a missing page (canvas «Rugged», 26.10): a line that climbs and drops to zero, «Page not found», the way
+   home; the eyed candle was rejected. Other errors keep their reason, Back and Report this #}
+{% block title %}{{ 'Not found' if rugged else 'Error' }} · tracced{% endblock %}
+{% block main_class %}center{% endblock %}
+{% block body %}
+{% if rugged %}
+<section class="pcard pc-404">
+  <svg class="rugline" viewBox="0 0 320 124" role="img" aria-label="A price line that climbs and then drops straight to zero"><defs><linearGradient id="rugfill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-opacity="0.18"/><stop offset="1" stop-opacity="0"/></linearGradient></defs><path class="base" d="M10 116H310"/><path class="area" d="M10.0 104.0 L15.2 101.0 L20.4 98.9 L25.6 95.5 L30.8 96.1 L36.0 95.4 L41.2 92.1 L46.4 87.8 L51.6 85.8 L56.8 83.8 L62.0 83.9 L67.2 79.8 L72.4 78.1 L77.6 77.4 L82.8 74.1 L88.0 70.2 L93.2 67.3 L98.4 62.7 L103.6 63.1 L108.8 63.1 L114.0 62.1 L119.2 60.4 L124.4 60.4 L129.6 61.3 L134.8 61.3 L140.0 62.1 L145.2 62.3 L150.4 58.9 L155.6 58.1 L160.8 54.6 L166.0 50.6 L171.2 50.8 L176.4 46.2 L181.6 44.7 L186.8 42.7 L192.0 37.9 L197.2 35.0 L202.4 33.3 L207.6 32.7 L212.8 32.2 L218.0 32.5 L223.2 30.1 L228.4 29.5 L233.6 28.9 L238.8 24.4 L244.0 20.0 L244.0 116 L10 116 Z"/><path class="up" d="M10.0 104.0 L15.2 101.0 L20.4 98.9 L25.6 95.5 L30.8 96.1 L36.0 95.4 L41.2 92.1 L46.4 87.8 L51.6 85.8 L56.8 83.8 L62.0 83.9 L67.2 79.8 L72.4 78.1 L77.6 77.4 L82.8 74.1 L88.0 70.2 L93.2 67.3 L98.4 62.7 L103.6 63.1 L108.8 63.1 L114.0 62.1 L119.2 60.4 L124.4 60.4 L129.6 61.3 L134.8 61.3 L140.0 62.1 L145.2 62.3 L150.4 58.9 L155.6 58.1 L160.8 54.6 L166.0 50.6 L171.2 50.8 L176.4 46.2 L181.6 44.7 L186.8 42.7 L192.0 37.9 L197.2 35.0 L202.4 33.3 L207.6 32.7 L212.8 32.2 L218.0 32.5 L223.2 30.1 L228.4 29.5 L233.6 28.9 L238.8 24.4 L244.0 20.0"/><path class="drop" d="M244.0 20.0 V116 H310"/><circle class="peak" cx="244.0" cy="20.0" r="3"/><text x="252.0" y="110">−100%</text></svg>
+  <div class="pc-code">404</div>
+  <h1>Page not found</h1>
+  <div class="pc-acts"><a class="pk ink" href="/">Back to tracced</a></div>
+</section>
+{% else %}
+<section class="pcard pc-err">
+  <h1>That didn't work</h1>
+  <p class="pc-sub">{{ message }}</p>
+  <div class="pc-acts"><a class="pk ink" href="javascript:history.back()">Back</a><a class="pc-quiet" href="/feedback?kind=bug">Report this</a></div>
+</section>
+{% endif %}
+{% endblock %}

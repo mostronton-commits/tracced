@@ -5,6 +5,7 @@
 (function () {
   function mount(root, ch) {
     const CFG = JSON.parse(root.querySelector('#rcfg').textContent);
+    const V2 = document.documentElement.dataset.design === 'v2';   // design v2 (26.10): its own rows, head, toolbar and card
     const off = []; let alive = true;
     const on = (t, ev, fn, o) => { t.addEventListener(ev, fn, o); off.push(() => t.removeEventListener(ev, fn, o)); };
     const later = (fn, ms) => { const id = setTimeout(() => { if (alive) fn(); }, ms); off.push(() => clearTimeout(id)); return id; };
@@ -170,7 +171,161 @@
     const msub = o => (SOLON && o.totsol != null ? '<span class="insol">' + EarlyCur.sol(o.totsol) + '</span>' : money(o.tot || o.inv))
       + (extra(o) ? ' · ' + money(o.inv) + ' in range' : ' at ' + (o.entry ? fm(o.entry) : '—') + ' cap')
       + (o.sells == null ? '' : o.sold >= 99 ? ' · sold out' : o.sold > 0 ? ' · sold ' + soldPct(o.sold) : ' · holding all');
+    /* ── design v2 (canvas Analysis4, 26.10) ──
+       A row: the wallet's fingerprint, its name and address, its marks as small drawings; its trip from the average
+       entry to the average exit on one log scale of caps for the whole result, the cap now as a tick; Bought, Sold, PnL
+       with its bar, the multiple. Held, Buys / sells, First buy and Funded by come from Columns, which keeps the
+       columns and their order in this browser. Nothing here runs without the v2 cookie */
+    const AG = {
+      clock: '<circle cx="8" cy="8" r="5.6"/><path d="M8 4.9 V8 L6 9.4"/>',
+      renew: '<path d="M12.6 7 A4.8 4.8 0 1 0 12.4 10"/><path d="M12.8 3.8 V7 H9.6"/>',
+      bot: '<rect x="3" y="5.4" width="10" height="7.8" rx="2"/><path d="M8 5.4 V2.8"/><circle cx="6.2" cy="9.2" r="0.9" fill="currentColor" stroke="none"/><circle cx="9.8" cy="9.2" r="0.9" fill="currentColor" stroke="none"/>',
+      transfer: '<path d="M8 2.6 V9.4"/><path d="M5.3 6.8 L8 9.5 L10.7 6.8"/><path d="M3 10.8 V13.2 H13 V10.8"/>',
+      dev: '<path d="M5.8 4.6 L2.6 8 L5.8 11.4"/><path d="M10.2 4.6 L13.4 8 L10.2 11.4"/>',
+      sniper: '<circle cx="8" cy="8" r="4.6"/><path d="M8 1.8 V4.4 M8 11.6 V14.2 M1.8 8 H4.4 M11.6 8 H14.2"/>',
+      fresh: '<path d="M8 13.4 V7.6"/><path d="M8 7.6 C8 4.8 9.8 3 12.8 3 C12.8 5.8 11 7.6 8 7.6 Z"/><path d="M8 9.6 C8 7.8 6.6 6.4 3.6 6.4 C3.6 8.4 5.2 9.6 8 9.6 Z"/>',
+      bundle: '<path d="M2.8 5.2 L8 2.6 L13.2 5.2 V10.8 L8 13.4 L2.8 10.8 Z"/><path d="M2.8 5.2 L8 7.8 L13.2 5.2 M8 7.8 V13.4"/>',
+      gem: '<path d="M4.6 3.2 H11.4 L13.6 6.4 L8 13 L2.4 6.4 Z"/><path d="M2.4 6.4 H13.6"/>',
+      moon: '<path d="M12.8 9.8 A5.4 5.4 0 1 1 6.2 3.2 A4.4 4.4 0 0 0 12.8 9.8 Z"/>',
+      link: '<path d="M7 4.6 L8.4 3.2 A2.5 2.5 0 0 1 12.8 7.6 L11.4 9"/><path d="M9 11.4 L7.6 12.8 A2.5 2.5 0 0 1 3.2 8.4 L4.6 7"/><path d="M6.4 9.6 L9.6 6.4"/>',
+      filter: '<path d="M2.6 3.6 H13.4 L9.4 8.4 V12.6 L6.6 13.4 V8.4 Z"/>',
+      star: '<path d="M8 2.4 L9.7 6 L13.6 6.4 L10.7 9 L11.5 12.9 L8 10.9 L4.5 12.9 L5.3 9 L2.4 6.4 L6.3 6 Z"/>',
+      grip: '<circle cx="6" cy="4" r="0.9" fill="currentColor" stroke="none"/><circle cx="10" cy="4" r="0.9" fill="currentColor" stroke="none"/><circle cx="6" cy="8" r="0.9" fill="currentColor" stroke="none"/><circle cx="10" cy="8" r="0.9" fill="currentColor" stroke="none"/><circle cx="6" cy="12" r="0.9" fill="currentColor" stroke="none"/><circle cx="10" cy="12" r="0.9" fill="currentColor" stroke="none"/>',
+      close: '<path d="M4.4 4.4 L11.6 11.6 M11.6 4.4 L4.4 11.6"/>',
+    };
+    const ag = (n, s) => '<svg class="ag ag-' + n + '" width="' + (s || 14) + '" height="' + (s || 14) + '" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + AG[n] + '</svg>';
+    // our rules as drawings, each in the hue of its meaning (DESIGN-v2.md «Colors»), the rule in the tooltip
+    const TGL = { 'pre-range': 'clock', 're-bought': 'renew', 'bot-like': 'bot', 'transfer-in': 'transfer', dev: 'dev', sniper: 'sniper',
+      fresh: 'fresh', bundle: 'bundle', 'never-sold': 'gem', dormant: 'moon', 'launch-bundle': 'bundle', 'own-bundle': 'transfer' };
+    function tagsHtmlV2(o) {
+      const cx = crossings[o.w], idn = idents[o.w], b = bundle[o.w];
+      let h = cx && cx.length ? '<button type="button" class="tag tg t-seen-before seen" title="Also an early buyer in ' + cx.length
+        + ' of your saved analyses · click for the list" aria-label="Seen in ' + cx.length + ' of your other analyses">' + ag('link') + '</button>' : '';
+      const ids = idn ? EarlyTags.idMarks(idn) : '';
+      if (ids) h += '<span class="ids">' + ids + '</span>';
+      o.tags.forEach(t => {
+        if (t === 'seen-before') return;
+        if (t === 'bundle' && b) { h += '<button type="button" class="tag tg t-bundle bundb" data-bund="' + esc(b.funder) + '" style="--c:' + bundleColor(o.w)
+          + '" title="One funder, ' + plural(b.n, 'wallet') + ' here: likely one operator · click to show them" aria-label="Bundle of ' + b.n + '">' + ag('bundle') + '<i class="bdot"></i></button>'; return; }
+        const g = TGL[t];
+        h += g ? '<span class="tag tg t-' + esc(t) + '" title="' + esc(TAGDEF[t] || t) + '" aria-label="' + esc(t) + '">' + ag(g) + '</span>'
+          : '<span class="tag t-' + esc(t) + '" title="' + esc(TAGDEF[t] || t) + '">' + esc(t) + '</span>';
+      });
+      userTags(o.w).forEach(x => { h += '<span class="tag own" title="Your tag">' + esc(x) + '</span>'; });
+      return h;
+    }
+    const tokEl = document.getElementById('token'), NOWCAP = tokEl ? +tokEl.dataset.mcap || 0 : 0;
+    const TRIPS = (() => {                                     // one log scale of caps for every row of this result
+      const v = [];
+      all.forEach(o => { const a = +o.eavg || +o.entry; if (a > 0) v.push(a); if (+o.exitcap > 0) v.push(+o.exitcap); });
+      if (!v.length) return null;
+      let lo = Math.log10(Math.min(...v)), hi = Math.log10(Math.max(...v, NOWCAP || 0));   // every row on it, none pinned to an edge
+      if (hi - lo < 0.3) { const m = (hi + lo) / 2; lo = m - 0.15; hi = m + 0.15; }
+      const pad = (hi - lo) * 0.04;
+      return { lo: lo - pad, hi: hi + pad };
+    })();
+    const tripX = (v, W, sc) => { sc = sc || TRIPS; if (!sc || !(v > 0)) return null; const t = (Math.log10(v) - sc.lo) / (sc.hi - sc.lo); return Math.max(4, Math.min(W - 4, t * W)); };
+    function tripSvg(o, W, H, sc, big) {
+      W = W || 120; H = H || 12;
+      const a = +o.eavg || +o.entry, b = +o.exitcap, y = H / 2, xa = tripX(a, W, sc), xb = b > 0 ? tripX(b, W, sc) : null, xn = NOWCAP ? tripX(NOWCAP, W, sc) : null;
+      const up = b >= a, f = v => v.toFixed(1);
+      let s = '<svg class="trip' + (big ? ' big' : '') + '" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"><line class="t-base" x1="0" y1="' + y + '" x2="' + W + '" y2="' + y + '"/>';
+      if (xn != null) s += '<line class="t-now" x1="' + f(xn) + '" y1="' + (big ? 6 : 2) + '" x2="' + f(xn) + '" y2="' + (H - (big ? 6 : 2)) + '"/>';
+      if (xa != null && xb != null) s += '<line class="t-run ' + (up ? 'up' : 'dn') + '" x1="' + f(xa) + '" y1="' + y + '" x2="' + f(xb) + '" y2="' + y + '"/>';
+      if (xa != null) s += '<circle class="t-in" cx="' + f(xa) + '" cy="' + y + '" r="' + (big ? 5 : 3) + '"/>';
+      if (xb != null) s += '<circle class="t-out ' + (up ? 'up' : 'dn') + '" cx="' + f(xb) + '" cy="' + y + '" r="' + (big ? 6 : 3.5) + '"/>';
+      return s + '</svg>';
+    }
+    const tripText = o => { const a = +o.eavg || +o.entry;
+      return (a ? fm(a) : '—') + (o.exitcap ? ' → ' + fm(o.exitcap) + (o.hold != null ? ' · ' + holdText(o.hold) : '') : o.sells == null ? ' · exits not read' : ' · holding'); };
+    const sgn = v => v == null || isNaN(v) ? '—' : (v > 0 ? '+$' : v < 0 ? '−$' : '$') + fm(Math.abs(v));   // a real minus (DESIGN-v2.md «Typography»)
+    const NOSOL = 'This result was saved before tracced recorded SOL amounts';
+    function amt2(usd, sol, cls, signed) {                     // an amount in the unit the toolbar shows, in the numbers' face
+      const m = signed ? sgn : money;
+      if (!SOLON) return '<b class="' + (cls || '') + '">' + m(usd) + '</b>';
+      if (sol == null) return '<b class="amt nosol ' + (cls || '') + '" title="' + NOSOL + '">' + m(usd) + '</b>';
+      return '<b class="insol ' + (cls || '') + '">' + (signed && sol > 0 ? '+' : '') + EarlyCur.sol(sol) + '</b>';
+    }
+    const fmtHM = ms => (window.EarlyTZ ? EarlyTZ.fmt(ms) : new Date(ms).toISOString().slice(5, 16).replace('T', ' '));
+    function fundHtml(w) {
+      const x = funders[w];
+      if (!x) return '<span class="none" title="' + (ageDone ? 'Its first funder was not checked: only the top wallets by PnL are' : 'Checking…') + '">' + (ageDone ? '—' : '…') + '</span>';
+      if (EXCH[x]) return '<span title="First SOL straight from ' + esc(EXCH[x][1] || EXCH[x][0]) + ', an exchange">' + esc(EXCH[x][0]) + '</span>';
+      if (FLAB[x]) return '<span title="First SOL from ' + esc(FLAB[x][1] || FLAB[x][0]) + ', ' + esc(FLAB[x][2] || 'a known service') + '">' + esc(FLAB[x][0]) + '</span>';
+      return '<span class="mono" title="First SOL from ' + x + (bundle[w] ? ', which funded ' + bundle[w].n + ' wallets here' : '') + '">' + short(x) + '</span>';
+    }
+    const COLS = {
+      trip: { h: 'Trip', sub: 'cap in → out · held', key: 'entry', dir: 1, menu: 'Trip' },
+      inv: { h: 'Bought', key: 'inv', fil: 'inv', num: 1, menu: 'Bought', fl: 'what it bought' },
+      got: { h: 'Sold', key: 'got', fil: 'sold', num: 1, menu: 'Sold', fl: 'the share sold' },
+      real: { h: 'PnL', key: 'real', fil: 'real', num: 1, menu: 'PnL', fl: 'PnL' },
+      mult: { h: '×', key: 'mult', fil: 'mult', num: 1, menu: '× <span>multiple</span>', fl: 'the multiple' },
+      hold: { h: 'Held', key: 'hold', fil: 'hold', num: 1, menu: 'Held', fl: 'hold time and buys' },
+      buys: { h: 'Buys / sells', key: 'buys', fil: 'buys', num: 1, menu: 'Buys / sells', fl: 'its buys' },
+      first: { h: 'First buy', key: 'etime', dir: 1, num: 1, menu: 'First buy' },
+      fund: { h: 'Funded by', key: 'funder', text: 1, menu: 'Funded by' },
+    };
+    const CKEY = 'early:cols', CDEF = ['trip', 'inv', 'got', 'real', 'mult', 'hold', 'buys', 'first', 'fund'], CON = new Set(['trip', 'inv', 'got', 'real', 'mult']);
+    let cols = (() => {
+      let v = null; try { v = JSON.parse(localStorage.getItem(CKEY) || 'null'); } catch (e) {}
+      const list = (Array.isArray(v) ? v : []).filter((x, i, a) => x && COLS[x.k] && a.findIndex(y => y && y.k === x.k) === i).map(x => ({ k: x.k, on: !!x.on }));
+      CDEF.forEach(k => { if (!list.some(x => x.k === k)) list.push({ k, on: CON.has(k) }); });   // a column added later joins the list
+      if (!list.some(x => x.on)) list.forEach(x => { x.on = CON.has(x.k); });
+      return list;
+    })();
+    const saveCols = () => { try { localStorage.setItem(CKEY, JSON.stringify(cols)); } catch (e) {} };
+    const shownCols = () => cols.filter(x => x.on).map(x => x.k);
+    function cellV2(k, o) {
+      const unk = o.sells == null, UNK = 'Its sells were not read: only the largest buyers\' are', cap = v => v ? fm(v) : '—';
+      if (k === 'trip') { const a = +o.eavg || +o.entry;
+        return '<td class="c-trip" data-h="Trip" title="Average entry ' + cap(a) + (o.exitcap ? ' → average exit ' + cap(o.exitcap) : unk ? ' · ' + UNK : ' · nothing sold yet')
+          + (o.hold != null ? ' · held ' + holdText(o.hold) + ' on average' : '') + (NOWCAP ? ' · the tick: the cap now, ' + fm(NOWCAP) : '') + '">' + tripSvg(o) + '<small>' + tripText(o) + '</small></td>'; }
+      if (k === 'inv') return '<td class="num two c-inv" data-h="Bought" title="' + money(o.tot || o.inv) + ' bought of this token in all'
+        + (extra(o) ? ', ' + money(o.inv) + ' of it inside the range' : ', all of it inside the range') + ' · its first buy in the range at a ' + cap(o.entry) + ' market cap">'
+        + amt2(o.tot || o.inv, o.totsol != null ? o.totsol : o.invsol) + '<small>' + (extra(o) ? money(o.inv) + ' in range' : '') + '</small></td>';
+      if (k === 'got') return '<td class="num two c-sold" data-h="Sold"' + (o.exitcap ? ' title="Sold at a ' + fm(o.exitcap) + ' market cap on average · ' + soldPct(o.sold) + ' of its tokens sold"' : unk ? ' title="' + UNK + '"' : '') + '>'
+        + (o.got ? amt2(o.got, o.gotsol) : '<b>—</b>') + '<small>' + (unk ? '' : soldPct(o.sold)) + '</small></td>';
+      if (k === 'real') {
+        const w = MAXR ? Math.round(100 * Math.abs(o.real) / MAXR) : 0, c = o.real > 0 ? 'pos' : o.real < 0 ? 'neg' : '';   // under 3% a bar is a stray line: none
+        return '<td class="num two c-pnl' + (o.real < 0 ? ' neg' : '') + '" data-h="PnL"' + (unk ? ' title="' + UNK + '"' : ' title="Profit on what it sold: received minus what those tokens cost"') + '>'
+          + '<span class="pcell">' + (unk || w < 3 ? '' : '<i class="pbar" style="width:' + w + '%"></i>') + (unk ? '<b>—</b>' : amt2(o.real, o.realsol, c, true))
+          + '<small>' + (o.unreal ? '<span class="' + (o.unreal > 0 ? 'pos' : 'neg') + '">' + sgn(o.unreal) + '</span> on ' + leftPct(o.sold) + ' left' : !unk && o.sold >= 99 ? '<span class="none">sold out</span>' : '') + '</small></span></td>';
+      }
+      if (k === 'mult') return '<td class="num c-roi" data-h="×"' + (o.mult ? ' title="' + roiPct(o.mult) + ' · average exit ' + cap(o.exitcap) + ' ÷ average entry ' + cap(o.eavg) + '"' : ' title="' + (unk ? UNK : 'Nothing sold yet') + '"') + '>'
+        + '<b class="' + (o.mult && o.mult < 1 ? 'neg' : '') + '">' + roiX(o.mult) + '</b></td>';
+      if (k === 'hold') return '<td class="num two c-held" data-h="Held" title="How long it held what it sold, on average, weighted by amount"><b>' + holdText(o.hold) + '</b></td>';
+      if (k === 'buys') return '<td class="num c-buys" data-h="Buys / sells" title="' + plural(o.buys, 'buy') + ', ' + (unk ? 'sells unknown' : plural(o.sells, 'sell')) + '">'
+        + '<b><span class="up">' + o.buys + '</span> <span class="sl">/</span> <span class="dn">' + (unk ? '—' : o.sells) + '</span></b></td>';
+      if (k === 'first') { const d = +o.etime - +CFG.from;
+        return '<td class="num two c-first" data-h="First buy" title="' + (o.etime ? fmtHM(o.etime) : '') + '"><b>' + (o.etime ? fmtHM(o.etime).replace(/^.*, /, '') : '—') + '</b><small>'
+          + (o.etime ? (d >= 0 ? '+' + holdText(d / 60000) : holdText(-d / 60000) + ' before') : '') + '</small></td>'; }
+      if (k === 'fund') return '<td class="c-fund" data-h="Funded by">' + fundHtml(o.w) + '</td>';
+      return '<td></td>';
+    }
+    function rowHtmlV2(o, n, i) {
+      const oc = onChart.find(x => x.wallet === o.w), tg = tagsHtmlV2(o);
+      cells.set(o.w, { tg });
+      const style = (oc ? '--c:' + (oc.bundleColor || BUY_C) + ';' : '') + (i >= 0 ? '--i: ' + i : '');
+      const cd = cardW() === o.w, out = n === '';
+      const cl = [oc && 'onchart', cd && 'carded', out && 'outside', o.tags.includes('bot-like') && 'botlike'].filter(Boolean).join(' ');
+      const nm = EarlyTags.displayName(idents[o.w]);
+      return '<tr data-w="' + o.w + '"' + (cl ? ' class="' + cl + '"' : '') + (out ? ' title="On the chart; the filters would hide it"' : '') + (style ? ' style="' + style + '"' : '') + '>'
+        + '<td class="wcell"><div class="wbox"><span class="wid">' + STAR(o.w) + '<span class="wface" aria-hidden="true">' + face(o.w) + '</span>'
+        + '<button type="button" class="mk" title="Show its buys and sells on the chart" aria-label="Show on the chart">' + CHARTIC + '</button>'
+        + '<button type="button" class="wname" data-nm="' + esc(nm || '') + '" title="Open the wallet\'s card: its trades here, its PnL on every token, its funder">' + (nm ? '<b class="wn">' + esc(nm) + '</b>' : '') + '<span class="mono">' + short(o.w) + '</span></button>'
+        + '</span><span class="tags">' + tg + '</span><span class="msub">' + msub(o) + '</span></div></td>'
+        + shownCols().map(k => cellV2(k, o)).join('') + '</tr>';
+    }
+    const FILG = ag('filter', 12);
+    function headV2() {                                        // the head follows Columns: name, sort mark, funnel on one line
+      const th = k => { const c = COLS[k];
+        return '<th class="' + (c.num ? 'num ' : '') + 'sortable h-' + k + '" data-key="' + c.key + '"' + (c.dir ? ' data-dir="' + c.dir + '"' : '') + (c.text ? ' data-type="text"' : '')
+          + '><span class="thc"><span class="hl">' + c.h + '</span>' + (c.sub ? '<span class="hsub">' + c.sub + '</span>' : '')
+          + (c.fil ? '<button type="button" class="hfil" data-fil="' + c.fil + '" title="Filter by ' + c.fl + '" aria-label="Filter by ' + c.fl + '">' + FILG + '</button>' : '') + '</span></th>'; };
+      table.tHead.innerHTML = '<tr><th class="wh">Wallet</th>' + shownCols().map(th).join('') + '</tr>';
+    }
     function rowHtml(o, n, i) {
+      if (V2) return rowHtmlV2(o, n, i);
       const oc = onChart.find(x => x.wallet === o.w), tg = tagsHtml(o);
       cells.set(o.w, { tg });
       const vs = o.mult ? Math.round((o.mult - 1) * 100) : null;
@@ -230,9 +385,15 @@
       [...tbody.rows].forEach((tr, k) => {
         const o = byW.get(tr.dataset.w); if (!o) return;
         if (nums) { tr.classList.toggle('outside', nums[k] === ''); tr.title = nums[k] === '' ? 'On the chart; the filters would hide it' : ''; }
-        const c = cells.get(o.w) || {}, tg = tagsHtml(o);
+        const c = cells.get(o.w) || {}, tg = V2 ? tagsHtmlV2(o) : tagsHtml(o);
         if (c.tg !== tg) tr.querySelector('.tags').innerHTML = tg;
         cells.set(o.w, { tg });
+        if (V2) {                                               // names and funders arrive after the page
+          const nm = EarlyTags.displayName(idents[o.w]) || '', wn = tr.querySelector('.wname');
+          if (wn && (wn.dataset.nm || '') !== nm) { wn.dataset.nm = nm; const s = wn.querySelector('.mono'); const b = wn.querySelector('.wn');
+            if (nm) { if (b) b.textContent = nm; else s.insertAdjacentHTML('beforebegin', '<b class="wn">' + esc(nm) + '</b>'); } else if (b) b.remove(); }
+          const fc = tr.querySelector('.c-fund'); if (fc) { const h = fundHtml(o.w); if (fc.dataset.h !== h) { fc.innerHTML = h; fc.dataset.h = h; } }
+        }
         const oc = onChart.find(x => x.wallet === o.w);
         tr.classList.toggle('onchart', !!oc);
         if (oc) tr.style.setProperty('--c', oc.bundleColor || BUY_C); else tr.style.removeProperty('--c');
@@ -313,6 +474,19 @@
         const won = pc(all.filter(o => (+o.real || 0) > 0).length, n);
         out.push({ k: 'won', sev: 'good', act: ['profit'], v: won + '%', p: won, l: 'in profit', tip: won + '% of the wallets have a realized profit here' });
       }
+      if (V2) {
+        // v2: the share in profit is one of the three large counts, the rest a line of words, each a click into its wallets
+        findActs = out.filter(x => x.k !== 'won').slice(0, FIND_MAX);
+        const W = { launch: () => 'organised launch', dev: x => 'creator bought <b>' + x.v + '</b>', bout: x => '<b>' + x.v + '</b> of bundles out',
+          cex: x => '<b>' + x.v + '</b> funded from exchanges', top: x => '<b>' + x.v + '</b> of the profit to the top 10', repeat: x => '<b>' + x.v + '</b> seen before' };
+        const words = x => (W[x.k] ? W[x.k](x) : '<b>' + x.v + '</b> ' + x.l);
+        const SEP = '<span class="tsep" aria-hidden="true">·</span>';
+        const v2html = (verdictNote ? SEP + '<span class="tc bad tipt" tabindex="0" title="' + esc(verdictNote) + '"><b>' + verdictWord + '</b> launch</span>' : '')
+          + findActs.map((x, i) => SEP + (x.act ? '<button type="button" class="tc ' + x.sev + '" data-i="' + i + '" title="' + esc(x.tip) + ' · click to show them">'
+            : '<span class="tc ' + x.sev + '" title="' + esc(x.tip) + '">') + words(x) + (x.act ? '</button>' : '</span>')).join('');
+        if (el.dataset.h !== v2html) { el.innerHTML = v2html; el.dataset.h = v2html; }
+        return;
+      }
       findActs = out.slice(0, FIND_MAX);
       const cell = (x, i) => (x.act ? '<button type="button" class="tc ' + x.sev + '" data-i="' + i + '" title="' + esc(x.tip) + ' · click to show them">'
         : '<span class="tc ' + x.sev + '" title="' + esc(x.tip) + '">') + '<b>' + x.v + '</b><i>' + x.l + '</i>' + (x.p != null ? '<span class="tm" style="--p:' + x.p + '%"></span>' : '') + (x.act ? '</button>' : '</span>');
@@ -337,6 +511,10 @@
       // to the toolbar, not the table: the note of what is shown and its × sit there (review 01.10)
       (document.querySelector('.row.toolbar') || document.getElementById('facts')).scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
+    if (V2) {                                                   // the third large count: the share of wallets in profit
+      const tp = document.getElementById('tprofit');
+      if (tp && all.length) { tp.querySelector('b').dataset.count = pc(all.filter(o => (+o.real || 0) > 0).length, all.length); tp.hidden = false; }
+    }
     // the one filter a click can set without the panel open is named beside the count, with its own ×
     const ONLY = { bundle: 'Only bundles', dev: 'Only the creator', fresh: 'Only fresh wallets', cex: 'Only funded from exchanges',
       launch: "Only the launch's own wallets" };
@@ -361,7 +539,12 @@
       const na = nActive(), n = pass.length, left = Math.max(0, n - limit);
       shown.textContent = (left ? Math.min(n, limit) + ' of ' + n + ' shown' : n + ' of ' + all.length) + (na ? ' · filtered' : '');
       more.hidden = !left; document.getElementById('more100').hidden = left <= 100; document.getElementById('moren').textContent = n;
-      ftoggle.textContent = na ? 'Filters · ' + na : 'Filters'; ftoggle.classList.toggle('on', !!na);
+      if (V2) {                                                 // the label beside its drawing; the toolbar's own search and bot switch
+        document.getElementById('ftext').textContent = na ? 'Filters · ' + na : 'Filters';
+        const q = document.getElementById('tfind'); if (q && document.activeElement !== q && q.value !== f.q) q.value = f.q;
+        const hb = document.getElementById('hidebots'); if (hb) { const on = f.hide.includes('bot-like'); hb.classList.toggle('on', on); hb.setAttribute('aria-pressed', String(on)); }
+      } else ftoggle.textContent = na ? 'Filters · ' + na : 'Filters';
+      ftoggle.classList.toggle('on', !!na);
       const fr = document.getElementById('freset'); if (fr) fr.hidden = !na && sortKey === 'real' && sortDir === -1;
       syncExport();
     }
@@ -642,13 +825,16 @@
 
     let sortKey = 'real', sortDir = -1;                         // the server already sends the rows by PnL, highest first
     const msort = document.getElementById('msort');
+    function markSort() {                                       // the head shows the order: its column's mark (v2 redraws the head)
+      table.querySelectorAll('th.sortable').forEach(x => x.classList.toggle('desc', x.dataset.key === sortKey && sortDir < 0));
+      table.querySelectorAll('th.sortable').forEach(x => x.classList.toggle('asc', x.dataset.key === sortKey && sortDir > 0));
+    }
     function sortBy(k, dir, text) {
       sortKey = k; sortDir = dir;
       const val = o => k === 'funder' ? fundKey(o.w) : k === 'inv' ? (+o.tot || +o.inv || 0) : o[k];   // Bought sorts by the number it shows
       order.sort((a, b) => text ? String(val(a) || '').localeCompare(String(val(b) || '')) * dir : ((+val(a) || 0) - (+val(b) || 0)) * dir);
       limit = LIMIT;
-      table.querySelectorAll('th.sortable').forEach(x => x.classList.toggle('desc', x.dataset.key === k && dir < 0));
-      table.querySelectorAll('th.sortable').forEach(x => x.classList.toggle('asc', x.dataset.key === k && dir > 0));
+      markSort();
       // the list names an order only when it is one of its own; otherwise it says Custom, so any real choice is a change
       const opt = [...msort.options].find(o => o.value === k);
       msort.value = opt && +(opt.dataset.dir || -1) === dir ? k : '';
@@ -660,7 +846,7 @@
       if (e.target.closest('.hcur')) { EarlyCur.toggle(); return; }
       const th = e.target.closest('th.sortable'); if (!th) return;
       const k = th.dataset.key;
-      sortBy(k, sortKey === k ? -sortDir : -1, th.dataset.type === 'text');
+      sortBy(k, sortKey === k ? -sortDir : (V2 ? +(th.dataset.dir || -1) : -1), th.dataset.type === 'text');   // v2: First buy and Trip start from the earliest, the lowest
       EarlyUI.use('sort', { key: k, dir: sortDir > 0 ? 'asc' : 'desc', via: 'head' });
     });
     msort.addEventListener('change', () => {
@@ -698,9 +884,67 @@
       download(jobId + suffix + '.csv', lines.join('\n') + '\n', 'text/csv');
     });
 
+    if (V2) {
+      headV2(); markSort();
+      // the toolbar (canvas Analysis4): Find a wallet is the panel's search; Hide bots hides the bot-like tag, as the
+      // panel's chip does; Columns shows, hides and orders the columns; ⋯ holds Export
+      const tfind = document.getElementById('tfind'); let tfT = 0;
+      tfind.addEventListener('input', () => { clearTimeout(tfT); tfT = later(() => { f.q = tfind.value.trim(); saveF(); limit = LIMIT; apply(); fillPanel(); }, 250); });
+      tfind.addEventListener('keydown', e => { if (e.key === 'Escape' && tfind.value) { e.stopPropagation(); tfind.value = ''; f.q = ''; saveF(); limit = LIMIT; apply(); fillPanel(); } });
+      document.getElementById('hidebots').addEventListener('click', () => {
+        const on = !f.hide.includes('bot-like');
+        f.hide = on ? f.hide.concat(['bot-like']) : f.hide.filter(y => y !== 'bot-like');
+        saveF(); limit = LIMIT; apply(); fillPanel(); EarlyUI.use('hide', { tag: 'bot-like', on, via: 'toolbar' });
+      });
+      const colbtn = document.getElementById('colsbtn'), colpanel = document.getElementById('colpanel');
+      const drawCols = () => {
+        colpanel.innerHTML = '<div class="mh">Show columns</div>' + cols.map((x, i) => '<label class="colrow" draggable="true" data-i="' + i + '" title="Drag, or Alt and an arrow key, to move it">'
+          + '<input type="checkbox" data-col="' + x.k + '"' + (x.on ? ' checked' : '') + '><i class="ck" aria-hidden="true"></i><span class="cname">' + COLS[x.k].menu + '</span>'
+          + '<span class="grip" aria-hidden="true">' + ag('grip', 12) + '</span></label>').join('') + '<div class="mnote">Drag to reorder. Kept for next time.</div>';
+      };
+      const colsChanged = () => { saveCols(); headV2(); markSort(); syncHeads(); drawn = []; apply(); EarlyUI.use('columns', { on: shownCols().join(',') }, 1500); };
+      const closeCols = () => { colpanel.hidden = true; colbtn.setAttribute('aria-expanded', 'false'); colbtn.classList.remove('open'); };
+      colbtn.addEventListener('click', e => {
+        e.stopPropagation();
+        const open = colpanel.hidden; if (open) drawCols();
+        colpanel.hidden = !open; colbtn.setAttribute('aria-expanded', String(open)); colbtn.classList.toggle('open', open);
+      });
+      colpanel.addEventListener('click', e => e.stopPropagation());
+      colpanel.addEventListener('change', e => {
+        const x = e.target.closest('[data-col]'); if (!x) return;
+        const c = cols.find(y => y.k === x.dataset.col); c.on = x.checked;
+        if (!cols.some(y => y.on)) { c.on = true; x.checked = true; return; }   // one column at least
+        colsChanged();
+      });
+      let dragI = null;
+      const move = (from, to) => { if (from === to || to < 0 || to >= cols.length) return false; const [c] = cols.splice(from, 1); cols.splice(to, 0, c); return true; };
+      colpanel.addEventListener('dragstart', e => { const r = e.target.closest('.colrow'); if (!r) return; dragI = +r.dataset.i; r.classList.add('drag'); try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(dragI)); } catch (x) {} });
+      colpanel.addEventListener('dragover', e => { const r = e.target.closest('.colrow'); if (!r || dragI == null) return; e.preventDefault();
+        colpanel.querySelectorAll('.colrow.over').forEach(x => x.classList.remove('over')); r.classList.add('over'); });
+      colpanel.addEventListener('drop', e => { const r = e.target.closest('.colrow'); if (!r || dragI == null) return; e.preventDefault();
+        if (move(dragI, +r.dataset.i)) { drawCols(); colsChanged(); } dragI = null; });
+      colpanel.addEventListener('dragend', () => { dragI = null; colpanel.querySelectorAll('.colrow.drag, .colrow.over').forEach(x => x.classList.remove('drag', 'over')); });
+      colpanel.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { e.stopPropagation(); closeCols(); colbtn.focus(); return; }
+        const r = e.target.closest('.colrow'); if (!r || !e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+        e.preventDefault(); const i = +r.dataset.i, j = i + (e.key === 'ArrowUp' ? -1 : 1);
+        if (move(i, j)) { drawCols(); colsChanged(); const b = colpanel.querySelector('.colrow[data-i="' + j + '"] input'); if (b) b.focus(); }
+      });
+      on(document, 'click', () => { if (!colpanel.hidden) closeCols(); });
+      on(document, 'keydown', e => { if (e.key === 'Escape' && !colpanel.hidden) closeCols(); });
+      const xbtn = document.getElementById('xbtn'), xpanel = document.getElementById('xpanel');
+      if (xbtn) {
+        xbtn.addEventListener('click', e => { e.stopPropagation(); const open = xpanel.hidden; xpanel.hidden = !open; xbtn.setAttribute('aria-expanded', String(open)); xbtn.classList.toggle('open', open); });
+        const shut = () => { xpanel.hidden = true; xbtn.setAttribute('aria-expanded', 'false'); xbtn.classList.remove('open'); };
+        xpanel.addEventListener('click', e => { if (e.target.closest('[data-x]')) setTimeout(shut, 0); });
+        on(document, 'click', e => { if (!xpanel.hidden && !e.target.closest('#xpanel')) shut(); });
+        on(document, 'keydown', e => { if (e.key === 'Escape') shut(); });
+      }
+    }
     syncHeads(); apply();
     // the buying in the range as small bars under «bought»: when the wallets came in, in 24 steps
     (function buyBars() {
+      if (V2) return;                                           // v2's strip has no bars (canvas Analysis4)
       const c = document.querySelector('#tally .tc'); if (!c) return;
       const a = +CFG.from, b = +CFG.to; if (!(b > a)) return;
       const N = 24, n = new Array(N).fill(0);
@@ -734,7 +978,12 @@
     ch.setExit(CFG.exit || null);
 
     // wallet story: markers on the chart (green bought, red sold; a ring when the wallet shares a funder) + the drawer
-    const bar = document.getElementById('onchart');
+    // v2: the wallets on the chart stand in the chart's toolbar, the range line and Save in the tabs' row (canvas Analysis4)
+    const ctw = V2 ? document.getElementById('ctw') : null;
+    const bar = ctw || document.getElementById('onchart');
+    const rheadEl = root.querySelector('.rhead'), tabsres = V2 ? document.getElementById('tabsres') : null;
+    if (rheadEl && tabsres) { tabsres.innerHTML = ''; tabsres.appendChild(rheadEl); }
+    if (ctw) { ctw.innerHTML = ''; ctw.hidden = true; }
     const drawer = document.getElementById('drawer'), dtrades = document.getElementById('dtrades');
     // the symbol is whatever the token's creator wrote, so it is escaped like every other one
     const crossLine = c => esc(c.symbol || c.mint.slice(0, 6)) + ' · ' + EarlyTZ.fmt(c.from, false) + ' → ' + EarlyTZ.fmt(c.to, false)
@@ -770,13 +1019,16 @@
       bar.innerHTML = ''; bar.hidden = !onChart.length;
       pinned.clear(); onChart.forEach(o => pinned.add(o.wallet));
       if (onChart.length) {
-        const l = document.createElement('span'); l.className = 'muted small'; l.textContent = 'On the chart:'; bar.appendChild(l);
+        if (!V2) { const l = document.createElement('span'); l.className = 'muted small'; l.textContent = 'On the chart:'; bar.appendChild(l); }
         onChart.forEach(o => {
           const c = document.createElement('span'); c.className = 'chipw';
-          c.innerHTML = '<span class="mono">' + short(o.wallet) + '</span> ';
-          c.title = 'Stays visible when filtered · click for the story';
+          const nm = V2 ? EarlyTags.displayName(idents[o.wallet]) : '';
+          c.innerHTML = V2 ? face(o.wallet) + (nm ? '<span class="cn">' + esc(nm) + '</span>' : '<span class="mono">' + short(o.wallet) + '</span>')
+            : '<span class="mono">' + short(o.wallet) + '</span> ';
+          c.title = V2 ? 'Its trades are on the chart · click for its card' : 'Stays visible when filtered · click for the story';
           c.addEventListener('click', ev => { if (!ev.target.closest('.x')) { cardSrc = 'chart'; dropViaCard(o.wallet); openStory(o); } });
           const x = document.createElement('button'); x.type = 'button'; x.className = 'ghost x'; x.textContent = '×'; x.title = 'Remove from chart';
+          if (V2) x.setAttribute('aria-label', 'Remove from the chart');
           x.addEventListener('click', () => { if (viaCard === o.wallet) viaCard = null; onChart.splice(onChart.indexOf(o), 1); if (drawer.dataset.w === o.wallet) closeCard(); renderOnChart(); });
           c.appendChild(x); bar.appendChild(c);
         });
@@ -804,7 +1056,7 @@
     }
     function syncStar(w) {
       const on = inList(w);
-      dstar.innerHTML = EarlyIcon(on ? 'star-on' : 'star'); dstar.classList.toggle('on', on);
+      dstar.innerHTML = V2 ? ag('star', 16) + '<span>' + (on ? 'Watching' : 'Watch') + '</span>' : EarlyIcon(on ? 'star-on' : 'star'); dstar.classList.toggle('on', on);
       dstar.title = on ? 'In your watchlist · click to change' : 'Add to your watchlist'; dstar.setAttribute('aria-label', dstar.title);
     }
     // your tag goes only by its own × (owner, 02.10: a click on the word dropped it by accident)
@@ -824,6 +1076,10 @@
         ? '<img src="' + esc(idn.avatar) + '" alt="" referrerpolicy="no-referrer">' : EarlyCard.identicon(w);
       document.getElementById('dname').textContent = EarlyTags.displayName(idn) || 'Wallet';
       document.getElementById('dids').innerHTML = EarlyTags.idMarks(idn);
+      if (V2) {                                                 // no name: the address is the title; a long one a step smaller
+        const nm = EarlyTags.displayName(idn) || '';
+        drawer.classList.toggle('noname', !nm); document.getElementById('dname').classList.toggle('long', nm.length > 8);
+      }
     }
     function renderIdent(w) {
       renderHead(w);
@@ -909,6 +1165,7 @@
     const nf = v => (+v || 0).toLocaleString('en-US');
     let period = '30';
     function renderProfile(all) {                               // the same block as a ready list's card: static/card.js
+      if (V2) dprof.closest('.dperf').classList.remove('guest');
       EarlyCard.render(all, period, dprof, document.getElementById('dprofi'));
       document.querySelectorAll('#dper [data-p]').forEach(b => b.classList.toggle('on', b.dataset.p === period));
     }
@@ -928,8 +1185,10 @@
       catch (e) { if (alive && drawer.dataset.w === w) dprof.innerHTML = '<p class="dline muted small">Could not reach the server.</p>'; return; }
       if (!alive || drawer.dataset.w !== w) return;         // the card moved on to another wallet, or another tab is open
       if (r.status === 401) {
-        dprof.innerHTML = '<div class="dconnect"><button type="button" class="primary" id="dprofgo">Connect wallet for more data</button>'
+        dprof.innerHTML = V2 ? '<div class="dconnect"><span><b>Its 30 days on every token</b><small>PnL, win rate, hours it trades</small></span><button type="button" class="dcgo" id="dprofgo">Connect</button></div>'
+          : '<div class="dconnect"><button type="button" class="primary" id="dprofgo">Connect wallet for more data</button>'
           + '<span class="muted small">PnL, win rate and active hours across all its tokens</span></div>';
+        if (V2) dprof.closest('.dperf').classList.add('guest');
         document.getElementById('dprofgo').addEventListener('click', () => EarlyWallet.open(() => { acctOn = true; loadMe().then(() => loadProfile(w)); }, 'Connect a wallet to see all its tokens.'));
         return;
       }
@@ -963,8 +1222,24 @@
       } catch (e) { EarlyUI.toast(e.message); return false; }
     }
     document.getElementById('dmore').addEventListener('click', e => {
+      if (V2) {                                                 // v2: the line opens every trade and closes them again
+        const dt = document.getElementById('dtable'), open = dt.hidden; dt.hidden = !open;
+        e.currentTarget.textContent = open ? 'Hide the trades' : 'Show every trade'; e.currentTarget.setAttribute('aria-expanded', String(open));
+        if (open) EarlyUI.use('card-trades-all');
+        return;
+      }
       document.getElementById('dtable').classList.remove('clip'); e.currentTarget.hidden = true;
       EarlyUI.use('card-trades-all');
+    });
+    // v2: Share copies a link that opens this analysis with this card (a phone's own share sheet where there is one)
+    const dshare = document.getElementById('dshare');
+    if (dshare) dshare.addEventListener('click', () => {
+      const w = drawer.dataset.w; if (!w) return;
+      const url = location.origin + '/job/' + encodeURIComponent(jobId) + '?w=' + encodeURIComponent(w);
+      EarlyUI.use('card-share');
+      if (navigator.share && matchMedia('(pointer: coarse)').matches) { navigator.share({ url, title: (CFG.symbol || 'tracced') + ' · a wallet on tracced' }).catch(() => {}); return; }
+      if (!navigator.clipboard) { EarlyUI.toast(esc(url), 8000); return; }
+      navigator.clipboard.writeText(url).then(() => EarlyUI.toast('Link copied: it opens this analysis with this card'), () => EarlyUI.toast(esc(url), 8000));
     });
     // what it did here, as the row says it, a number and a word each: on a phone the row is under the card
     function renderTokFacts(w) {
@@ -980,6 +1255,46 @@
         + cell(roiX(o.mult), 'ROI', o.mult ? (o.mult >= 1 ? 'pos' : 'neg') : '', o.mult ? roiPct(o.mult) : 'Nothing sold yet')
         + cell(holdText(o.hold), 'held', '', 'How long it held what it sold, on average, weighted by amount');
     }
+    // v2: what it did here is the card's first block (canvas Analysis4): its result large, the multiple and the hold, its
+    // trip from the average entry to the average exit with the cap now, then its buys and its sells, each in one line
+    const capRange = (a, b) => { const x = fm(a), y = fm(b); if (x === y) return x; const sx = x.slice(-1), sy = y.slice(-1);
+      return /[KMB]/.test(sx) && sx === sy ? x.slice(0, -1) + '–' + y : x + '–' + y; };
+    function renderPos(w, st) {
+      const o = rowOf(w), el = document.getElementById('dpos'), gr = document.getElementById('dgroups');
+      if (!o) { el.innerHTML = gr.innerHTML = ''; return; }
+      const unk = o.sells == null, a = +o.eavg || +o.entry, b = +o.exitcap, vals = [a, b, NOWCAP].filter(v => v > 0);
+      const sc = vals.length ? { lo: Math.log10(Math.min(...vals)) - 0.25, hi: Math.log10(Math.max(...vals)) + 0.25 } : null;
+      const W = 320, X = v => { const x = tripX(v, W, sc); return x == null ? null : x / W * 100; };
+      const lab = [];
+      if (a) lab.push([X(a), fm(a) + ' in', 'in']);
+      if (b) lab.push([X(b), fm(b) + ' out', b >= a ? 'out pos' : 'out neg']);
+      if (NOWCAP) lab.push([X(NOWCAP), fm(NOWCAP) + ' now', 'now']);
+      lab.sort((p, q) => p[0] - q[0]);                          // along the line, never one on top of another
+      for (let i = 1; i < lab.length; i++) if (lab[i][0] - lab[i - 1][0] < 24) lab[i][0] = lab[i - 1][0] + 24;
+      if (lab.length && lab[lab.length - 1][0] > 88) { lab[lab.length - 1][0] = 88; for (let i = lab.length - 2; i >= 0; i--) if (lab[i + 1][0] - lab[i][0] < 24) lab[i][0] = lab[i + 1][0] - 24; }
+      lab.forEach(l => { l[0] = Math.max(10, l[0]); });
+      const cls = o.real > 0 ? 'pos' : o.real < 0 ? 'neg' : '';
+      el.innerHTML = '<div class="dp-top"><span class="dp-pnl" title="Profit on what it sold here">' + (unk ? '<b>—</b>' : amt2(o.real, o.realsol, cls, true)) + '</span>'
+        + '<span class="dp-sub">' + (o.mult ? roiX(o.mult) : unk ? 'exits not read' : 'nothing sold yet') + (o.hold != null ? ' · ' + holdText(o.hold) : '') + '</span></div>'
+        + (sc ? '<div class="dp-trip" title="Average entry → average exit' + (NOWCAP ? ' · the dashed tick: the cap now' : '') + '">' + tripSvg(o, W, 30, sc, true)
+          + '<div class="dp-lab">' + lab.map(l => '<span class="' + l[2] + '" style="left:' + l[0].toFixed(1) + '%">' + l[1] + '</span>').join('') + '</div></div>' : '')
+        + (o.unreal ? '<p class="dp-un"><span class="' + (o.unreal > 0 ? 'pos' : 'neg') + '">' + sgn(o.unreal) + '</span> on the ' + leftPct(o.sold) + ' it still holds</p>' : '');
+      const tr = (st && st.trades) || [], A = +CFG.from, B = +CFG.to;
+      const grp = side => {
+        const ts = tr.filter(t => t.side === side); if (!ts.length) return '';
+        const sum = ts.reduce((s, t) => s + (+t.usd || 0), 0), sol = ts.every(t => t.sol != null) ? ts.reduce((s, t) => s + (+t.sol || 0), 0) : null;
+        const tt = ts.map(t => +t.t), t0 = Math.min(...tt), t1 = Math.max(...tt), caps = ts.map(t => +t.mcap).filter(v => v > 0);
+        const inR = ts.filter(t => t.t >= A && t.t <= B).length;
+        const where = side === 'buy' ? (inR === ts.length ? 'inside the range' : !inR ? (t1 < A ? 'before the range' : 'after the range') : inR + ' inside the range')
+          : (t0 > B ? holdText((t0 - B) / 60000) + ' after the range' : inR === ts.length ? 'inside the range' : 'from inside the range');
+        const f0 = fmtHM(t0), f1 = fmtHM(t1);
+        const span = f0 + (t1 - t0 >= 60000 ? '–' + (f1.split(', ')[0] === f0.split(', ')[0] ? f1.replace(/^.*, /, '') : f1) : '');
+        return '<div class="dg ' + side + '"><span class="dg-ic" aria-hidden="true">' + (side === 'buy' ? '▲' : '▼') + '</span><span class="dg-t"><b>' + plural(ts.length, side) + ' · '
+          + (SOLON && sol != null ? '<span class="insol">' + EarlyCur.sol(sol) + '</span>' : money(sum)) + '</b><small>' + span + ' · ' + where + '</small></span>'
+          + '<span class="dg-c" title="Market cap at these trades">' + (caps.length ? capRange(Math.min(...caps), Math.max(...caps)) : '') + '</span></div>';
+      };
+      gr.innerHTML = grp('buy') + grp('sell');
+    }
     let cardSrc = 'row';                                       // where the card was opened from, for the owner's log
     function openStory(o) {
       if (drawer.hidden || drawer.dataset.w !== o.wallet) { EarlyUI.track('card-open'); EarlyUI.use('card-open', { src: cardSrc }); }
@@ -993,8 +1308,13 @@
       syncStar(o.wallet); renderTags(o.wallet); renderIdent(o.wallet);
       // the first six on top, the rest behind «Show all»: a busy wallet's trades would push its card far down (owner, 08.10)
       const SHOW = 6, dmore = document.getElementById('dmore');
+      if (V2) {                                                 // v2: every trade behind one line under the two groups
+        const dt = document.getElementById('dtable'); dt.classList.remove('clip'); dt.hidden = true;
+        dmore.hidden = !o.trades.length; dmore.textContent = 'Show every trade'; dmore.setAttribute('aria-expanded', 'false');
+      } else {
       document.getElementById('dtable').classList.add('clip');
       dmore.hidden = o.trades.length <= SHOW; dmore.textContent = 'Show all ' + o.trades.length + ' trades';
+      }
       dtrades.innerHTML = o.trades.map((t, i) => '<tr class="' + t.side + (i >= SHOW ? ' xtra' : '') + '"><td class="mono dtc" data-ms="' + t.t + '">' + EarlyTZ.fmt(t.t, false) + '</td><td>' + (t.side === 'buy' ? '<b class="buy">▲ buy</b>' : '<b class="sell">▼ sell</b>') + '</td><td class="num mono">' + (cur && t.sol != null ? EarlyCur.solHtml(t.sol) : money(t.usd)) + '</td><td class="num mono">' + (t.qty ? ch.fmtMcap(t.qty) : '—') + '</td><td class="num mono">' + ch.fmtMcap(t.mcap) + '</td></tr>').join('');
       const cx = crossings[o.wallet] || [];
       document.getElementById('dcross').innerHTML = cx.length
@@ -1004,10 +1324,12 @@
       document.getElementById('dwsec').hidden = !cx.length;
       renderWalletInfo(o.wallet);
       const sells = row && row.sells != null ? +row.sells : o.trades.filter(t => t.side === 'sell').length;   // the row counts every sell; the list stops at 200
-      document.getElementById('dtcount').textContent = row ? plural(+row.buys || 0, 'buy') + ' · ' + plural(sells, 'sell') : '';
+      document.getElementById('dtcount').textContent = !row ? '' : V2 ? money(row.tot || row.inv) + ' in · ' + (row.got ? money(row.got) : '$0') + ' out · ' + plural((+row.buys || 0) + sells, 'trade')
+        : plural(+row.buys || 0, 'buy') + ' · ' + plural(sells, 'sell');
       document.getElementById('dnote').textContent = (o.complete === false ? 'Exits not fetched (over the cap): only trades inside the range are known. ' : '')
         + (o.truncated ? 'First ' + o.trades.length + ' of ' + o.n + '.' : '');
-      renderTokFacts(o.wallet); loadProfile(o.wallet);
+      if (V2) renderPos(o.wallet, o); else renderTokFacts(o.wallet);
+      loadProfile(o.wallet);
       try { localStorage.setItem('early:cardhint', '3'); } catch (e) {}   // found the card: the hint has done its job
       if (window.EarlyTZ) EarlyTZ.apply();
     }
@@ -1109,13 +1431,14 @@
       if (QUICK.includes(MYQ) || !all.some(o => inList(o.w))) return;
       QUICK.unshift(MYQ);
       const b = document.createElement('button'); b.type = 'button'; b.className = 'aqbtn'; b.dataset.q = MYQ;
-      b.innerHTML = aEsc(MYQ) + '<span aria-hidden="true">→</span>';
+      b.innerHTML = aEsc(MYQ) + (V2 ? '' : '<span aria-hidden="true">→</span>');   // v2: no arrows inside buttons
       apanel.querySelector('.aquick').prepend(b);
       aState();
     }
     let aBusy = false, aSummed = false;
     const aEsc = t => esc(String(t == null ? '' : t));
-    const aWallet = w => '<div class="awr"><button type="button" class="awallet mono" data-w="' + aEsc(w.wallet) + '" title="Open this wallet\'s card">' + aEsc(w.short) + '</button>'
+    const aWallet = w => '<div class="awr">' + (V2 && byW.has(w.wallet) ? '<span class="awf" aria-hidden="true">' + face(w.wallet) + '</span>' : '')
+      + '<button type="button" class="awallet mono" data-w="' + aEsc(w.wallet) + '" title="Open this wallet\'s card">' + aEsc(w.short) + '</button>'
       + (w.why ? '<span class="awhy">' + aEsc(w.why) + '</span>' : '') + '</div>';
     // the agent writes wallets short ("3idduY…4i4V"); one that matches a single wallet of this analysis becomes a link to its card
     const SHORTS = new Map(); all.forEach(o => { const k = short(o.w); SHORTS.set(k, SHORTS.has(k) ? null : o.w); });
@@ -1279,11 +1602,16 @@
     };
     tick();
     loadCrossings();
+    if (V2) {                                                   // a link from the card's Share opens with that wallet's card
+      const qw = new URLSearchParams(location.search).get('w');
+      if (qw && byW.has(qw) && location.pathname === '/job/' + encodeURIComponent(jobId)) { cardSrc = 'link'; later(() => toggleWallet(qw, true), 0); }
+    }
     return function unmount() {
       alive = false;
       drawer.hidden = true; delete drawer.dataset.w;          // a late answer's «is this card still open» check now fails
       off.forEach(fn => { try { fn(); } catch (e) {} });
       fpop.remove(); listpop.remove();
+      if (V2) { if (tabsres && rheadEl) rheadEl.remove(); if (ctw) { ctw.innerHTML = ''; ctw.hidden = true; } }   // what v2 moved out of the result
       document.body.classList.remove('drawer-open');
       ch.setWalletMarkers([]); ch.setOnMarkers(null); ch.setExit(null);
     };

@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+{# design v2 · home (canvas Home6, DESIGN-v2.md phase 2): the planet horizon with the latest analysis' wallets as stars
+   above it, the centred hero, fresh pumps as a market map beside Live on tracced, the month's top 10 beside the alerts
+   it sends, a closing call with that analysis' first buyers on orbits. Real data only: every star, tile, row and orbit
+   is something the server holds. The header lives in the hero: the logo, X and who is signed in #}
+{% block topbar %}{% endblock %}
+{% block main_class %}hm-main{% endblock %}
+{% block full %}
+{% set srows = (sample.result.rows if sample and sample.result and sample.result.rows else []) %}
+<div class="hm-sky">
+  {# the stars: one per wallet of the latest analysis (up to 700), higher the more it made, mint from 3x; drawn by the
+     script below from these numbers only (no addresses on the page). Without an analysis, the site's quiet stars #}
+  <div class="hm-stars{{ ' hm-stars-q' if not srows }}" id="hmstars" aria-hidden="true"></div>
+  {% if srows %}{% set n = srows|length %}{% set pts = [] %}{% for r in srows %}{% if (loop.index0 * 700) // n != (loop.index0 * 700 - 700) // n %}{% set _ = pts.append('[%.2f,%d]'|format((r.multiple or 0)|float, ((r.invested_usd or 0)|float)|round|int)) %}{% endif %}{% endfor %}<script type="application/json" id="hmstardata">[{{ pts|join(',') }}]</script>{% endif %}
+  <header class="hm-top"><div class="hm-wrap hm-top-in">
+    <a class="brand" href="/" aria-label="tracced, home"><svg class="bmark" viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M28 14.5 V37.5 a12 12 0 0 0 12 12 h10"/><path d="M14 26.5 H42"/></svg><span>tracced</span></a>
+    <span class="hm-sp"></span>
+    <a class="xfollow" href="https://x.com/intent/follow?screen_name=tracced_xyz" target="_blank" rel="noopener" title="Follow tracced on X">{{ glyph('x', 'Follow tracced on X') }}</a>
+    <div class="acct-slot">{% include "v2/_acct.html" %}</div>
+  </div></header>
+  <section class="hm-hero">
+    <div class="hm-hero-in">
+      <h1 class="hm-h1">Every wallet<br>on the record.</h1>
+      <p class="hm-lead"><span class="hm-lead-long">Paste a token, mark the pump — see who bought before it and what they did next.</span><span class="hm-lead-short">See who bought before the pump, and what they did next.</span></p>
+      <form method="get" action="/token" class="hm-ask" role="search">
+        <input id="hmmint" type="text" name="mint" placeholder="Paste a Solana token address" required pattern="[1-9A-HJ-NP-Za-km-z]{32,44}"
+               spellcheck="false" autocomplete="off" aria-label="Token address">
+        <button type="submit" class="hm-go">Analyze</button>
+      </form>
+      <div class="hm-count">
+        <div><b data-count="{{ totals.wallets }}" data-fmt="int">{{ '{:,}'.format(totals.wallets|int) }}</b><span>wallets on the record</span></div>
+        <div><b data-count="{{ totals.tokens }}" data-fmt="int">{{ '{:,}'.format(totals.tokens|int) }}</b><span>tokens analyzed</span></div>
+        <div><b data-count="{{ totals.trades }}" data-fmt="int">{{ '{:,}'.format(totals.trades|int) }}</b><span>trades processed</span></div>
+      </div>
+    </div>
+    {# the planet: its edge sits just under the hero, its body runs to the bottom of the page under everything else #}
+    <div class="hm-world" aria-hidden="true"><i class="hm-glow"></i><i class="hm-planet"></i><i class="hm-rim"></i></div>
+  </section>
+</div>
+{% endblock %}
+{% block body %}
+{% set srows = (sample.result.rows if sample and sample.result and sample.result.rows else []) %}
+{# ── row 1: fresh pumps as a market map | Live on tracced ── #}
+{% set fresh_ok = s.get('fresh_on') and fresh_min is not none and fresh_min < (s.get('fresh_stale_hours', 3)|float) * 60 %}
+{% set hours = s.get('fresh_hours', 24)|int %}
+{% macro tk(t, size) %}<span class="hm-tk" style="--s: {{ size }}px" data-l="{{ (t.symbol or '?')[:1] }}" aria-hidden="true">{% if t.image %}<img src="{{ t.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span>{% endmacro %}
+{% macro lrow(r) %}<div class="hm-lrow" data-id="{{ r.id }}" data-at="{{ r.at }}"><span class="hm-tk" data-l="{{ r.letter }}" aria-hidden="true">{% if r.image %}<img src="{{ r.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span><b class="hm-sym">{{ r.symbol }}</b>{% if r.running %}<span class="hm-now"><i class="hm-dot" aria-hidden="true"></i>analyzing now</span>{% elif r.saved %}<span class="hm-fact" title="Wallets from this analysis that people saved to their watchlists">{{ icon('star-on') }}saved {{ '{:,}'.format(r.saved) }} wallet{{ '' if r.saved == 1 else 's' }}</span>{% else %}<span class="hm-fact"></span>{% endif %}<span class="hm-ago" data-ago="{{ r.at }}">{{ r.ago }}</span></div>{% endmacro %}
+{% if fresh or fresh_ok or live.rows %}
+<section class="hm-wrap hm-row" aria-label="Fresh pumps and live analyses">
+  {% if fresh or fresh_ok %}
+  {% set big = fresh|sort(attribute='cap', reverse=True) %}
+  <article class="hm-card hm-fresh" id="fresh" aria-labelledby="hmfresh">
+    <div class="hm-head"><h2 id="hmfresh"><i class="hm-dot" aria-hidden="true"></i>Fresh pumps</h2><span class="hm-note"{% if fresh_min is not none %} title="Updated {{ 'just now' if fresh_min < 1 else fresh_min ~ ' min ago' }}"{% endif %}>updates every {{ s.get('fresh_refresh_min', 10)|int }} min</span></div>
+    <p class="hm-sub tipt" title="Created in the last {{ hours }} h{% if s.get('fresh_min_ath', 0) > s.get('fresh_min_mcap', 0) %}, reached a ${{ s.fresh_min_ath|mcap }} market cap{% endif %}, at ${{ s.get('fresh_min_mcap', 0)|mcap }} or more now, ${{ s.get('fresh_min_liquidity', 0)|mcap }} liquidity, ${{ s.get('fresh_min_vol_24h', 0)|mcap }} traded in a day, {{ s.get('fresh_min_holders', 0)|int }}+ holders.">Launched in the last {{ hours }} h and already past ${{ [s.get('fresh_min_ath', 0), s.get('fresh_min_mcap', 0)]|max|mcap }}.</p>
+    {% if big %}
+    {# area = market cap now, tint = how close it still is to its peak; the six biggest, four on a phone, the rest in a menu #}
+    <div class="hm-map" id="hmmap">
+      {% for t in big[:6] %}{% set r = (t.cap / t.peak) if t.peak and t.peak > t.cap else 1 %}{% set age = ('<1' if t.age_h < 1 else t.age_h|int|string) ~ ' h' if t.age_h is not none else '' %}
+      <a class="hm-tile t{{ 1 if r >= 0.97 else 2 if r >= 0.85 else 3 if r >= 0.7 else 4 if r >= 0.5 else 5 }}" data-cap="{{ t.cap }}" href="/token?mint={{ t.mint }}&amp;src=fresh" rel="nofollow"
+         title="{{ t.symbol or '?' }}{% if t.name and t.name != t.symbol %} · {{ t.name }}{% endif %} · ${{ t.cap|mcap }} · peak ${{ (t.peak or t.cap)|mcap }}{% if age %} · {{ age }} old{% endif %}">
+        {{ tk(t, 46) }}<b class="hm-tsym">{{ t.symbol or '?' }}</b><span class="hm-tcap">${{ t.cap|mcap }}</span><span class="hm-tnear">{{ 'at peak' if r >= 0.97 else '−' ~ ((1 - r) * 100)|round|int ~ '% from peak' }}<span class="hm-tage">{% if age %} · {{ age }}{% endif %}</span></span>
+      </a>{% endfor %}
+    </div>
+    <script>
+    /* the market map: a squarified treemap (Bruls, Huizing, van Wijk) of the tiles above, laid out again when the card
+       changes width; a phone shows the four biggest as a 2 x 2 grid from CSS instead */
+    (function () {
+      const box = document.getElementById('hmmap'); if (!box) return;
+      const tiles = Array.from(box.children), phone = matchMedia('(max-width: 640px)');
+      function squarify(items, x, y, w, h) {
+        const out = [], total = items.reduce((s, it) => s + it.v, 0) || 1, k = w * h / total;
+        let rest = items.map(it => ({ el: it.el, a: Math.max(it.v, total * 0.002) * k }));
+        const worst = (row, side) => { const s = row.reduce((t, r) => t + r.a, 0);
+          return Math.max(...row.map(r => Math.max(side * side * r.a / (s * s), (s * s) / (side * side * r.a)))); };
+        while (rest.length) {
+          const side = Math.min(w, h), row = [rest.shift()];
+          while (rest.length && worst(row.concat(rest[0]), side) <= worst(row, side)) row.push(rest.shift());
+          const s = row.reduce((t, r) => t + r.a, 0);
+          if (w >= h) { const cw = s / h; let cy = y; row.forEach(r => { out.push([r.el, x, cy, cw, r.a / cw]); cy += r.a / cw; }); x += cw; w -= cw; }
+          else { const rh = s / w; let cx = x; row.forEach(r => { out.push([r.el, cx, y, r.a / rh, rh]); cx += r.a / rh; }); y += rh; h -= rh; }
+        }
+        return out;
+      }
+      function lay() {
+        if (phone.matches) { tiles.forEach(t => { t.removeAttribute('style'); t.className = t.className.replace(/ ?s-\w+/g, '') + ' s-mid'; }); return; }
+        const W = box.clientWidth, H = box.clientHeight, G = 4; if (!W) return;
+        squarify(tiles.map(el => ({ el, v: +el.dataset.cap || 0 })), 0, 0, W, H).forEach(([el, x, y, w, h]) => {
+          el.style.left = (x + G / 2) + 'px'; el.style.top = (y + G / 2) + 'px';
+          el.style.width = Math.max(0, w - G) + 'px'; el.style.height = Math.max(0, h - G) + 'px';
+          const sz = w > 200 && h > 150 ? 'big' : w > 120 && h > 90 ? 'mid' : w > 66 && h > 66 ? 'small' : w > 40 && h > 40 ? 'tiny' : 'dot';
+          el.className = el.className.replace(/ ?s-\w+/g, '') + ' s-' + sz;
+        });
+      }
+      lay(); box.classList.add('on');
+      if (window.ResizeObserver) new ResizeObserver(lay).observe(box); else addEventListener('resize', lay);
+      phone.addEventListener && phone.addEventListener('change', lay);
+    })();
+    </script>
+    <div class="hm-legend">
+      <span class="hm-lg-what">Size is market cap</span>
+      <span><i class="hm-sw t1" aria-hidden="true"></i>at peak</span>
+      <span><i class="hm-sw t4" aria-hidden="true"></i>far below it</span>
+      <span class="hm-sp"></span>
+      {% if big|length > 4 %}
+      <div class="menu hm-more{{ ' hm-more-p' if big|length <= 6 }}">
+        <button type="button" data-menu aria-haspopup="menu"><span class="hm-n6">+{{ big|length - 6 }} more</span><span class="hm-n4">+{{ big|length - 4 }} more</span></button>
+        <div class="menu-panel r" hidden>{% for t in big[4:] %}<a class="{{ 'hm-m56' if loop.index <= 2 }}" href="/token?mint={{ t.mint }}&amp;src=fresh" rel="nofollow" title="{{ t.name or t.symbol }}">{{ tk(t, 22) }}<b>{{ t.symbol or '?' }}</b><span class="hm-mcap">${{ t.cap|mcap }}</span><span class="hm-mpk">{% if (t.drop or 0) >= 1 %}peak ${{ t.peak|mcap }}{% else %}at peak{% endif %}{% if t.age_h is not none %} · {{ '<1' if t.age_h < 1 else t.age_h|int }} h{% endif %}</span></a>{% endfor %}</div>
+      </div>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="hm-quiet">Quiet: no new pumps in {{ hours }} h</div>
+    {% endif %}
+  </article>
+  {% endif %}
+  {% if live.rows %}
+  {# Live on tracced (owner, 05.10, 07.10): everyone's latest analyses, leading nowhere, arriving the way they happened:
+     the newest few slide in one at a time, 3–10 s apart, then /live.json brings real new ones every 20 s. Nothing loops #}
+  {% set q = [3, [0, live.rows|length - 4]|max]|min %}
+  <article class="hm-card hm-live" id="live" aria-labelledby="hmlive">
+    <div class="hm-head"><h2 id="hmlive"><i class="hm-dot" aria-hidden="true"></i>Live on tracced</h2></div>
+    <div class="hm-feed{{ ' few' if live.rows|length < 7 }}" id="lfeed">{% for r in live.rows[q:q + 7] %}{{ lrow(r) }}{% endfor %}</div>
+    {% if q %}<template id="liveq">{% for r in live.rows[:q] %}{{ lrow(r) }}{% endfor %}</template>{% endif %}
+  </article>
+  {% endif %}
+</section>
+{% endif %}
+
+{# ── row 2: the month's top 10 | its alerts in Telegram (owner, 07.10–08.10; one list on the home page) ── #}
+{% if ready %}{% set l = ready[0] %}
+{% macro rrow(r, peek=false) %}<li{% if peek %} class="hm-peek" aria-hidden="true"{% endif %}><span class="hm-rk">{{ r.rank }}</span>{{ fingerprint(r.wallet, 22) }}<span class="hm-who"><b{% if not r.name %} class="hm-addr"{% endif %}>{{ r.label }}</b><small>{% if r.x %}@{{ r.x }}{% if r.win_rate is not none %} · {{ r.win_rate|round|int }}% win rate{% endif %}{% else %}{% if r.name %}<span class="hm-addr">{{ r.short }}</span> · {% endif %}{% if r.win_rate is not none %}{{ r.win_rate|round|int }}% win rate · {% endif %}{{ r.tokens }} tokens{% endif %}</small></span><b class="hm-pnl{{ ' neg' if r.pnl < 0 }}">{{ '+' if r.pnl >= 0 }}{{ r.rv }}</b></li>{% endmacro %}
+<section class="hm-wrap hm-row hm-row2" id="ready" aria-label="Follow the best traders">
+  <article class="hm-card hm-top10" aria-labelledby="hmtop">
+    <div class="hm-head"><h2 id="hmtop">{{ l.label }}'s top {{ l.summary.n }} traders</h2><span class="hm-note">next list {{ l.next_label }}</span></div>
+    <p class="hm-sub">Real traders only: no bots, snipers or fresh wallets.</p>
+    <div class="hm-sum"><b class="{{ 'neg' if l.summary.pnl < 0 }}">{{ '+' if l.summary.pnl >= 0 }}{{ l.summary.pnl|usd3 }}</b><span>total profit</span></div>
+    <ol class="hm-rank">{% for r in l.top %}{{ rrow(r) }}{% endfor %}{% if l.peek %}{{ rrow(l.peek, true) }}{% endif %}</ol>
+    {# owner, 08.10: the key opens the list; following is done there. A guest connects first #}
+    <div class="hm-act"><a class="hm-btn" href="/lists/{{ l.slug }}" data-need-wallet="Connect a wallet to see the list.">Open the list</a>{% if not acct %}<span>Connect a wallet to see all {{ {10: 'ten'}.get(l.summary.n, l.summary.n) }}.</span>{% endif %}</div>
+  </article>
+  {# two real alerts of a trader on the list, as Telegram shows them: the newest on top, the older one smaller behind; the
+     first line of what the alert code writes, no links (the home page is open to guests, the list is not) #}
+  <article class="hm-card hm-alerts" aria-labelledby="hmalerts">
+    {% set msgs = (l.example.msgs if l.example and l.example.msgs else [])|reverse|list %}
+    <div class="hm-stage{{ ' hm-stage-q' if not msgs }}"{% if msgs %} role="img" aria-label="{{ 'Two alerts' if msgs|length > 1 else 'An alert' }} from this list, as Telegram shows them"{% endif %}>
+      {% if msgs %}<div class="hm-toasts">
+        {% for m in msgs[:2]|reverse %}{% set front = loop.last %}
+        <div class="hm-toast{{ ' front' if front else ' back' }}"><span class="hm-tgic"><svg class="bmark" viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M28 14.5 V37.5 a12 12 0 0 0 12 12 h10"/><path d="M14 26.5 H42"/></svg></span><span class="hm-tgtx"><small>tracced_ · <span class="dtc" data-ms="{{ m.t }}">{{ m.t|dt }}</span></small><span class="hm-tgl">{{ m.html|tghead|replace('🟢', '<i class="hm-sd g"></i>'|safe)|replace('🟡', '<i class="hm-sd y"></i>'|safe)|replace('🔴', '<i class="hm-sd r"></i>'|safe)|replace('🆕', '<span class="hm-new">NEW</span>'|safe) }}</span></span></div>
+        {% endfor %}
+      </div>{% else %}<span class="hm-bell">{{ icon('bell') }}</span>{% endif %}
+    </div>
+    <div class="hm-alerts-foot">
+      <span><h2 id="hmalerts">Alerts in Telegram</h2><p>Our bot messages you each time a trader from this list buys or sells.</p></span>
+      <a class="hm-btn" href="{{ '/me#list' if l.following else '/lists/' ~ l.slug }}"{% if l.following %} data-open-list="{{ l.following }}"{% endif %} data-need-wallet="Connect a wallet to turn on alerts.">Turn on alerts</a>
+    </div>
+  </article>
+</section>
+{% endif %}
+
+{# ── the closing call: the first buyers of the latest analysis circle the line (else the list's traders); the very first
+   one is ringed in mint. Free during beta, a follow on X is the only payment (owner, 07.10) ── #}
+{% set orbit = [] %}
+{% for r in (srows|selectattr('first_buy_ms')|sort(attribute='first_buy_ms'))[:13] %}{% if r.wallet %}{% set _ = orbit.append(r.wallet) %}{% endif %}{% endfor %}
+{% if orbit|length < 13 and ready %}{% for r in ready[0].rows %}{% if orbit|length < 13 and r.wallet not in orbit %}{% set _ = orbit.append(r.wallet) %}{% endif %}{% endfor %}{% endif %}
+{% set slots = [(430, 25), (430, 115), (430, -160), (430, -60), (430, -20), (570, 60), (570, 160), (570, -125), (570, -75), (730, 10), (730, 95), (730, 180), (730, -100)] %}
+<section class="hm-call" aria-labelledby="hmcall">
+  <div class="hm-rings" aria-hidden="true"><svg viewBox="-1200 -1200 2400 2400" width="2400" height="2400">{% for rr, o in [(250, 0.05), (330, 0.06), (430, 0.08), (570, 0.07), (730, 0.06), (910, 0.05), (1100, 0.04)] %}<circle r="{{ rr }}" stroke-opacity="{{ o }}"/>{% endfor %}</svg></div>
+  {% if orbit %}<div class="hm-orbits" aria-hidden="true">{% for w in orbit %}{% set sl = slots[loop.index0] %}<span class="hm-sat{{ ' first' if loop.first and srows }} o{{ sl[0] }}" style="--r: {{ sl[0] }}; --a: {{ sl[1] }}deg">{{ fingerprint(w, 21) }}</span>{% endfor %}</div>{% endif %}
+  <div class="hm-call-in">
+    <h2 id="hmcall">Someone always<br>buys first.</h2>
+    <p>Find them before the next pump. Free during beta.</p>
+    <div class="hm-call-act">
+      <a class="hm-go hm-go-l" href="#hmmint" data-focus-mint>Analyze a token</a>
+      <a class="xfollow hm-x" href="https://x.com/intent/follow?screen_name=tracced_xyz" target="_blank" rel="noopener" title="Follow tracced on X" data-umami-event="home-follow">{{ glyph('x', 'Follow tracced on X') }}</a>
+    </div>
+  </div>
+</section>
+
+<script>
+(function () {
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  /* the stars: one per wallet of the latest analysis; the higher a star, the more that wallet made (by rank), mint from
+     3x, its size what it put in. The places across are a fixed sequence, so a reload draws the same sky */
+  (function () {
+    const host = document.getElementById('hmstars'), src = document.getElementById('hmstardata'); if (!host || !src) return;
+    let d; try { d = JSON.parse(src.textContent.replace(/-?\b(?:nan|inf)\b/g, '0')); } catch (e) { host.classList.add('hm-stars-q'); return; }
+    if (!d.length) { host.classList.add('hm-stars-q'); return; }
+    let seed = 20261026;
+    const rnd = () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const n = d.length, order = d.map((_, i) => i).sort((a, b) => d[b][0] - d[a][0]);
+    const logs = d.map(v => Math.log10(Math.max(1, v[1]))), lo = Math.min(...logs), span = Math.max(0.5, Math.max(...logs) - lo);
+    let ink = '', mint = '';
+    order.forEach((i, k) => {
+      const x = rnd() * 1440, y = Math.min(750, Math.max(70, 80 + 660 * (k + 0.5) / n + (rnd() - 0.5) * 70));
+      const c = '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (0.6 + 1.4 * (logs[i] - lo) / span).toFixed(2) + '"/>';
+      if (d[i][0] >= 3) mint += c; else ink += c;
+    });
+    host.innerHTML = '<svg viewBox="0 0 1440 760" preserveAspectRatio="xMidYMin slice"><g class="si">' + ink + '</g><g class="sm">' + mint + '</g></svg>';
+  })();
+  /* "x min ago" keeps itself fresh; the closing call's key and "/" put the cursor in the hero's field */
+  const ago = ms => { const m = Math.max(0, Math.round((Date.now() - ms) / 60000));
+    return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.floor(m / 60) + ' h ago' : Math.floor(m / 1440) + ' d ago'; };
+  const tick = () => document.querySelectorAll('[data-ago]').forEach(el => { el.textContent = ago(+el.dataset.ago); });
+  tick(); setInterval(tick, 30000);
+  const field = document.getElementById('hmmint');
+  function toField() { if (!field) return; field.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' }); field.focus({ preventScroll: true }); }
+  document.querySelectorAll('[data-focus-mint]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); toField(); }));
+  document.addEventListener('keydown', e => {
+    if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || e.target.closest('input, textarea, select, [contenteditable]')) return;
+    e.preventDefault(); toField();
+  });
+  /* a share in an alert's line, "(+8%)", is a figure: it takes the profit or loss colour */
+  document.querySelectorAll('.hm-tgl').forEach(el => {
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), hits = [];
+    while (w.nextNode()) if (/\(([+−-])\d[\d.,]*%\)/.test(w.currentNode.nodeValue)) hits.push(w.currentNode);
+    hits.forEach(t => {
+      const m = t.nodeValue.match(/\(([+−-])\d[\d.,]*%\)/), s = document.createElement('span');
+      s.className = m[1] === '+' ? 'pos' : 'neg'; s.textContent = m[0];
+      const after = t.splitText(m.index); after.nodeValue = after.nodeValue.slice(m[0].length); t.parentNode.insertBefore(s, after);
+    });
+  });
+  /* Live on tracced: the queued rows arrive one at a time, newest last; real new ones come from /live.json */
+  const box = document.getElementById('lfeed'); if (!box) return;
+  const MAX = 7, tpl = document.getElementById('liveq');
+  const queue = tpl ? Array.from(tpl.content.children).reverse() : [];
+  const ids = new Set([...box.children, ...queue].map(r => r.dataset.id));
+  let newest = Math.max(0, ...[...box.children, ...queue].map(r => +r.dataset.at || 0)), timer = null;
+  const fmt = n => Number(n).toLocaleString('en-US');
+  function el(tag, cls, text) { const x = document.createElement(tag); if (cls) x.className = cls; if (text != null) x.textContent = text; return x; }
+  function build(r) {                                     // a row from /live.json, text only through textContent
+    const row = el('div', 'hm-lrow'); row.dataset.id = r.id; row.dataset.at = r.at;
+    const pic = el('span', 'hm-tk'); pic.dataset.l = r.letter || '?'; pic.setAttribute('aria-hidden', 'true');
+    if (r.image) { const im = new Image(); im.alt = ''; im.loading = 'lazy'; im.referrerPolicy = 'no-referrer'; im.onerror = () => im.remove(); im.src = r.image; pic.appendChild(im); }
+    row.append(pic, el('b', 'hm-sym', r.symbol));
+    if (r.running) { const now = el('span', 'hm-now'); const dot = el('i', 'hm-dot'); dot.setAttribute('aria-hidden', 'true'); now.append(dot, 'analyzing now'); row.appendChild(now); }
+    else if (r.saved) {
+      const sv = el('span', 'hm-fact'); sv.title = 'Wallets from this analysis that people saved to their watchlists';
+      const use = document.querySelector('use[href*="#i-"]');
+      sv.innerHTML = '<svg class="ci" aria-hidden="true"><use href="' + (use ? use.getAttribute('href').replace(/#.*/, '#i-star-on') : '/static/icons.svg#i-star-on') + '"/></svg>';
+      sv.appendChild(document.createTextNode('saved ' + fmt(r.saved) + (r.saved === 1 ? ' wallet' : ' wallets'))); row.appendChild(sv);
+    } else row.appendChild(el('span', 'hm-fact', ''));
+    const t = el('span', 'hm-ago', ago(r.at)); t.dataset.ago = r.at; row.appendChild(t);
+    return row;
+  }
+  function show(row) {
+    if (!reduced) row.classList.add('lin');
+    box.prepend(row);
+    if (!reduced) { void row.offsetHeight; row.classList.remove('lin'); }
+    const extra = Array.from(box.children).slice(MAX);                 // the seventh slides out under the card's edge
+    if (extra.length) setTimeout(() => extra.forEach(x => x.remove()), reduced ? 0 : 320);
+    box.classList.toggle('few', box.children.length - extra.length < MAX);
+  }
+  function step() { timer = null; if (!queue.length) return; if (document.hidden) return plan(); show(queue.shift()); plan(); }
+  function plan() { if (!timer && queue.length) timer = setTimeout(step, 3000 + Math.random() * 7000); }
+  async function poll() {
+    if (document.hidden) return;
+    try {
+      const d = await (await fetch('/live.json', { cache: 'no-store' })).json();
+      (d.rows || []).slice().reverse().forEach(r => {      // oldest first, so they arrive in the order they happened
+        const shown = box.querySelector('[data-id="' + CSS.escape(r.id) + '"]');
+        if (shown) { if ((shown.querySelector('.hm-now') != null) !== !!r.running) shown.replaceWith(build(r)); return; }
+        if (ids.has(r.id) || r.at <= newest) return;       // already queued, or older than what is on screen
+        ids.add(r.id); newest = Math.max(newest, r.at); queue.push(build(r));
+      });
+      plan();
+    } catch (e) {}
+  }
+  plan(); setInterval(poll, 20000);
+})();
+</script>
+{% endblock %}

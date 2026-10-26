@@ -3172,6 +3172,8 @@ async def me_page(request):
     if not pk:
         return render("me.html", request, wallets=[], analyses=[], max_my_tags=acct_mod.MAX_MY_TAGS)
     a, wallets, analyses = _account_view(request.app, pk)
+    for x in analyses:                                        # v2 draws the token's picture in the row; from the cache only, no request
+        x["image"] = _token_image(request.app, x.get("mint"))
     lists = [dict(v, id=k, n=sum(1 for w in wallets if k in (w.get("lists") or []))) for k, v in a["lists"].items()]
     _view(request, "me")
     # власник, 08.10: узятий готовий список лишається копією; коли вийшов новий місяць, вотчліст про це каже

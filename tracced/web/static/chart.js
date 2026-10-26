@@ -84,7 +84,28 @@
     // volume histogram at the bottom (own scale, 18% of the height), mint on up candles, grey on down
     const vol = LW.HistogramSeries ? chart.addSeries(LW.HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: 'vol', lastValueVisible: false, priceLineVisible: false }) : null;
     if (vol) chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 }, visible: false });
-    if (LW.createTextWatermark && opts.symbol) {
+    // v2: the price is the market cap over the supply, a display of the same candles (canvas Analysis4: Market cap | Price)
+    const SUPPLY = V2 ? +opts.supply || 0 : 0;
+    let mode = 'cap';
+    try { if (SUPPLY && localStorage.getItem('early:cmode') === 'price') mode = 'price'; } catch (e) {}
+    const SUB = '₀₁₂₃₄₅₆₇₈₉';
+    function fmtPrice(v) {                                    // $0.0083, $0.0₅83: the zeros after the point counted, as terminals do
+      if (v == null || isNaN(v)) return '—';
+      if (v < 0) return '';
+      const p = v / SUPPLY; if (!(p > 0)) return '$0';
+      if (p >= 1) return '$' + (p >= 1000 ? fmtMcap(p) : p.toFixed(p >= 100 ? 0 : 2));
+      let z = Math.floor(-Math.log10(p)), d = Math.round(p * Math.pow(10, z + 3));
+      if (d >= 1000) { z -= 1; d = Math.round(d / 10); }
+      if (z < 4) return '$' + String(parseFloat(p.toPrecision(3)));
+      return '$0.0' + String(z).split('').map(c => SUB[+c]).join('') + String(d).replace(/0+$/, '');
+    }
+    const fmtVal = v => (mode === 'price' ? fmtPrice(v) : fmtMcap(v));
+    function applyMode() {                                    // new formatter functions, so the axis redraws its labels
+      chart.applyOptions({ localization: { priceFormatter: v => fmtVal(v), timeFormatter: s => fmtTime(s, true) } });
+      series.applyOptions({ priceFormat: { type: 'custom', formatter: v => fmtVal(v), minMove: 1 } });
+    }
+    if (mode === 'price') applyMode();
+    if (LW.createTextWatermark && opts.symbol && !V2) {       // v2: the symbol is in the head already (each fact once)
       try { LW.createTextWatermark(chart.panes()[0], { horzAlign: 'center', vertAlign: 'center',
         lines: [{ text: opts.symbol, color: C.mark, fontSize: 72, fontFamily: C.markFont, fontStyle: '600' }] }); } catch (e) {}
     }
@@ -93,11 +114,25 @@
     // crosshair legend (top-left): O · H · L · C · Vol · time
     const legend = document.createElement('div'); legend.className = 'legend'; legend.hidden = true; el.appendChild(legend);
     const fmtVol = v => (v == null ? '—' : '$' + fmtMcap(v));
+    // v2 (canvas Analysis4): the readout always stands at the top left, «Oct 7, 03:17 · O 280K · H 285K · L 234K · C 274K»,
+    // for the candle under the pointer, else the last one in view
+    let hovering = false;
+    const legendV2 = c => fmtTime(c.time, true) + ' · O <b>' + fmtVal(c.open) + '</b> · H <b>' + fmtVal(c.high) + '</b> · L <b>' + fmtVal(c.low) + '</b> · C <b>' + fmtVal(c.close) + '</b>'
+      + (c.volume != null ? ' · Vol <b>' + fmtVol(c.volume) + '</b>' : '');
+    function legendIdle() {
+      if (!V2 || hovering) return;
+      const v = visible(); if (!v || !times.length || v.b < times[0]) { legend.hidden = true; return; }
+      let lo = 0, hi = times.length - 1;
+      while (lo < hi) { const m = (lo + hi + 1) >> 1; if (times[m] <= v.b) lo = m; else hi = m - 1; }
+      const c = data.get(times[lo]); if (!c) return;
+      legend.hidden = false; legend.innerHTML = legendV2(c);
+    }
     chart.subscribeCrosshairMove(p => {
       const c = p && p.time ? data.get(p.time) : null;
-      if (!c) { legend.hidden = true; return; }
+      if (!c) { hovering = false; if (V2) legendIdle(); else legend.hidden = true; return; }
+      hovering = true;
       legend.hidden = false;
-      legend.innerHTML = 'O <b>' + fmtMcap(c.open) + '</b> H <b>' + fmtMcap(c.high) + '</b> L <b>' + fmtMcap(c.low) + '</b> C <b>' + fmtMcap(c.close) + '</b>' +
+      legend.innerHTML = V2 ? legendV2(c) : 'O <b>' + fmtMcap(c.open) + '</b> H <b>' + fmtMcap(c.high) + '</b> L <b>' + fmtMcap(c.low) + '</b> C <b>' + fmtMcap(c.close) + '</b>' +
         (c.volume != null ? ' Vol <b>' + fmtVol(c.volume) + '</b>' : '') + ' · ' + fmtTime(c.time, true);
     });
 
@@ -182,7 +217,7 @@
       empty.hidden = data.size > 0;
       if (v && keepView) chart.timeScale().setVisibleRange({ from: Math.max(v.a, created), to: Math.min(v.b, now) });
       else chart.timeScale().fitContent();
-      el.querySelectorAll('.tf').forEach(btn => btn.classList.toggle('on', btn.dataset.tf === tf));
+      (T ? T.left : el).querySelectorAll('.tf').forEach(btn => btn.classList.toggle('on', btn.dataset.tf === tf));
     }
     async function focus(fromSec, toSec, exitS) {
       // bring the range into view; the user's timeframe and the loaded candles stay when they suit it (no reload, no blink)
@@ -206,7 +241,7 @@
       empty.hidden = data.size > 0;
       const v = visible();
       if (!v || a < v.a || b > v.b) chart.timeScale().setVisibleRange({ from: a, to: b });   // already in view → leave it
-      el.querySelectorAll('.tf').forEach(btn => btn.classList.toggle('on', btn.dataset.tf === tf));
+      (T ? T.left : el).querySelectorAll('.tf').forEach(btn => btn.classList.toggle('on', btn.dataset.tf === tf));
     }
 
     // lazy-load when panning near an edge
@@ -283,10 +318,13 @@
       windows.forEach((w, i) => {
         if (!w.from || !w.to || w.to < v.a || w.from > v.b) return;
         const x1 = xOf(w.from), x2 = xOf(w.to); if (x1 == null || x2 == null) return;
-        const d = document.createElement('div'); d.className = 'win' + (i === selected ? ' sel' : '') + (i === running ? ' run' : '');
+        const d = document.createElement('div'); d.className = 'win' + (i === selected ? ' sel' : '') + (i === running ? ' run' : '') + (V2 && w.draft ? ' draft' : '');
         d.style.setProperty('--wc', SHADES[i % SHADES.length]);
         d.style.left = Math.min(x1, W) + 'px'; d.style.width = Math.max(2, Math.min(x2, W) - Math.min(x1, W)) + 'px';
-        const lbl = document.createElement('span'); lbl.className = 'lbl'; lbl.textContent = (w.n || (i + 1)) + (w.label && i === selected ? ' · ' + w.label : ''); lbl.title = w.label || '';
+        const lbl = document.createElement('span'); lbl.className = 'lbl';
+        // v2 (canvas Analysis4): every band says its name and its minutes, «Pump 1 · 02:43–03:30»
+        lbl.textContent = V2 ? (w.label || 'Range ' + (w.n || i + 1)) + ' · ' + fmtTime(w.from) + '–' + fmtTime(w.to) : (w.n || (i + 1)) + (w.label && i === selected ? ' · ' + w.label : '');
+        lbl.title = w.label || '';
         lbl.addEventListener('click', e => { e.stopPropagation(); if (opts.onSelect) opts.onSelect(i); else focus(w.from, w.to, null); });
         d.appendChild(lbl); layer.appendChild(d); bands.push({ x: Math.min(x1, W), lbl });
       });
@@ -315,6 +353,7 @@
       if (exitSec && exitSec >= v.a && exitSec <= v.b) { const x = xOf(exitSec); if (x != null) { const d = document.createElement('div'); d.className = 'exitline'; d.style.left = x + 'px'; d.title = 'Trades up to'; layer.appendChild(d); } }
       if (marker && marker >= v.a && marker <= v.b) { const x = xOf(marker); if (x != null) { const d = document.createElement('div'); d.className = 'marker'; d.style.left = x + 'px'; layer.appendChild(d); } }
       placeDemo(v, W);
+      legendIdle();
     }
     function placeDemo(v, W) {
       // the clicks sit in the middle of what is on screen; the second one, right of the first mark while it is in view
@@ -381,24 +420,57 @@
     chart.timeScale().subscribeVisibleTimeRangeChange(debounce(() => { if (wallets.length) renderMarkers(); }, 150));
 
     // timeframe buttons
-    const tfs = document.createElement('div'); tfs.className = 'tfs';
+    const T = V2 && opts.tools && opts.tools.left ? opts.tools : null;    // v2: the page's toolbar above the chart
+    const tfs = document.createElement(T ? 'span' : 'div'); tfs.className = T ? 'seg tfseg' : 'tfs';
+    if (T) tfs.setAttribute('role', 'group'), tfs.setAttribute('aria-label', 'Candle length');
     Object.keys(TF_SEC).forEach(k => { const b = document.createElement('button'); b.type = 'button'; b.className = 'tf'; b.dataset.tf = k; b.textContent = k; b.addEventListener('click', () => { setTf(k, true); if (window.EarlyUI) EarlyUI.use('tf', { tf: k }); }); tfs.appendChild(b); });
     const back = document.createElement('button'); back.type = 'button'; back.className = 'tf back'; back.innerHTML = '<span class="wide">⌖ Back to range</span><span class="narrow">⌖ Range</span>'; back.title = 'Bring the range you marked back into view'; back.hidden = !windows.some(w => w && w.from && w.to);   // a result page has its range from the start
     back.addEventListener('click', () => { const w = windows[selected] || windows[0]; if (w && w.from && w.to) focus(w.from, w.to, null); if (window.EarlyUI) EarlyUI.use('chart-nav', { to: 'range' }); });
-    tfs.appendChild(back);
     const launch = document.createElement('button'); launch.type = 'button'; launch.className = 'tf back'; launch.innerHTML = '<span class="wide">⇤ First hours</span><span class="narrow">⇤ Start</span>';
     launch.title = 'Jump to the first hours of trading, right after the token launched';
     launch.addEventListener('click', () => { focus(created, created + 3 * 3600, null); if (window.EarlyUI) EarlyUI.use('chart-nav', { to: 'launch' }); });
+    if (T) {
+      // v2 (canvas Analysis4): [1m 5m 15m 1h] [Market cap | Price] ⊙ ⇤ … [UTC | Local]; round marks for the two jumps
+      const G = (d, l) => '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="' + l + '">' + d + '</svg>';
+      back.className = launch.className = 'cbtn';
+      back.innerHTML = G('<circle cx="8" cy="8" r="5.4"/><circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none"/>', 'Back to the range');
+      back.title = 'Back to the range you marked'; back.setAttribute('aria-label', 'Back to the range');
+      launch.innerHTML = G('<path d="M3.4 3 V13"/><path d="M12.8 3.4 L6.4 8 L12.8 12.6"/>', 'First hours');
+      launch.setAttribute('aria-label', 'First hours');
+      T.left.appendChild(tfs);
+      if (SUPPLY) {
+        const m = document.createElement('span'); m.className = 'seg cmode'; m.setAttribute('role', 'group'); m.setAttribute('aria-label', 'Market cap or price');
+        m.innerHTML = '<button type="button" data-m="cap">Market cap</button><button type="button" data-m="price">Price</button>';
+        const mark = () => m.querySelectorAll('[data-m]').forEach(b => { const on = b.dataset.m === mode; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+        m.addEventListener('click', e => {
+          const b = e.target.closest('[data-m]'); if (!b || b.dataset.m === mode) return;
+          mode = b.dataset.m; try { localStorage.setItem('early:cmode', mode); } catch (x) {}
+          mark(); applyMode(); hovering = false; legendIdle(); if (window.EarlyUI) EarlyUI.use('chart-mode', { m: mode });
+        });
+        m.title = 'The price is the market cap over the supply, ' + fmtMcap(SUPPLY) + ' tokens';
+        mark(); T.left.appendChild(m);
+      }
+      T.left.appendChild(back); T.left.appendChild(launch);
+      if (window.EarlyTZ && T.right) {                       // UTC or local time where time is read (26.10); a switch reloads, as before
+        const tz = document.createElement('button'); tz.type = 'button'; tz.className = 'seg tzseg'; tz.id = 'tz';
+        tz.innerHTML = '<b' + (EarlyTZ.get() === 'utc' ? ' class="on"' : '') + '>UTC</b><b' + (EarlyTZ.get() === 'utc' ? '' : ' class="on"') + '>Local</b>';
+        tz.title = EarlyTZ.get() === 'utc' ? 'Times are in UTC. Click for your local time' : 'Times are in your local time. Click for UTC';
+        tz.setAttribute('aria-label', 'Time zone'); tz.addEventListener('click', () => EarlyTZ.toggle());
+        T.right.appendChild(tz);
+      }
+    } else {
+    tfs.appendChild(back);
     tfs.appendChild(launch);
+    }
     // v2 has no status bar and no footer switch: UTC or local time lives here, where time is read (26.10)
-    if (V2 && opts.interactive && window.EarlyTZ) {
+    if (V2 && opts.interactive && window.EarlyTZ && !T) {
       const tz = document.createElement('button'); tz.type = 'button'; tz.className = 'tf tzone';
       tz.textContent = EarlyTZ.get() === 'utc' ? 'UTC' : 'Local';
       tz.title = EarlyTZ.get() === 'utc' ? 'Times are in UTC. Click for your local time' : 'Times are in your local time. Click for UTC';
       tz.addEventListener('click', () => EarlyTZ.toggle());
       tfs.appendChild(tz);
     }
-    el.appendChild(tfs);
+    if (!T) el.appendChild(tfs);
 
     return {
       setWindows(ws, sel) { windows = normWins(ws); selected = sel; back.hidden = !windows.some(w => w && w.from && w.to); place(); },

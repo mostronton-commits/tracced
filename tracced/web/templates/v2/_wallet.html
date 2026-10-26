@@ -1,10 +1,13 @@
+{# design v2 · the connect sheet (canvas «Connect», owner 26.10): in the middle of the window, the title centred, the
+   three wallet apps with their own logos (wallet.js draws the rows), the signature note, the demo. «Beta, free for now»
+   went. #wnote says why a page asks; #wstate says what the wallet is doing #}
 <div class="sheet" id="wsheet" hidden>
   <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="wtitle">
-    <div class="sheet-head"><b id="wtitle">Connect a wallet</b><button type="button" class="ghost x" data-wallet-close title="Close">×</button></div>
-    <p class="wnote"><b>Beta, free for now.</b> <span id="wnote" hidden></span></p>
+    <div class="sheet-head"><b id="wtitle">Connect a wallet</b><button type="button" class="ghost x" data-wallet-close title="Close" aria-label="Close">×</button></div>
+    <p class="wnote" id="wnote" hidden></p>
     <div class="wlist" id="wlist"></div>
-    <p class="muted small wstate" id="wstate"></p>
-    <p class="muted small">A signature only: no transaction, no fees.</p>
-    {% if demo_token and not is_demo %}<a class="wdemo" href="/token?mint={{ demo_token }}">Not now? Watch the demo first →</a>{% endif %}
+    <p class="wstate" id="wstate" role="status" aria-live="polite"></p>
+    <p class="wsafe"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.4" cy="10.6" r="2.8"/><path d="M7.4 8.6 13.2 2.8M11.2 4.8 12.8 6.4M9.6 6.4 11 7.8"/></svg><span>A signature only: no transaction, no fees.</span></p>
+    {% if demo_token and not is_demo %}<a class="wdemo" href="/token?mint={{ demo_token }}">Not now? Watch the demo first</a>{% endif %}
   </div>
 </div>

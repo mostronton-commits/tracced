@@ -51,9 +51,12 @@
 
   /* ── the chart: every tab's range, the one shown highlighted, the range being marked after them ── */
   const winList = () => tabs.map((t, i) => ({ n: i + 1, label: t.label, from: parse(t.from), to: parse(t.to) }))
-    .concat(draft.from && !draft.demo ? [{ n: tabs.length + 1, label: 'New range', from: parse(draft.from), to: parse(draft.to) }] : []);
+    .concat(draft.from && !draft.demo ? [{ n: tabs.length + 1, label: 'New range', from: parse(draft.from), to: parse(draft.to), draft: true }] : []);
   const selIndex = () => { if (draft.from && !draft.demo) return tabs.length; const i = tabs.findIndex(t => t.id === sel); return i < 0 ? 0 : i; };
+  // design v2 (26.10): the chart's controls stand in a toolbar above it, and the price is the cap over the supply
+  const V2 = document.documentElement.dataset.design === 'v2';
   const ch = EarlyChart($('chart'), { symbol: D.symbol, mint, created: +D.created, now: +D.now, interactive: true,
+    tools: V2 && $('ctl') ? { left: $('ctl'), right: $('ctr') } : null, supply: V2 ? +D.supply || 0 : 0,
     windows: winList(), selected: selIndex(),
     onSelect: i => { if (i < tabs.length) openTab(tabs[i].id); },
     onClick: ms => mark(ms) });
@@ -120,16 +123,23 @@
     if (pick.hidden) return;
     pick.classList.toggle('ready', set);
     pick.style.setProperty('--wc', EarlyChart.SHADES[(draft.demo ? tabs.findIndex(t => t.id === draft.demo) : tabs.length) % EarlyChart.SHADES.length]);
-    ptext.textContent = sumText(draft);
+    pickText();
     getw.hidden = !set; $('pickt').hidden = !set || !!draft.demo; $('pickx').hidden = !!draft.demo;
     pedit.hidden = !editing || !set || !!draft.demo;
     if (!pedit.hidden) { if (document.activeElement !== pfrom) pfrom.value = show(draft.from); if (document.activeElement !== pto) pto.value = show(draft.to); }
+  }
+  // v2 (canvas AnalysisMark): the times in bold, the length beside them in grey
+  function pickText() {
+    const s = sumText(draft);
+    if (!V2) { ptext.textContent = s; return; }
+    const i = s.lastIndexOf(' · '), esc = EarlyTags.esc;
+    ptext.innerHTML = i < 0 ? esc(s) : '<b>' + esc(s.slice(0, i)) + '</b><span class="pick-len">' + esc(s.slice(i + 3)) + '</span>';
   }
   $('pickt').addEventListener('click', () => { editing = !editing; renderPick(); if (editing) pfrom.focus(); });
   $('pickx').addEventListener('click', () => { editing = false; clearDraft(); });
   [pfrom, pto].forEach(x => x.addEventListener('input', () => {
     draft[x === pfrom ? 'from' : 'to'] = keep(x.value); saveDraft(); drawChart();
-    ptext.textContent = sumText(draft);
+    pickText();
   }));
 
   /* ── Get wallets: the same checks as before, then the run starts and the page stays ── */
@@ -270,7 +280,7 @@
   function renderTabs() {
     tabsEl.innerHTML = tabs.map((t, i) => {
       const on = t.id === sel, sh = EarlyChart.SHADES[i % EarlyChart.SHADES.length];
-      const sub = t.status === 'done' ? (t.n != null ? nf(t.n) + ' wallets' : 'ready') : t.status === 'error' ? 'stopped'
+      const sub = t.status === 'done' ? (t.n != null ? nf(t.n) + (V2 ? '' : ' wallets') : 'ready') : t.status === 'error' ? 'stopped'   // v2: «Pump 1 755»
         : (DEMO && !ran(t.id)) ? 'demo' : 'analyzing…';
       const fresh = t.status !== 'done' && t.status !== 'error';
       return '<button type="button" role="tab" class="atab' + (on ? ' on' : '') + (fresh ? ' busy' : '') + (t.status === 'error' ? ' bad' : '') + '" data-id="' + t.id + '" aria-selected="' + on + '" style="--wc:' + sh + '">'
@@ -280,6 +290,11 @@
       + (DEMO ? '' : '<button type="button" class="atab new' + (draft.from ? ' on' : '') + '" data-new="1"' + (taken() >= MAX_TABS ? ' disabled title="' + EarlyTags.esc(limitMsg()) + '"' : ' title="Mark a new range on the chart"') + '>'
         + '<b>+ New range</b><small>' + (draft.from && draft.to ? dur(Math.round((parse(draft.to) - parse(draft.from)) / 60000)) : VERB.toLowerCase() + ' the chart') + '</small></button>');
     tabsEl.hidden = !tabs.length && !draft.from;
+    if (V2 && $('tabsum')) {                                   // v2: the chosen range's times at the row's end (its result adds the rest)
+      const t = tabOf(sel);
+      $('tabsum').textContent = t ? sumText(t) : '';
+      tabsEl.querySelectorAll('.atab[data-id]').forEach(b => { const x = tabOf(b.dataset.id); if (x && x.status === 'done' && x.n != null) b.title = nf(x.n) + ' wallets bought in ' + sumText(x); });
+    }
   }
   tabsEl.addEventListener('click', e => {
     const del = e.target.closest('.tdel');

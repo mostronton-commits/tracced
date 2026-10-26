@@ -1,1 +1,661 @@
 /* design v2 · the analysis page: token head, chart, range bar, tabs and progress, tally, toolbar, table, wallet card, AI panel (canvas Analysis4, AnalysisMark, AnalysisRun). Loaded after v2/style.css on every v2 page; values come from v2/tokens.css only. */
+
+/* ── the page: the head with the chart and the tabs on one card, the run, the result; the card and the agent on the right ── */
+main.wide:has(> #token.ana) { padding-top: 0; }
+.ana { display: flex; flex-direction: column; gap: 14px; }
+.ana .tbox { background: var(--surface); border-radius: var(--r-card); padding: 16px 20px 14px; }
+.ana .result { display: flex; flex-direction: column; gap: 14px; }
+.ana .result > .onchart-bar, .ana .result > .mhint { margin: 0; }
+.ana .result > .mhint:not([hidden]) { padding: 0 4px; }
+.ana .tokenfoot { margin: 0; padding: 0 4px; }
+
+/* the token's head: its picture, symbol and name, X and Solscan; under them one quiet line; the facts beside */
+.ana .tokenhead { display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px 28px; flex-wrap: wrap; margin: 0; }
+.ana .th-id { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.ana .h-img { width: 38px; height: 38px; font-size: 15px; }
+.ana .th-names { min-width: 0; }
+.ana .th-names h1 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--fs-lead); font-weight: 600; line-height: 1.3; letter-spacing: -.01em; white-space: nowrap; }
+.ana .th-sym { overflow: hidden; text-overflow: ellipsis; }
+.ana .th-name { color: var(--muted); font-size: var(--fs-body); font-weight: 400; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; }
+.ana .th-ic { display: inline-flex; flex: none; border: 0; color: var(--muted); transition: color var(--t-fast) ease; }
+.ana .th-ic:hover { color: var(--ink); }
+.ana .th-names .chip.demo { margin: 0; vertical-align: 0; }
+.ana .tline { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 6px; margin-top: 1px; color: var(--muted); font-size: var(--fs-caption); }
+:root .ana .tc-addr { display: inline-flex; align-items: center; gap: 5px; height: auto; padding: 0; border: 0; border-radius: 0; background: none; color: var(--muted); font-size: var(--fs-caption); font-weight: 400; }
+:root .ana .tc-addr:hover { background: none; color: var(--ink); }
+.ana .tc-addr .mono { font-family: var(--mono); font-size: var(--fs-caption); }
+.ana .tl-sep { color: var(--faint); }
+.ana .tl-pad { display: inline-flex; align-items: center; gap: 4px; }
+.ana .tl-new { margin-left: 4px; color: var(--profit); font-weight: 600; }
+.ana dl.meta { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0; }
+.ana dl.meta div { min-width: 0; }
+.ana dl.meta dt { color: var(--muted); font-size: var(--fs-micro); text-transform: none; letter-spacing: 0; }
+.ana dl.meta dd { margin: 0; font-size: var(--fs-body); font-weight: 500; white-space: nowrap; }
+.ana dl.meta .m-cap dd { font-size: var(--fs-lead); font-weight: 600; line-height: 1.2; }
+
+/* the chart's toolbar: [1m 5m 15m 1h] [Market cap | Price] ⊙ ⇤ · the wallets on the chart · [UTC | Local] [USD | SOL] */
+.ana .ctools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.ana .ct-l, .ana .ct-r { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.ana .ct-sp { flex: 1; }
+.ana .ctools .seg { display: inline-flex; align-items: center; gap: 2px; height: auto; padding: 3px; border: 0; border-radius: var(--r-pill); background: var(--bg); box-shadow: none; overflow: visible; vertical-align: middle; }
+.ana .ctools .seg:hover, .ana .ctools .seg:active { background: var(--bg); }
+.ana .ctools .seg > button, .ana .ctools .seg > b { display: inline-flex; align-items: center; height: 24px; min-width: 0; padding: 0 10px; border: 0; border-radius: var(--r-pill);
+  background: transparent; color: var(--muted); font: 500 var(--fs-caption)/1 var(--font); cursor: pointer; transition: color var(--t-fast) ease, background var(--t-fast) ease; }
+.ana .ctools .seg > button:hover, .ana .ctools .seg > b:hover { color: var(--ink); background: transparent; }
+.ana .ctools .seg > .on, .ana .ctools .seg > .on:hover { background: var(--surface-2); color: var(--ink); }
+.ana .ctools .cbtn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; background: var(--bg); color: var(--muted); }
+.ana .ctools .cbtn:hover { background: var(--surface-2); color: var(--ink); }
+.ana .ctools .cbtn[hidden] { display: none; }
+.ana .ctw { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.ana .ctw[hidden] { display: none; }
+:root .ana .ctw .chipw { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 5px 0 6px; border: 0; border-radius: var(--r-pill);
+  background: var(--mint-wash); color: var(--mint); font: 600 var(--fs-caption)/1 var(--font); cursor: pointer; }
+.ana .ctw .chipw .fp { width: 16px; height: 16px; }
+.ana .ctw .chipw .mono { font-family: var(--mono); font-weight: 400; }
+:root .ana .ctw .chipw .x { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; min-height: 0; padding: 0; border: 0; border-radius: 50%;
+  background: var(--surface-2); color: var(--muted); font: 400 13px/1 var(--font); }
+:root .ana .ctw .chipw .x:hover { color: var(--ink); background: var(--surface-3); }
+
+/* the chart on the card itself: no frame of its own, the readout at the top left, the bands with their names */
+.ana .chartbox { height: 380px; margin: 10px 0 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+@media (min-width: 1400px) { .ana .chartbox { height: 400px; } }
+.ana .chartbox .lw, .ana .chartbox .overlay { inset: 0; border-radius: 0; }
+.ana .chartbox .legend { top: 0; left: 4px; padding: 0; border-radius: 0; background: none; color: var(--muted); font: 400 var(--fs-caption)/1.4 var(--font); white-space: nowrap; max-width: calc(100% - 70px); overflow: hidden; text-overflow: ellipsis; }
+.ana .chartbox .legend b { color: var(--muted); font-weight: 400; }
+.ana .chartbox .overlay .win { bottom: 26px; background: rgba(var(--wc), .04); border-left: 1px solid rgba(var(--wc), .3); border-right: 1px solid rgba(var(--wc), .3); }
+.ana .chartbox .overlay .win.sel { background: rgba(var(--wc), .09); border-color: rgba(var(--wc), .6); }
+.ana .chartbox .overlay .win.draft { background: rgba(var(--wc), .07); border-left: 1px dashed rgb(var(--wc)); border-right: 1px dashed rgb(var(--wc)); }
+.ana .chartbox .overlay .win .lbl { top: 26px; left: 0; margin-left: 6px; padding: 2px 8px; border: 0; border-radius: var(--r-s); background: var(--surface-2);
+  color: var(--muted); font: 600 var(--fs-micro)/1.3 var(--font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ana .chartbox .overlay .win.sel .lbl, .ana .chartbox .overlay .win.draft .lbl, .ana .chartbox .overlay .win.run .lbl { color: rgb(var(--wc)); }
+.ana .chartbox .overlay .exitline { bottom: 26px; }
+.ana .chartbox .overlay .marker { bottom: 26px; border-left-style: dashed; }
+.ana .chartbox .clickdemo { bottom: 26px; }
+.ana .chartbox .charthint { top: 52px; padding: 0 16px; height: 36px; display: flex; align-items: center; gap: 8px; border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--bg) 92%, transparent); color: var(--ink); font: 500 var(--fs-small)/1 var(--font); box-shadow: var(--shadow-pop); }
+.ana .chartbox .charthint::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--mint); }
+.ana .chartbox .charthint[hidden] { display: none; }
+
+/* the bar on the chart (canvas AnalysisMark): ● the range's times, its length, ✎, Cancel, Get wallets; under it what is left today */
+.ana .chartbox .pick { position: absolute; left: 50%; top: 52px; transform: translateX(-50%); z-index: 7; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  width: max-content; max-width: calc(100% - 16px); margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.ana .chartbox .pick[hidden] { display: none; }
+.ana .pick-bar { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 6px 0 16px; border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--bg) 92%, transparent); box-shadow: var(--shadow-pop); white-space: nowrap; }
+.ana .chartbox .pick-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--mint); }
+.ana .chartbox .pick-text { display: inline-flex; align-items: baseline; gap: 8px; color: var(--ink); font: 400 var(--fs-small)/1 var(--font); }
+.ana .pick-text b { font-weight: 600; }
+.ana .pick-len { color: var(--muted); }
+.ana .chartbox .pick-act { display: inline-flex; align-items: center; gap: 4px; margin: 0; }
+:root .ana .chartbox .pick-act .ghost { height: 34px; padding: 0 8px; border: 0; background: transparent; color: var(--muted); font: 500 var(--fs-small)/1 var(--font); }
+:root .ana .chartbox .pick-act .ghost:hover { color: var(--ink); background: transparent; }
+:root .ana .chartbox .pick-act .pick-ic { width: 30px; padding: 0; justify-content: center; }
+:root .ana .chartbox .pick-act #getw { height: 34px; margin-left: 4px; padding: 0 16px; border: 0; border-radius: var(--r-pill); box-shadow: none; font: 600 var(--fs-small)/1 var(--font); }
+.ana .chartbox .pick-note { margin: 0; padding: 3px 10px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--bg) 80%, transparent); color: var(--muted); font: 400 var(--fs-caption)/1.3 var(--font); text-align: center; }
+.ana .chartbox .pick-note:empty { display: none; }
+.ana .chartbox .pick-edit { display: flex; gap: 8px; padding: 8px 10px; border-radius: var(--r-l); background: var(--bg); box-shadow: var(--shadow-pop); }
+.ana .chartbox .pick-edit[hidden] { display: none; }
+.ana .chartbox .pick-edit .fld { color: var(--muted); font-size: var(--fs-micro); }
+.ana .chartbox .pick-edit input { height: 32px; background: var(--surface-2); border-color: var(--line-strong); color-scheme: dark; }
+
+/* the token's analyses under the chart: «Pump 1 755», «● Pump 2 analyzing… ×», «+ New range»; the chosen range at the end */
+.ana .atabs-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 10px; }
+.ana .atabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
+.ana .atabs[hidden] { display: none; }
+:root .ana .atab { display: inline-flex; align-items: center; gap: 8px; height: 32px; min-width: 0; padding: 0 14px; border: 0; border-radius: var(--r-pill);
+  background: var(--surface-2); box-shadow: none; color: var(--ink); font: 600 var(--fs-small)/1 var(--font); grid-template-columns: none; }
+:root .ana .atab:hover { background: var(--surface-3); border: 0; }
+.ana .atab b { font: inherit; }
+.ana .atab small { font: 500 var(--fs-small)/1 var(--font); color: inherit; opacity: .75; }
+.ana .atab .tdot { display: none; width: 7px; height: 7px; border-radius: 50%; background: rgb(var(--wc, 149, 235, 213)); }
+.ana .atab.busy .tdot { display: block; }
+:root .ana .atab.on { background: var(--mint-wash); color: var(--mint); box-shadow: none; }
+:root .ana .atab.on.busy { box-shadow: inset 0 0 0 1px var(--mint-line); padding-right: 10px; }
+.ana .atab.busy small { color: inherit; }
+.ana .atab.bad small { color: var(--loss); opacity: 1; }
+.ana .atab .tdel { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; margin: 0 -4px 0 0; padding: 0; border-radius: 50%;
+  background: var(--bg); color: var(--muted); font: 400 13px/1 var(--font); }
+.ana .atab .tdel:hover { color: var(--loss); background: var(--bg); }
+.ana .atab .tdel.armed { width: auto; padding: 0 8px; border-radius: var(--r-pill); color: var(--loss); font-size: var(--fs-micro); font-weight: 600; }
+:root .ana .atab.new { background: transparent; color: var(--muted); font-weight: 500; border: 0; }
+:root .ana .atab.new:hover { color: var(--ink); background: transparent; }
+.ana .atab.new b { color: inherit; font-weight: inherit; }
+.ana .atab.new small { display: none; }
+:root .ana .atab.new.on { background: var(--mint-wash); color: var(--mint); box-shadow: inset 0 0 0 1px var(--mint-line); font-weight: 600; }
+:root .ana .atab.new:disabled { opacity: .5; }
+:root .ana .atabs:has(.atab.new.on) .atab.on:not(.new) { background: var(--surface-2); color: var(--ink); box-shadow: none; }
+.ana .tabs-end { display: flex; align-items: center; gap: 12px; margin-left: auto; min-width: 0; color: var(--muted); font-size: var(--fs-caption); }
+.ana .tabs-end:has(.rhead) .tabsum { display: none; }
+.ana .tabsum:empty, .ana .tabsres:empty { display: none; }
+.ana .rhead { display: flex; align-items: center; gap: 12px; margin: 0; flex-wrap: wrap; justify-content: flex-end; }
+.ana .rhead .rrange { color: var(--muted); font-size: var(--fs-caption); }
+.ana .rhead-act { display: flex; gap: 6px; }
+:root .ana .rhead .ghost { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border: 0; border-radius: var(--r-pill);
+  background: var(--surface-2); color: var(--ink); font: 500 var(--fs-caption)/1 var(--font); }
+:root .ana .rhead .ghost:hover { background: var(--surface-3); color: var(--ink); }
+.ana .rhead .savejob svg.ci { width: 14px; height: 14px; }
+:root .ana .rhead .savejob.on { color: var(--ink); }
+.ana .rhead .savejob.on svg.ci { color: var(--risk); }
+
+/* the run (canvas AnalysisRun): «Reading the trades 62%», the clock, a line, the steps; the table's place held by empty rows */
+.ana .run { display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; color: var(--ink); animation: none; }
+.ana .run[hidden] { display: none; }
+.ana .run-card { padding: 22px 24px; border-radius: var(--r-card); background: var(--surface); }
+.ana .run-top { display: flex; align-items: baseline; gap: 12px; font-size: var(--fs-body); }
+.ana .run-phase { color: var(--ink); font-size: var(--fs-title); font-weight: 600; letter-spacing: var(--track-tight); }
+.ana .run-count { color: var(--muted); font-size: var(--fs-title); font-weight: 600; letter-spacing: var(--track-tight); }
+.ana .run-clock { margin-left: auto; color: var(--muted); font: 400 var(--fs-small)/1 var(--mono); }
+.ana .run-bar { height: 6px; margin: 14px 0 0; border-radius: var(--r-pill); background: var(--surface-2); }
+.ana .run-bar i { background: var(--mint); }
+.ana .run.err .run-bar i { background: var(--loss); }
+.ana .run-steps { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 14px 0 0; color: var(--faint); font: 400 var(--fs-small)/1.3 var(--font); }
+.ana .run-steps li { display: inline-flex; align-items: center; gap: 6px; }
+.ana .run-steps li::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--faint); box-shadow: none; }
+.ana .run-steps li:not(:last-child)::after { content: ""; width: 22px; height: 1px; margin-left: 4px; background: var(--line); }
+.ana .run-steps li.past { color: var(--muted); }
+.ana .run-steps li.past::before { content: "✓"; width: auto; height: auto; border-radius: 0; background: none; color: var(--mint); font-size: var(--fs-small); line-height: 1; }
+.ana .run-steps li.on { color: var(--ink); font-weight: 600; }
+.ana .run-steps li.on::before { background: var(--mint); box-shadow: none; }
+.ana .run.done .run-phase { color: var(--ink); }
+.ana .run-err { margin: 10px 0 0; }
+.ana .run-skel { padding: 8px 6px; border-radius: var(--r-card); background: var(--surface); opacity: .6; }
+.ana .run-skel i { display: grid; grid-template-columns: 34px minmax(0, 180px) minmax(0, 1fr) 90px 90px 90px; gap: 0 16px; align-items: center; height: 46px; padding: 0 16px; border-top: 1px solid var(--line); }
+.ana .run-skel i:first-child { border-top: 0; }
+.ana .run-skel b { display: block; width: var(--w, 60%); height: 10px; border-radius: var(--r-xs); background: var(--surface-2); }
+.ana .run-skel b:first-child { width: 26px; height: 26px; border-radius: 8px; }
+.ana .run-skel b:nth-child(n+4) { justify-self: end; }
+.ana .run.err .run-skel, .ana .run.done .run-skel { display: none; }
+
+/* the tally (canvas Analysis4): three counts large, then the rest and the findings as words, each a click into its wallets */
+:root .ana .tally { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 28px; margin: 0; padding: 14px 20px; border: 0; border-radius: var(--r-l); background: var(--surface); grid-template-columns: none; }
+:root .ana .tally .tbig { display: inline-flex; flex-direction: row; align-items: baseline; gap: 6px; box-shadow: none; height: auto; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; color: var(--muted); font: 400 var(--fs-small)/1.2 var(--font); }
+:root .ana .tally .tbig[hidden] { display: none; }
+:root .ana .tally .tbig b { color: var(--ink); font: 600 var(--fs-num)/1.1 var(--font); letter-spacing: var(--track-tight); white-space: nowrap; }
+:root .ana .tally .tbig b.pos { color: var(--profit); }
+:root .ana .tally .tbig i { color: var(--muted); font: 400 var(--fs-small)/1.2 var(--font); font-style: normal; letter-spacing: 0; text-transform: none; }
+:root .ana .tally button.tbig { cursor: pointer; }
+:root .ana .tally button.tbig:hover { background: none; }
+:root .ana .tally button.tbig:hover i { color: var(--ink); }
+.ana .tally .tbig .kinfo { align-self: center; margin-left: 2px; }
+.ana .tally .tline { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 6px; margin-left: auto; color: var(--muted); font-size: var(--fs-caption); }
+.ana .tally .tfinds { display: contents; }
+.ana .tally .tsep { color: var(--faint); }
+:root .ana .tally .tline .tc { display: inline; height: auto; box-shadow: none; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; color: var(--muted);
+  font: 400 var(--fs-caption)/1.4 var(--font); text-align: left; transition: color var(--t-fast) ease; }
+:root .ana .tally .tline .tc b { color: inherit; font: inherit; font-weight: 500; white-space: nowrap; }
+:root .ana .tally .tline button.tc { cursor: pointer; }
+:root .ana .tally .tline button.tc:hover { background: none; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-strong); }
+:root .ana .tally .tline .tc.warn { color: var(--risk); }
+:root .ana .tally .tline .tc.bad { color: var(--danger); }
+:root .ana .tally .tline .tc.rep { color: var(--repeat); }
+.ana .tally .tline .tc.bad.tipt { cursor: help; }
+
+/* the table's card and its toolbar: Sorted by … · Find a wallet · Hide bots · Filters · Columns · Ask AI · ⋯ */
+.ana .tcard { position: relative; padding: 6px 0 8px; border-radius: var(--r-card); background: var(--surface); }
+.ana .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; padding: 10px 16px; }
+.ana .tb-sp { flex: 1; }
+:root .ana .toolbar .sortby { position: relative; display: inline-flex; align-items: center; gap: 6px; margin-right: 8px; color: var(--muted); font: 600 var(--fs-read)/1 var(--font); }
+:root .ana .toolbar .sortby select { appearance: none; -webkit-appearance: none; field-sizing: content; height: 30px; width: auto; min-width: 0; margin: 0; padding: 0 18px 0 0; border: 0; border-radius: 0;
+  background: transparent; box-shadow: none; color: var(--ink); font: 600 var(--fs-read)/1 var(--font); cursor: pointer; }
+.ana .toolbar .sortby::after { content: ""; position: static; flex: none; width: 10px; height: 10px; margin: 1px 0 0 -14px; pointer-events: none; background: var(--muted);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 6 8 10 12 6'/%3E%3C/svg%3E") no-repeat center / contain;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 6 8 10 12 6'/%3E%3C/svg%3E") no-repeat center / contain; }
+.ana .toolbar .sortby select:focus-visible { outline: none; box-shadow: none; text-decoration: underline; text-underline-offset: 4px; }
+:root .ana .factive { display: inline-flex; align-items: center; gap: 2px; height: 28px; margin: 0; padding: 0 4px 0 12px; border: 0; border-radius: var(--r-pill);
+  background: var(--mint-wash); color: var(--mint); font: 500 var(--fs-caption)/1 var(--font); }
+.ana .factive[hidden] { display: none; }
+:root .ana .factive button { height: 22px; min-width: 22px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--mint); justify-content: center; }
+.ana .tfind { display: flex; align-items: center; gap: 8px; width: 170px; min-width: 0; height: 30px; padding: 0 12px; border-radius: var(--r-pill); background: var(--bg); color: var(--faint); transition: box-shadow var(--t-fast) ease; }
+.ana .tfind:focus-within { box-shadow: inset 0 0 0 1px var(--mint-line), 0 0 0 3px var(--mint-wash); }
+:root .ana .tfind input { flex: 1; min-width: 0; width: 0; height: 28px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--ink); font: 400 var(--fs-small)/1 var(--font); }
+.ana .tfind input::placeholder { color: var(--muted); }
+:root .ana .tbtn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 0; border-radius: var(--r-pill);
+  background: var(--surface-2); color: var(--muted); font: 500 var(--fs-small)/1 var(--font); transition: color var(--t-fast) ease, background var(--t-fast) ease; }
+:root .ana .tbtn:hover { background: var(--surface-3); color: var(--ink); border: 0; }
+:root .ana .tbtn.on { background: var(--mint-wash); color: var(--mint); box-shadow: inset 0 0 0 1px var(--mint-line); }
+:root .ana .tbtn.open, :root .ana #ftoggle[aria-expanded="true"] { background: var(--ink); color: var(--bg); box-shadow: none; }
+:root .ana .tbtn.tmore { width: 30px; padding: 0; justify-content: center; }
+:root .ana .frst { height: 30px; padding: 0 8px; border: 0; color: var(--muted); font: 500 var(--fs-small)/1 var(--font); margin: 0; }
+:root .ana .askai { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 14px; border: 0; border-radius: var(--r-pill); background: var(--ink); color: var(--bg); font: 600 var(--fs-small)/1 var(--font); }
+:root .ana .askai:hover { background: var(--ink-2); color: var(--bg); }
+.ana .soonwrap { position: relative; }
+.ana .soonwrap .soon-pop { top: 38px; right: 0; left: auto; border: 0; border-radius: var(--r-l); box-shadow: var(--shadow-pop); }
+.ana .menu.cols { position: relative; }
+.ana .colpanel { position: absolute; top: 38px; right: 0; z-index: 30; width: 240px; padding: 10px; border-radius: var(--r-l); background: var(--surface-2); box-shadow: var(--shadow-pop); }
+.ana .colpanel[hidden] { display: none; }
+.ana .colpanel .mh, .ana #xpanel .mh { display: block; padding: 2px 6px 8px; color: var(--muted); font-size: var(--fs-caption); }
+.ana .colrow { position: relative; display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 6px; border-radius: var(--r-m); color: var(--ink); font-size: var(--fs-small); cursor: grab; user-select: none; }
+.ana .colrow:hover { background: var(--surface-3); }
+.ana .colrow input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.ana .colrow .ck { display: grid; place-items: center; width: 16px; height: 16px; flex: none; border-radius: var(--r-s); box-shadow: inset 0 0 0 1.5px var(--faint); }
+.ana .colrow input:checked + .ck { background: var(--mint); box-shadow: none; }
+.ana .colrow input:checked + .ck::after { content: "✓"; color: var(--on-mint); font: 600 var(--fs-micro)/1 var(--font); }
+.ana .colrow input:focus-visible + .ck { box-shadow: var(--focus); }
+.ana .colrow .cname { flex: 1; }
+.ana .colrow .cname span { color: var(--muted); }
+.ana .colrow .grip { display: inline-flex; color: var(--faint); }
+.ana .colrow.over { box-shadow: inset 0 2px 0 var(--mint); }
+.ana .colrow.drag { opacity: .5; }
+.ana .colpanel .mnote { padding: 8px 6px 2px; color: var(--muted); font-size: var(--fs-micro); }
+:root .ana #xpanel { top: 38px; min-width: 240px; }
+.ana #xpanel .mh { padding: 6px 10px 4px; }
+
+/* the filters panel over the table, its full width (owner, 04.10), and a funnel's small window */
+:root .ana .fpanel { margin: 0 16px 10px; padding: 14px 16px; border: 0; border-radius: var(--r-l); background: var(--bg); }
+:root .fpop { border: 0; border-radius: var(--r-l); background: var(--surface-2); box-shadow: var(--shadow-pop); }
+
+/* the table (canvas Analysis4): no lines, a row lights under the pointer; Wallet | Trip | Bought | Sold | PnL | × */
+:root .ana .tablewrap { overflow-x: auto; margin: 0; padding: 0 6px; border: 0; border-radius: 0; background: none; }
+.ana #facts { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: auto; }
+.ana #facts th { position: static; height: 30px; padding: 0 7px; border: 0; background: none; color: var(--muted); font: 500 var(--fs-micro)/1.2 var(--font);
+  text-transform: none; letter-spacing: 0; white-space: nowrap; text-align: left; vertical-align: middle; }
+.ana #facts th.wh { padding-left: 46px; }
+.ana #facts th.num { text-align: right; }
+.ana #facts th .thc { display: inline-flex; align-items: center; gap: 2px; }
+.ana #facts th.sortable { cursor: pointer; transition: color var(--t-fast) ease; }
+.ana #facts th.sortable:hover, .ana #facts th.asc, .ana #facts th.desc { color: var(--ink); }
+.ana #facts th.sortable .hl::before { content: none; }
+.ana #facts th.desc .hl::after { content: " ↓"; }
+.ana #facts th.asc .hl::after { content: " ↑"; }
+.ana #facts th .hsub { margin-left: 3px; color: var(--muted); font-weight: 400; }
+.ana #facts th .hsub::before { content: "· "; }
+:root .ana #facts th .hfil { width: 18px; height: 18px; min-width: 0; margin: 0 0 0 2px; padding: 0; border: 0; border-radius: var(--r-xs); background: none; color: var(--faint); opacity: 0;
+  justify-content: center; transition: opacity var(--t-fast) ease, color var(--t-fast) ease; }
+.ana #facts thead:hover .hfil, .ana #facts th .hfil:focus-visible { opacity: 1; }
+:root .ana #facts th .hfil:hover { color: var(--ink); background: none; }
+:root .ana #facts th .hfil.on { color: var(--mint); opacity: 1; background: none; }
+@media (hover: none) { .ana #facts th .hfil { opacity: .6; } }
+.ana #facts td { height: 46px; padding: 0 7px; border: 0; background: none; vertical-align: middle; white-space: nowrap; transition: background-color var(--t-fast) ease; }
+.ana #facts td:first-child { padding-left: 10px; border-radius: var(--r-l) 0 0 var(--r-l); }
+.ana #facts td:last-child { padding-right: 10px; border-radius: 0 var(--r-l) var(--r-l) 0; }
+@media (hover: hover) { .ana #facts tbody tr:hover td { background-color: var(--surface-2); } }
+:root .ana #facts tbody tr.carded td, :root .ana #facts tbody tr.carded { background: var(--surface-2); }
+.ana #facts tr.botlike td { opacity: .5; }
+.ana #facts tr.botlike:hover td { opacity: .85; }
+.ana #facts tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, var(--mint)); }
+.ana #facts td.num { text-align: right; }
+.ana #facts td.two b, .ana #facts td.num b { display: block; font-weight: 500; font-size: var(--fs-small); line-height: 1.3; }
+.ana #facts td.two small, .ana #facts td.c-trip small { display: block; margin-top: 1px; color: var(--muted); font: 400 var(--fs-micro)/1.3 var(--font); }
+.ana #facts td.two small:empty { display: none; }
+.ana #facts .pos { color: var(--profit); }
+.ana #facts .neg { color: var(--loss); }
+.ana #facts .none { color: var(--faint); }
+/* the wallet: fingerprint, name and address, the star and the chart mark with the row under the pointer, its marks under */
+.ana #facts td.wcell { width: 100%; min-width: 210px; }
+.ana #facts .wbox { display: grid; grid-template-columns: 26px minmax(0, max-content) auto auto minmax(0, 1fr); grid-template-areas: "face addr star mk ." "face tags tags tags tags";
+  align-items: center; column-gap: 8px; row-gap: 3px; min-width: 0; }
+.ana #facts td.wcell .wid { display: contents; }
+.ana #facts .wface { grid-area: face; display: block; width: 20px; height: 20px; border-radius: 0; background: none; overflow: visible; }
+.ana #facts .wface .fp { width: 20px; height: 20px; }
+:root .ana #facts .wname { grid-area: addr; display: inline-flex; align-items: baseline; gap: 8px; min-width: 0; height: auto; min-height: 0; padding: 0; border: 0;
+  background: none; color: var(--ink); font: 400 var(--fs-small)/1.3 var(--font); white-space: nowrap; overflow: visible; }
+.ana #facts .wname .wn { min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.ana #facts .wname .mono { flex: none; }
+.ana #facts .wname .mono { font-family: var(--mono); font-size: var(--fs-caption); border-bottom: 1px dotted transparent; }
+.ana #facts .wname .wn + .mono { color: var(--muted); font-size: var(--fs-micro); }
+.ana #facts tbody tr:hover .wname .mono { border-bottom-color: var(--line-strong); }
+:root .ana #facts .star { grid-area: star; width: 22px; height: 22px; margin: 0; }
+:root .ana #facts .mk { grid-area: mk; width: 22px; height: 22px; padding: 0; }
+.ana #facts .mk svg { width: 14px; height: 14px; }
+.ana #facts .tags { grid-area: tags; display: flex; align-items: center; flex-wrap: nowrap; gap: 7px; min-height: 14px; overflow: hidden; }
+.ana #facts .tags:empty { display: none; }
+.ana #facts .msub { display: none; }
+/* our marks: small drawings in the hue of their meaning, no fill (canvas Analysis4) */
+:root .ana .tag.tg { display: inline-flex; align-items: center; justify-content: center; position: relative; width: 14px; height: 14px; min-width: 0; margin: 0; padding: 0;
+  border: 0; border-radius: 0; background: none; color: var(--muted); font: inherit; vertical-align: middle; animation: none; cursor: help; }
+:root .ana button.tag.tg { cursor: pointer; }
+:root .ana button.tag.tg:hover { background: none; color: var(--ink); }
+.ana .tag.tg svg { width: 14px; height: 14px; }
+:root .ana .tag.tg.t-sniper, :root .ana .tag.tg.t-fresh, :root .ana .tag.tg.t-bot-like, :root .ana .tag.tg.t-bundle, :root .ana .tag.tg.t-transfer-in { color: var(--risk); }
+:root .ana .tag.tg.t-dev, :root .ana .tag.tg.t-launch-bundle, :root .ana .tag.tg.t-own-bundle { color: var(--danger); }
+:root .ana .tag.tg.t-dormant { color: var(--sleeper); }
+:root .ana .tag.tg.t-seen-before { color: var(--repeat); }
+.ana .tag.tg .bdot { position: absolute; right: -3px; top: -2px; width: 6px; height: 6px; border-radius: 50%; background: var(--c, var(--risk)); box-shadow: 0 0 0 1.5px var(--surface); }
+.ana #facts .tags .ids { display: inline-flex; align-items: center; gap: 7px; }
+:root .ana #facts .tags .idm { width: 14px; height: 14px; border: 0; border-radius: 0; background: none; color: var(--muted); }
+.ana #facts .tags .idm img { width: 14px; height: 14px; border-radius: var(--r-xs); }
+.ana #facts .tags .idm svg { width: 14px; height: 14px; }
+:root .ana #facts .tags .idm.kol { color: var(--known); }
+:root .ana #facts .tags .idm.role.r-exchange { color: var(--known); }
+:root .ana #facts .tags .idm.role.r-hacker { color: var(--danger); }
+:root .ana #facts .tags .tag.own { height: 16px; margin: 0; padding: 0 6px; border: 0; border-radius: var(--r-s); background: var(--surface-3); color: var(--ink-2); font: 500 var(--fs-micro)/16px var(--font); }
+/* the columns */
+.ana #facts td.c-trip small { white-space: nowrap; }
+.ana #facts .trip { display: block; }
+.trip .t-base { stroke: var(--surface-3); stroke-width: 2; }
+.trip .t-now { stroke: var(--faint); stroke-width: 1; }
+.trip.big .t-now { stroke: var(--muted); stroke-dasharray: 2 2; }
+.trip .t-run { stroke-width: 2; }
+.trip.big .t-run { stroke-width: 3; }
+.trip .t-run.up { stroke: var(--profit); }
+.trip .t-run.dn { stroke: var(--loss); }
+.trip .t-in { fill: var(--surface); stroke: var(--ink); stroke-width: 1.5; }
+.trip.big .t-in { stroke-width: 2; }
+.trip .t-out.up { fill: var(--profit); }
+.trip .t-out.dn { fill: var(--loss); }
+.ana #facts th.h-trip, .ana #facts td.c-trip { width: 146px; min-width: 146px; }
+.ana #facts th.h-inv, .ana #facts td.c-inv { width: 106px; min-width: 106px; }
+.ana #facts th.h-got, .ana #facts td.c-sold { width: 98px; min-width: 98px; }
+.ana #facts th.h-real, .ana #facts td.c-pnl { width: 142px; min-width: 142px; }
+.ana #facts th.h-mult, .ana #facts td.c-roi { width: 62px; min-width: 62px; }
+.ana #facts th.h-hold, .ana #facts td.c-held { width: 76px; min-width: 76px; }
+.ana #facts th.h-buys, .ana #facts td.c-buys { width: 96px; min-width: 96px; }
+.ana #facts th.h-first, .ana #facts td.c-first { width: 92px; min-width: 92px; }
+.ana #facts th.h-fund, .ana #facts td.c-fund { width: 120px; min-width: 120px; }
+.ana #facts .pcell { position: relative; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; }
+.ana #facts .pcell .pbar { position: absolute; top: 0; right: 0; height: 18px; border-radius: var(--r-s); background: var(--profit-wash); }
+.ana #facts td.c-pnl.neg .pbar { background: var(--loss-wash); }
+.ana #facts .pcell b { position: relative; padding-right: 6px; font-weight: 600; line-height: 18px; }
+.ana #facts .pcell small { position: relative; padding-right: 6px; }
+.ana #facts td.c-roi b { font-weight: 500; }
+.ana #facts td.c-buys .up { color: var(--profit); } .ana #facts td.c-buys .dn { color: var(--loss); } .ana #facts td.c-buys .sl { color: var(--faint); }
+.ana #facts td.c-fund { max-width: 140px; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-small); }
+.ana #facts td.c-fund .mono { font-family: var(--mono); font-size: var(--fs-caption); }
+.ana #facts tr.outside > td:not(.wcell) { opacity: .55; }
+/* the count and Show more under the table */
+.ana .tfoot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 10px 16px 4px; color: var(--muted); font-size: var(--fs-caption); }
+.ana .tfoot #enrich { color: var(--muted); }
+.ana .tfoot #enrich[hidden] { display: none; }
+.ana .tfoot .more { display: inline-flex; align-items: center; gap: 16px; margin: 0; }
+.ana .tfoot .more[hidden] { display: none; }
+:root .ana .tfoot .link { gap: 0; height: auto; padding: 0; border: 0; background: none; color: var(--ink); font: 600 var(--fs-caption)/1.3 var(--font); }
+:root .ana .tfoot .link.quiet { color: var(--muted); font-weight: 400; }
+:root .ana .tfoot .link:hover { background: none; text-decoration: underline; text-underline-offset: 3px; }
+.ana .tfoot .link[hidden] { display: none; }
+
+/* ── the card and the agent: a column on the right of a wide screen (canvas Analysis4), a sheet below it ── */
+:root .drawer.wcard, :root .drawer.apanel { border: 0; background: var(--surface); color: var(--ink); }
+@media (min-width: 1200px) {
+  body.drawer-open main.wide:has(> #token.ana) {
+    --dl: max(0px, min(calc((100vw - var(--page)) / 2), calc(100vw - 396px - var(--page))));
+    margin-left: var(--dl); margin-right: max(396px, calc(100vw - var(--page) - var(--dl)));
+    max-width: min(var(--page), calc(100vw - 396px));
+  }
+  :root .ana .drawer.wcard, :root .ana .drawer.apanel { top: max(16px, var(--dtop, 0px)); bottom: max(24px, calc(var(--dbot, 0px) + 16px)); right: max(24px, calc(var(--dl, 0px) - 372px));
+    width: 380px; border-radius: var(--r-card); box-shadow: var(--shadow-card); overflow: hidden; }
+}
+@media (min-width: 641px) and (max-width: 1199px) {
+  :root .drawer.wcard, :root .drawer.apanel { width: min(400px, 100vw); border-radius: var(--r-card) 0 0 var(--r-card); box-shadow: var(--shadow-modal); overflow: hidden; }
+}
+:root .wcard .drawer-scroll { padding: 0 0 22px; }
+:root .wcard { --cg: 22px; }
+:root .wcard .drawer-scroll > * { margin-left: var(--cg); margin-right: var(--cg); }
+:root .wcard .drawer-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 14px; padding: 20px 0 12px; border: 0; background: var(--surface); }
+:root .wcard .dh-id { flex: 1; display: flex; align-items: center; gap: 14px; min-width: 0; }
+:root .wcard .wav { display: grid; place-items: center; width: 58px; height: 58px; flex: none; border: 0; border-radius: var(--r-l); background: var(--surface-2); overflow: hidden; }
+:root .wcard .wav .fp { width: 34px; height: 34px; }
+:root .wcard .wav img { width: 100%; height: 100%; object-fit: cover; }
+:root .wcard .dh-names { display: grid; gap: 2px; min-width: 0; }
+:root .wcard .dh-top b { color: var(--ink); font-size: var(--fs-num); font-weight: 600; letter-spacing: var(--track-tight); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:root .wcard .dh-addr { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+:root .wcard .dh-addr .dwc { height: auto; min-height: 0; padding: 0; border: 0; border-radius: 0; background: none; color: var(--muted); font: 400 var(--fs-caption)/1.3 var(--mono); }
+:root .wcard .dh-addr .dwc:hover { color: var(--ink); background: none; }
+:root .wcard .dh-addr .ext { width: auto; height: auto; padding: 0; border: 0; background: none; color: var(--muted); }
+:root .wcard .dh-addr .ext:hover { color: var(--ink); background: none; }
+:root .wcard.noname #dname { display: none; }
+:root .wcard.noname .dh-addr .dwc { color: var(--ink); font-size: var(--fs-title); }
+:root .wcard .dh-act { display: flex; align-items: center; gap: 8px; flex: none; }
+:root .wcard .dshare { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px; border: 0; border-radius: var(--r-pill); background: var(--surface-2); color: var(--ink); font: 600 var(--fs-small)/1 var(--font); }
+:root .wcard .dshare:hover { background: var(--surface-3); }
+:root .wcard .drawer-head .x, :root .apanel .drawer-head .x { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: var(--surface-2); color: var(--muted); }
+:root .wcard .drawer-head .x:hover, :root .apanel .drawer-head .x:hover { background: var(--surface-3); color: var(--ink); }
+/* who it is: its X, its age, who funded it, the apps it trades through — chips that say what they are */
+:root .wcard .dids-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 2px; }
+:root .wcard .dids-row:has(.ids:empty):has(.dchips:empty) { display: none; }
+:root .wcard .dids-row .ids, :root .wcard .dids-row .dchips { display: contents; }
+:root .wcard .dchip { display: inline-flex; align-items: center; gap: 6px; height: 26px; margin: 0; padding: 0 10px; border: 0; border-radius: var(--r-pill); background: var(--surface-2); color: var(--ink); font: 400 var(--fs-caption)/1 var(--font); }
+:root .wcard button.dchip:hover { background: var(--surface-3); color: var(--ink); }
+:root .wcard .dchip .dl { color: var(--muted); font: 400 var(--fs-caption)/1 var(--font); margin: 0; }
+:root .wcard .dchip small { color: var(--muted); }
+:root .wcard .dchip.age::before { content: ""; width: 13px; height: 13px; flex: none; background: var(--muted);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round'%3E%3Cpath d='M4.6 2.6 H11.4 M4.6 13.4 H11.4'/%3E%3Cpath d='M5.2 2.6 C5.2 6.2 10.8 9.6 10.8 13.4 M10.8 2.6 C10.8 6.2 5.2 9.6 5.2 13.4'/%3E%3C/svg%3E") no-repeat center / contain;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round'%3E%3Cpath d='M4.6 2.6 H11.4 M4.6 13.4 H11.4'/%3E%3Cpath d='M5.2 2.6 C5.2 6.2 10.8 9.6 10.8 13.4 M10.8 2.6 C10.8 6.2 5.2 9.6 5.2 13.4'/%3E%3C/svg%3E") no-repeat center / contain; }
+:root .wcard .dchip.age.young { background: var(--surface-2); color: var(--risk); }
+:root .wcard .dchip.age.young::before { background: var(--risk); }
+:root .wcard .dchip.dorm { background: var(--surface-2); color: var(--sleeper); }
+:root .wcard .idm { width: auto; min-width: 26px; height: 26px; padding: 0 9px; gap: 6px; border: 0; border-radius: var(--r-pill); background: var(--surface-2); color: var(--ink); }
+:root .wcard .idm img { width: 14px; height: 14px; }
+:root .wcard .idm svg { width: 13px; height: 13px; }
+:root .wcard .idm.kol { color: var(--known); }
+:root .wcard .dtags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0; margin-top: 8px; }
+:root .wcard .dtags:empty { display: none; }
+:root .wcard .dtags .tag { margin: 0; }
+:root .wcard .dtags .tag.ico.txt { height: 24px; padding: 0 9px 0 7px; border-radius: var(--r-pill); }
+:root .wcard .dtags .tagadd.wide { height: 24px; border: 0; border-radius: var(--r-pill); background: var(--surface-2); color: var(--muted); }
+:root .wcard .dtags .tagadd.wide:hover { color: var(--ink); background: var(--surface-3); }
+/* this token: the result large, the trip, its buys and its sells */
+:root .wcard .dsec { padding: 0; border: 0; margin-top: 18px; }
+:root .wcard .dtrades { margin-top: 18px; }
+:root .wcard .dp-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+:root .wcard .dp-pnl b { display: block; color: var(--ink); font: 600 var(--fs-h1)/1.05 var(--font); letter-spacing: -.03em; white-space: nowrap; }
+:root .wcard .dp-pnl b.pos { color: var(--profit); }
+:root .wcard .dp-pnl b.neg { color: var(--loss); }
+:root .wcard .dp-sub { color: var(--muted); font-size: var(--fs-small); white-space: nowrap; }
+:root .wcard .dp-trip { margin-top: 12px; }
+:root .wcard .dp-trip .trip { display: block; width: 100%; height: auto; }
+:root .wcard .dp-lab { position: relative; height: 16px; color: var(--muted); font-size: var(--fs-caption); }
+:root .wcard .dp-lab span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+:root .wcard .dp-lab .out.pos { color: var(--profit); }
+:root .wcard .dp-lab .out.neg { color: var(--loss); }
+:root .wcard .dp-lab .now { color: var(--faint); }
+:root .wcard .dp-un { margin: 8px 0 0; padding: 0; border: 0; color: var(--muted); font-size: var(--fs-caption); }
+:root .wcard .dp-un .pos { color: var(--profit); } :root .wcard .dp-un .neg { color: var(--loss); }
+:root .wcard .dtrades .dsec-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 18px 0 10px; }
+:root .wcard .dsec-h h4 { margin: 0; color: var(--ink); font: 600 var(--fs-small)/1.3 var(--font); letter-spacing: 0; text-transform: none; }
+:root .wcard .dtcount { color: var(--muted); font-size: var(--fs-small); text-align: right; }
+:root .wcard .dgroups { display: flex; flex-direction: column; gap: 8px; }
+:root .wcard .dgroups:empty { display: none; }
+:root .wcard .dg { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 0 10px; padding: 10px 12px; border-radius: var(--r-l); background: var(--surface-2); }
+:root .wcard .dg-ic { color: var(--profit); font-size: var(--fs-small); }
+:root .wcard .dg.sell .dg-ic { color: var(--loss); }
+:root .wcard .dg-t { min-width: 0; }
+:root .wcard .dg-t b { display: block; font-weight: 600; font-size: var(--fs-small); }
+:root .wcard .dg-t small { display: block; color: var(--muted); font-size: var(--fs-caption); }
+:root .wcard .dg-c { color: var(--muted); font-size: var(--fs-caption); white-space: nowrap; }
+:root .wcard .dmore { display: inline-flex; height: auto; margin-top: 8px; padding: 0; border: 0; background: none; color: var(--muted); font: 400 var(--fs-caption)/1.3 var(--font); }
+:root .wcard .dmore:hover { color: var(--ink); background: none; }
+:root .wcard .dmore[hidden] { display: none; }
+:root .wcard #dtable { margin-top: 8px; font-size: var(--fs-caption); }
+:root .wcard #dtable[hidden] { display: none; }
+:root .wcard .story th { color: var(--muted); font: 500 var(--fs-micro)/1.2 var(--font); text-transform: none; letter-spacing: 0; border-bottom: 1px solid var(--line); }
+:root .wcard .story td { border-bottom: 1px solid var(--line); }
+:root .wcard .story td.mono { font-family: var(--font); font-size: var(--fs-caption); }
+:root .wcard .story .buy { color: var(--profit); font-weight: 500; } :root .wcard .story .sell { color: var(--loss); font-weight: 500; }
+:root .wcard p.dline { margin: 8px 0 0; padding: 0; border: 0; color: var(--muted); font-size: var(--fs-caption); }
+:root .wcard p.dline:empty { display: none; }
+/* Watch: the card's one mint key */
+:root .wcard .dstar { display: flex; align-items: center; justify-content: center; gap: 8px; width: calc(100% - 2 * var(--cg)); height: 46px; margin-top: 18px; padding: 0 20px; border: 0; border-radius: var(--r-pill);
+  background: var(--mint); color: var(--on-mint); font: 600 var(--fs-read)/1 var(--font); }
+:root .wcard .dstar:hover { background: var(--mint-hover); }
+:root .wcard .dstar.on, :root .wcard .dstar.on:hover { color: var(--on-mint); }
+:root .wcard .dstar.on svg { fill: currentColor; }
+/* its days on every token (static/card.js): the guest sees what it would be and Connect */
+:root .wcard .dperf { margin-top: 14px; }
+:root .wcard .dperf .dsec-h { margin: 0 0 10px; }
+:root .wcard .dperf.guest .dsec-h { display: none; }
+:root .wcard .dconnect { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 0; border-radius: var(--r-l); background: var(--bg); }
+:root .wcard .dconnect > span { flex: 1; display: grid; gap: 2px; min-width: 0; }
+:root .wcard .dconnect b { font-size: var(--fs-small); font-weight: 600; }
+:root .wcard .dconnect small { color: var(--muted); font-size: var(--fs-caption); }
+:root .wcard .dconnect .dcgo { height: 32px; padding: 0 14px; border: 0; border-radius: var(--r-pill); background: var(--surface-2); color: var(--ink); font: 600 var(--fs-small)/1 var(--font); }
+:root .wcard .dconnect .dcgo:hover { background: var(--surface-3); }
+:root .wcard .seg { display: inline-flex; gap: 2px; padding: 3px; border: 0; border-radius: var(--r-pill); background: var(--bg); overflow: visible; }
+:root .wcard .seg button { height: 22px; padding: 0 10px; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--muted); font: 500 var(--fs-caption)/1 var(--font); }
+:root .wcard .seg button.on { background: var(--surface-2); color: var(--ink); }
+:root .wcard .dinfo { display: inline-grid; place-items: center; width: 15px; height: 15px; margin-left: 4px; border-radius: 50%; background: var(--surface-2); color: var(--muted); font: 600 10px/1 var(--font); vertical-align: 1px; }
+:root .wcard .dhero .big { font-size: var(--fs-num); }
+:root .wcard .dspark .l { stroke: var(--profit); }
+:root .wcard .dspark .a { fill: var(--profit-wash); }
+:root .wcard .dspark.down .l { stroke: var(--loss); }
+:root .wcard .dspark.down .a { fill: var(--loss-wash); }
+/* closed positions on the data scale, big wins to big losses; the hours in ink (mint is for controls, never data) */
+:root .wcard .ddist .dbar i.g3 { background: var(--scale-1); } :root .wcard .ddist .dbar i.g2 { background: var(--scale-2); }
+:root .wcard .ddist .dbar i.g1 { background: var(--scale-3); } :root .wcard .ddist .dbar i.g0 { background: color-mix(in srgb, var(--scale-3) 55%, var(--surface-3)); }
+:root .wcard .ddist .dbar i.r0 { background: var(--scale-4); } :root .wcard .ddist .dbar i.r1 { background: var(--scale-6); }
+:root .wcard .dheat i { background: color-mix(in srgb, var(--ink) calc(var(--a) * 100%), transparent); box-shadow: inset 0 0 0 1px var(--line); }
+:root .wcard .st-closed { color: var(--ink-2); border-color: var(--line-strong); background: var(--surface-2); }
+:root .wcard .dh-top b.long { font-size: var(--fs-title); }
+:root .wcard .dcross { margin: 0; padding: 12px 14px; border-radius: var(--r-l); background: var(--surface-2); font-size: var(--fs-caption); }
+
+/* ── the agent (canvas AnalysisMark): a head, the thread, the questions to ask, the line at the bottom ── */
+:root .apanel { display: flex; flex-direction: column; }
+:root .apanel .drawer-head { display: flex; align-items: center; gap: 10px; padding: 18px 18px 0; border: 0; background: none; }
+.apanel .aic { display: grid; place-items: center; width: 34px; height: 34px; flex: none; border-radius: 11px; background: var(--mint-wash); color: var(--mint); }
+:root .apanel .aht { flex: 1; display: grid; gap: 1px; min-width: 0; }
+:root .apanel .aht b { color: var(--ink); font-size: var(--fs-read); font-weight: 600; }
+:root .apanel .aht span { color: var(--muted); font-size: var(--fs-caption); }
+:root .apanel-body { flex: 1; padding: 16px 18px; overflow-y: auto; overscroll-behavior: contain; }
+:root .apanel p.aintro { margin: 0 0 8px; padding: 0; border: 0; color: var(--muted); font-size: var(--fs-caption); font-weight: 400; }
+:root .apanel .aquick { display: flex; flex-direction: column; gap: 6px; }
+:root .apanel .aqbtn { display: block; width: 100%; height: auto; padding: 9px 12px; border: 0; border-radius: var(--r-m); background: var(--surface-2); color: var(--ink); font: 400 var(--fs-small)/1.4 var(--font); text-align: left; white-space: normal; }
+:root .apanel .aqbtn:hover { background: var(--surface-3); }
+:root .apanel .aqbtn span { display: none; }
+:root .apanel .athread { display: flex; flex-direction: column; gap: 12px; margin: 0; }
+:root .apanel .aqa { display: flex; flex-direction: column; gap: 12px; padding: 0; border: 0; }
+:root .apanel .aqq { align-self: flex-end; max-width: 82%; margin: 0; padding: 9px 13px; border-radius: 14px 14px 4px 14px; background: var(--surface-2); font-size: var(--fs-small); font-weight: 400; }
+:root .apanel .aa { padding: 14px; border-radius: var(--r-l); background: var(--bg-deep); color: var(--ink-2); font-size: var(--fs-small); line-height: 1.5; }
+:root .apanel .aa li { font-size: var(--fs-small); }
+:root .apanel .athread .aans { margin: 0; padding: 0 0 0 18px; border: 0; border-radius: 0; background: none; }
+:root .apanel .athread .aans.off { padding-left: 0; }
+:root .ana #xpanel button { background: transparent; }
+:root .ana #xpanel button:hover { background: var(--surface-2); }
+:root .apanel .acard { margin: 0 0 12px; padding: 0; border: 0; background: none; }
+:root .apanel .acard h4 { margin: 0 0 6px; color: var(--ink); font: 600 var(--fs-small)/1.3 var(--font); text-transform: none; letter-spacing: 0; }
+:root .apanel .awl { margin-top: 10px; }
+:root .apanel .awr { display: grid; grid-template-columns: 26px minmax(0, 1fr); grid-template-areas: "f w" "f y"; align-items: center; gap: 0 10px; min-height: 38px; padding: 4px 0; border-top: 1px solid var(--line); }
+:root .apanel .awr:first-child { border-top: 0; }
+:root .apanel .awr:not(:has(.awf)) { grid-template-areas: "w w" "y y"; }
+:root .apanel .awf { grid-area: f; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: var(--surface-2); }
+:root .apanel .awf .fp { width: 16px; height: 16px; }
+:root .apanel .awallet { grid-area: w; justify-self: start; height: auto; padding: 0; border: 0; background: none; color: var(--ink); font: 600 var(--fs-small)/1.3 var(--mono); }
+:root .apanel .awallet:hover { background: none; text-decoration: underline; text-underline-offset: 3px; }
+:root .apanel .awhy { grid-area: y; color: var(--muted); font-size: var(--fs-caption); }
+:root .apanel .afoot { padding: 0 18px 16px; border: 0; background: none; }
+:root .apanel .achips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+:root .apanel .achip { height: 28px; padding: 0 10px; border: 0; border-radius: var(--r-pill); background: var(--surface-2); color: var(--ink); font: 400 var(--fs-caption)/1 var(--font); }
+:root .apanel .aask { display: flex; align-items: center; gap: 8px; margin: 0; padding: 6px 6px 6px 14px; border-radius: var(--r-pill); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
+:root .apanel .aask:focus-within { box-shadow: inset 0 0 0 1px var(--mint-line), 0 0 0 3px var(--mint-wash); }
+:root .apanel .aask input { flex: 1; min-width: 0; height: 32px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--ink); font: 400 var(--fs-small)/1 var(--font); }
+:root .apanel .aask input:focus { box-shadow: none; }
+:root .apanel .aask .ink { height: 32px; padding: 0 14px; border: 0; border-radius: var(--r-pill); background: var(--ink); color: var(--bg); font: 600 var(--fs-small)/1 var(--font); }
+:root .apanel .aask .ink:hover { background: var(--ink-2); }
+:root .apanel p.anote { margin: 8px 0 0; padding: 0; border: 0; color: var(--muted); font-size: var(--fs-micro); text-align: center; }
+
+/* ── the first-visit tour on the new surfaces ── */
+:root .tour-spot { border-radius: var(--r-card); outline-color: var(--mint); }
+:root .tour-tip { border: 0; border-radius: var(--r-l); background: var(--surface-2); box-shadow: var(--shadow-pop); color: var(--ink); }
+
+/* ── laptop and tablet: the toolbar wraps under the title; the card stays a sheet on the right ── */
+@media (max-width: 1199px) {
+  .ana .tally .tline { margin-left: 0; flex-basis: 100%; }
+}
+@media (max-width: 960px) {
+  .ana .toolbar .tb-sp { flex-basis: 100%; height: 0; }
+  :root .ana .toolbar .sortby { margin: 0 auto 2px 0; }
+  .ana .tfind { flex: 1 1 160px; }
+  /* one card per wallet (DESIGN.md «Layout»): the wallet on top, its facts under it, each with its name */
+  .ana .tablewrap { padding: 0 12px; }
+  .ana #facts .wbox { display: contents; }
+  .ana #facts tbody tr { border: 0; border-radius: var(--r-l); background: var(--surface-2); }
+  .ana #facts td { height: auto; border-radius: 0; background: none; }
+  .ana #facts td.c-trip, .ana #facts td.c-inv, .ana #facts td.c-sold, .ana #facts td.c-pnl, .ana #facts td.c-roi, .ana #facts td.c-held,
+  .ana #facts td.c-buys, .ana #facts td.c-first, .ana #facts td.c-fund, .ana #facts td.wcell { width: auto; min-width: 0; max-width: none; }
+  .ana #facts td:first-child, .ana #facts td:last-child { padding: 0; border-radius: 0; }
+  :root .ana #facts tbody tr.carded td { background: none; }
+  :root .ana #facts tbody tr.carded { background: var(--surface-3); }
+  .ana #facts td[data-h]::before { color: var(--muted); font: 500 var(--fs-micro)/1.3 var(--font); letter-spacing: 0; text-transform: none; }
+  .ana #facts td.num, .ana #facts td.num b { text-align: left; }
+  .ana #facts .pcell { align-items: flex-start; }
+  .ana #facts .pcell .pbar { display: none; }
+  .ana #facts .pcell b, .ana #facts .pcell small { padding-right: 0; }
+  .ana #facts td.wcell { display: grid; grid-template-columns: 24px auto auto auto minmax(0, 1fr); grid-template-areas: "face addr star mk ." "face tags tags tags tags"; align-items: center; column-gap: 8px; row-gap: 3px; }
+  .ana #facts tr.botlike td { opacity: 1; }
+  .ana #facts tr.botlike { opacity: .6; }
+}
+/* a tablet only (641–960): the five facts under the wallet */
+@media (min-width: 641px) and (max-width: 960px) {
+  .ana #facts tbody tr { margin: 0 0 8px; padding: 12px 14px; }
+}
+
+/* ── phone (DESIGN.md «Phones»): the head's facts three to a line, the chart toolbar in two rows, one line per wallet ── */
+@media (max-width: 640px) {
+  .ana { gap: 12px; }
+  .ana .tbox { padding: 14px 12px 12px; border-radius: var(--r-l); }
+  .ana .tokenhead { gap: 12px; }
+  .ana .th-names h1 { white-space: normal; flex-wrap: wrap; row-gap: 2px; }
+  .ana dl.meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 12px; width: 100%; }
+  .ana dl.meta .m-cap dd { font-size: var(--fs-body); }
+  .ana dl.meta dd { white-space: normal; overflow-wrap: anywhere; }
+  .ana .ctools { gap: 6px; }
+  .ana .ct-l, .ana .ct-r { display: contents; }
+  .ana .ctools .tfseg { order: 1; } .ana .ctools .cbtn { order: 2; } .ana .ctw { order: 3; flex-basis: 100%; }
+  .ana .ct-sp { order: 4; flex-basis: 100%; height: 0; }
+  .ana .ctools .cmode { order: 5; } .ana .ctools .tzseg { order: 6; } .ana .ctools #cur { order: 7; }
+  .ana .ctools .seg > button, .ana .ctools .seg > b { height: 30px; padding: 0 8px; }
+  .ana .ctools .cbtn { width: 36px; height: 36px; }
+  .ana .chartbox { height: 300px; }
+  .ana .chartbox .legend { font-size: var(--fs-micro); }
+  .ana .chartbox .pick { top: 40px; width: calc(100% - 16px); }
+  .ana .pick-bar { flex-wrap: wrap; justify-content: center; height: auto; padding: 8px 8px 8px 14px; border-radius: var(--r-l); white-space: normal; row-gap: 6px; }
+  .ana .chartbox .pick-act { flex: 1 1 100%; justify-content: center; }
+  :root .ana .chartbox .pick-act #getw { flex: 1; height: 40px; }
+  .ana .chartbox .charthint { top: 40px; }
+  .ana .atabs-row { gap: 8px; }
+  .ana .atabs { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; scrollbar-width: none; }
+  .ana .atabs::-webkit-scrollbar { display: none; }
+  :root .ana .atab { min-width: 0; flex: none; }
+  .ana .tabs-end { flex-basis: 100%; margin-left: 0; justify-content: space-between; }
+  .ana .rhead { justify-content: space-between; width: 100%; flex-wrap: nowrap; }
+  .ana .rhead .rrange { min-width: 0; }
+  :root .ana .rhead .savejob { width: 36px; height: 36px; padding: 0; justify-content: center; }
+  .ana .run-card { padding: 16px; border-radius: var(--r-l); }
+  .ana .run-phase, .ana .run-count { font-size: var(--fs-read); }
+  .ana .run-skel { display: none; }
+  :root .ana .tally { padding: 12px 14px; gap: 6px 18px; }
+  :root .ana .tally .tbig b { font-size: var(--fs-title); }
+  .ana .tcard { border-radius: var(--r-l); padding: 4px 0 6px; }
+  .ana .toolbar { padding: 8px 12px; gap: 6px; }
+  .ana .menu.cols { display: none; }
+  /* two lines: the order, the agent and ⋯; then the search, Hide bots and Filters */
+  :root .ana .toolbar .sortby { order: 1; flex: 1 1 auto; margin: 0; }
+  .ana .toolbar #factive { order: 2; }
+  .ana .toolbar #aiwrap { order: 3; margin: 0; }
+  .ana .toolbar > .menu:not(.cols) { order: 4; margin: 0; }
+  .ana .toolbar::before { order: 5; }
+  .ana .toolbar .tb-sp { display: none; }
+  .ana .tfind { order: 6; flex: 1 1 120px; width: auto; height: 36px; }
+  .ana .toolbar #hidebots { order: 7; } .ana .toolbar #ftoggle { order: 8; } .ana .toolbar #freset { order: 9; }
+  .ana #facts td.c-pnl small { display: none; }
+  :root .ana .tbtn, :root .ana .askai { height: 36px; }
+  :root .ana .tbtn.tmore { width: 36px; }
+  .ana .tablewrap { padding: 0; }
+  /* the list: star, picture, the address with three marks, what it put in under it; PnL and × on the right */
+  .ana #facts tbody tr { margin: 0; padding: 10px 12px; border-radius: 0; background: none; border-top: 1px solid var(--line); }
+  :root .ana #facts tbody tr.carded { background: var(--surface-2); }
+  .ana #facts td.wcell { grid-template-columns: 30px 36px auto minmax(0, 1fr); grid-template-areas: "star face addr tags" "star face sub sub"; column-gap: 6px; }
+  .ana #facts td.c-trip, .ana #facts td.c-inv, .ana #facts td.c-sold, .ana #facts td.c-held, .ana #facts td.c-buys, .ana #facts td.c-first, .ana #facts td.c-fund { display: none; }
+  .ana #facts .wface { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: var(--surface-2); }
+  .ana #facts .wface .fp { width: 22px; height: 22px; }
+  :root .ana #facts .star { width: 30px; height: 30px; min-width: 30px; min-height: 30px; }
+  :root .ana #facts .mk { display: none; }
+  :root .ana #facts .wname { min-height: 0; }
+  .ana #facts .wname .mono { font-size: var(--fs-small); }
+  .ana #facts .wname .wn + .mono { display: none; }
+  .ana #facts .msub { grid-area: sub; display: block; min-width: 0; color: var(--muted); font-size: var(--fs-caption); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ana #facts td.c-pnl { min-width: 0; text-align: right; }
+  .ana #facts .pcell { align-items: flex-end; }
+  .ana #facts td.c-roi, .ana #facts td.c-roi b { text-align: right; }
+  .ana .tfoot { padding: 10px 12px 4px; }
+  /* the wallet card as a sheet from the bottom (DESIGN.md «Phones») */
+  :root .drawer.wcard { border-radius: var(--r-l) var(--r-l) 0 0; }
+  :root .wcard { --cg: 16px; }
+  :root .wcard .drawer-head { padding-top: 20px; gap: 10px; }
+  :root .wcard .wav { width: 44px; height: 44px; border-radius: 50%; }
+  :root .wcard .wav .fp { width: 26px; height: 26px; }
+  :root .wcard .dh-top b { font-size: var(--fs-title); }
+  :root .wcard .dshare span { display: none; }
+  :root .wcard .dshare { width: 36px; height: 36px; padding: 0; justify-content: center; }
+  :root .wcard .drawer-head .x { width: 36px; height: 36px; }
+  :root .wcard .dp-pnl b { font-size: var(--fs-h2); }
+  :root .drawer.apanel { width: 100vw; }
+}

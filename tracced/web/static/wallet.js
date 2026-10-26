@@ -97,8 +97,10 @@
     const wn = document.getElementById('wnote'); if (wn) { wn.textContent = note || ''; wn.hidden = !note; }   // why we ask, in context
     const l = list(); l.innerHTML = '';
     const as = adapters();
+    const v2 = document.documentElement.dataset.design === 'v2';
     // the wallets this browser has come first; the rest below them, to open this page in their app or to install
     as.filter(a => !a.missing).concat(as.filter(a => a.missing)).forEach(a => {
+      if (v2) { l.appendChild(row(a)); return; }
       if (a.missing) {                                   // not in this browser: on a phone open the page in the app, else install
         const phone = onPhone(), x = document.createElement('a'); x.className = 'button winstall'; x.rel = 'noopener';
         x.href = phone ? a.browse() : a.url; if (!phone) x.target = '_blank';
@@ -114,6 +116,20 @@
       : 'No Phantom, Backpack or Solflare in this browser. Install one, then reload this page.');
     s.hidden = false;
     const first = l.querySelector('button, a'); if (first) first.focus();
+  }
+  /* design v2 (canvas «Connect», owner 26.10): a row per wallet app with its original logo, its name and what a click
+     does: Detected signs in; Install, or Open in the app on a phone, goes to the wallet */
+  const LOGO = { Phantom: 'phantom.svg', Backpack: 'backpack.svg', Solflare: 'solflare.png' };
+  function row(a) {
+    const phone = onPhone(), el = document.createElement(a.missing ? 'a' : 'button');
+    el.className = 'wrow' + (a.missing ? '' : ' found');
+    if (a.missing) { el.rel = 'noopener'; el.href = phone ? a.browse() : a.url; if (!phone) el.target = '_blank'; }
+    else { el.type = 'button'; el.addEventListener('click', () => signIn(a)); }
+    const img = document.createElement('img'); img.src = '/static/v2/wallets/' + LOGO[a.name]; img.alt = ''; img.width = img.height = 38;
+    const n = document.createElement('span'); n.className = 'wn'; n.textContent = a.name;
+    const s = document.createElement('span'); s.className = 'ws'; s.textContent = a.missing ? (phone ? 'Open in the app' : 'Install') : 'Detected';
+    el.append(img, n, s);
+    return el;
   }
   function close() { const s = sheet(); if (s) s.hidden = true; onDone = null; if (opener && opener.focus && document.contains(opener)) { try { opener.focus(); } catch (e) {} } opener = null; }
   async function signOut() { if (window.EarlyUI) EarlyUI.flush(); try { await post('/auth/logout'); } catch (e) {} location.reload(); }

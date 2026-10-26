@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{# design v2 · Docs (canvas «Docs», 26.10): the pages on the left with our own marks, the page in the middle with no card
+   around it, «On this page» on the right; the text itself is the markdown of docs/*.md, as before #}
+{% block title %}{{ title }} · tracced docs{% endblock %}
+{% macro dico(slug) -%}
+<svg class="dic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+{%- if slug == 'index' %}<circle cx="8" cy="8" r="5.8"/><path d="M10.4 5.6 9 9 5.6 10.4 7 7Z"/>
+{%- elif slug == 'compare' %}<path d="M8 2.6V13.4M5 13.4H11M3.4 4.6H12.6"/><path d="M3.4 4.6 1.8 8.6a1.8 1.8 0 0 0 3.2 0Z M12.6 4.6 11 8.6a1.8 1.8 0 0 0 3.2 0Z"/>
+{%- elif slug == 'how-it-works' %}<circle cx="8" cy="8" r="2.2"/><path d="M8 1.8V3.6M8 12.4V14.2M1.8 8H3.6M12.4 8H14.2M3.6 3.6 4.9 4.9M11.1 11.1 12.4 12.4M3.6 12.4 4.9 11.1M11.1 4.9 12.4 3.6"/>
+{%- elif slug == 'tags' %}<path d="M2.6 2.6H8L13.4 8 8 13.4 2.6 8Z"/><circle cx="5.6" cy="5.6" r="1" fill="currentColor" stroke="none"/>
+{%- elif slug == 'limits' %}<path d="M4.6 2.6 H11.4 M4.6 13.4 H11.4"/><path d="M5.2 2.6 C5.2 6.2 10.8 9.6 10.8 13.4 M10.8 2.6 C10.8 6.2 5.2 9.6 5.2 13.4"/>
+{%- elif slug == 'account' %}<circle cx="5.4" cy="10.6" r="2.8"/><path d="M7.4 8.6 13.2 2.8M11.2 4.8 12.8 6.4M9.6 6.4 11 7.8"/>
+{%- elif slug == 'api' %}<path d="M5.6 2.6V5.4M10.4 2.6V5.4M4 5.4H12V7.6A4 4 0 0 1 4 7.6Z M8 11.6V13.6"/>
+{%- elif slug == 'roadmap' %}<path d="M2.6 4 6 2.6 10 4 13.4 2.6V12 10 13.4 6 12 2.6 13.4Z M6 2.6V12M10 4V13.4"/>
+{%- elif slug == 'updates' %}<path d="M8 2.4 L9.3 6.7 L13.6 8 L9.3 9.3 L8 13.6 L6.7 9.3 L2.4 8 L6.7 6.7 Z"/>
+{%- elif slug == 'project' %}<path d="M8 14V9.6M4.8 9.6H11.2L10 7.6V3.8L11 2.6H5L6 3.8V7.6Z"/>
+{%- else %}<circle cx="8" cy="8" r="2"/>{% endif %}</svg>
+{%- endmacro %}
+{% block body %}
+<div class="docs">
+  <nav class="docs-nav" aria-label="Documentation">
+    <span class="dn-h">Documentation</span>
+    <ul>{% for p in nav %}
+      <li><a href="/docs/{{ p.slug }}"{% if p.on %} class="on" aria-current="page"{% endif %}>{{ dico(p.slug) }}{{ p.label }}</a></li>
+    {% endfor %}</ul>
+  </nav>
+  <div class="docs-main">
+    <div class="docs-crumb">Docs</div>
+    <article class="docs-body p-{{ slug }}">{{ body|safe }}</article>
+    {% if prev or nxt %}
+    <nav class="docs-pager" aria-label="More pages">
+      {% if prev %}<a class="pg prev" href="/docs/{{ prev.slug }}"><svg class="pg-ch" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.8 3.4 5.2 8 9.8 12.6"/></svg><span class="pg-t"><span>Previous</span><b>{{ dico(prev.slug) }}{{ prev.label }}</b></span></a>{% endif %}
+      {% if nxt %}<a class="pg next" href="/docs/{{ nxt.slug }}"><span class="pg-t"><span>Next</span><b>{{ dico(nxt.slug) }}{{ nxt.label }}</b></span><svg class="pg-ch" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.2 3.4 10.8 8 6.2 12.6"/></svg></a>{% endif %}
+    </nav>
+    {% endif %}
+  </div>
+  <aside class="docs-toc" aria-label="On this page" hidden><span class="dn-h">On this page</span><nav id="dtoc"></nav></aside>
+</div>
+<script>
+(function () {
+  const body = document.querySelector('.docs-body'); if (!body) return;
+  /* a callout's emoji leaves its title for the mark column on the left (canvas: the mark beside the text) */
+  body.querySelectorAll('.admonition').forEach(a => {
+    const t = a.querySelector('.admonition-title'); if (!t || !t.firstChild || t.firstChild.nodeType !== 3) return;
+    const m = t.firstChild.nodeValue.match(/^\s*([^\p{L}\p{N}\s"'(]+)\s+/u); if (!m) return;
+    t.firstChild.nodeValue = t.firstChild.nodeValue.slice(m[0].length);
+    const i = document.createElement('span'); i.className = 'adm-ic'; i.setAttribute('aria-hidden', 'true'); i.textContent = m[1];
+    a.prepend(i); a.classList.add('has-ic');
+  });
+  /* a table that lists the docs' own pages carries their marks, as the menu does */
+  body.querySelectorAll('.dtw').forEach(w => {
+    const firsts = [...w.querySelectorAll('tbody td:first-child')];
+    const links = firsts.map(td => td.children.length === 1 && td.firstElementChild.matches('a[href^="/docs/"]') ? td.firstElementChild : null);
+    if (!firsts.length || links.some(a => !a)) return;
+    w.classList.add('pages');
+    links.forEach(a => { const ic = document.querySelector('.docs-nav a[href="' + a.getAttribute('href') + '"] svg'); if (ic) a.prepend(ic.cloneNode(true)); });
+  });
+  /* On this page: the page's sections; the one being read is marked. Not for Updates: its rail is the list */
+  const hs = [...body.querySelectorAll('h2[id]')], toc = document.getElementById('dtoc'), aside = toc && toc.parentElement;
+  if (!aside || body.classList.contains('p-updates') || hs.length < 2) return;
+  hs.forEach(h => { const a = document.createElement('a'); a.href = '#' + h.id; a.textContent = h.textContent.trim(); toc.appendChild(a); });
+  aside.hidden = false;
+  const links = [...toc.children];
+  function mark() {
+    let n = 0; const y = 120;
+    hs.forEach((h, i) => { if (h.getBoundingClientRect().top <= y) n = i; });
+    if (innerHeight + scrollY >= document.documentElement.scrollHeight - 2) n = hs.length - 1;
+    links.forEach((a, i) => a.classList.toggle('on', i === n));
+  }
+  let raf = 0; addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; mark(); }); }, { passive: true });
+  mark();
+})();
+</script>
+{% endblock %}
