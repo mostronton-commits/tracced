@@ -41,7 +41,7 @@
     return '<div class="ddist"><div class="dbar">' + DIST.map(x => { const k = d[x[0]] || 0; if (!k) return '';
         const pct = Math.round(k / n * 100), tip = x[1] + ': ' + k + (k === 1 ? ' position' : ' positions') + ', ' + pct + '%';
         return '<i class="' + x[2] + '" style="flex:' + k + '" title="' + tip + '" tabindex="0" aria-label="' + tip + '">' + (pct >= 10 ? k : '') + '</i>'; }).join('')
-      + '</div><div class="dends"><span>big wins</span><span>big losses</span></div></div>';
+      + '</div>' + (V2 ? '' : '<div class="dends"><span>big wins</span><span>big losses</span></div>') + '</div>';   // v2: the colours say it (owner, 26.10)
   }
   function heatHtml(heat) {
     // when the wallet trades, by weekday and hour; the grid comes in UTC and follows the footer's time zone
