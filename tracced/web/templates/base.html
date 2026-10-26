@@ -24,6 +24,11 @@
 {% if design_v2 %}<meta name="theme-color" content="#101112">
 <link rel="stylesheet" href="/static/v2/tokens.css?v={{ v }}">
 <link rel="stylesheet" href="/static/v2/style.css?v={{ v }}">
+{# each part of v2 keeps its own sheet: home, analysis (with the wallet card), lists and watchlist, the other pages #}
+<link rel="stylesheet" href="/static/v2/home.css?v={{ v }}">
+<link rel="stylesheet" href="/static/v2/analysis.css?v={{ v }}">
+<link rel="stylesheet" href="/static/v2/lists.css?v={{ v }}">
+<link rel="stylesheet" href="/static/v2/pages.css?v={{ v }}">
 {% else %}{% if dark_on %}<script>try { if (localStorage.getItem('early:theme') === 'dark') document.documentElement.dataset.theme = 'dark'; } catch (e) {}</script>{% endif %}
 <link rel="stylesheet" href="/static/style.css?v={{ v }}">{% endif %}
 <script src="/static/ui.js?v={{ v }}"></script>
@@ -105,7 +110,7 @@ window.EarlyTheme = (function () {
 <main class="{% block main_class %}{% endblock %}">
 {% block body %}{% endblock %}
 </main>
-{% include "_wallet.html" %}
+{% include "v2/_wallet.html" if design_v2 else "_wallet.html" %}
 {% if design_v2 %}{% include "v2/_foot.html" %}{% else %}<footer class="foot"><div class="foot-in">
   <div class="foot-top">
     <div class="foot-brand"><b>tracced</b><span class="muted mono">every wallet on the record</span>

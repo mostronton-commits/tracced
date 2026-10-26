@@ -1,0 +1,10 @@
+<div class="sheet" id="wsheet" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="wtitle">
+    <div class="sheet-head"><b id="wtitle">Connect a wallet</b><button type="button" class="ghost x" data-wallet-close title="Close">×</button></div>
+    <p class="wnote"><b>Beta, free for now.</b> <span id="wnote" hidden></span></p>
+    <div class="wlist" id="wlist"></div>
+    <p class="muted small wstate" id="wstate"></p>
+    <p class="muted small">A signature only: no transaction, no fees.</p>
+    {% if demo_token and not is_demo %}<a class="wdemo" href="/token?mint={{ demo_token }}">Not now? Watch the demo first →</a>{% endif %}
+  </div>
+</div>

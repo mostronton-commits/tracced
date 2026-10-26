@@ -3851,6 +3851,8 @@ def _render_html(name, request, **ctx):
         ctx.setdefault("top_list", next(((lists[k].get("slug") or k) for k in READY_ORDER if lists.get(k)), None))
     # аналітика вмикається лише там, де задано id, і ніколи на сторінках власника: там показується новий ключ API,
     # а сторонній скрипт на сторінці бачить усе, що на ній є
+    if ctx.get("design_v2") and (HERE / "templates" / "v2" / name).is_file():
+        name = "v2/" + name                                   # design v2 has its own copy of this page or part (26.10)
     admin_page = request is not None and request.path.startswith("/admin")
     ctx.setdefault("umami_id", "" if admin_page else os.getenv("UMAMI_WEBSITE_ID", ""))
     ctx.setdefault("umami_domains", os.getenv("UMAMI_DOMAINS", "tracced.xyz,www.tracced.xyz"))   # і лише на цих доменах: локальні запуски з тим самим id не рахуються
