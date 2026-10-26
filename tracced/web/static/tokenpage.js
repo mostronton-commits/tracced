@@ -280,7 +280,7 @@
   function renderTabs() {
     tabsEl.innerHTML = tabs.map((t, i) => {
       const on = t.id === sel, sh = EarlyChart.SHADES[i % EarlyChart.SHADES.length];
-      const sub = t.status === 'done' ? (t.n != null ? nf(t.n) + (V2 ? '' : ' wallets') : 'ready') : t.status === 'error' ? 'stopped'   // v2: «Pump 1 755»
+      const sub = t.status === 'done' ? (t.n != null ? nf(t.n) + ' wallets' : 'ready') : t.status === 'error' ? 'stopped'   // v2 (26.10): two lines, «Pump 1» over «765 wallets»
         : (DEMO && !ran(t.id)) ? 'demo' : 'analyzing…';
       const fresh = t.status !== 'done' && t.status !== 'error';
       return '<button type="button" role="tab" class="atab' + (on ? ' on' : '') + (fresh ? ' busy' : '') + (t.status === 'error' ? ' bad' : '') + '" data-id="' + t.id + '" aria-selected="' + on + '" style="--wc:' + sh + '">'
