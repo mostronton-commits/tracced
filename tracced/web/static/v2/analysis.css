@@ -472,7 +472,7 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 :root .wcard .dg-t b { display: block; font-weight: 600; font-size: var(--fs-small); }
 :root .wcard .dg-t small { display: block; color: var(--muted); font-size: var(--fs-caption); }
 :root .wcard .dg-c { color: var(--muted); font-size: var(--fs-caption); white-space: nowrap; }
-:root .wcard .dmore { display: inline-flex; height: auto; margin-top: 8px; padding: 0; border: 0; background: none; color: var(--muted); font: 400 var(--fs-caption)/1.3 var(--font); }
+:root .wcard .dmore { display: flex; justify-content: center; width: 100%; height: auto; margin-top: 10px; padding: 0; border: 0; background: none; color: var(--muted); font: 400 var(--fs-caption)/1.3 var(--font); }   /* centred (owner, 26.10) */
 :root .wcard .dmore:hover { color: var(--ink); background: none; }
 :root .wcard .dmore[hidden] { display: none; }
 :root .wcard #dtable { margin-top: 8px; font-size: var(--fs-caption); }
