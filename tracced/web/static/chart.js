@@ -346,6 +346,7 @@
         const d = document.createElement('div'); d.className = 'evdot ' + kind;
         d.style.left = x + 'px'; d.style.top = y + 'px';
         if (e.html) d.innerHTML = e.html; else d.textContent = e.badge || '•';
+        if (V2 && kind === 'mig') { d.classList.add('evword'); d.innerHTML = '<i aria-hidden="true"></i>Migrated'; }   // owner, 26.10: a lone «M» read as nothing
         d.title = e.title || '';
         layer.appendChild(d);
         drawn[kind] = { x, el: d, n: 1 };
