@@ -1292,9 +1292,9 @@
         const f0 = fmtHM(t0), f1 = fmtHM(t1);
         const span = f0 + (t1 - t0 >= 60000 ? '–' + (f1.split(', ')[0] === f0.split(', ')[0] ? f1.replace(/^.*, /, '') : f1) : '');
         // owner, 26.10 («забагато зайвої інформації»): one line, count · sum · caps; when and where the range sits wait under the pointer
-        return '<div class="dg ' + side + '" title="' + esc(span + ' · ' + where) + '"><span class="dg-ic" aria-hidden="true">' + (side === 'buy' ? '▲' : '▼') + '</span><span class="dg-t"><b>' + plural(ts.length, side) + ' · '
-          + (SOLON && sol != null ? '<span class="insol">' + EarlyCur.sol(sol) + '</span>' : money(sum)) + '</b></span>'
-          + '<span class="dg-c" title="Market cap at these trades">' + (caps.length ? capRange(Math.min(...caps), Math.max(...caps)) : '') + '</span></div>';
+        const capT = caps.length ? ' · cap ' + capRange(Math.min(...caps), Math.max(...caps)) : '';   // owner, 26.10: the caps only under the pointer, the trip line above has them
+        return '<div class="dg ' + side + '" title="' + esc(span + ' · ' + where + capT) + '"><span class="dg-ic" aria-hidden="true">' + (side === 'buy' ? '▲' : '▼') + '</span><span class="dg-t"><b>' + plural(ts.length, side) + ' · '
+          + (SOLON && sol != null ? '<span class="insol">' + EarlyCur.sol(sol) + '</span>' : money(sum)) + '</b></span></div>';
       };
       gr.innerHTML = grp('buy') + grp('sell');
     }
