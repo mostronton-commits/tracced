@@ -49,6 +49,12 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 /* the two jumps carry their words (owner, 26.10: «не зрозуміло що робить ця кнопка») */
 .ana .ctools .cbtn.wl { width: auto; gap: 6px; padding: 0 12px 0 10px; border-radius: var(--r-pill); font: 500 var(--fs-small)/1 var(--font); white-space: nowrap; }
 .ana .ctools .cbtn.wl .narrow { display: none; }
+/* «First hours» on the chart, at the start of the time axis (owner, 26.10) */
+:root .ana .chartbox .cjump { position: absolute; left: 6px; bottom: 34px; z-index: 6; display: inline-flex; align-items: center; gap: 6px; height: 26px;
+  padding: 0 10px 0 8px; border: 0; border-radius: var(--r-pill); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--ink-2); font: 500 var(--fs-caption)/1 var(--font); white-space: nowrap; }
+:root .ana .chartbox .cjump:hover { background: var(--surface-3); color: var(--ink); }
+.ana .chartbox .cjump .narrow { display: none; }
 .ana .ctw { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .ana .ctw[hidden] { display: none; }
 :root .ana .ctw .chipw { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 5px 0 6px; border: 0; border-radius: var(--r-pill);

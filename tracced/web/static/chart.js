@@ -452,7 +452,10 @@
         m.title = 'The price is the market cap over the supply, ' + fmtMcap(SUPPLY) + ' tokens';
         mark(); T.left.appendChild(m);
       }
-      T.left.appendChild(back); T.left.appendChild(launch);
+      // owner, 26.10: «Back to range» went (the open tab brings the range back); «First hours» stands on the chart itself,
+      // at the left end of the time axis, where the token's trading begins
+      launch.className = 'cjump'; launch.title = 'Show the first hours of trading, right after the token launched';
+      el.appendChild(launch);
       if (window.EarlyTZ && T.right) {                       // UTC or local time where time is read (26.10); a switch reloads, as before
         const tz = document.createElement('button'); tz.type = 'button'; tz.className = 'seg tzseg'; tz.id = 'tz';
         tz.innerHTML = '<b' + (EarlyTZ.get() === 'utc' ? ' class="on"' : '') + '>UTC</b><b' + (EarlyTZ.get() === 'utc' ? '' : ' class="on"') + '>Local</b>';

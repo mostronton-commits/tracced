@@ -367,7 +367,7 @@
     }
     if (draft.demo) draft = { from: '', to: '' };
     renderPick(); renderTabs(); drawChart(); hint();
-    if (t.status === 'done') { if (!same) showResult(t, opts); }
+    if (t.status === 'done') { if (!same) showResult(t, opts); else if (V2) ch.focus(parse(t.from), parse(t.to), null); }   // v2: the open tab brings its range back
     else {
       closeResult();
       if (t.status !== 'error') startRun(t);
