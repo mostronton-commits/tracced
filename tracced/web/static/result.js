@@ -237,7 +237,7 @@
       return s + '</svg>';
     }
     const tripText = o => { const a = +o.eavg || +o.entry;
-      return (a ? fm(a) : '—') + (o.exitcap ? ' → ' + fm(o.exitcap) + (o.hold != null ? ' · ' + holdText(o.hold) : '') : o.sells == null ? ' · exits not read' : ' · holding'); };
+      return (a ? fm(a) : '—') + (o.exitcap ? ' → ' + fm(o.exitcap) : o.sells == null ? ' · exits not read' : ' · holding'); };
     const sgn = v => v == null || isNaN(v) ? '—' : (v > 0 ? '+$' : v < 0 ? '−$' : '$') + fm(Math.abs(v));   // a real minus (DESIGN-v2.md «Typography»)
     const NOSOL = 'This result was saved before tracced recorded SOL amounts';
     function amt2(usd, sol, cls, signed) {                     // an amount in the unit the toolbar shows, in the numbers' face
@@ -255,7 +255,7 @@
       return '<span class="mono" title="First SOL from ' + x + (bundle[w] ? ', which funded ' + bundle[w].n + ' wallets here' : '') + '">' + short(x) + '</span>';
     }
     const COLS = {
-      trip: { h: 'Trip', sub: 'cap in → out · held', key: 'entry', dir: 1, menu: 'Trip' },
+      trip: { h: 'Entry → exit', sub: 'market cap', key: 'entry', dir: 1, menu: 'Entry → exit' },   // owner, 26.10: the caps only; hold is its own column
       inv: { h: 'Bought', key: 'inv', fil: 'inv', num: 1, menu: 'Bought', fl: 'what it bought' },
       got: { h: 'Sold', key: 'got', fil: 'sold', num: 1, menu: 'Sold', fl: 'the share sold' },
       real: { h: 'PnL', key: 'real', fil: 'real', num: 1, menu: 'PnL', fl: 'PnL' },
@@ -278,7 +278,7 @@
     function cellV2(k, o) {
       const unk = o.sells == null, UNK = 'Its sells were not read: only the largest buyers\' are', cap = v => v ? fm(v) : '—';
       if (k === 'trip') { const a = +o.eavg || +o.entry;
-        return '<td class="c-trip" data-h="Trip" title="Average entry ' + cap(a) + (o.exitcap ? ' → average exit ' + cap(o.exitcap) : unk ? ' · ' + UNK : ' · nothing sold yet')
+        return '<td class="c-trip" data-h="Entry → exit" title="Average entry ' + cap(a) + (o.exitcap ? ' → average exit ' + cap(o.exitcap) : unk ? ' · ' + UNK : ' · nothing sold yet')
           + (o.hold != null ? ' · held ' + holdText(o.hold) + ' on average' : '') + (NOWCAP ? ' · the tick: the cap now, ' + fm(NOWCAP) : '') + '">' + tripSvg(o) + '<small>' + tripText(o) + '</small></td>'; }
       if (k === 'inv') return '<td class="num two c-inv" data-h="Bought" title="' + money(o.tot || o.inv) + ' bought of this token in all'
         + (extra(o) ? ', ' + money(o.inv) + ' of it inside the range' : ', all of it inside the range') + ' · its first buy in the range at a ' + cap(o.entry) + ' market cap">'
