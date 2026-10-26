@@ -1268,9 +1268,9 @@
       const sc = vals.length ? { lo: Math.log10(Math.min(...vals)) - 0.25, hi: Math.log10(Math.max(...vals)) + 0.25 } : null;
       const W = 320, X = v => { const x = tripX(v, W, sc); return x == null ? null : x / W * 100; };
       const lab = [];
-      if (a) lab.push([X(a), fm(a) + ' in', 'in']);
-      if (b) lab.push([X(b), fm(b) + ' out', b >= a ? 'out pos' : 'out neg']);
-      if (NOWCAP) lab.push([X(NOWCAP), fm(NOWCAP) + ' now', 'now']);
+      if (a) lab.push([X(a), fm(a), 'in']);                      // owner, 26.10: the numbers alone; the dots and the tooltip say which is which
+      if (b) lab.push([X(b), fm(b), b >= a ? 'out pos' : 'out neg']);
+      if (NOWCAP) lab.push([X(NOWCAP), fm(NOWCAP), 'now']);
       lab.sort((p, q) => p[0] - q[0]);                          // along the line, never one on top of another
       for (let i = 1; i < lab.length; i++) if (lab[i][0] - lab[i - 1][0] < 24) lab[i][0] = lab[i - 1][0] + 24;
       if (lab.length && lab[lab.length - 1][0] > 88) { lab[lab.length - 1][0] = 88; for (let i = lab.length - 2; i >= 0; i--) if (lab[i + 1][0] - lab[i][0] < 24) lab[i][0] = lab[i + 1][0] - 24; }
@@ -1278,7 +1278,7 @@
       const cls = o.real > 0 ? 'pos' : o.real < 0 ? 'neg' : '';
       el.innerHTML = '<div class="dp-top"><span class="dp-pnl" title="Profit on what it sold here">' + (unk ? '<b>—</b>' : amt2(o.real, o.realsol, cls, true)) + '</span>'
         + '<span class="dp-sub">' + (o.mult ? roiX(o.mult) : unk ? 'exits not read' : 'nothing sold yet') + (o.hold != null ? ' · ' + holdText(o.hold) : '') + '</span></div>'
-        + (sc ? '<div class="dp-trip" title="Average entry → average exit' + (NOWCAP ? ' · the dashed tick: the cap now' : '') + '">' + tripSvg(o, W, 30, sc, true)
+        + (sc ? '<div class="dp-trip" title="Market cap at its average entry (hollow dot) → its average exit (filled dot)' + (NOWCAP ? ' · the dashed tick: the cap now' : '') + '">' + tripSvg(o, W, 30, sc, true)
           + '<div class="dp-lab">' + lab.map(l => '<span class="' + l[2] + '" style="left:' + l[0].toFixed(1) + '%">' + l[1] + '</span>').join('') + '</div></div>' : '')
         + (o.unreal ? '<p class="dp-un"><span class="' + (o.unreal > 0 ? 'pos' : 'neg') + '">' + sgn(o.unreal) + '</span> on the ' + leftPct(o.sold) + ' it still holds</p>' : '');
       const tr = (st && st.trades) || [], A = +CFG.from, B = +CFG.to;
