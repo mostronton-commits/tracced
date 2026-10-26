@@ -140,9 +140,11 @@
       {# owner, 08.10: a wallet's card is the same everywhere (a ready list's too); here it adds one thing, this token's
          trades, on top, since this is what the analysis is about: its result large, its trip from the entry to the exit
          and the cap now, then its buys and its sells, every trade behind «Show every trade» #}
+      {# owner, 26.10: one section — the title, then its result and trip, then its buys and sells; the summary line «in ·
+         out · trades» repeated the blocks, so it stays empty #}
       <section class="dsec dtrades">
+        <div class="dsec-h"><h4>On {{ job.symbol }}</h4><span class="dtcount" id="dtcount" hidden></span></div>
         <div class="dpos" id="dpos"></div>
-        <div class="dsec-h"><h4>On {{ job.symbol }}</h4><span class="dtcount" id="dtcount"></span></div>
         <div id="dtok">
           <div class="dgroups" id="dgroups"></div>
           <div class="tally dtally" id="dtally" hidden></div>

@@ -459,7 +459,8 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 :root .wcard .dp-lab .now { color: var(--faint); }
 :root .wcard .dp-un { margin: 8px 0 0; padding: 0; border: 0; color: var(--muted); font-size: var(--fs-caption); }
 :root .wcard .dp-un .pos { color: var(--profit); } :root .wcard .dp-un .neg { color: var(--loss); }
-:root .wcard .dtrades .dsec-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 18px 0 10px; }
+:root .wcard .dtrades .dsec-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 8px; }
+:root .wcard .dtrades .dgroups { margin-top: 14px; }
 :root .wcard .dsec-h h4 { margin: 0; color: var(--ink); font: 600 var(--fs-small)/1.3 var(--font); letter-spacing: 0; text-transform: none; }
 :root .wcard .dtcount { color: var(--muted); font-size: var(--fs-small); text-align: right; }
 :root .wcard .dgroups { display: flex; flex-direction: column; gap: 8px; }
