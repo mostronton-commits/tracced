@@ -503,6 +503,8 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 :root .wcard .seg button { height: 22px; padding: 0 10px; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--muted); font: 500 var(--fs-caption)/1 var(--font); }
 :root .wcard .seg button.on { background: var(--surface-2); color: var(--ink); }
 :root .wcard .dinfo { display: inline-grid; place-items: center; width: 15px; height: 15px; margin-left: 4px; border-radius: 50%; background: var(--surface-2); color: var(--muted); font: 600 10px/1 var(--font); vertical-align: 1px; }
+:root .wcard .dhero { align-items: flex-start; }   /* owner, 26.10: PnL and win rate on one line, labels with labels, numbers with numbers
+   (the win rate's «1W 19L» hangs under its number) */
 :root .wcard .dhero .big { font-size: var(--fs-num); }
 :root .wcard .dspark .l { stroke: var(--profit); }
 :root .wcard .dspark .a { fill: var(--profit-wash); }
