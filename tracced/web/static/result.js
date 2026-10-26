@@ -1187,7 +1187,7 @@
       catch (e) { if (alive && drawer.dataset.w === w) dprof.innerHTML = '<p class="dline muted small">Could not reach the server.</p>'; return; }
       if (!alive || drawer.dataset.w !== w) return;         // the card moved on to another wallet, or another tab is open
       if (r.status === 401) {
-        dprof.innerHTML = V2 ? '<div class="dconnect"><span><b>Its 30 days on every token</b><small>PnL, win rate, hours it trades</small></span><button type="button" class="dcgo" id="dprofgo">Connect</button></div>'
+        dprof.innerHTML = V2 ? '<div class="dconnect"><span><b>Its trading on all tokens</b><small>PnL, win rate, hours it trades · 30 days</small></span><button type="button" class="dcgo" id="dprofgo">Connect</button></div>'
           : '<div class="dconnect"><button type="button" class="primary" id="dprofgo">Connect wallet for more data</button>'
           + '<span class="muted small">PnL, win rate and active hours across all its tokens</span></div>';
         if (V2) dprof.closest('.dperf').classList.add('guest');
@@ -1291,8 +1291,9 @@
           : (t0 > B ? holdText((t0 - B) / 60000) + ' after the range' : inR === ts.length ? 'inside the range' : 'from inside the range');
         const f0 = fmtHM(t0), f1 = fmtHM(t1);
         const span = f0 + (t1 - t0 >= 60000 ? '–' + (f1.split(', ')[0] === f0.split(', ')[0] ? f1.replace(/^.*, /, '') : f1) : '');
-        return '<div class="dg ' + side + '"><span class="dg-ic" aria-hidden="true">' + (side === 'buy' ? '▲' : '▼') + '</span><span class="dg-t"><b>' + plural(ts.length, side) + ' · '
-          + (SOLON && sol != null ? '<span class="insol">' + EarlyCur.sol(sol) + '</span>' : money(sum)) + '</b><small>' + span + ' · ' + where + '</small></span>'
+        // owner, 26.10 («забагато зайвої інформації»): one line, count · sum · caps; when and where the range sits wait under the pointer
+        return '<div class="dg ' + side + '" title="' + esc(span + ' · ' + where) + '"><span class="dg-ic" aria-hidden="true">' + (side === 'buy' ? '▲' : '▼') + '</span><span class="dg-t"><b>' + plural(ts.length, side) + ' · '
+          + (SOLON && sol != null ? '<span class="insol">' + EarlyCur.sol(sol) + '</span>' : money(sum)) + '</b></span>'
           + '<span class="dg-c" title="Market cap at these trades">' + (caps.length ? capRange(Math.min(...caps), Math.max(...caps)) : '') + '</span></div>';
       };
       gr.innerHTML = grp('buy') + grp('sell');
