@@ -279,9 +279,10 @@ Cyrillic of the agent's Ukrainian, the arrows, and a checkout without the files.
 - **Who is signed in:** a pill with the wallet's fingerprint, its short address in Tabular and a chevron; it opens a
   menu: Watchlist, My analyses, Top traders (when a list is out), Docs, Sign out. A guest sees Connect, an ink key.
   How many analyses are left today is said where an analysis starts (the bar on the chart), not in the pill.
-- **The wallet fingerprint:** sha256 of the address; five rows of five dots, the left three columns mirrored to the
-  right. Byte *i* of the hash (row by row, three per row) sets cell *i*: `% 4 == 0` an empty `faint` dot, `1` mint,
-  else `ink`. The same address draws the same picture everywhere (`fingerprint()` on the server).
+- **No wallet pictures in the data** (owner, 26.10: «займає корисне простір і не несе практичної користі»): the
+  table, the card, the account pill, the lists and home's top 10 show the name or the address alone; the card shows a
+  real avatar (X) when there is one. The **star** stands left of the address in every result row, always visible
+  (muted, amber when saved): one click saves the wallet. `fingerprint()` remains only for decoration the owner keeps.
 - **The home header:** the small logo on the left, the X button and the account on the right, over the planet (canvas Home6).
 - **The footer** is one line on every page: Demo (when there is one), Docs, How it works, The project, What's new,
   Contact; then the Telegram and GitHub marks and the version. No logo, no status bar, no bell (owner, 26.10).

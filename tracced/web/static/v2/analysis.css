@@ -46,6 +46,9 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 .ana .ctools .cbtn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; background: var(--bg); color: var(--muted); }
 .ana .ctools .cbtn:hover { background: var(--surface-2); color: var(--ink); }
 .ana .ctools .cbtn[hidden] { display: none; }
+/* the two jumps carry their words (owner, 26.10: «не зрозуміло що робить ця кнопка») */
+.ana .ctools .cbtn.wl { width: auto; gap: 6px; padding: 0 12px 0 10px; border-radius: var(--r-pill); font: 500 var(--fs-small)/1 var(--font); white-space: nowrap; }
+.ana .ctools .cbtn.wl .narrow { display: none; }
 .ana .ctw { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .ana .ctw[hidden] { display: none; }
 :root .ana .ctw .chipw { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 5px 0 6px; border: 0; border-radius: var(--r-pill);
@@ -282,7 +285,7 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 .ana #facts .none { color: var(--faint); }
 /* the wallet: fingerprint, name and address, the star and the chart mark with the row under the pointer, its marks under */
 .ana #facts td.wcell { width: 100%; min-width: 210px; }
-.ana #facts .wbox { display: grid; grid-template-columns: 26px minmax(0, max-content) auto auto minmax(0, 1fr); grid-template-areas: "face addr star mk ." "face tags tags tags tags";
+.ana #facts .wbox { display: grid; grid-template-columns: 22px minmax(0, max-content) auto minmax(0, 1fr); grid-template-areas: "star addr mk ." "star tags tags tags";
   align-items: center; column-gap: 8px; row-gap: 3px; min-width: 0; }
 .ana #facts td.wcell .wid { display: contents; }
 .ana #facts .wface { grid-area: face; display: block; width: 20px; height: 20px; border-radius: 0; background: none; overflow: visible; }
@@ -294,7 +297,10 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 .ana #facts .wname .mono { font-family: var(--mono); font-size: var(--fs-caption); border-bottom: 1px dotted transparent; }
 .ana #facts .wname .wn + .mono { color: var(--muted); font-size: var(--fs-micro); }
 .ana #facts tbody tr:hover .wname .mono { border-bottom-color: var(--line-strong); }
-:root .ana #facts .star { grid-area: star; width: 22px; height: 22px; margin: 0; }
+/* owner, 26.10: no wallet picture; the star stands left of the address, always there, amber once the wallet is saved */
+:root .ana #facts .star { grid-area: star; align-self: start; width: 22px; height: 22px; margin: 0; opacity: 1; color: var(--muted); }
+:root .ana #facts .star.on { color: var(--risk); }
+:root #dav[hidden] { display: none; }
 :root .ana #facts .mk { grid-area: mk; width: 22px; height: 22px; padding: 0; }
 .ana #facts .mk svg { width: 14px; height: 14px; }
 .ana #facts .tags { grid-area: tags; display: flex; align-items: center; flex-wrap: nowrap; gap: 7px; min-height: 14px; overflow: hidden; }
@@ -593,6 +599,7 @@ main.wide:has(> #token.ana) { padding-top: 0; }
   .ana .ctools .cmode { order: 5; } .ana .ctools .tzseg { order: 6; } .ana .ctools #cur { order: 7; }
   .ana .ctools .seg > button, .ana .ctools .seg > b { height: 30px; padding: 0 8px; }
   .ana .ctools .cbtn { width: 36px; height: 36px; }
+  .ana .ctools .cbtn.wl { width: auto; } .ana .ctools .cbtn.wl .wide { display: none; } .ana .ctools .cbtn.wl .narrow { display: inline; }
   .ana .chartbox { height: 300px; }
   .ana .chartbox .legend { font-size: var(--fs-micro); }
   .ana .chartbox .pick { top: 40px; width: calc(100% - 16px); }
@@ -632,7 +639,7 @@ main.wide:has(> #token.ana) { padding-top: 0; }
   /* the list: star, picture, the address with three marks, what it put in under it; PnL and × on the right */
   .ana #facts tbody tr { margin: 0; padding: 10px 12px; border-radius: 0; background: none; border-top: 1px solid var(--line); }
   :root .ana #facts tbody tr.carded { background: var(--surface-2); }
-  .ana #facts td.wcell { grid-template-columns: 30px 36px auto minmax(0, 1fr); grid-template-areas: "star face addr tags" "star face sub sub"; column-gap: 6px; }
+  .ana #facts td.wcell { grid-template-columns: 30px auto minmax(0, 1fr); grid-template-areas: "star addr tags" "star sub sub"; column-gap: 6px; }
   .ana #facts td.c-trip, .ana #facts td.c-inv, .ana #facts td.c-sold, .ana #facts td.c-held, .ana #facts td.c-buys, .ana #facts td.c-first, .ana #facts td.c-fund { display: none; }
   .ana #facts .wface { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: var(--surface-2); }
   .ana #facts .wface .fp { width: 22px; height: 22px; }

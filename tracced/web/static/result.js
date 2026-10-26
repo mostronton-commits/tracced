@@ -310,7 +310,7 @@
       const cl = [oc && 'onchart', cd && 'carded', out && 'outside', o.tags.includes('bot-like') && 'botlike'].filter(Boolean).join(' ');
       const nm = EarlyTags.displayName(idents[o.w]);
       return '<tr data-w="' + o.w + '"' + (cl ? ' class="' + cl + '"' : '') + (out ? ' title="On the chart; the filters would hide it"' : '') + (style ? ' style="' + style + '"' : '') + '>'
-        + '<td class="wcell"><div class="wbox"><span class="wid">' + STAR(o.w) + '<span class="wface" aria-hidden="true">' + face(o.w) + '</span>'
+        + '<td class="wcell"><div class="wbox"><span class="wid">' + STAR(o.w)   // owner, 26.10: no wallet picture, the star left of the address
         + '<button type="button" class="mk" title="Show its buys and sells on the chart" aria-label="Show on the chart">' + CHARTIC + '</button>'
         + '<button type="button" class="wname" data-nm="' + esc(nm || '') + '" title="Open the wallet\'s card: its trades here, its PnL on every token, its funder">' + (nm ? '<b class="wn">' + esc(nm) + '</b>' : '') + '<span class="mono">' + short(o.w) + '</span></button>'
         + '</span><span class="tags">' + tg + '</span><span class="msub">' + msub(o) + '</span></div></td>'
@@ -1023,7 +1023,7 @@
         onChart.forEach(o => {
           const c = document.createElement('span'); c.className = 'chipw';
           const nm = V2 ? EarlyTags.displayName(idents[o.wallet]) : '';
-          c.innerHTML = V2 ? face(o.wallet) + (nm ? '<span class="cn">' + esc(nm) + '</span>' : '<span class="mono">' + short(o.wallet) + '</span>')
+          c.innerHTML = V2 ? (nm ? '<span class="cn">' + esc(nm) + '</span>' : '<span class="mono">' + short(o.wallet) + '</span>')
             : '<span class="mono">' + short(o.wallet) + '</span> ';
           c.title = V2 ? 'Its trades are on the chart · click for its card' : 'Stays visible when filtered · click for the story';
           c.addEventListener('click', ev => { if (!ev.target.closest('.x')) { cardSrc = 'chart'; dropViaCard(o.wallet); openStory(o); } });
@@ -1072,8 +1072,10 @@
     }
     function renderHead(w) {
       const idn = idents[w];
-      document.getElementById('dav').innerHTML = idn && idn.avatar
-        ? '<img src="' + esc(idn.avatar) + '" alt="" referrerpolicy="no-referrer">' : EarlyCard.identicon(w);
+      const dav = document.getElementById('dav');
+      dav.innerHTML = idn && idn.avatar
+        ? '<img src="' + esc(idn.avatar) + '" alt="" referrerpolicy="no-referrer">' : (V2 ? '' : EarlyCard.identicon(w));
+      dav.hidden = V2 && !(idn && idn.avatar);                  // v2: a real avatar or nothing (owner, 26.10: the dot picture said nothing)
       document.getElementById('dname').textContent = EarlyTags.displayName(idn) || 'Wallet';
       document.getElementById('dids').innerHTML = EarlyTags.idMarks(idn);
       if (V2) {                                                 // no name: the address is the title; a long one a step smaller
@@ -1437,7 +1439,7 @@
     }
     let aBusy = false, aSummed = false;
     const aEsc = t => esc(String(t == null ? '' : t));
-    const aWallet = w => '<div class="awr">' + (V2 && byW.has(w.wallet) ? '<span class="awf" aria-hidden="true">' + face(w.wallet) + '</span>' : '')
+    const aWallet = w => '<div class="awr">'
       + '<button type="button" class="awallet mono" data-w="' + aEsc(w.wallet) + '" title="Open this wallet\'s card">' + aEsc(w.short) + '</button>'
       + (w.why ? '<span class="awhy">' + aEsc(w.why) + '</span>' : '') + '</div>';
     // the agent writes wallets short ("3idduY…4i4V"); one that matches a single wallet of this analysis becomes a link to its card

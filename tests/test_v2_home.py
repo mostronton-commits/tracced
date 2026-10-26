@@ -94,7 +94,8 @@ if AioHTTPTestCase:
         async def test_signed_in_the_hero_corner_carries_the_wallet_pill(self):
             html = await self.page(headers={"Cookie": wallet_cookie(TEST_PK) + "; design=v2"})
             top = html[html.index('<header class="hm-top">'):html.index('<section class="hm-hero">')]
-            self.assertIn(str(_fingerprint(TEST_PK)), top)
+            self.assertIn(TEST_PK[:4] + "…" + TEST_PK[-4:], top)
+            self.assertNotIn('class="fp"', top)                                          # owner, 26.10: no wallet pictures
             self.assertIn("Sign out", top)
             self.assertNotIn("data-wallet-signin", top)
 
@@ -138,10 +139,9 @@ if AioHTTPTestCase:
             self.assertIn("Real traders only", row)
             self.assertIn("total profit", row)
             lst = self.app["ready"]["lists"]["top-traders"]
-            for r in lst["rows"][:6]:                                                  # five leaders and the sixth blurred
-                self.assertIn(str(_fingerprint(r["wallet"], 22)), row)
+            self.assertEqual(row.count('<li'), 6)                                       # five leaders and the sixth blurred
             self.assertEqual(row.count('class="hm-peek"'), 1)
-            self.assertNotIn(str(_fingerprint(lst["rows"][6]["wallet"], 22)), row)
+            self.assertNotIn('class="fp"', row)                                         # owner, 26.10: no wallet pictures
             self.assertIn('href="/lists/top-traders" data-need-wallet', row)
             self.assertIn("Connect a wallet to see all ten.", row)
             self.assertIn("Turn on alerts", row)

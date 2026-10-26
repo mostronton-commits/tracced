@@ -36,7 +36,6 @@
   {% for r in rows %}
     <li data-w="{{ r.wallet }}" tabindex="0" title="Open this wallet's card">
       <span class="lv-rk">{{ r.rank }}</span>
-      <span class="lv-face" aria-hidden="true">{{ fingerprint(r.wallet, 26) }}</span>
       <span class="lv-nm"><b{% if not r.name %} class="mono"{% endif %}>{{ r.label }}</b><small>{% if lst.kind == 'roi' %}+{{ r.rv }} profit · {% endif %}{{ sub(r) }}</small></span>
       <b class="lv-v">{% if lst.kind == 'roi' %}{{ r.roi_text }}{% else %}+{{ r.rv }}{% endif %}</b>
     </li>

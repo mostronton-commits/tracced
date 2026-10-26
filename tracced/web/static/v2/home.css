@@ -168,7 +168,7 @@ body:has(.hm-sky) .foot { position: relative; z-index: 1; }
 .hm-sum b.neg, .hm-pnl.neg { color: var(--loss); }
 .hm-sum span { color: var(--muted); }
 .hm-rank { list-style: none; margin: 0; padding: 0; }
-.hm-rank li { display: grid; grid-template-columns: 22px 26px minmax(0, 1fr) auto; gap: 0 var(--s-3); align-items: center; height: 50px;
+.hm-rank li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 0 var(--s-3); align-items: center; height: 50px;
   border-top: 1px solid var(--line); }
 .hm-rk { color: var(--faint); font-weight: var(--w-semi); }
 .hm-rank li:first-child .hm-rk { color: var(--ink); }

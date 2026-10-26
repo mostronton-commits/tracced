@@ -432,10 +432,12 @@
     if (T) {
       // v2 (canvas Analysis4): [1m 5m 15m 1h] [Market cap | Price] ⊙ ⇤ … [UTC | Local]; round marks for the two jumps
       const G = (d, l) => '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="' + l + '">' + d + '</svg>';
-      back.className = launch.className = 'cbtn';
-      back.innerHTML = G('<circle cx="8" cy="8" r="5.4"/><circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none"/>', 'Back to the range');
+      back.className = launch.className = 'cbtn wl';           // owner, 26.10: a bare round mark said nothing, so each says its job
+      back.innerHTML = G('<circle cx="8" cy="8" r="5.4"/><circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none"/>', 'Back to the range')
+        + '<span class="wide">Back to range</span><span class="narrow">Range</span>';
       back.title = 'Back to the range you marked'; back.setAttribute('aria-label', 'Back to the range');
-      launch.innerHTML = G('<path d="M3.4 3 V13"/><path d="M12.8 3.4 L6.4 8 L12.8 12.6"/>', 'First hours');
+      launch.innerHTML = G('<path d="M3.4 3 V13"/><path d="M12.8 3.4 L6.4 8 L12.8 12.6"/>', 'First hours')
+        + '<span class="wide">First hours</span><span class="narrow">Start</span>';
       launch.setAttribute('aria-label', 'First hours');
       T.left.appendChild(tfs);
       if (SUPPLY) {

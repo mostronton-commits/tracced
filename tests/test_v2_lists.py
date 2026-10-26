@@ -116,7 +116,7 @@ if AioHTTPTestCase:
                 self.assertIn(f"<span>{label}</span>", html)
             self.assertIn('class="lv-rows"', html)
             self.assertIn(addr("K", 1), html)                                              # a row is a real wallet of the list
-            self.assertIn('<svg class="fp"', html)                                         # its fingerprint, not a made-up face
+            self.assertNotIn('<svg class="fp"', html)                                      # owner, 26.10: no wallet pictures
             self.assertIn("100% win rate", html)
             self.assertIn('data-follow="top-traders"', html)                               # the one key: Follow 10 wallets
             self.assertIn("Follow 10 wallets", html)

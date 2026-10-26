@@ -264,7 +264,7 @@ if AioHTTPTestCase:
                 for link in ('href="/docs/updates"', 'href="/feedback"', "t.me/tracced_xyz", "github.com/mostronton-commits/tracced"):
                     self.assertIn(link, foot, path)
                 self.assertIn("x.com/intent/follow?screen_name=tracced_xyz", html, path)
-                self.assertIn(str(_fingerprint(TEST_PK)), html, path)                 # the wallet's own picture in its pill
+                self.assertIn('class="acct-pill"', html, path)                          # the pill: the address alone (owner, 26.10)
             for f in ("/static/v2/tokens.css", "/static/v2/style.css", "/static/v2/stars.svg", "/static/v2/icon.svg"):
                 self.assertEqual((await self.client.get(f)).status, 200, f)
             self.assertEqual(_fingerprint(TEST_PK), _fingerprint(TEST_PK))
@@ -2528,7 +2528,7 @@ if AioHTTPTestCase:
             self.client.session.headers["Cookie"] = "design=v2"
             r, pk, _, _ = await self._sign_in()
             pill = (await r.json())["pill"]
-            self.assertIn(str(_fingerprint(pk)), pill)                                 # v2: fingerprint, short address, menu
+            self.assertIn('class="acct-pill"', pill)                                   # v2: short address and menu
             self.assertIn(pk[:4] + "…" + pk[-4:], pill)
             self.assertIn("Sign out", pill)
 

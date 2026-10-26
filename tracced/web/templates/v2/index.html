@@ -128,7 +128,7 @@
 
 {# ── row 2: the month's top 10 | its alerts in Telegram (owner, 07.10–08.10; one list on the home page) ── #}
 {% if ready %}{% set l = ready[0] %}
-{% macro rrow(r, peek=false) %}<li{% if peek %} class="hm-peek" aria-hidden="true"{% endif %}><span class="hm-rk">{{ r.rank }}</span>{{ fingerprint(r.wallet, 22) }}<span class="hm-who"><b{% if not r.name %} class="hm-addr"{% endif %}>{{ r.label }}</b><small>{% if r.x %}@{{ r.x }}{% if r.win_rate is not none %} · {{ r.win_rate|round|int }}% win rate{% endif %}{% else %}{% if r.name %}<span class="hm-addr">{{ r.short }}</span> · {% endif %}{% if r.win_rate is not none %}{{ r.win_rate|round|int }}% win rate · {% endif %}{{ r.tokens }} tokens{% endif %}</small></span><b class="hm-pnl{{ ' neg' if r.pnl < 0 }}">{{ '+' if r.pnl >= 0 }}{{ r.rv }}</b></li>{% endmacro %}
+{% macro rrow(r, peek=false) %}<li{% if peek %} class="hm-peek" aria-hidden="true"{% endif %}><span class="hm-rk">{{ r.rank }}</span><span class="hm-who"><b{% if not r.name %} class="hm-addr"{% endif %}>{{ r.label }}</b><small>{% if r.x %}@{{ r.x }}{% if r.win_rate is not none %} · {{ r.win_rate|round|int }}% win rate{% endif %}{% else %}{% if r.name %}<span class="hm-addr">{{ r.short }}</span> · {% endif %}{% if r.win_rate is not none %}{{ r.win_rate|round|int }}% win rate · {% endif %}{{ r.tokens }} tokens{% endif %}</small></span><b class="hm-pnl{{ ' neg' if r.pnl < 0 }}">{{ '+' if r.pnl >= 0 }}{{ r.rv }}</b></li>{% endmacro %}
 <section class="hm-wrap hm-row hm-row2" id="ready" aria-label="Follow the best traders">
   <article class="hm-card hm-top10" aria-labelledby="hmtop">
     <div class="hm-head"><h2 id="hmtop">{{ l.label }}'s top {{ l.summary.n }} traders</h2><span class="hm-note">next list {{ l.next_label }}</span></div>
