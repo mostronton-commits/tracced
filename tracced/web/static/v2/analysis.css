@@ -420,8 +420,8 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 :root .wcard .drawer-head .x:hover, :root .apanel .drawer-head .x:hover { background: var(--surface-3); color: var(--ink); }
 /* who it is: its X, its age, who funded it, the apps it trades through — chips that say what they are */
 :root .wcard .dids-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 2px; }
-:root .wcard .dids-row:has(.ids:empty):has(.dchips:empty) { display: none; }
-:root .wcard .dids-row .ids, :root .wcard .dids-row .dchips { display: contents; }
+:root .wcard .dids-row:has(.ids:empty):has(.dchips:empty):has(.dtags:empty) { display: none; }
+:root .wcard .dids-row .ids, :root .wcard .dids-row .dchips, :root .wcard .dids-row .dtags { display: contents; }
 :root .wcard .dchip { display: inline-flex; align-items: center; gap: 6px; height: 26px; margin: 0; padding: 0 10px; border: 0; border-radius: var(--r-pill); background: var(--surface-2); color: var(--ink); font: 400 var(--fs-caption)/1 var(--font); }
 :root .wcard button.dchip:hover { background: var(--surface-3); color: var(--ink); }
 :root .wcard .dchip .dl { color: var(--muted); font: 400 var(--fs-caption)/1 var(--font); margin: 0; }

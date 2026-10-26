@@ -135,8 +135,8 @@
           <button type="button" class="ghost x" id="dclose" title="Close" aria-label="Close">{{ ag.g('close', size=14) }}</button>
         </div>
       </div>
-      <div class="dids-row"><span class="ids" id="dids"></span><span class="dchips" id="dchips"></span></div>
-      <div class="dtags" id="dtags"></div>
+      {# owner, 26.10: your tags and «+ tag» stand in the same row as the wallet's chips (funded by, age…) #}
+      <div class="dids-row"><span class="ids" id="dids"></span><span class="dchips" id="dchips"></span><div class="dtags" id="dtags"></div></div>
       {# owner, 08.10: a wallet's card is the same everywhere (a ready list's too); here it adds one thing, this token's
          trades, on top, since this is what the analysis is about: its result large, its trip from the entry to the exit
          and the cap now, then its buys and its sells, every trade behind «Show every trade» #}
