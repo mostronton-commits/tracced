@@ -33,6 +33,8 @@
       + '<div class="dspark-x"><span>' + utcDay(t0) + '</span><span>' + utcDay(t1) + '</span></div>';
   }
   const DIST = [['>500', '> 500%', 'g3'], ['200-500', '200–500%', 'g2'], ['50-200', '50–200%', 'g1'], ['0-50', '0–50%', 'g0'], ['-50-0', '−50–0%', 'r0'], ['<-50', '< −50%', 'r1']];
+  // a return as a multiple of what went in: 0.73×, 3.1×, 12× (v2, owner 26.10: «roi краще в іксах»)
+  const multX = m => (m <= 0 ? '0' : m < 1 ? m.toFixed(2) : m < 10 ? m.toFixed(1) : String(Math.round(m))) + '×';
   function distHtml(p) {
     // closed positions by result, big wins on the left, big losses on the right: the count sits on each wide part,
     // hover (or tap) any part for its range and share
@@ -84,7 +86,8 @@
     return '<table class="drecent"><thead><tr><th>Token</th><th class="num">PnL</th><th class="num">ROI</th><th></th><th class="num">Last</th></tr></thead><tbody>'
       + RECENT.map((t, i) => '<tr class="rt" data-i="' + i + '" tabindex="0" title="Show ' + esc(t.symbol || 'this token') + '\'s chart with this wallet\'s buys and sells"><td><b class="rts">' + esc(t.symbol || short(t.mint)) + '</b></td>'
         + '<td class="num mono ' + (t.realized_usd > 0 ? 'pos' : (t.realized_usd < 0 ? 'neg' : '')) + '">' + (t.realized_usd == null ? '—' : money(t.realized_usd)) + '</td>'
-        + '<td class="num mono">' + (t.roi == null ? '—' : (t.roi > 0 ? '+' : '') + Math.round(t.roi) + '%') + '</td>'
+        + '<td class="num mono"' + (V2 && t.roi != null ? ' title="' + (t.roi > 0 ? '+' : '') + Math.round(t.roi) + '%"' : '') + '>'
+        + (t.roi == null ? '—' : V2 ? multX(1 + t.roi / 100) : (t.roi > 0 ? '+' : '') + Math.round(t.roi) + '%') + '</td>'   // v2: as a multiple, the % under the pointer (owner, 26.10)
         + '<td><span class="st st-' + t.state.replace(' ', '-') + '">' + t.state + '</span></td>'
         + '<td class="num muted">' + ago(t.last_ms) + '</td></tr>').join('') + '</tbody></table>';
   }
