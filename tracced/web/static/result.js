@@ -87,7 +87,7 @@
     const KIND_TXT = { exchange: 'an exchange', dex: 'a trading app', gambling: 'a gambling site', bridge: 'a bridge', defi: 'a DeFi app', payments: 'a payments app', mev: 'an MEV bot' };
     const fundKey = w => { const x = funders[w]; return x && EXCH[x] ? 'x:' + EXCH[x][0] : (x || ''); };
     const fundLabel = k => k && k.startsWith('x:') ? k.slice(2) : short(k);
-    const onChart = [], MAX_ON_CHART = 10, BUY_C = '#34D399', SELL_C = '#F87171';
+    const onChart = [], MAX_ON_CHART = 10, BUY_C = document.documentElement.dataset.design === 'v2' ? '#5AD46A' : '#34D399', SELL_C = document.documentElement.dataset.design === 'v2' ? '#FF6470' : '#F87171';
     // no violet: on this page it means a repeat; orange first, the bundle tag's own colour
     const BUNDLE_PAL = ['#FDBA74', '#7DD3FC', '#F9A8D4', '#FCD34D', '#5EEAD4', '#BEF264', '#93C5FD', '#FDA4AF'];
     const BUNDLE_MIN = CFG.bundle_min, BURST_MS = CFG.burst_ms, TAGDEF = CFG.tags;

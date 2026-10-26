@@ -68,7 +68,7 @@ class FakeWebST(FakeST):
 if AioHTTPTestCase:
     from tracced.web import chart
     from tracced.web import accounts as acct_mod
-    from tracced.web.app import create_app, _acct_secret
+    from tracced.web.app import create_app, _acct_secret, _fingerprint
 
     TEST_PK = acct_mod.b58encode(b"\x07" * 32)          # гаманець, від імені якого тести запускають живі аналізи
     GUEST = {"Cookie": ""}                                # той самий запит без гаманця
@@ -243,6 +243,44 @@ if AioHTTPTestCase:
             t2 = Throttle(max_fails=1, window_s=300, block_s=60)
             self.assertGreater(t2.miss("a", 0), 0)
             self.assertGreater(t2.miss("a", 1), 60)                        # кожна наступна спроба довша
+
+        async def test_design_v2_lives_beside_the_old_look(self):
+            # owner, 26.10: the rebrand has its own stylesheet and tokens and the `design` cookie picks it; without the
+            # cookie the site is the old one, its style.css, status bar and bell untouched
+            old = await (await self.client.get("/docs")).text()
+            self.assertIn('href="/static/style.css', old)
+            self.assertNotIn("/static/v2/", old)
+            self.assertIn('class="sbar"', old)
+            self.assertNotIn('data-design="v2"', old)
+            v2 = {"Cookie": wallet_cookie(TEST_PK) + "; design=v2"}
+            for path in ("/", "/docs", f"/token?mint={MINT}"):
+                html = await (await self.client.get(path, headers=v2)).text()
+                self.assertIn('data-design="v2"', html, path)
+                self.assertLess(html.index('href="/static/v2/tokens.css'), html.index('href="/static/v2/style.css'), path)
+                self.assertNotIn('href="/static/style.css', html, path)
+                for gone in ('class="sbar"', 'id="newsmark"', "early:theme", "foot-brand"):
+                    self.assertNotIn(gone, html, path)
+                foot = html[html.index('<footer class="foot">'):]
+                for link in ('href="/docs/updates"', 'href="/feedback"', "t.me/tracced_xyz", "github.com/mostronton-commits/tracced"):
+                    self.assertIn(link, foot, path)
+                self.assertIn("x.com/intent/follow?screen_name=tracced_xyz", html, path)
+                self.assertIn(str(_fingerprint(TEST_PK)), html, path)                 # the wallet's own picture in its pill
+            for f in ("/static/v2/tokens.css", "/static/v2/style.css", "/static/v2/stars.svg", "/static/v2/icon.svg"):
+                self.assertEqual((await self.client.get(f)).status, 200, f)
+            self.assertEqual(_fingerprint(TEST_PK), _fingerprint(TEST_PK))
+            self.assertNotEqual(_fingerprint(TEST_PK), _fingerprint(TEST_PK[::-1]))
+
+        async def test_design_switch_is_for_the_owner_and_the_closed_copy(self):
+            r = await self.client.get("/design?to=v2&back=/docs", allow_redirects=False)     # the owner's wallet
+            self.assertEqual(r.status, 302)
+            self.assertEqual(r.headers["Location"], "/docs")
+            self.assertIn("design=v2", r.headers.get("Set-Cookie", ""))
+            r = await self.client.get("/design?to=old&back=//elsewhere.example", allow_redirects=False)
+            self.assertEqual(r.headers["Location"], "/")                               # our own addresses only
+            self.assertIn('design=""', r.headers.get("Set-Cookie", ""))                # the cookie goes
+            r = await self.client.get("/design?to=v2", headers=GUEST, allow_redirects=False)
+            self.assertEqual(r.status, 404)                                            # a guest on the public site
+            self.assertNotIn("design=v2", r.headers.get("Set-Cookie", ""))
 
         async def test_layout_containers(self):
             # верстка тримається на трьох речах: смуги шапки/підвалу з внутрішнім контейнером і широка сторінка результату
@@ -2483,6 +2521,16 @@ if AioHTTPTestCase:
             r = await self.client.post("/auth/verify", json={"pubkey": pk, "signature": sig, "message": msg, "wallet": "Phantom"},
                                        headers={"Origin": self.origin})
             return r, pk, msg, sig
+
+        async def test_sign_in_draws_the_pill_of_the_design_in_use(self):
+            r, pk, _, _ = await self._sign_in()
+            self.assertIn('<i class="dot"></i>', (await r.json())["pill"])             # the old look's pill
+            self.client.session.headers["Cookie"] = "design=v2"
+            r, pk, _, _ = await self._sign_in()
+            pill = (await r.json())["pill"]
+            self.assertIn(str(_fingerprint(pk)), pill)                                 # v2: fingerprint, short address, menu
+            self.assertIn(pk[:4] + "…" + pk[-4:], pill)
+            self.assertIn("Sign out", pill)
 
         async def test_new_wallets_from_one_network_stop_at_the_days_cap_known_ones_do_not(self):
             self.app["s"]["new_accounts_per_ip_per_day"] = 2

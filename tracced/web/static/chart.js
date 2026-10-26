@@ -40,32 +40,44 @@
   }
   const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 
+  // design v2 (the rebrand, 26.10, behind the `design` cookie): the chart on the page's graphite card, candles in profit
+  // and loss, Switzer on the axes. Without the cookie the chart stays as it was
+  const V2 = document.documentElement.dataset.design === 'v2';
   // each range its own shade of the same mint, so two neighbours are told apart without a rainbow (owner, 02.10)
-  const SHADES = ['52, 211, 153', '45, 212, 191', '134, 239, 172', '34, 211, 238', '110, 231, 183'];
+  const SHADES = V2 ? ['149, 235, 213', '120, 220, 200', '178, 242, 224', '110, 205, 225', '135, 225, 190']
+                    : ['52, 211, 153', '45, 212, 191', '134, 239, 172', '34, 211, 238', '110, 231, 183'];
   window.EarlyChart = function (el, opts) {
     const created = opts.created / 1000, now = opts.now / 1000;
+    const C = V2
+      ? { bg: { type: 'solid', color: '#17181A' }, text: '#8B8F94', font: '"Switzer", "IBM Plex Sans", ui-sans-serif, sans-serif',
+          gridV: 'rgba(255, 255, 255, 0.04)', gridH: 'rgba(255, 255, 255, 0.05)', edge: 'rgba(255, 255, 255, 0.07)', cross: '#4C5055', crossBg: '#2A2C30',
+          up: '#5AD46A', upFill: '#5AD46A', down: '#FF6470', volUp: 'rgba(90, 212, 106, 0.28)', volDown: 'rgba(255, 100, 112, 0.22)',
+          mark: 'rgba(237, 238, 239, 0.05)', markFont: '"Switzer", "IBM Plex Sans", sans-serif', buy: '#5AD46A', sell: '#FF6470' }
+      : { bg: (LW.ColorType && LW.ColorType.VerticalGradient) ? { type: LW.ColorType.VerticalGradient, topColor: '#0B1220', bottomColor: '#090D16' } : { type: 'solid', color: '#090D16' },
+          text: '#94A3B8', font: '"IBM Plex Mono", ui-monospace, Menlo, monospace',
+          gridV: '#10172A', gridH: '#182236', edge: '#1E293B', cross: '#64748B', crossBg: '#1E293B',
+          up: '#A7F3D0', upFill: 'rgba(167, 243, 208, 0.22)', down: '#CBD5E1', volUp: 'rgba(167, 243, 208, 0.28)', volDown: 'rgba(148, 163, 184, 0.22)',
+          mark: 'rgba(148, 163, 184, 0.09)', markFont: '"IBM Plex Sans", -apple-system, sans-serif', buy: '#34D399', sell: '#F87171' };
     const box = document.createElement('div'); box.className = 'lw'; el.appendChild(box);
     const layer = document.createElement('div'); layer.className = 'overlay'; el.appendChild(layer);
 
     const chart = LW.createChart(box, {
       autoSize: true,
-      layout: { background: (LW.ColorType && LW.ColorType.VerticalGradient) ? { type: LW.ColorType.VerticalGradient, topColor: '#0B1220', bottomColor: '#090D16' } : { type: 'solid', color: '#090D16' },
-                textColor: '#94A3B8', fontSize: 11,
-                fontFamily: '"IBM Plex Mono", ui-monospace, Menlo, monospace', attributionLogo: false },
-      grid: { vertLines: { color: '#10172A' }, horzLines: { color: '#182236' } },
-      rightPriceScale: { borderColor: '#1E293B', scaleMargins: { top: 0.08, bottom: 0.08 } },
+      layout: { background: C.bg, textColor: C.text, fontSize: 11, fontFamily: C.font, attributionLogo: false },
+      grid: { vertLines: { color: C.gridV }, horzLines: { color: C.gridH } },
+      rightPriceScale: { borderColor: C.edge, scaleMargins: { top: 0.08, bottom: 0.08 } },
       // minBarSpacing 2: the renderer draws a candle body only when it is wider than its two borders, so bars packed
       // below a pixel or two turn into outlines on the dark ground and the chart reads as empty (it did on phones)
-      timeScale: { borderColor: '#1E293B', timeVisible: true, secondsVisible: false, rightOffset: 4, minBarSpacing: 2,
+      timeScale: { borderColor: C.edge, timeVisible: true, secondsVisible: false, rightOffset: 4, minBarSpacing: 2,
                    tickMarkFormatter: (t, type) => (type <= 2 ? fmtTime(t, true).replace(/, \d\d:\d\d$/, '') : fmtTime(t, false)) },
-      crosshair: { mode: LW.CrosshairMode.Normal, vertLine: { color: '#64748B', labelBackgroundColor: '#1E293B' }, horzLine: { color: '#64748B', labelBackgroundColor: '#1E293B' } },
+      crosshair: { mode: LW.CrosshairMode.Normal, vertLine: { color: C.cross, labelBackgroundColor: C.crossBg }, horzLine: { color: C.cross, labelBackgroundColor: C.crossBg } },
       localization: { priceFormatter: fmtMcap, timeFormatter: s => fmtTime(s, true) },
       // a vertical swipe scrolls the page, not the chart: on a phone the chart is half the screen and used to trap it
       handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false }, handleScale: true,
     });
     const series = chart.addSeries(LW.CandlestickSeries, {
-      upColor: 'rgba(167, 243, 208, 0.22)', downColor: '#CBD5E1', borderUpColor: '#A7F3D0', borderDownColor: '#CBD5E1',
-      wickUpColor: '#A7F3D0', wickDownColor: '#CBD5E1',
+      upColor: C.upFill, downColor: C.down, borderUpColor: C.up, borderDownColor: C.down,
+      wickUpColor: C.up, wickDownColor: C.down,
       priceFormat: { type: 'custom', formatter: fmtMcap, minMove: 1 },
       priceLineVisible: false, lastValueVisible: true,
     });
@@ -74,7 +86,7 @@
     if (vol) chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 }, visible: false });
     if (LW.createTextWatermark && opts.symbol) {
       try { LW.createTextWatermark(chart.panes()[0], { horzAlign: 'center', vertAlign: 'center',
-        lines: [{ text: opts.symbol, color: 'rgba(148, 163, 184, 0.09)', fontSize: 72, fontFamily: '"IBM Plex Sans", -apple-system, sans-serif', fontStyle: '600' }] }); } catch (e) {}
+        lines: [{ text: opts.symbol, color: C.mark, fontSize: 72, fontFamily: C.markFont, fontStyle: '600' }] }); } catch (e) {}
     }
     const empty = document.createElement('div'); empty.className = 'chart-empty'; empty.hidden = true;
     empty.textContent = 'No candles here yet'; el.appendChild(empty);
@@ -141,7 +153,7 @@
         const sorted = [...data.values()].sort((x, y) => x.time - y.time);
         times = sorted.map(c => c.time);
         series.setData(sorted);
-        if (vol) vol.setData(sorted.map(c => ({ time: c.time, value: c.volume || 0, color: c.close >= c.open ? 'rgba(167, 243, 208, 0.28)' : 'rgba(148, 163, 184, 0.22)' })));
+        if (vol) vol.setData(sorted.map(c => ({ time: c.time, value: c.volume || 0, color: c.close >= c.open ? C.volUp : C.volDown })));
         renderMarkers();
         if (keepL) {
           const shift = firstBefore == null ? 0 : Math.max(0, times.indexOf(firstBefore));   // bars that arrived on the left
@@ -326,7 +338,7 @@
        A wallet funded together with others is drawn as a square instead of an arrow: the library stacks markers that
        share a bar and a side rather than overlaying them, so a ring behind the arrow is not possible — the group's
        own colour lives on its chip under the chart and on the row stripe in the table. */
-    const BUY = '#34D399', SELL = '#F87171';
+    const BUY = C.buy, SELL = C.sell;
     let wallets = [], markersApi = null;
     const fmtUsd = v => (v == null ? '' : '$' + (v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'K' : v.toFixed(0)));
     function groupTrades(list, step) {
@@ -378,6 +390,14 @@
     launch.title = 'Jump to the first hours of trading, right after the token launched';
     launch.addEventListener('click', () => { focus(created, created + 3 * 3600, null); if (window.EarlyUI) EarlyUI.use('chart-nav', { to: 'launch' }); });
     tfs.appendChild(launch);
+    // v2 has no status bar and no footer switch: UTC or local time lives here, where time is read (26.10)
+    if (V2 && opts.interactive && window.EarlyTZ) {
+      const tz = document.createElement('button'); tz.type = 'button'; tz.className = 'tf tzone';
+      tz.textContent = EarlyTZ.get() === 'utc' ? 'UTC' : 'Local';
+      tz.title = EarlyTZ.get() === 'utc' ? 'Times are in UTC. Click for your local time' : 'Times are in your local time. Click for UTC';
+      tz.addEventListener('click', () => EarlyTZ.toggle());
+      tfs.appendChild(tz);
+    }
     el.appendChild(tfs);
 
     return {

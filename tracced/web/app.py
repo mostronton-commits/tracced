@@ -60,6 +60,7 @@ HOUR = 3_600_000
 MINUTE = 60_000
 MINT_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 MAX_CANDLES = 1500          # скільки свічок має сенс просити за раз: більше — і джерело мовчки обріже відповідь
+DESIGN_COOKIE = "design"             # design=v2: the rebrand (26.10) beside the old look, chosen per browser
 ACCT_COOKIE = "early_acct"          # вхід гаманцем — єдиний вхід на сайті
 DEVICE_COOKIE = "early_dev"         # випадкове число браузера для добової стелі аналізів; нічого іншого в ньому нема
 DEVICE_DAYS = 90            # лічильник доби не потребує року: 90 днів — і менше, що пояснювати в політиці (юр. огляд 01.10)
@@ -140,6 +141,44 @@ env.globals["v"] = _asset_version()
 # IBM Carbon icons from one sprite (owner, 02.10: not the Lucide look of AI-made sites); ui.js has the same for scripts
 env.globals["icon"] = lambda name, cls="": Markup(f'<svg class="ci{" " + cls if cls else ""}" aria-hidden="true">'
                                                  f'<use href="/static/icons.svg?v={env.globals["v"]}#i-{name}"/></svg>')
+# design v2's own small marks (26.10, DESIGN-v2.md «Page frame»): 16-unit strokes in currentColor, a label only when the mark is the
+# whole control. The brands' own logos (wallet apps) stay theirs
+GLYPHS = {
+    "search": '<circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4 L13.6 13.6"/>',
+    "x": '<path d="M2.6 3 H5.7 L13.4 13 H10.3 Z" stroke-width="1.3"/><path d="M12.9 3 L9.2 7.1 M6.8 9.7 L3.1 13"/>',
+    "telegram": '<path d="M13.7 2.9 2.4 7.4c-.5.2-.5.9.1 1.1l2.8.9 1.1 3.3c.1.4.6.5.9.2l1.6-1.5 2.9 2.1c.4.3.9.1 1-.4l1.8-9.5c.1-.5-.4-.9-.9-.7Z"/>'
+                '<path d="M5.3 9.4 11.4 5.5 7.6 10.2"/>',
+    "github": '<path d="M3.3 6.3 3.1 2.6l2.6 1.6a6 6 0 0 1 4.6 0l2.6-1.6-.2 3.7c.5.7.7 1.5.7 2.3 0 2.5-1.9 4.1-4.4 4.3V14H7v-1.1C4.5 12.7 2.6 11.1 2.6 8.6c0-.8.2-1.6.7-2.3Z"/>'
+              '<path d="M7 12.9c-1.9.4-2.6-.5-3.2-1.3"/>',
+    "chevron": '<path d="M4 6 8 10 12 6"/>',
+}
+
+
+def _glyph(name, label=""):
+    a11y = f'role="img" aria-label="{label}"' if label else 'aria-hidden="true"'
+    return Markup(f'<svg class="gl gl-{name}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" '
+                  f'stroke-linecap="round" stroke-linejoin="round" {a11y}>{GLYPHS[name]}</svg>')
+
+
+def _fingerprint(addr, size=22):
+    """A wallet's own picture (DESIGN-v2.md, «Page frame»): sha256 of the address, five rows of five dots mirrored
+    left to right. Byte i of the hash sets cell i of the left three columns, row by row: 0 an empty dot, 1 mint, else
+    ink. The same address always draws the same picture, here and in the scripts."""
+    if not addr:
+        return ""
+    h, dots = hashlib.sha256(str(addr).encode()).digest(), []
+    for row in range(5):
+        for col in range(3):
+            v = h[row * 3 + col] % 4
+            for c in sorted({col, 4 - col}):
+                x, y = 2.4 + c * 4.8, 2.4 + row * 4.8
+                dots.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="0.6" class="f0"/>' if v == 0 else
+                            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="1.7" class="{"f1" if v == 1 else "f2"}"/>')
+    return Markup(f'<svg class="fp" width="{size}" height="{size}" viewBox="0 0 24 24" aria-hidden="true">{"".join(dots)}</svg>')
+
+
+env.globals["glyph"] = _glyph
+env.globals["fingerprint"] = _fingerprint
 from .. import __version__                                   # noqa: E402 — product version for the footer
 env.globals["version"] = ".".join(__version__.split(".")[:2])
 env.globals["news"] = docs_mod.latest(DOCS_DIR)                # the bell beside the wallet: which update is the newest
@@ -703,6 +742,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_get("/lists/{slug}", list_page)
     app.router.add_post("/me/ready/follow", me_follow_list)
     app.router.add_get("/how", how)
+    app.router.add_get("/design", design_switch)
     app.router.add_get("/docs", docs_page)
     app.router.add_get("/docs/{slug}", docs_page)
     app.router.add_get("/project", project)
@@ -2874,7 +2914,8 @@ async def auth_verify(request):
     wallet_app = str(body.get("wallet") or "")[:40]
     app["accounts"].touch(pubkey, wallet_app)
     app["events"].add(pubkey, "signin", wallet=wallet_app)
-    resp = web.json_response({"ok": True, "pubkey": pubkey, "short": _short(pubkey)})
+    pill = _render_html("_acct.html", request, acct=pubkey, acct_short=_short(pubkey))   # design v2 swaps Connect for it, unreloaded
+    resp = web.json_response({"ok": True, "pubkey": pubkey, "short": _short(pubkey), "pill": pill})
     issued = max(int(now), app["accounts"].signed_out_at(pubkey) + 1)    # новий вхід у ту ж секунду, що й вихід
     resp.set_cookie(ACCT_COOKIE, acct_mod.sign_acct(_acct_secret(), pubkey, issued + ACCT_DAYS * 86400),
                     httponly=True, samesite="Lax", secure=True, max_age=ACCT_DAYS * 86400)
@@ -3804,6 +3845,10 @@ def _render_html(name, request, **ctx):
         ctx.setdefault("early_note", EARLY_NOTE)
         dark = str(request.app["s"].get("dark_theme", "draft"))      # власник, 08.10: темна — лише на закритій копії, поки не доведена
         ctx.setdefault("dark_on", dark == "on" or (dark == "draft" and _private_host(request)))
+        # the rebrand lives beside the old look (owner, 26.10): base.html takes its stylesheet, header and footer by this
+        ctx.setdefault("design_v2", request.cookies.get(DESIGN_COOKIE) == "v2")
+        lists = (request.app.get("ready") or {}).get("lists") or {}   # «Top traders» у меню акаунта v2 веде на список, коли він є
+        ctx.setdefault("top_list", next(((lists[k].get("slug") or k) for k in READY_ORDER if lists.get(k)), None))
     # аналітика вмикається лише там, де задано id, і ніколи на сторінках власника: там показується новий ключ API,
     # а сторонній скрипт на сторінці бачить усе, що на ній є
     admin_page = request is not None and request.path.startswith("/admin")
@@ -4395,6 +4440,22 @@ async def live_json(request):
     назовні — лише те, що сервер і так тримає в пам'яті."""
     live = _live_feed(request.app)
     return web.json_response({"rows": live["rows"][:12], "day": live["day"]}, headers={"Cache-Control": "public, max-age=10"})
+
+
+async def design_switch(request):
+    """/design?to=v2 shows this browser the rebrand (26.10), /design?to=old the site as it was; back to ?back= or home.
+    Only the closed copy and the owner's wallets switch: everyone else keeps the old look and gets a missing page here."""
+    if not (_private_host(request) or request.get("acct") in request.app["admins"]):
+        raise web.HTTPNotFound()
+    back = request.query.get("back") or "/"
+    if not back.startswith("/") or back.startswith("//") or "\\" in back:      # тільки свої адреси: не відкритий редирект
+        back = "/"
+    resp = web.HTTPFound(back)
+    if request.query.get("to", "v2") == "v2":
+        resp.set_cookie(DESIGN_COOKIE, "v2", max_age=365 * 86400, path="/", httponly=True, samesite="Lax", secure=True)
+    else:
+        resp.del_cookie(DESIGN_COOKIE, path="/")
+    raise resp
 
 
 async def index(request):

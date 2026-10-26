@@ -1,0 +1,109 @@
+/* tracced design tokens · v1 · 2026-10-26
+   One dark theme («Графіт», mint accent). Every colour, size, radius and space on the site comes from here;
+   anything else is a bug. Source: the screens on the design canvas, normalised on 26.10; how to use them: DESIGN-v2.md. */
+
+:root {
+  color-scheme: dark;
+
+  /* ---------- surfaces ---------- */
+  --bg:          #101112;   /* page */
+  --bg-deep:     #0B0C0D;   /* stages, the planet, chat windows, inputs inside cards */
+  --surface:     #17181A;   /* cards */
+  --surface-2:   #202225;   /* rows, tiles, quiet buttons, inputs */
+  --surface-3:   #2A2C30;   /* hover on surface-2 */
+  --line:        rgba(255, 255, 255, 0.07);   /* dividers */
+  --line-strong: rgba(237, 238, 239, 0.14);   /* outlines of inputs and round buttons */
+
+  /* ---------- text ---------- */
+  --ink:    #EDEEEF;   /* main text, numbers */
+  --ink-2:  #C9CCD0;   /* long reading text (docs, callouts) */
+  --muted:  #8B8F94;   /* labels, secondary lines, placeholders */
+  --faint:  #4C5055;   /* dividers in text, empty dots, disabled */
+
+  /* ---------- accent: mint, for controls and brand only (never for numbers) ---------- */
+  --mint:        #95EBD5;
+  --mint-hover:  #ABF1DE;
+  --mint-press:  #7ED9C2;
+  --on-mint:     #04261C;
+  --mint-wash:   rgba(149, 235, 213, 0.09);   /* selected chip, callout, active row */
+  --mint-line:   rgba(149, 235, 213, 0.35);   /* outline of a selected chip or row */
+  --focus:       0 0 0 2px var(--bg), 0 0 0 4px var(--mint);
+
+  /* ---------- numbers: profit and loss only on figures, bars and chart marks ---------- */
+  --profit:      #5AD46A;
+  --on-profit:   #062A0C;
+  --profit-wash: rgba(90, 212, 106, 0.13);
+  --loss:        #FF6470;
+  --on-loss:     #2A0508;
+  --loss-wash:   rgba(255, 100, 112, 0.13);
+
+  /* ---------- tags and findings ---------- */
+  --risk:   #E7B45A;   /* sniper, bundle, fresh, transfer in; the middle «size of the trade» dot */
+  --danger: #FF6470;   /* creator, launch bundle, own bundle, organised launch */
+  --known:  #6AB2F2;   /* a publicly known wallet: KOL, exchange (its hue on tags only) */
+  --repeat: #A99AF5;   /* a wallet seen before in your other analyses */
+  --sleeper:#E58AD6;   /* dormant: a wallet that slept before this buy */
+
+  /* ---------- data scale: closed positions, six buckets from big wins to big losses ---------- */
+  --scale-1: #5AD46A;  --scale-2: #3FAE52;  --scale-3: #2C6B3A;
+  --scale-4: #6B3A3E;  --scale-5: #B4474F;  --scale-6: #FF6470;
+
+  /* ---------- Telegram, only inside pictures of Telegram (alerts, the bot chat) ---------- */
+  --tg:       #6AB2F2;
+  --tg-chat:  #0E1621;
+  --tg-bar:   #17212B;
+  --tg-bubble:#182533;
+
+  /* ---------- type ---------- */
+  /* IBM Plex follows each face: it carries the Cyrillic and arrows the Fontshare files lack, and stands in for them
+     wherever they are absent (a public checkout has no fonts/fs, see .gitignore) */
+  --font:  'Switzer', 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;   /* everything, tabular figures on */
+  --mono:  'Tabular', 'IBM Plex Mono', ui-monospace, monospace;               /* addresses only */
+
+  --fs-micro:   11px;   /* table heads, tiny labels */
+  --fs-caption: 12px;   /* secondary lines under names, chips */
+  --fs-small:   13px;   /* toolbar, meta lines, footer */
+  --fs-body:    14px;   /* default */
+  --fs-read:    16px;   /* docs body, lead lines in cards, big buttons */
+  --fs-lead:    18px;   /* the line under a page title */
+  --fs-title:   19px;   /* card titles */
+  --fs-num:     24px;   /* key figures: tally, stats, a wallet's name in a card */
+  --fs-h2:      28px;   /* section titles, PnL in a card, small page titles */
+  --fs-h1:      40px;   /* page titles */
+  --fs-display: 60px;   /* home closing call */
+  --fs-hero:    84px;   /* home headline only */
+
+  --w-regular: 400;  --w-medium: 500;  --w-semi: 600;   /* no 700 */
+  --track-tight: -0.02em;   /* 19 px and up */
+  --track-hero:  -0.04em;   /* 60 px and up */
+  --lh-tight: 1.04;  --lh-body: 1.45;  --lh-read: 1.65;
+
+  /* ---------- radius: inner radius = outer radius − padding ---------- */
+  --r-xs:   4px;    /* bars, size dots, tiny marks */
+  --r-s:    6px;    /* tags, small chips inside text */
+  --r-m:   10px;    /* inputs and tiles inside a row, toolbar buttons */
+  --r-l:   14px;    /* rows, tiles, menus, chat bubbles */
+  --r-card: 22px;   /* cards */
+  --r-modal: 26px;  /* modals, the hero input */
+  --r-pill: 999px;  /* buttons, segmented switches, avatars */
+
+  /* ---------- space ---------- */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px;  --s-4: 16px;  --s-5: 20px;  --s-6: 24px;
+  --s-8: 32px; --s-10: 40px; --s-12: 48px; --s-16: 64px; --s-24: 96px;
+  --page-pad: 28px;          /* app pages */
+  --page-pad-home: 100px;    /* home, desktop */
+  --content: 1240px;         /* home content width */
+
+  /* ---------- depth ---------- */
+  --shadow-pop:   inset 0 0 0 1px rgba(237, 238, 239, 0.10), 0 24px 48px rgba(0, 0, 0, 0.55);   /* menus */
+  --shadow-modal: inset 0 0 0 1px rgba(237, 238, 239, 0.10), 0 40px 80px rgba(0, 0, 0, 0.60);   /* modals */
+  --shadow-card:  inset 0 0 0 1px rgba(237, 238, 239, 0.06);                                     /* card edge */
+  --halo-input:   0 0 0 8px rgba(11, 13, 14, 0.6), 0 18px 44px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+
+  /* ---------- motion ---------- */
+  --t-fast: 150ms;  --t-base: 250ms;  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --t-fast: 0ms; --t-base: 0ms; }
+}

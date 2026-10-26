@@ -542,3 +542,13 @@ The pages are flat. Depth comes from the light layers (page, card, hover) and fr
 - Don't reach for the template look that AI tools produce by default (owner, 02.10): an arrow in every button, hover
   lifts, semibold everything, pill-shaped stat chips, stock chart libraries, stock component kits. Each detail is chosen for tracced: the
   ledger's mono, the record's cursor, facts in tables.
+
+## Design v2 (the rebrand, beside this one)
+
+The owner's new design (26.10) lives beside this file's look, not over it: its own rules in
+[DESIGN-v2.md](DESIGN-v2.md), its own `static/v2/tokens.css` and `static/v2/style.css`, its own header, footer and
+account pill in `templates/v2/`. `base.html` picks one by the browser's `design` cookie (`design=v2`); without it the
+site is exactly what this file describes, and `static/style.css` is not touched for v2. `/design?to=v2` and
+`/design?to=old` switch a browser, on the closed copy and for the owner's wallets only. A change to the default look
+follows this file; a change to v2 follows DESIGN-v2.md.
+

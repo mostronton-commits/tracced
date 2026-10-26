@@ -1,0 +1,5 @@
+{# design v2: who is signed in, the same on every page (26.10). The wallet's fingerprint and short address open a menu
+   with what it keeps; no links beside it (owner: the header holds no nav). A guest gets Connect #}
+{% if acct %}<div class="menu acct"><button type="button" class="acct-pill" data-menu title="{{ acct }}" aria-haspopup="menu">{{ fingerprint(acct) }}<span class="addr">{{ acct_short }}</span>{{ glyph('chevron') }}</button>
+  <div class="menu-panel r" hidden><a href="/me#list">Watchlist</a><a href="/me#analyses">My analyses</a>{% if top_list %}<a href="/lists/{{ top_list }}">Top traders</a>{% endif %}<a href="/docs">Docs</a><button type="button" data-wallet-signout>Sign out</button></div>
+</div>{% else %}<button type="button" class="acct-in" data-wallet-signin title="Connect a Solana wallet to save wallets and analyses">Connect</button>{% endif %}

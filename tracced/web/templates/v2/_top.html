@@ -1,0 +1,11 @@
+{# design v2's header (26.10, DESIGN-v2.md «Page frame»): the logo, one search for a token, a follow on X and who is
+   signed in; no links in the header, the rest lives in the account's menu and the footer #}
+<header class="top"><div class="top-in">
+  <a class="brand" href="/" aria-label="tracced, home"><svg class="bmark" viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M28 14.5 V37.5 a12 12 0 0 0 12 12 h10"/><path d="M14 26.5 H42"/></svg><span>tracced</span></a>
+  <form method="get" action="/token" class="topsearch" role="search">
+    <label>{{ glyph('search') }}<input type="text" name="mint" placeholder="Paste a token address" aria-label="Token address" pattern="[1-9A-HJ-NP-Za-km-z]{32,44}" spellcheck="false" autocomplete="off" required><kbd aria-hidden="true">/</kbd></label>
+  </form>
+  <span class="top-sp"></span>
+  <a class="xfollow" href="https://x.com/intent/follow?screen_name=tracced_xyz" target="_blank" rel="noopener" title="Follow tracced on X">{{ glyph('x', 'Follow tracced on X') }}</a>
+  <div class="acct-slot">{% include "_acct.html" %}</div>
+</div></header>

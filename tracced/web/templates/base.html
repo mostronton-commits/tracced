@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-acct="{{ 1 if acct else 0 }}">
+<html lang="en" data-acct="{{ 1 if acct else 0 }}"{% if design_v2 %} data-design="v2"{% endif %}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -17,11 +17,15 @@
 <meta property="og:image:alt" content="tracced: see who bought before the pump. A chart with a wallet's buys before the pump and its sells at the top.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:site" content="@tracced_xyz">
-<link rel="icon" href="/static/brand/icon.svg?v={{ v }}" type="image/svg+xml">
+<link rel="icon" href="/static/{{ 'v2/icon.svg' if design_v2 else 'brand/icon.svg' }}?v={{ v }}" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/static/brand/icon-180.png?v={{ v }}">
 {% if umami_id %}<script defer src="https://cloud.umami.is/script.js" data-website-id="{{ umami_id }}" data-domains="{{ umami_domains }}" data-performance="true" data-tag="{{ 'wallet' if acct else 'guest' }}"></script>{% endif %}
-{% if dark_on %}<script>try { if (localStorage.getItem('early:theme') === 'dark') document.documentElement.dataset.theme = 'dark'; } catch (e) {}</script>{% endif %}
-<link rel="stylesheet" href="/static/style.css?v={{ v }}">
+{# the rebrand (26.10) lives beside the old look: the `design` cookie picks the stylesheet, the header and the footer #}
+{% if design_v2 %}<meta name="theme-color" content="#101112">
+<link rel="stylesheet" href="/static/v2/tokens.css?v={{ v }}">
+<link rel="stylesheet" href="/static/v2/style.css?v={{ v }}">
+{% else %}{% if dark_on %}<script>try { if (localStorage.getItem('early:theme') === 'dark') document.documentElement.dataset.theme = 'dark'; } catch (e) {}</script>{% endif %}
+<link rel="stylesheet" href="/static/style.css?v={{ v }}">{% endif %}
 <script src="/static/ui.js?v={{ v }}"></script>
 <script src="/static/wallet.js?v={{ v }}" defer></script>
 <script>
@@ -71,7 +75,7 @@ window.EarlyCur = (function () {
   });
   return { get: () => cur, sol, solHtml, apply, toggle };
 })();
-/* light or dark (owner, 08.10): light by default, dark only by choice; switched at once, no reload */
+{% if not design_v2 %}/* light or dark (owner, 08.10): light by default, dark only by choice; switched at once, no reload */
 window.EarlyTheme = (function () {
   const KEY = 'early:theme';
   const get = () => document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
@@ -85,24 +89,24 @@ window.EarlyTheme = (function () {
   document.addEventListener('DOMContentLoaded', apply);
   return { get, toggle, apply };
 })();
-</script>
+{% endif %}</script>
 {% block head %}{% endblock %}
 </head>
 <body>
-{% block topbar %}<header class="top"><div class="top-in">
+{% block topbar %}{% if design_v2 %}{% include "v2/_top.html" %}{% else %}<header class="top"><div class="top-in">
   <a class="brand" href="/">tracced</a>
   <form method="get" action="/token" class="topsearch">
     <input type="text" name="mint" placeholder="Token address" pattern="[1-9A-HJ-NP-Za-km-z]{32,44}" spellcheck="false" autocomplete="off" required>
   </form>
   <div class="right acct-slot">{% include "_acct.html" %}</div>
   {% include "_news.html" %}
-</div></header>{% endblock %}
+</div></header>{% endif %}{% endblock %}
 {% block full %}{% endblock %}
 <main class="{% block main_class %}{% endblock %}">
 {% block body %}{% endblock %}
 </main>
 {% include "_wallet.html" %}
-<footer class="foot"><div class="foot-in">
+{% if design_v2 %}{% include "v2/_foot.html" %}{% else %}<footer class="foot"><div class="foot-in">
   <div class="foot-top">
     <div class="foot-brand"><b>tracced</b><span class="muted mono">every wallet on the record</span>
       <div class="foot-meta"><span class="mono muted">Built on Solana · <span title="assets {{ v }}">v{{ version }}</span></span>
@@ -135,6 +139,6 @@ window.EarlyTheme = (function () {
     {% if dark_on %}<button type="button" class="sbseg" id="sbtheme" title="Light or dark" aria-label="Light or dark" onclick="EarlyTheme.toggle()"><b class="on">Light</b><b>Dark</b></button>{% endif %}
     <a href="https://x.com/tracced_xyz" target="_blank" rel="noopener">X</a><a href="https://t.me/tracced_xyz" target="_blank" rel="noopener">Telegram</a><a href="https://github.com/mostronton-commits/tracced" target="_blank" rel="noopener">GitHub</a>
   </span>
-</div>
+</div>{% endif %}
 </body>
 </html>

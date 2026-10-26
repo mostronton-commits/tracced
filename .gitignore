@@ -13,3 +13,7 @@ docs/strategy.md
 
 # робочі копії агентів Claude Code: лише локально, не частина репозиторію
 .claude/worktrees/
+
+# Switzer and Tabular (Fontshare, ITF Free Font License) may be self-hosted but not redistributed, and this repository is
+# public: the files live on the servers and in tracced-private/design/fonts; without them the site falls back to IBM Plex
+tracced/web/static/fonts/fs/

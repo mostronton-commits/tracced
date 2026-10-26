@@ -146,6 +146,13 @@ document.addEventListener('DOMContentLoaded', () => {
   m.classList.add('fresh');
   m.addEventListener('click', mark);
 });
+/* design v2 (26.10): «/» anywhere but in a field puts the cursor in the header's search, as the key drawn in it says */
+document.addEventListener('keydown', e => {
+  if (document.documentElement.dataset.design !== 'v2') return;
+  if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || e.target.closest('input, textarea, select, [contenteditable]')) return;
+  const q = document.querySelector('.topsearch input'); if (!q) return;
+  e.preventDefault(); q.focus();
+});
 /* copy buttons: [data-copy="text"]; the button may hold an icon, so its markup comes back, not only its text */
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-copy]'); if (!b || !b.dataset.copy || !navigator.clipboard) return;

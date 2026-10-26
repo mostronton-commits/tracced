@@ -1,0 +1,5 @@
+{# design v2's footer: one line on every page (owner, 26.10); no logo, the header has it; no status bar, no bell #}
+<footer class="foot"><div class="foot-in">
+  <nav class="foot-links" aria-label="Site">{% if demo_token %}<a href="/token?mint={{ demo_token }}">Demo</a>{% endif %}<a href="/docs">Docs</a><a href="/docs/how-it-works">How it works</a><a href="/docs/project">The project</a><a href="/docs/updates">What's new</a><a href="/feedback">Contact</a></nav>
+  <span class="foot-end"><a href="https://t.me/tracced_xyz" target="_blank" rel="noopener" title="tracced on Telegram">{{ glyph('telegram', 'tracced on Telegram') }}</a><a href="https://github.com/mostronton-commits/tracced" target="_blank" rel="noopener" title="tracced on GitHub">{{ glyph('github', 'tracced on GitHub') }}</a><span class="ver" title="assets {{ v }}">v{{ version }}</span></span>
+</div></footer>

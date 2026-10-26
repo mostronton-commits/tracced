@@ -51,7 +51,9 @@
 
   function showPill(v) {
     const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const v2 = document.documentElement.dataset.design === 'v2';
     document.querySelectorAll('.acct-slot, .hero-acct').forEach(el => {   // the same menu a server-rendered page shows
+      if (v2 && v.pill) { el.innerHTML = v.pill; return; }                // design v2: the server draws its pill, fingerprint and all
       el.innerHTML = '<nav class="toplinks" aria-label="What you keep"><a href="/me">Watchlist</a></nav>'
         + '<div class="menu acct"><button type="button" class="acct-pill" data-menu title="' + esc(v.pubkey) + '"><i class="dot"></i><span class="mono">' + esc(v.short) + '</span></button>'
         + '<div class="menu-panel r" hidden><a href="/me#list">Watchlist</a><a href="/me#analyses">My analyses</a><button type="button" data-wallet-signout>Sign out</button></div></div>';
