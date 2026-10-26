@@ -8,15 +8,15 @@ description: >
 colors:
   background: "#101112"        # the page
   background-deep: "#0B0C0D"   # stages, the hero, inputs inside cards
-  surface: "#17181A"           # cards, the chart, menus, the header's search and buttons
-  surface-2: "#202225"         # rows, tiles, quiet buttons, the chosen half of a switch
-  surface-3: "#2A2C30"         # hover on surface-2
-  line: "rgba(255, 255, 255, 0.07)"          # dividers, card edges
-  line-strong: "rgba(237, 238, 239, 0.14)"   # outlines of inputs and round buttons
-  ink: "#EDEEEF"               # text, numbers; the fill of an ink button
-  ink-2: "#C9CCD0"             # long reading text
-  muted: "#8B8F94"             # labels, secondary lines, placeholders
-  faint: "#4C5055"             # empty dots, the version, disabled
+  surface: "#1A1C1F"           # cards, the chart, menus, the header's search and buttons
+  surface-2: "#25282C"         # rows, tiles, quiet buttons, the chosen half of a switch
+  surface-3: "#30343A"         # hover on surface-2
+  line: "rgba(255, 255, 255, 0.12)"          # dividers, card edges
+  line-strong: "rgba(237, 238, 239, 0.24)"   # outlines of inputs and round buttons
+  ink: "#F5F6F7"               # text, numbers; the fill of an ink button
+  ink-2: "#DADDE0"             # long reading text
+  muted: "#A6AAAF"             # labels, secondary lines, placeholders
+  faint: "#6B7076"             # empty dots, the version, disabled
   primary: "#95EBD5"           # mint: the primary key, a switch that is on, the logo, the live dot; never a number
   primary-hover: "#ABF1DE"
   on-primary: "#04261C"
@@ -185,6 +185,11 @@ Rules the owner set (do not undo them):
 - **No fake activity.** Feeds and counters show real events only.
 
 ## Colors
+
+The greys, the lines and the cards were lifted on 26.10 so the page reads in a bright room (owner: «у сонячній
+кімнаті дуже погано читається»; variant A of the canvas page «Темна тема на сонці»): `muted` on a card is 7.3:1,
+`faint` never carries a sentence. It stays one dark theme.
+
 
 - **Graphite surfaces:** `background` the page, `background-deep` stages and the hero, `surface` cards, the chart and
   menus, `surface-2` rows, tiles and quiet buttons, `surface-3` their hover. Edges are hairlines: `line` between

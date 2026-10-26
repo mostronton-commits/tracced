@@ -49,8 +49,8 @@
   window.EarlyChart = function (el, opts) {
     const created = opts.created / 1000, now = opts.now / 1000;
     const C = V2
-      ? { bg: { type: 'solid', color: '#17181A' }, text: '#8B8F94', font: '"Switzer", "IBM Plex Sans", ui-sans-serif, sans-serif',
-          gridV: 'rgba(255, 255, 255, 0.04)', gridH: 'rgba(255, 255, 255, 0.05)', edge: 'rgba(255, 255, 255, 0.07)', cross: '#4C5055', crossBg: '#2A2C30',
+      ? { bg: { type: 'solid', color: '#1A1C1F' }, text: '#A6AAAF', font: '"Switzer", "IBM Plex Sans", ui-sans-serif, sans-serif',
+          gridV: 'rgba(255, 255, 255, 0.08)', gridH: 'rgba(255, 255, 255, 0.09)', edge: 'rgba(255, 255, 255, 0.12)', cross: '#6B7076', crossBg: '#30343A',
           up: '#5AD46A', upFill: '#5AD46A', down: '#FF6470', volUp: 'rgba(90, 212, 106, 0.28)', volDown: 'rgba(255, 100, 112, 0.22)',
           mark: 'rgba(237, 238, 239, 0.05)', markFont: '"Switzer", "IBM Plex Sans", sans-serif', buy: '#5AD46A', sell: '#FF6470' }
       : { bg: (LW.ColorType && LW.ColorType.VerticalGradient) ? { type: LW.ColorType.VerticalGradient, topColor: '#0B1220', bottomColor: '#090D16' } : { type: 'solid', color: '#090D16' },
