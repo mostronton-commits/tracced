@@ -74,6 +74,19 @@ if AioHTTPTestCase:
             finally:
                 os.environ.pop("SITE_URL", None)
 
+        def test_the_copy_spends_less_in_the_background(self):
+            s = settings.load()
+            s.update(private_hosts=["dev.example"], ready_lists_on=True, fresh_refresh_min=10,
+                     private_copy={"ready_lists_on": False, "fresh_refresh_min": 60})
+            os.environ["SITE_URL"] = "https://dev.example"
+            try:
+                app = create_app(FakeWebST(TRADES), dict(s), {}, out_dir=self.tmp.name + "/w2", store_dir=self.tmp.name + "/c2")
+            finally:
+                os.environ.pop("SITE_URL", None)
+            self.assertEqual((app["s"]["ready_lists_on"], app["s"]["fresh_refresh_min"]), (False, 60))
+            site = create_app(FakeWebST(TRADES), dict(s), {}, out_dir=self.tmp.name + "/w3", store_dir=self.tmp.name + "/c3")
+            self.assertEqual((site["s"]["ready_lists_on"], site["s"]["fresh_refresh_min"]), (True, 10))   # the site keeps its own
+
         async def test_health_outside_says_only_ok(self):
             from unittest import mock
             with mock.patch("aiohttp.web_request.BaseRequest.remote", new_callable=mock.PropertyMock, return_value="203.0.113.9"):

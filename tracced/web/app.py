@@ -34,6 +34,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
 from ..cache import JsonCache
+from ..config import _deep_merge
 from ..early import agent as agent_mod, assistant as assistant_mod, exchanges as exch_mod, labels as labels_mod, launch as launch_mod, ledger, pipeline, profile, ready as ready_mod, report, scope, tags, wallet_age as wallet_age_mod, window
 from ..early.store import TradeStore
 from ..providers import dexscreener
@@ -622,6 +623,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["agent_store"] = AgentStore(Path(out_dir).parent / "agent")   # методика власника, її версії, журнал питань
     app["agent_cache"], app["agent_inflight"] = {}, {}             # картки спільного демо (у файл не пишуться) і ті, що вже пишуться
     app["st"], app["s"], app["cfg"] = st, s, cfg or {}
+    if _private_site(app):                                         # dev: фон тратить менше з того самого місяця запитів
+        _deep_merge(s, s.get("private_copy") or {})
     app["store_dir"] = store_dir
     app["runs"] = Throttle(max_fails=int(s.get("runs_per_hour", 20)), window_s=3600, block_s=3600)
     app["wallet_gate"] = {}                             # гаманець → (коли читали, чи новий або порожній): див. _wallet_gate

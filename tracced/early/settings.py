@@ -29,6 +29,7 @@ DEFAULTS = {
     "insightx_reserve_pct": 10,
     "insightx_pace_s": 13,
     "private_hosts": [],          # копії сайту лише для власника (config.yaml: dev.tracced.xyz)
+    "private_copy": {},           # що закрита копія (її SITE_URL серед private_hosts) робить інакше: вона ділить ключ ST із сайтом
     "alerts_open": False,
     "alerts_max_wallets": 20,     # гаманців зі сповіщеннями на акаунт: найновіші в списках з дзвіночком (власник, 02.10: 50 → 10; 08.10: 20)
     "alerts_min_usd": 100,        # мінімальна сума за замовчуванням
@@ -197,9 +198,13 @@ PLAN_CAPS = {
                  "budget_guard_pct": 25, "pause_s": 0.35, "st_concurrency": 1, "credits_month": 2500},
     # pause_s 0: спільний темп між потоками інакше тримав би стелю 1/pause запитів на секунду, скільки б
     # потоків не було. Швидкість тримає st_concurrency, а не пауза
+    # тарифи Solana Tracker без стелі швидкості: ті самі ендпоінти, різниться лише місяць запитів
     "advanced": {"max_trade_pages": 2000, "max_wallet_lookups": 3000, "max_window_pages": 400,
                  "budget_guard_pct": 0, "pause_s": 0.0, "st_concurrency": 8,
-                 "credits_month": 1_000_000, "credits_reserve_pct": 5},
+                 "credits_month": 200_000, "credits_reserve_pct": 5},      # €50 за 200 000 (власник, 27.10)
+    "pro":      {"max_trade_pages": 2000, "max_wallet_lookups": 3000, "max_window_pages": 400,
+                 "budget_guard_pct": 0, "pause_s": 0.0, "st_concurrency": 8,
+                 "credits_month": 1_000_000, "credits_reserve_pct": 5},    # €200 за 1 000 000 (24.09–24.11)
 }
 
 
