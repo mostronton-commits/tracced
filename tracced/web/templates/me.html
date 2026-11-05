@@ -490,7 +490,7 @@
     EarlyUI.use('list-bell', { on: turnOn });
     const left = [...document.querySelectorAll('tr[data-w]')].filter(tr => tr.dataset.lists.split(' ').includes(current) && !bells.has(tr.dataset.w)).length;
     EarlyUI.toast(!turnOn ? 'Alerts off for this list'
-      : d.spam ? 'Alerts on for ' + d.changed + ' · ' + d.spam + ' left off: over ' + d.spam_per_hour + ' transactions an hour looks like a bot'
+      : d.spam ? 'Alerts on for ' + d.changed + ' · ' + d.spam + ' left off: over ' + d.spam_per_day + ' transactions a day looks like a bot'
       : !left ? 'Alerts on for the whole list · ' + bells.size + ' of ' + d.cap + ' wallets'
       : !d.changed ? 'No room: all ' + d.cap + ' bells are on. Turn some off first.'
       : 'Alerts on for ' + d.changed + ' more · ' + left + ' wait for room: ' + d.cap + ' wallets is the cap');

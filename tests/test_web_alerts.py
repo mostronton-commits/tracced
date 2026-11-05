@@ -420,24 +420,25 @@ if AioHTTPTestCase:
             self.assertIn("S9:WAL", again["alerts_seen"])                              # the first poll after a restart skips it
 
         async def test_a_spam_wallet_cannot_get_a_bell_and_is_stopped_when_it_starts(self):
-            self.app["s"].update(alerts_spam_per_hour=3)
+            self.app["s"].update(alerts_spam_per_day=3)
             a = self.app["accounts"]
             a.add_wallets(TEST_PK, [{"wallet": W1}])
             now, sent = time.time(), []
-            busy = [{"signature": f"S{i}", "err": None, "blockTime": now - 60} for i in range(4)]
-            quiet = busy[:3] + [{"signature": "OLD", "err": None, "blockTime": now - 7200}, {"signature": "BAD", "err": {"x": 1}, "blockTime": now - 60}]
+            busy = [{"signature": "S0", "err": {"x": 1}, "blockTime": now - 60}] + [{"signature": f"S{i}", "err": None, "blockTime": now - 80000} for i in range(1, 4)]
+            quiet = busy[:3] + [{"signature": "OLD", "err": None, "blockTime": now - 90000}]
 
             async def tg(app, http, chat, text, pk=None):
                 sent.append(text)
                 return True
-            with mock.patch.object(app_mod, "_rpc", mock.AsyncMock(return_value=quiet)):
+            with mock.patch.object(app_mod, "_rpc", mock.AsyncMock(return_value=quiet)) as asked:
                 r = await self.client.post("/me/wallets/alert", json={"wallet": W1, "on": True}, headers=self.origin)
-                self.assertTrue((await r.json())["on"])                                # 3 in the hour: the old and the failed do not count
+                self.assertTrue((await r.json())["on"])                                # 3 in 24 hours: the one before does not count
+                self.assertEqual(asked.call_args.args[3][1]["limit"], 4)               # a page just long enough
             await self.client.post("/me/wallets/alert", json={"wallet": W1, "on": False}, headers=self.origin)
             with mock.patch.object(app_mod, "_rpc", mock.AsyncMock(return_value=busy)):
                 r = await self.client.post("/me/wallets/alert", json={"wallet": W1, "on": True}, headers=self.origin)
-            self.assertEqual(r.status, 400)
-            self.assertIn("over 3 transactions an hour", (await r.json())["error"])
+            self.assertEqual(r.status, 400)                                            # a failed one counts
+            self.assertIn("over 3 transactions a day", (await r.json())["error"])
             self.assertFalse(a.load(TEST_PK)["wallets"][W1].get("alert"))
             with mock.patch.object(app_mod, "_rpc", mock.AsyncMock(side_effect=AssertionError("known: no request"))):
                 r = await self.client.post("/me/wallets/alert", json={"wallet": W1, "on": True}, headers=self.origin)
@@ -464,8 +465,32 @@ if AioHTTPTestCase:
             self.assertIn("&lt;kol&gt;", sent[0])
             self.assertNotIn(W1, app_mod._watch_now(self.app))
 
+        async def test_the_sweep_stops_a_bell_that_became_a_bot(self):
+            self.app["s"].update(alerts_spam_per_day=3, alerts_rps=1000)
+            a = self.app["accounts"]
+            a.add_wallets(TEST_PK, [{"wallet": W1}])
+            a.set_wallet_alert(TEST_PK, W1, True, 20)
+            now, sent = time.time(), []
+            sub = {"pk": TEST_PK, "chat": 7, "prefs": {}, "tags": []}
+            self.app["alerts_wm"] = {W1: [sub], "QUIET": [sub], "DOWN": [sub]}
+
+            async def rpc(http, url, method, params):
+                if params[0] == "DOWN":
+                    raise RuntimeError("no answer")
+                return [{"signature": f"S{i}", "blockTime": now - 60} for i in range(4 if params[0] == W1 else 1)]
+
+            async def tg(app, http, chat, text, pk=None):
+                sent.append(text)
+                return True
+            with mock.patch.object(app_mod, "_rpc", rpc), mock.patch.object(app_mod, "_tg_send", tg):
+                self.assertEqual(await app_mod._spam_sweep(self.app, None), 1)         # a node that does not answer stops nobody
+                await asyncio.sleep(0.05)
+            self.assertEqual(sorted(self.app["alerts_wm"]), ["DOWN", "QUIET"])
+            self.assertFalse(a.load(TEST_PK)["wallets"][W1].get("alert"))
+            self.assertEqual(len(sent), 1)
+
         async def test_a_whole_list_leaves_its_bots_without_a_bell(self):
-            self.app["s"].update(alerts_spam_per_hour=3)
+            self.app["s"].update(alerts_spam_per_day=3)
             a = self.app["accounts"]
             lid, _ = a.create_list(TEST_PK, "Bots")
             a.add_wallets(TEST_PK, [{"wallet": W1}], lid)
@@ -474,7 +499,7 @@ if AioHTTPTestCase:
             with mock.patch.object(app_mod, "_rpc", mock.AsyncMock(return_value=busy)):
                 r = await self.client.post("/me/lists/alerts", json={"id": lid, "on": True}, headers=self.origin)
             d = await r.json()
-            self.assertEqual((d["spam"], d["changed"], d["bells"], d["spam_per_hour"]), (1, 0, [], 3))
+            self.assertEqual((d["spam"], d["changed"], d["bells"], d["spam_per_day"]), (1, 0, [], 3))
 
         async def test_the_paid_node_reads_trades_and_the_free_one_catches_it(self):
             paid, free = "https://paid.example/?api-key=SECRETKEY", self.app["s"]["alerts_rpc_url"]
