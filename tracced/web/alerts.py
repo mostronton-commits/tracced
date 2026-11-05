@@ -7,7 +7,10 @@
 Але тут обидві сторони угоди мають суму в доларах: купівля — токен прийшов, а SOL чи стейбл пішли; продаж — навпаки.
 Усе інше (переказ токена комусь, airdrop, вхідний SOL, обмін токена на токен) — не купівля і не продаж.
 """
+import collections
 import html
+import json
+import os
 import secrets
 import threading
 import time
@@ -103,6 +106,57 @@ def prefs_of(raw, default_min=None):
 
 def wants(ev, prefs):
     return bool(prefs["buys" if ev["side"] == "buy" else "sells"]) and ev["usd"] >= prefs["min_usd"]
+
+
+class SpamWallets:
+    """Гаманці, що шлють забагато транзакцій (власник, 05.11): їх угоди — не сигнал, а читання кожної коштує запит до ноди,
+    і такий гаманець займає одне зі 100 місць у потоці. Блок лежить у файлі: переживає перезапуск і деплой."""
+
+    def __init__(self, path=None, now=time.time):
+        self.path, self._now, self.recent, self.blocked = path, now, {}, {}   # гаманець → (коли, підпис) за годину; → блок до
+        try:
+            with open(path, encoding="utf-8") as f:
+                self.blocked = {w: float(v) for w, v in json.load(f).items()}
+        except (OSError, TypeError, ValueError, AttributeError):
+            self.blocked = {}                                 # нема файлу чи битий = нікого не блокуємо
+
+    def until(self, wallet):
+        """Час, до якого гаманець заблоковано (секунди), або None."""
+        t = self.blocked.get(wallet)
+        return t if t and t > self._now() else None
+
+    def hit(self, wallet, sig, per_hour):
+        """Ще одна транзакція; True — за останню годину їх стало понад per_hour. Той самий підпис від потоку і страховки — раз."""
+        now, q = self._now(), self.recent.setdefault(wallet, collections.deque())
+        if any(s == sig for _, s in q):
+            return False
+        q.append((now, sig))
+        while q and now - q[0][0] > 3600:
+            q.popleft()
+        if len(self.recent) > 5000:
+            self.recent = {wallet: q}
+        return len(q) > per_hour
+
+    def block(self, wallet, days):
+        now = self._now()
+        self.recent.pop(wallet, None)
+        self.blocked = {w: t for w, t in self.blocked.items() if t > now}
+        self.blocked[wallet] = until = now + float(days) * 86400
+        if self.path:
+            try:
+                os.makedirs(os.path.dirname(str(self.path)) or ".", exist_ok=True)
+                tmp = str(self.path) + ".tmp"
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump(self.blocked, f)
+                os.replace(tmp, self.path)
+            except OSError:
+                pass
+        return until
+
+
+def sigs_last_hour(sigs, now):
+    """Скільки успішних транзакцій за годину в сторінці підписів: перевірка перед тим, як увімкнути дзвіночок."""
+    return sum(1 for x in sigs or [] if not x.get("err") and now - (x.get("blockTime") or 0) < 3600)
 
 
 def watch_map(accounts, admins=(), open_to_all=False, max_wallets=10, default_min=None):
