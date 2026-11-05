@@ -362,6 +362,32 @@
 </section>
 {% endif %}
 
+{% if tab == 'tg' %}
+<section class="card me usage tgadm">
+  <div class="row mehead"><h2>Stopped as bots</h2><span class="muted small">signed over {{ s.alerts_spam_per_day }} transactions in 24 hours, or that a day on average over 7 days</span></div>
+  {% if spam_rows %}
+  <div class="tablewrap"><table class="facts melist"><thead><tr><th>Wallet</th><th class="num" title="Transactions that mention the wallet, last 24 hours, up to what the check read">24 h</th><th class="num" title="The same, last 7 days">7 d</th><th class="num" title="Of a sample of those transactions, the share the wallet signed itself">Signed</th><th>Stopped</th><th>Until</th><th></th></tr></thead><tbody>
+  {% for r in spam_rows %}<tr><td><a class="mono" href="/admin/w/{{ r.wallet }}">{{ r.wallet[:4] }}…{{ r.wallet[-4:] }}</a></td><td class="num mono">{{ r.day|num }}</td><td class="num mono">{{ r.week|num }}</td><td class="num mono">{{ (r.share * 100)|round|int }}%</td>
+    <td class="small"><span class="dtc" data-ms="{{ (r.at * 1000)|int }}">{{ (r.at * 1000)|int|dt }}</span></td><td class="small"><span class="dtc" data-ms="{{ (r.until * 1000)|int }}">{{ (r.until * 1000)|int|dt }}</span></td>
+    <td><button type="button" class="ghost" data-botallow="1" data-wallet="{{ r.wallet }}" title="Never stop this wallet again. Whoever had its bell turns it back on">Not a bot</button></td></tr>{% endfor %}
+  </tbody></table></div>
+  {% else %}<p class="muted small">No wallets stopped.</p>{% endif %}
+  {% if spam_allowed %}
+  <h3 class="small">Never stopped</h3>
+  <div class="tablewrap"><table class="facts melist"><tbody>
+  {% for w in spam_allowed %}<tr><td><a class="mono" href="/admin/w/{{ w }}">{{ w[:4] }}…{{ w[-4:] }}</a></td><td><button type="button" class="ghost" data-botallow="0" data-wallet="{{ w }}">Check it again</button></td></tr>{% endfor %}
+  </tbody></table></div>
+  {% endif %}
+</section>
+<script>
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-botallow]'); if (!b) return;
+  b.disabled = true;
+  try { await EarlyWallet.post('/admin/alerts/bot', { wallet: b.dataset.wallet, allow: b.dataset.botallow === '1' }); location.reload(); }
+  catch (x) { b.disabled = false; EarlyUI.toast(x.message); }
+});
+</script>
+{% endif %}
 {% if tab == 'api' %}
 {% set names = {} %}{% for k in api_keys %}{% set _ = names.update({k.id: k.name}) %}{% endfor %}
 <section class="card me usage apiadm">
