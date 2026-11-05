@@ -367,6 +367,15 @@ class TestCreditMeters(unittest.TestCase):
         self.assertEqual((dry["empty"], dry["pct"], dry["level"]), (True, 0.0, "crit"))   # ST у мінусі: «used up», не дата
         self.assertEqual(usage.credit_meters({"rpc": {"spent": 5, "limit": 0}}, now_ms=utc(2026, 9, 28)), [])   # без межі — без смуги
 
+    def test_digital_energy_shows_its_month_beside_helius(self):
+        de, = usage.credit_meters({"de": {"month": "2026-11", "spent": 730, "limit": 7_500_000}}, now_ms=utc(2026, 11, 5))
+        self.assertEqual((de["key"], de["name"], de["left"], de["of"], de["renews_ms"], de["level"]),
+                         ("de", "Digital Energy", 7_499_270, 7_500_000, utc(2026, 12, 1), "ok"))
+        self.assertEqual(usage.credit_meters({"de": None}, now_ms=utc(2026, 11, 5)), [])   # no node set: no meter
+        u = usage.summarize([ev(utc(2026, 11, 5) - 1000, "system", "node", de=120, bg=True)], accounts=[], now_ms=utc(2026, 11, 5), team=set())
+        self.assertEqual(sum(d["de"] for d in u["daily"]), 120)
+        self.assertEqual(u["users"], [])                                               # the server is nobody's activity
+
     def test_the_agent_can_spend_the_lower_of_the_key_limit_and_the_account(self):
         ai = {"key_limit": 3.0, "key_left": 2.961216, "key_reset": None, "week_usd": 0.0388, "account": 10.0, "account_left": 9.956}
         now = utc(2026, 9, 27, 12)                                        # неділя: шість з половиною днів цього тижня

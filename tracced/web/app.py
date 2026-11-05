@@ -687,6 +687,10 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["alerts_fails"], app["alerts_tok_wait"], app["alerts_pending"] = {}, {}, 0   # збої за годину; токени, які саме питаємо; черга
     app["alerts_sem"] = asyncio.Semaphore(int(s.get("alerts_parallel", 4)))         # запитів до ноди водночас
     app["alerts_pace"], app["alerts_flood"] = _Pace(s.get("alerts_rps", 12)), {}    # темп запитів до ноди; угоди гаманця за хвилину
+    app["alerts_paid_url"] = os.getenv("ALERTS_RPC_URL", "").strip()                # платна нода сповіщень; адреса несе ключ, тому лише з оточення
+    app["alerts_paid_daily"] = DailyCount(daily_dir / "alerts_paid.json")           # запити до неї за добу
+    app["alerts_paid_month"] = wallet_age_mod.MonthBudget(str(daily_dir / "de-month.json"), limit=s.get("alerts_paid_month", 0), reserve_pct=5)
+    app["alerts_paid_note"] = [0, 0.0]                                              # ще не в журналі; коли писали востаннє
     app["alerts_conn_at"] = 0.0                                                     # коли підключився нинішній потік
     app["alerts_poll_wake"], app["alerts_chat_locks"] = asyncio.Event(), {}         # розбудити страховку; черга відправки на чат
     app["alerts_inflight"] = set()                                                  # угоди, які саме розбираються
@@ -2247,11 +2251,42 @@ def _limited(e):
     return "-32005" in s or "429" in s or "rate limit" in s or "too many" in s
 
 
-async def _alert_rpc(app, http, method, params):
-    """Запит сповіщень до ноди: у спільному темпі; на відмову за лімітом — пауза для всіх і виняток."""
+def _no_key(text):
+    """Адреса платної ноди несе ключ у запиті, а помилки з'єднання цитують адресу: у журнал вони йдуть без ключа."""
+    return re.sub(r"(api-key=)[^&\s'\"]+", r"\1***", str(text))
+
+
+def _node_host(url):
+    return urllib.parse.urlsplit(url).hostname or ""
+
+
+def _paid_spent(app):
+    """Один запит до платної ноди: місячний лічильник і, пачками, журнал для графіка по днях. Кожен запит окремим рядком
+    роздув би журнал, а рідкі пишуться одразу: графік не чекає, поки набереться сотня."""
+    app["alerts_paid_month"].spend(1)
+    note = app["alerts_paid_note"]
+    note[0] += 1
+    if note[0] >= 100 or time.time() - note[1] > 300:
+        app["events"].add("system", "node", de=note[0], bg=True)
+        note[0], note[1] = 0, time.time()
+
+
+async def _alert_rpc(app, http, method, params, paid=False):
+    """Запит сповіщень до ноди: у спільному темпі; на відмову за лімітом — пауза для всіх і виняток.
+
+    paid=True — спершу платна нода (ALERTS_RPC_URL), поки не вичерпано alerts_paid_per_day і місяць без резерву; її збій
+    чи вичерпаний ліміт не зупиняє сповіщення, запит іде на безкоштовну. Опитування страховки лишається на безкоштовній: воно йде постійно і
+    з'їло б місячний ліміт (250 000 на добу — це в середньому лише 2,9 запиту на секунду, замір 05.11)."""
     await app["alerts_pace"].wait()
     try:
         async with app["alerts_sem"]:
+            url = app["alerts_paid_url"] if paid else ""
+            if url and not app["alerts_paid_month"].exhausted() and app["alerts_paid_daily"].take("global", int(app["s"].get("alerts_paid_per_day", 0))):
+                _paid_spent(app)
+                try:
+                    return await _rpc(http, url, method, params)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("alerts paid node, %s: %s", method, _no_key(e))
             return await _rpc(http, app["s"].get("alerts_rpc_url"), method, params)
     except Exception as e:  # noqa: BLE001
         if _limited(e):
@@ -2512,7 +2547,7 @@ async def _alert_tx_work(app, http, wallet, sig, via, bt, key):
         if pause:
             await asyncio.sleep(pause)
         try:
-            tx, err = await _alert_rpc(app, http, "getTransaction", params), None
+            tx, err = await _alert_rpc(app, http, "getTransaction", params, paid=True), None
         except Exception as e:  # noqa: BLE001
             err = e
         if tx:
@@ -2723,6 +2758,7 @@ async def _alerts_watch_once(app, http, url, wm, primary=True):
             asked_at[next_id] = time.monotonic()
             await ws.send_json({"jsonrpc": "2.0", "id": next_id, "method": "logsSubscribe",
                                 "params": [{"mentions": [w]}, {"commitment": "confirmed"}]})
+            await asyncio.sleep(float(s.get("alerts_sub_gap_s", 0)))   # платна нода відмовляє, коли підписок забагато за секунду
 
         async def unsubscribe(w):
             nonlocal next_id
@@ -2736,7 +2772,7 @@ async def _alerts_watch_once(app, http, url, wm, primary=True):
 
         for w in sorted(wm)[:cap]:
             await subscribe(w)
-        app["alerts_state"].update(connected=True, url=url.split("//")[-1], wallets=len(wm), streamed=min(cap, len(wm)))
+        app["alerts_state"].update(connected=True, url=_node_host(url), wallets=len(wm), streamed=min(cap, len(wm)))
         # страховка — одразу після підключення, щойно мине grace: угоди проміжку без потоку не чекають хвилину (рев'ю 01.10)
         asyncio.get_running_loop().call_later(float(s.get("alerts_poll_grace_s", 15)) + 1, app["alerts_poll_wake"].set)
         next_check, window_at = time.monotonic() + every, time.monotonic()
@@ -2817,8 +2853,12 @@ async def _alerts_watch_once(app, http, url, wm, primary=True):
 async def _alerts_loop(app):
     """Потік транзакцій гаманців зі списків з дзвіночком. Основна нода — перша в alerts_ws_urls (api.mainnet-beta:
     ≈2 с від блоку до повідомлення проти ≈10 с у publicnode, замір 01.10); обрив — наступна з паузою, що зростає, і з
-    запасної за alerts_fallback_min повертаємось на основну. Страховка — окремою задачею (_alerts_poll_loop)."""
+    запасної за alerts_fallback_min повертаємось на основну. Страховка — окремою задачею (_alerts_poll_loop).
+    Платна нода (ALERTS_RPC_URL), коли задана, стає основною, а безкоштовні лишаються запасними: нода одного оператора
+    без гарантій доступності."""
     urls = list(app["s"].get("alerts_ws_urls") or ["wss://api.mainnet-beta.solana.com"])
+    if app["alerts_paid_url"]:
+        urls.insert(0, re.sub(r"^http", "ws", app["alerts_paid_url"]))
     i, delay, began = 0, 5, time.monotonic()
     async with aiohttp.ClientSession(headers=UA_HEADERS) as http:
         while True:
@@ -2842,7 +2882,7 @@ async def _alerts_loop(app):
                     delay = 5                                     # жило хвилину й більше: це обрив, а не нода, що не відповідає
                 app["alerts_state"].update(connected=False)
                 app["alerts_state"]["errors"] += 1
-                log.warning("alerts stream %s: %s", urls[i % len(urls)].split("//")[-1], e)
+                log.warning("alerts stream %s: %s", _node_host(urls[i % len(urls)]), _no_key(e))
                 i += 1
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, 120)
@@ -3488,6 +3528,7 @@ async def _budget(app):
             "renew_day": int(s.get("credits_renew_day") or 0), "ai": await _ai_balance(app),
             "runs_today": gcap - app["runs_daily"].left("global", gcap),
             "rpc": ages.budget.state() if ages is not None and getattr(ages, "budget", None) else None,
+            "de": app["alerts_paid_month"].state() if app["alerts_paid_url"] else None,
             "insightx": app["labels"].budget.state() if app.get("labels") is not None and app["labels"].budget else None}
 
 
