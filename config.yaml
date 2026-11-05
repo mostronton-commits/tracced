@@ -45,7 +45,11 @@ early:
                                 # like a wallet card, only wallets that trade like people; about 1,500 requests a month
   token_images_backfill: true   # owner, 07.10: token pictures in the home feed; older analyses read theirs once (1 request each)
   alerts_open: true             # owner, 05.10: Telegram alerts for every connected wallet, no longer a closed test
-  alerts_spam_per_day: 500      # owner, 05.11: over this in 24 h a wallet is a bot and its alerts stop. Failed transactions count too
+  alerts_spam_per_day: 500      # owner, 05.11: signed over this in 24 h, or this a day on average over 7 days: a bot, its alerts stop.
+                                # Failed transactions count, incoming transfers and dust do not; /admin, Telegram tab, lists them
+  alerts_noise_programs:        # bots that name other people's wallets read-only: 92 % of the successful mentions of 34 flooded wallets,
+    - DhpyNWkdxFh3DRPsBrwRwrK3TYC5t7Q4arnSvf3t84HY   # none of 24 checked signed by the wallet (05.11). Not read, not counted
+    - MAyhSmzXzV1pTf7LsNkrNwkWKTo4ougAJ1PPg47MD4e
   alerts_sub_gap_s: 0.1         # 10 subscriptions a second: Digital Energy refused 25 a second (05.11)
   runs_per_day_new_wallet: 3    # owner, 14.10: 3 while the hackathon judges try it (they come with fresh or empty wallets;
                                 # the network cap still stands), back to 1 after the judging. Owner, 05.10: someone rotated fresh wallets to reset the count. A wallet younger than

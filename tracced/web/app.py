@@ -653,6 +653,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["alerts_paid_month"] = wallet_age_mod.MonthBudget(str(daily_dir / "de-month.json"), limit=s.get("alerts_paid_month", 0), reserve_pct=5)
     app["alerts_paid_note"] = [0, 0.0]                                              # ще не в журналі; коли писали востаннє
     app["alerts_spam"] = alerts_mod.SpamWallets(str(Path(out_dir).parent / "usage" / "alerts_spam.json"))   # заблоковані гаманці-боти
+    app["alerts_history_pace"] = _Pace(2)                                           # нода з повною історією ріже серії: 2 запити на секунду
+    app["alerts_check_pace"] = _Pace(s.get("alerts_check_rps", 5))                  # вибірки перевірки ботів: окремо від сповіщень
     app["alerts_conn_at"] = 0.0                                                     # коли підключився нинішній потік
     app["alerts_poll_wake"], app["alerts_chat_locks"] = asyncio.Event(), {}         # розбудити страховку; черга відправки на чат
     app["alerts_inflight"] = set()                                                  # угоди, які саме розбираються
@@ -757,6 +759,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_get("/admin", admin_page)
     app.router.add_get("/admin/w/{pk}", admin_wallet_page)
     app.router.add_post("/admin/usage/exclude", admin_usage_exclude)
+    app.router.add_post("/admin/alerts/bot", admin_alerts_bot)
     app.router.add_post("/admin/beta", admin_beta)
     app.router.add_post("/admin/labels", admin_labels)
     app.router.add_post("/admin/feedback", admin_feedback)
@@ -2280,7 +2283,7 @@ def _watch_now(app):
 
 
 def _spam_text(app, until):
-    return (f"This wallet makes over {int(app['s'].get('alerts_spam_per_day', 0))} transactions a day, so it looks like a bot. "
+    return (f"This wallet signs over {int(app['s'].get('alerts_spam_per_day', 0))} transactions a day, so it looks like a bot. "
             f"Alerts stay off for it until {time.strftime('%b %d', time.gmtime(until))}.")
 
 
@@ -2296,74 +2299,223 @@ async def _spam_stop(app, http, wallet, subs):
             log.warning("alerts spam stop %s: %s", wallet[:6], e)
 
 
-def _spam_stop_now(app, http, wallet):
+def _noise_seen(app, key):
+    """Чужий шум позначено обробленим. Звичайна чистка живе в читанні угоди, а шум не читається, тож тут своя межа."""
+    seen = app["alerts_seen"]
+    seen[key] = time.time()
+    if len(seen) > 50_000:
+        edge = time.time() - float(app["s"].get("alerts_backfill_min", 10)) * 60 - 2 * max(60.0, float(app["s"].get("alerts_poll_s", 60)))
+        for k in [k for k, t in seen.items() if t < edge]:
+            del seen[k]
+
+
+def _spam_facts(v):
+    return {"day": v["day"], "week": v["week"], "share": v["share"]}
+
+
+def _spam_stop_now(app, http, wallet, verdict, subs=None):
     """Блок і прибрати гаманець з потоку й страховки одразу, не чекаючи перевірки; дзвіночки й повідомлення — окремою задачею."""
-    app["alerts_spam"].block(wallet, app["s"].get("alerts_spam_days", 7))
+    app["alerts_spam"].block(wallet, app["s"].get("alerts_spam_days", 7), **_spam_facts(verdict))
     wm = app.get("alerts_wm") or {}
-    subs = list(wm.get(wallet) or [])
+    subs = list(subs if subs is not None else wm.get(wallet) or [])
     app["alerts_wm"] = {w: v for w, v in wm.items() if w != wallet}
     _alert_fail(app, "system", "spam")
-    app["events"].add("system", "alert_spam", wallet=wallet, bg=True)
+    app["events"].add("system", "alert_spam", wallet=wallet, bg=True, **_spam_facts(verdict))
     asyncio.get_running_loop().create_task(_spam_stop(app, http, wallet, subs))
 
 
-def _spam_hit(app, http, wallet, sig):
-    """Ще одна транзакція гаманця; True — він щойно став ботом."""
-    per_day = int(app["s"].get("alerts_spam_per_day", 0))
-    if not per_day or not app["alerts_spam"].hit(wallet, sig, per_day):
-        return False
-    _spam_stop_now(app, http, wallet)
-    return True
+async def _spam_page(app, http, wallet, before=None):
+    """1000 підписів гаманця: спершу нода з повною історією; вона не відповіла — безкоштовна, далі платна. Їх історія коротша,
+    тож вони можуть лише недорахувати, а не заблокувати зайвого."""
+    q = {"limit": 1000, "commitment": "confirmed"}
+    if before:
+        q["before"] = before
+    url = app["s"].get("alerts_history_url")
+    if url:
+        await app["alerts_history_pace"].wait()
+        try:
+            return await _rpc(http, url, "getSignaturesForAddress", [wallet, q])
+        except Exception as e:  # noqa: BLE001
+            if _limited(e):
+                app["alerts_history_pace"].slow(float(app["s"].get("alerts_slow_s", 1.5)))
+    try:
+        return await _alert_rpc(app, http, "getSignaturesForAddress", [wallet, q])
+    except Exception:  # noqa: BLE001
+        return await _alert_rpc(app, http, "getSignaturesForAddress", [wallet, q], paid=True)
 
 
-async def _spam_over(app, http, wallet):
-    """Чи гаманець понад межу за останню добу: одна сторінка підписів на безкоштовній ноді. Метод віддає до 1000 за раз."""
-    per_day = int(app["s"].get("alerts_spam_per_day", 0))
-    sigs = await _alert_rpc(app, http, "getSignaturesForAddress", [wallet, {"limit": min(per_day + 1, 1000), "commitment": "confirmed"}])
-    return alerts_mod.sigs_last_day(sigs, time.time()) > per_day
+async def _spam_sigs(app, http, wallet, now):
+    """Підписи за 7 днів, сторінками до alerts_spam_pages. Звичайному гаманцю вистачає однієї; збій на наступних — рахуємо, що є."""
+    out, before = [], None
+    for _ in range(int(app["s"].get("alerts_spam_pages", 5))):
+        try:
+            page = await _spam_page(app, http, wallet, before) or []
+        except Exception:  # noqa: BLE001
+            if not out:
+                raise
+            break
+        out += page
+        if len(page) < 1000 or (page[-1].get("blockTime") or now) < now - 7 * 86400:
+            break
+        before = page[-1].get("signature")
+    return out
+
+
+async def _spam_tx(app, http, sig):
+    """Транзакція для вибірки: швидка безкоштовна нода тримає лише дві доби, старшу читаємо з повної історії. Своя черга: вибірка
+    в 200 транзакцій не має ставати перед справжніми сповіщеннями. None — не вдалось."""
+    params = [sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": wallet_age_mod.TX_VERSION, "commitment": "confirmed"}]
+    await app["alerts_check_pace"].wait()
+    try:
+        tx = await _rpc(http, app["s"].get("alerts_rpc_url"), "getTransaction", params)
+        if tx:
+            return tx
+    except Exception:  # noqa: BLE001
+        pass
+    url = app["s"].get("alerts_history_url")
+    if not url:
+        return None
+    await app["alerts_history_pace"].wait()
+    try:
+        return await _rpc(http, url, "getTransaction", params)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+async def _spam_verdict(app, http, wallet, quick=False):
+    """Чи гаманець бот: {bot, day, week, share}, або None — поки не можна сказати напевно. Лише тому, хто перейшов межу за кількістю
+    згадок, читаємо транзакції й дивимось, скільки з них підписав він сам. Блокуємо, лише коли гаманець понад межею навіть за
+    найменшої можливої частки; спірне (замір 05.11: 505 на день) лишається людині. Спершу мала вибірка: вона вирішує очевидне, решту —
+    повна. quick — людина чекає на дзвіночок: мала вибірка нічого не вирішила, повну зробить фонова перевірка."""
+    s, now = app["s"], time.time()
+    per_day = int(s.get("alerts_spam_per_day", 0))
+    sigs = await _spam_sigs(app, http, wallet, now)
+    day, week = alerts_mod.spam_rates(sigs, now, len(sigs) >= int(s.get("alerts_spam_pages", 5)) * 1000)
+    out = {"bot": False, "day": day, "week": week, "share": None}
+    if not alerts_mod.spam_suspect(day, week, per_day):
+        return out
+    window = alerts_mod.spam_window(sigs, now, day, per_day)
+    ok = [x for x in window if not x.get("err")]
+    failed = [x for x in window if x.get("err")]
+    got = {}                                                  # підпис → транзакція: повна вибірка не читає вдруге те, що прочитала мала
+
+    async def read(group, n):
+        picks = alerts_mod.sample_some(group, n)
+        new = [x.get("signature") for x in picks if x.get("signature") not in got]
+        for sig, tx in zip(new, await asyncio.gather(*(_spam_tx(app, http, sig) for sig in new))):
+            got[sig] = tx
+        return len(picks), [got[x.get("signature")] for x in picks if got.get(x.get("signature"))]
+    want = int(s.get("alerts_spam_sample", 20)) // 2
+    # за малою вибіркою блокуємо, лише якщо і найменша частка вдвічі понад межею: серед спірних такої «певності» інакше вистачало б помилитись
+    for margin, ok_n, failed_n in ((2, want, want), (1, int(s.get("alerts_spam_sample_ok", 150)), int(s.get("alerts_spam_sample_failed", 50)))):
+        a_n, ok_read = await read(ok, ok_n)
+        b_n, failed_read = await read(failed, failed_n)
+        if len(ok_read) + len(failed_read) < (a_n + b_n) / 2:  # надто мало прочитали, щоб судити: краще перевірити ще раз
+            return None
+        share, low, high = alerts_mod.spam_share(len(ok), len(failed), ok_read, failed_read, wallet)
+        out["share"] = round(share, 3)
+        if alerts_mod.spam_bot(day, week, low / margin, per_day):
+            out["bot"] = True
+            return out
+        if not alerts_mod.spam_bot(day, week, high, per_day):
+            return out
+        if quick:
+            return None
+    return out                                                # і після повної вибірки не впевнені: не бот
+
+
+async def _spam_check(app, http, wallet):
+    """Лічильник потоку перейшов межу: перевіряємо напевно. Не бот — лічильник з нуля і спокій до наступної загальної перевірки:
+    гаманець, завалений чужим шумом, інакше будив би перевірку кілька разів на день."""
+    spam = app["alerts_spam"]
+    try:
+        v = await _spam_verdict(app, http, wallet)
+        if v is None:
+            spam.pending.add(wallet)
+        elif v["bot"]:
+            _spam_stop_now(app, http, wallet, v)
+        else:
+            spam.spared[wallet] = time.time() + float(app["s"].get("alerts_spam_sweep_h", 6)) * 3600
+    except Exception as e:  # noqa: BLE001
+        spam.pending.add(wallet)
+        log.warning("alerts spam check %s: %s", wallet[:6], _no_key(e))
+    finally:
+        spam.recent.pop(wallet, None)
+        spam.checking.discard(wallet)
+
+
+def _spam_count(app, http, wallet, sig):
+    """Ще одна транзакція гаманця з потоку чи страховки."""
+    per_day, spam = int(app["s"].get("alerts_spam_per_day", 0)), app["alerts_spam"]
+    if per_day and time.time() >= spam.spared.get(wallet, 0) and spam.hit(wallet, sig, per_day) and wallet not in spam.checking:
+        spam.checking.add(wallet)
+        asyncio.get_running_loop().create_task(_spam_check(app, http, wallet))
 
 
 async def _spam_refusal(app, wallet):
-    """Чому на цей гаманець не можна поставити дзвіночок, або None. Нода не відповіла — не заважаємо людині: якщо це бот,
-    його зупинить наступна перевірка дзвіночків."""
-    if not int(app["s"].get("alerts_spam_per_day", 0)):
+    """Чому на цей гаманець не можна поставити дзвіночок, або None. Не вдалось перевірити чи випадок спірний — людині не заважаємо,
+    а гаманець стає в чергу: фонова перевірка візьметься за хвилину, і якщо це бот, дзвіночок вимкнеться з повідомленням."""
+    spam = app["alerts_spam"]
+    if not int(app["s"].get("alerts_spam_per_day", 0)) or wallet in spam.allowed:
         return None
-    until = app["alerts_spam"].until(wallet)
+    until = spam.until(wallet)
     if not until:
         try:
             async with aiohttp.ClientSession(headers=UA_HEADERS) as http:
-                if not await asyncio.wait_for(_spam_over(app, http, wallet), 6):
-                    return None
+                v = await asyncio.wait_for(_spam_verdict(app, http, wallet, quick=True), 25)
         except Exception as e:  # noqa: BLE001
             log.warning("alerts spam check %s: %s", wallet[:6], _no_key(e))
+            v = None
+        if v is None:
+            spam.pending.add(wallet)
             return None
-        until = app["alerts_spam"].block(wallet, app["s"].get("alerts_spam_days", 7))
-        app["events"].add("system", "alert_spam", wallet=wallet, bg=True)
+        if not v["bot"]:
+            return None
+        until = spam.block(wallet, app["s"].get("alerts_spam_days", 7), **_spam_facts(v))
+        app["events"].add("system", "alert_spam", wallet=wallet, bg=True, **_spam_facts(v))
     return _spam_text(app, until)
 
 
-async def _spam_sweep(app, http):
-    """Перевірка всіх дзвіночків: лічильник потоку після перезапуску починає з нуля, а гаманець міг стати ботом, поки на ньому
-    вже стояв дзвіночок. Кожен гаманець — один запит на безкоштовній ноді. Скільки зупинено."""
-    n = 0
-    for w in list(app.get("alerts_wm") or {}):
+async def _spam_sweep(app, http, only=None):
+    """Перевірка дзвіночків: лічильник потоку після перезапуску починає з нуля, а гаманець міг стати ботом або затихнути на день,
+    поки на ньому стояв дзвіночок. only — лише ті, кого не вдалось перевірити раніше. Скільки зупинено."""
+    spam, n = app["alerts_spam"], 0
+    wm = await asyncio.to_thread(_watch_now, app)
+    if only is not None:
+        spam.pending &= set(wm)
+    for w in [w for w in wm if only is None or w in only]:
+        spam.pending.discard(w)
+        if w in spam.allowed:
+            continue
         try:
-            if await _spam_over(app, http, w):
-                _spam_stop_now(app, http, w)
-                n += 1
+            v = await _spam_verdict(app, http, w)
         except Exception as e:  # noqa: BLE001
             log.warning("alerts spam sweep %s: %s", w[:6], _no_key(e))
+            v = None
+        if v is None:
+            spam.pending.add(w)
+        elif v["bot"]:
+            _spam_stop_now(app, http, w, v, subs=wm[w])
+            n += 1
     return n
 
 
 async def _spam_sweep_loop(app):
-    """Перша перевірка за хвилину після старту (потік уже знає, за ким стежити), далі кожні alerts_spam_sweep_h годин."""
+    """Перша перевірка всіх за хвилину після старту, далі кожні alerts_spam_sweep_h годин; кого не вдалось перевірити — щохвилини."""
     await asyncio.sleep(60)
+    next_all = 0.0
     async with aiohttp.ClientSession(headers=UA_HEADERS) as http:
         while True:
             if int(app["s"].get("alerts_spam_per_day", 0)):
-                await _spam_sweep(app, http)
-            await asyncio.sleep(float(app["s"].get("alerts_spam_sweep_h", 6)) * 3600)
+                try:
+                    if time.time() >= next_all:
+                        next_all = time.time() + float(app["s"].get("alerts_spam_sweep_h", 6)) * 3600
+                        await _spam_sweep(app, http)
+                    elif app["alerts_spam"].pending:
+                        await _spam_sweep(app, http, only=set(app["alerts_spam"].pending))
+                except Exception as e:  # noqa: BLE001
+                    log.warning("alerts spam sweep: %s", _no_key(e))
+            await asyncio.sleep(60)
 
 
 async def _rpc(http, url, method, params):
@@ -2747,9 +2899,8 @@ async def _alerts_poll(app, http, wallets):
         ready = [x for x in sigs if x.get("signature") and (x.get("blockTime") or now) <= now - grace]
         minute, fl = int(now // 60), app["alerts_flood"]
         for x in reversed(ready):                     # від старших до новіших
-            if (x.get("blockTime") or 0) >= horizon and _spam_hit(app, http, w, x["signature"]):
-                act.seen(w, x["signature"])
-                break
+            if (x.get("blockTime") or 0) >= horizon:
+                _spam_count(app, http, w, x["signature"])
             if not x.get("err") and (x.get("blockTime") or 0) >= horizon:
                 rec = fl.get(w)
                 rec = fl[w] = [minute, 1] if not rec or rec[0] != minute else [minute, rec[1] + 1]
@@ -2798,6 +2949,7 @@ async def _alerts_watch_once(app, http, url, wm, primary=True):
     sub_of, wallet_of, pending, next_id = {}, {}, {}, 0   # гаманець → підписка; підписка → гаманець; запит → (гаманець, дія)
     asked_at = {}                                          # запит → коли надіслали: без відповіді 10 с — надішлемо знову
     every, began, cap = float(s.get("alerts_check_s", 15)), time.monotonic(), int(s.get("alerts_subs_per_conn", 90))
+    noise = frozenset(s.get("alerts_noise_programs") or ())
     app["alerts_wm"] = wm
     app["activity"].watch(set(wm))
     ws = await asyncio.wait_for(http.ws_connect(url, heartbeat=20, max_msg_size=0, timeout=aiohttp.ClientWSTimeout(ws_close=10)), 20)
@@ -2851,11 +3003,12 @@ async def _alerts_watch_once(app, http, url, wm, primary=True):
                     elif d.get("method") == "logsNotification":
                         p = d.get("params") or {}
                         w, v = wallet_of.get(p.get("subscription")), (p.get("result") or {}).get("value") or {}
-                        if w and v.get("signature") and _spam_hit(app, http, w, v["signature"]):   # понад alerts_spam_per_day за добу: блок
-                            app["alerts_seen"][v["signature"] + ":" + w] = time.time()
-                            await unsubscribe(w)
-                            continue
-                        if w and v.get("signature") and not v.get("err"):
+                        noisy = bool(w and v.get("signature")) and alerts_mod.noise_tx(v.get("logs"), noise)
+                        if noisy and not v.get("err"):                 # страховка побачить цей підпис і не читатиме його
+                            _noise_seen(app, v["signature"] + ":" + w)
+                        elif w and v.get("signature") and not noisy:
+                            _spam_count(app, http, w, v["signature"])  # понад межу за добу: перевірка; бота прибере наступна звірка списку
+                        if w and v.get("signature") and not v.get("err") and not noisy:
                             delivered += 1
                             # гаманець-бот (десятки угод на хвилину) не забирає ноду в усіх: понад alerts_wallet_per_min
                             # за хвилину — пропуск з рядком у журналі (KOLS-радар так само тримає потоки лише тихих гаманців).
@@ -3647,6 +3800,7 @@ async def admin_page(request):
                   labels=_admin_labels(app) if tab == "wallets" else {},
                   api_keys=api_keys, api_stats=api_stats, api_rules=api_mod.THRESHOLD_RULES,
                   tg_stats=tg_stats, tg_bot=app["tg"].get("name") or "", tg_here=_alerts_live(app),
+                  spam_rows=app["alerts_spam"].rows(), spam_allowed=sorted(app["alerts_spam"].allowed),
                   include_team=include_team, tab=tab, tabs=ADMIN_TABS,
                   feedback=feedback, feedback_new=sum(1 for f in feedback if not f.get("read")),
                   usage_tz=app["s"].get("usage_tz") or "UTC", periods=list(usage_mod.PERIODS),
@@ -3694,6 +3848,18 @@ async def admin_usage_exclude(request):
     usage_mod.save_exclude(path, ex)
     app["usage_cache"].clear()
     return web.json_response({"ok": True, "excluded": wallet in ex})
+
+
+async def admin_alerts_bot(request):
+    """Виняток власника для гаманця, який алгоритм вважає ботом: {wallet, allow}. Дзвіночок не повертається сам: людина вмикає його знову."""
+    pk, body, err = await _admin_json(request)
+    if err:
+        return err
+    wallet = str(body.get("wallet") or "")
+    if not acct_mod.valid_pubkey(wallet):
+        return _jerr("That is not a wallet address.")
+    request.app["alerts_spam"].allow(wallet, bool(body.get("allow")))
+    return web.json_response({"ok": True, "allow": wallet in request.app["alerts_spam"].allowed})
 
 
 async def admin_feedback(request):
