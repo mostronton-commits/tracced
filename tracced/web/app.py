@@ -691,6 +691,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app["alerts_paid_daily"] = DailyCount(daily_dir / "alerts_paid.json")           # запити до неї за добу
     app["alerts_paid_month"] = wallet_age_mod.MonthBudget(str(daily_dir / "de-month.json"), limit=s.get("alerts_paid_month", 0), reserve_pct=5)
     app["alerts_paid_note"] = [0, 0.0]                                              # ще не в журналі; коли писали востаннє
+    app["alerts_spam"] = alerts_mod.SpamWallets(str(Path(out_dir).parent / "usage" / "alerts_spam.json"))   # заблоковані гаманці-боти
     app["alerts_conn_at"] = 0.0                                                     # коли підключився нинішній потік
     app["alerts_poll_wake"], app["alerts_chat_locks"] = asyncio.Event(), {}         # розбудити страховку; черга відправки на чат
     app["alerts_inflight"] = set()                                                  # угоди, які саме розбираються
@@ -2312,8 +2313,63 @@ def _alert_fail(app, pk, why):
 
 def _watch_now(app):
     s = app["s"]
-    return alerts_mod.watch_map(app["accounts"].all(), app["admins"], bool(s.get("alerts_open")),
-                                int(s.get("alerts_max_wallets", 20)), s.get("alerts_min_usd"))
+    wm = alerts_mod.watch_map(app["accounts"].all(), app["admins"], bool(s.get("alerts_open")),
+                              int(s.get("alerts_max_wallets", 20)), s.get("alerts_min_usd"))
+    return {w: subs for w, subs in wm.items() if not app["alerts_spam"].until(w)}
+
+
+def _spam_text(app, until):
+    return (f"This wallet makes over {int(app['s'].get('alerts_spam_per_hour', 0))} transactions an hour, so it looks like a bot. "
+            f"Alerts stay off for it until {time.strftime('%b %d', time.gmtime(until))}.")
+
+
+async def _spam_stop(app, http, wallet, subs):
+    """Гаманець перейшов межу: кожному, хто стежив, вимикаємо дзвіночок і кажемо чому; мовчки зникати алерти не мають."""
+    cap, until = int(app["s"].get("alerts_max_wallets", 20)), app["alerts_spam"].until(wallet) or time.time()
+    for sub in subs:
+        try:
+            await asyncio.to_thread(app["accounts"].set_wallet_alert, sub["pk"], wallet, False, cap)
+            name = html_mod.escape((sub.get("tags") or [wallet[:4] + "…" + wallet[-4:]])[0])
+            await _tg_send(app, http, sub["chat"], f"🔕 <b>{name}</b>: {html_mod.escape(_spam_text(app, until))}", sub["pk"])
+        except Exception as e:  # noqa: BLE001
+            log.warning("alerts spam stop %s: %s", wallet[:6], e)
+
+
+def _spam_hit(app, http, wallet, sig):
+    """Ще одна транзакція гаманця; True — він щойно став ботом: блок і прибрати з потоку й страховки одразу, не чекаючи перевірки."""
+    per_hour = int(app["s"].get("alerts_spam_per_hour", 0))
+    if not per_hour or not app["alerts_spam"].hit(wallet, sig, per_hour):
+        return False
+    app["alerts_spam"].block(wallet, app["s"].get("alerts_spam_days", 7))
+    wm = app.get("alerts_wm") or {}
+    subs = list(wm.get(wallet) or [])
+    app["alerts_wm"] = {w: v for w, v in wm.items() if w != wallet}
+    _alert_fail(app, "system", "spam")
+    app["events"].add("system", "alert_spam", wallet=wallet, per_hour=per_hour, bg=True)
+    asyncio.get_running_loop().create_task(_spam_stop(app, http, wallet, subs))
+    return True
+
+
+async def _spam_refusal(app, wallet):
+    """Чому на цей гаманець не можна поставити дзвіночок, або None. Новий гаманець — одна сторінка підписів на безкоштовній
+    ноді; вона не відповіла — не заважаємо людині: якщо це бот, його зупинить потік протягом години."""
+    per_hour = int(app["s"].get("alerts_spam_per_hour", 0))
+    if not per_hour:
+        return None
+    until = app["alerts_spam"].until(wallet)
+    if not until:
+        try:
+            async with aiohttp.ClientSession(headers=UA_HEADERS) as http:
+                sigs = await asyncio.wait_for(_alert_rpc(app, http, "getSignaturesForAddress",
+                                                         [wallet, {"limit": per_hour * 2, "commitment": "confirmed"}]), 6)
+        except Exception as e:  # noqa: BLE001
+            log.warning("alerts spam check %s: %s", wallet[:6], _no_key(e))
+            return None
+        if alerts_mod.sigs_last_hour(sigs, time.time()) <= per_hour:
+            return None
+        until = app["alerts_spam"].block(wallet, app["s"].get("alerts_spam_days", 7))
+        app["events"].add("system", "alert_spam", wallet=wallet, per_hour=per_hour, bg=True)
+    return _spam_text(app, until)
 
 
 async def _rpc(http, url, method, params):
@@ -2698,6 +2754,9 @@ async def _alerts_poll(app, http, wallets):
         minute, fl = int(now // 60), app["alerts_flood"]
         for x in reversed(ready):                     # від старших до новіших
             if not x.get("err") and (x.get("blockTime") or 0) >= horizon:
+                if _spam_hit(app, http, w, x["signature"]):
+                    act.seen(w, x["signature"])
+                    break
                 rec = fl.get(w)
                 rec = fl[w] = [minute, 1] if not rec or rec[0] != minute else [minute, rec[1] + 1]
                 if rec[1] > limit:                    # бот і для страховки: пропуск, позначений обробленим (рев'ю 01.10)
@@ -2800,6 +2859,10 @@ async def _alerts_watch_once(app, http, url, wm, primary=True):
                         w, v = wallet_of.get(p.get("subscription")), (p.get("result") or {}).get("value") or {}
                         if w and v.get("signature") and not v.get("err"):
                             delivered += 1
+                            if _spam_hit(app, http, w, v["signature"]):   # понад alerts_spam_per_hour за годину: блок
+                                app["alerts_seen"][v["signature"] + ":" + w] = time.time()
+                                await unsubscribe(w)
+                                continue
                             # гаманець-бот (десятки угод на хвилину) не забирає ноду в усіх: понад alerts_wallet_per_min
                             # за хвилину — пропуск з рядком у журналі (KOLS-радар так само тримає потоки лише тихих гаманців).
                             # Пропущене позначаємо обробленим: інакше страховка надіслала б його із запізненням (рев'ю 01.10)
@@ -3084,7 +3147,16 @@ async def me_lists(request, pk):
                 return _jerr("Alerts are in a closed test for now.", 403)
             on = bool(body.get("on"))
             cap = int(request.app["s"].get("alerts_max_wallets", 20))
-            out = {"alerts": on, "changed": acc.set_list_alerts(pk, str(body.get("id") or ""), on, cap), "cap": cap}
+            was = {w for w, m in acc.load(pk)["wallets"].items() if m.get("alert")}
+            out = {"alerts": on, "changed": acc.set_list_alerts(pk, str(body.get("id") or ""), on, cap), "cap": cap, "spam": 0}
+            if on:                                              # боти зі списку лишаються без дзвіночка: сторінка каже скільки
+                fresh = [w for w, m in acc.load(pk)["wallets"].items() if m.get("alert") and w not in was]
+                for w, why in zip(fresh, await asyncio.gather(*(_spam_refusal(request.app, w) for w in fresh))):
+                    if why:
+                        acc.set_wallet_alert(pk, w, False, cap)
+                        out["spam"] += 1
+                out["changed"] -= out["spam"]
+                out["spam_per_hour"] = int(request.app["s"].get("alerts_spam_per_hour", 0))
             out["bells"] = [w for w, m in acc.load(pk)["wallets"].items() if m.get("alert")]   # the page shows every bell as it is now
         else:
             return _jerr("Unknown action.", 404)
@@ -3108,8 +3180,13 @@ async def me_wallet_alert(request, pk):
     if body is None:
         return _jerr("Bad request body.")
     cap = int(app["s"].get("alerts_max_wallets", 20))
+    wallet = str(body.get("wallet") or "")
+    if body.get("on") and wallet in app["accounts"].load(pk)["wallets"]:
+        why = await _spam_refusal(app, wallet)
+        if why:
+            return _jerr(why)
     try:
-        on, n = app["accounts"].set_wallet_alert(pk, str(body.get("wallet") or ""), bool(body.get("on")), cap)
+        on, n = app["accounts"].set_wallet_alert(pk, wallet, bool(body.get("on")), cap)
     except acct_mod.AccountError as e:
         return _jerr(str(e))
     app["events"].add(pk, "wallet_alert", on=int(on))
