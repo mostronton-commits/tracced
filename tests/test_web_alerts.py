@@ -419,6 +419,100 @@ if AioHTTPTestCase:
             again = create_app(FakeWebST(TRADES), settings.load(), {}, out_dir=self.tmp.name + "/web", store_dir=self.tmp.name + "/cache")
             self.assertIn("S9:WAL", again["alerts_seen"])                              # the first poll after a restart skips it
 
+        async def test_the_paid_node_reads_trades_and_the_free_one_catches_it(self):
+            paid, free = "https://paid.example/?api-key=SECRETKEY", self.app["s"]["alerts_rpc_url"]
+            self.app["alerts_paid_url"], self.app["s"]["alerts_rps"] = paid, 1000
+            asked, broken = [], False
+
+            async def rpc(http, url, method, params):
+                asked.append(url)
+                if url == paid and broken:
+                    raise RuntimeError(f"500, message='Bad', url='{paid}'")
+                return {"ok": url}
+            with mock.patch.object(app_mod, "_rpc", rpc):
+                self.assertEqual(await app_mod._alert_rpc(self.app, None, "getTransaction", [], paid=True), {"ok": paid})
+                self.assertEqual(await app_mod._alert_rpc(self.app, None, "getSignaturesForAddress", []), {"ok": free})   # the poll never spends the month
+                broken = True
+                with self.assertLogs("early.web", "WARNING") as logs:
+                    self.assertEqual(await app_mod._alert_rpc(self.app, None, "getTransaction", [], paid=True), {"ok": free})
+                self.assertNotIn("SECRETKEY", "".join(logs.output))
+                broken = False
+                self.app["s"]["alerts_paid_per_day"] = self.app["alerts_paid_daily"].count("global")   # the day's share is spent
+                asked.clear()
+                await app_mod._alert_rpc(self.app, None, "getTransaction", [], paid=True)
+                self.assertEqual(asked, [free])
+                self.app["s"]["alerts_paid_per_day"] = 1000
+                self.app["alerts_paid_month"].limit = self.app["alerts_paid_month"].spent      # or the month's
+                asked.clear()
+                await app_mod._alert_rpc(self.app, None, "getTransaction", [], paid=True)
+                self.assertEqual(asked, [free])
+            self.assertEqual(self.app["alerts_paid_month"].spent, 2)                   # free-node requests are not counted
+
+        async def test_the_owner_sees_the_paid_nodes_month(self):
+            self.app["alerts_paid_url"] = "https://paid.example/?api-key=SECRETKEY"
+            self.app["usage_cache"].clear()
+            for _ in range(150):
+                app_mod._paid_spent(self.app)
+            self.app["usage_cache"].clear()
+            rows = [e for e in self.app["events"].read(0) if e.get("event") == "node"]
+            self.assertEqual([e["de"] for e in rows], [1, 100])                        # the first at once, then in packs
+            self.assertEqual({e["pubkey"] for e in rows}, {"system"})
+            html = await (await self.client.get("/admin?tab=costs")).text()
+            self.assertIn("Digital Energy a day", html)
+            self.assertIn("150", html)
+            self.assertIn("7,500,000", html)
+            self.assertNotIn("SECRETKEY", html)
+
+        async def test_the_paid_node_leads_the_stream_and_its_key_stays_hidden(self):
+            self.app["alerts_paid_url"] = "https://paid.example/?api-key=SECRETKEY"
+            self.app["s"].update(alerts_ws_urls=["wss://free.example"], alerts_sub_gap_s=0.05)
+            tried, stop = [], asyncio.Event()
+            sub = {"pk": TEST_PK, "chat": 7, "prefs": {}, "tags": []}
+
+            async def watch(app, http, url, wm, primary=True):
+                tried.append((url, primary))
+                if len(tried) == 2:
+                    stop.set()
+                    await asyncio.sleep(60)
+                raise RuntimeError(f"403, message='Invalid', url='{url}'")
+            with mock.patch.object(app_mod, "_alerts_watch_once", watch), mock.patch.object(app_mod, "_watch_now", lambda app: {"W": [sub]}), \
+                    self.assertLogs("early.web", "WARNING") as logs:
+                loop = asyncio.ensure_future(app_mod._alerts_loop(self.app))
+                await asyncio.wait_for(stop.wait(), 8)
+                loop.cancel()
+            self.assertEqual(tried, [("wss://paid.example/?api-key=SECRETKEY", True), ("wss://free.example", False)])
+            self.assertNotIn("SECRETKEY", "".join(logs.output))
+            self.assertIn("paid.example", "".join(logs.output))
+
+            sent, inbox = [], asyncio.Queue()
+
+            class WS:
+                async def send_json(self, m):
+                    sent.append(time.monotonic())
+                    inbox.put_nowait({"id": m["id"], "result": 100 + m["id"]})
+
+                async def receive(self, timeout=None):
+                    try:
+                        d = inbox.get_nowait()
+                    except asyncio.QueueEmpty:
+                        await asyncio.sleep(0.01)
+                        raise asyncio.TimeoutError
+                    return type("M", (), {"type": aiohttp.WSMsgType.TEXT, "data": json.dumps(d)})()
+
+                async def close(self):
+                    return True
+
+            class HTTP:
+                async def ws_connect(self, *a, **k):
+                    return WS()
+            maps = [{}]
+            self.app["s"]["alerts_check_s"] = 0.05
+            with mock.patch.object(app_mod, "_watch_now", lambda app: maps.pop(0) if maps else {}):
+                await asyncio.wait_for(app_mod._alerts_watch_once(self.app, HTTP(), "wss://paid.example/?api-key=SECRETKEY",
+                                                                  {"A": [sub], "B": [sub], "C": [sub]}), 5)
+            self.assertGreaterEqual(sent[2] - sent[0], 0.09)                           # subscriptions keep their pace
+            self.assertEqual(self.app["alerts_state"]["url"], "paid.example")          # what the owner's page shows
+
         async def test_the_pace_and_its_pause_hold_for_everyone(self):
             p = app_mod._Pace(20)
             t0 = time.monotonic()
