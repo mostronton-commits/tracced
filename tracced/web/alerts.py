@@ -125,17 +125,17 @@ class SpamWallets:
         t = self.blocked.get(wallet)
         return t if t and t > self._now() else None
 
-    def hit(self, wallet, sig, per_hour):
-        """Ще одна транзакція; True — за останню годину їх стало понад per_hour. Той самий підпис від потоку і страховки — раз."""
+    def hit(self, wallet, sig, per_day):
+        """Ще одна транзакція; True — за останню добу їх стало понад per_day. Той самий підпис від потоку і страховки — раз."""
         now, q = self._now(), self.recent.setdefault(wallet, collections.deque())
         if any(s == sig for _, s in q):
             return False
         q.append((now, sig))
-        while q and now - q[0][0] > 3600:
+        while q and now - q[0][0] > 86400:
             q.popleft()
         if len(self.recent) > 5000:
             self.recent = {wallet: q}
-        return len(q) > per_hour
+        return len(q) > per_day
 
     def block(self, wallet, days):
         now = self._now()
@@ -154,9 +154,10 @@ class SpamWallets:
         return until
 
 
-def sigs_last_hour(sigs, now):
-    """Скільки успішних транзакцій за годину в сторінці підписів: перевірка перед тим, як увімкнути дзвіночок."""
-    return sum(1 for x in sigs or [] if not x.get("err") and now - (x.get("blockTime") or 0) < 3600)
+def sigs_last_day(sigs, now):
+    """Скільки транзакцій за добу в сторінці підписів. Невдалі теж: бот, що за шість хвилин шле тисячу невдалих, — теж бот
+    (замір 05.11), а потік сповіщає про кожну."""
+    return sum(1 for x in sigs or [] if now - (x.get("blockTime") or 0) < 86400)
 
 
 def watch_map(accounts, admins=(), open_to_all=False, max_wallets=10, default_min=None):
