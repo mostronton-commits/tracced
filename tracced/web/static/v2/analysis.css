@@ -12,7 +12,10 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 /* the token's head: its picture, symbol and name, X and Solscan; under them one quiet line; the facts beside */
 .ana .tokenhead { display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px 28px; flex-wrap: wrap; margin: 0; }
 .ana .th-id { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.ana .h-img { width: 38px; height: 38px; font-size: 15px; }
+/* owner, 06.11: a token's picture is a square file; a rounded square loses less of it than a circle, and a hairline shows its
+   whole shape when the picture has a dark edge of its own */
+.ana .h-img { width: 38px; height: 38px; font-size: 15px; border-radius: var(--r-m); }
+.ana .h-img::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .14); pointer-events: none; }
 .ana .th-names { min-width: 0; }
 .ana .th-names h1 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--fs-lead); font-weight: 600; line-height: 1.3; letter-spacing: -.01em; white-space: nowrap; }
 .ana .th-sym { overflow: hidden; text-overflow: ellipsis; }
