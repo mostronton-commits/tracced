@@ -411,7 +411,7 @@ no second, dark line.
   Sorted by and Filters; on the right what you can do with it, ⋯ and Ask AI. Hide bots is the first thing inside Filters,
   Reset a small × on the Filters button when something is set, Columns and Export in ⋯.
 - **No search for a wallet in a result** (owner, 06.11: «це зайве»): the filters narrow the list.
-- **Saving an analysis** is an icon-only star at the right end of the chart's toolbar (owner, 06.11: «просто зірочка»); amber once saved. All the chart's switches stand together on the left: candle length, Market cap | Price, UTC | Local, USD | SOL (owner, 06.11).
+- **Saving an analysis** is an icon-only star in the chart's toolbar (owner, 06.11: «просто зірочка»); amber once saved. Everything there stands together on the left: candle length, Market cap | Price, UTC | Local, USD | SOL, the star (owner, 06.11).
 - **The home's four blocks** are not equal (owner, 06.11): a zigzag, Fresh pumps wide beside Live on tracced, then the month's
   top traders beside Alerts wide (7 : 5, then 5 : 7), one column under 960 px. A block has a body: a lit top edge, it falls away
   downwards and casts a shadow. Behind each top trader's profit a bar shows its share of the leader's.

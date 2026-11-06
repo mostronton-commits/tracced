@@ -170,7 +170,8 @@ if AioHTTPTestCase:
             html = await (await self.client.get(f"/job/{await self.finished_job()}", headers=self.v2())).text()
             self.assertNotIn('id="tfind"', html)                         # owner, 06.11: no wallet search in a result
             self.assertLess(html.index('id="ctl"'), html.index('id="ctr"'))      # every switch together on the left (owner, 06.11)
-            self.assertLess(html.index('id="cur"'), html.index('id="ctsave"'))   # the star alone on the right of the chart's toolbar
+            self.assertLess(html.index('id="cur"'), html.index('id="ctsave"'))   # the star right after them, on the left too
+            self.assertLess(html.index('id="ctsave"'), html.index('class="ct-sp"'))
             res = static_js("result.js")
             self.assertIn("ctsave.appendChild(sjob);", res)
             self.assertIn("if (ctsave) sjob.remove();", res)             # a closed tab takes its star with it
