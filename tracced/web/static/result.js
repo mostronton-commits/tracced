@@ -974,7 +974,7 @@
       io.observe(a); off.push(() => io.disconnect());
     })();
     // the chart is the page's (owner, 09.10): this result puts its exit line and its wallets on it, and takes them off
-    ch.setOnMarkers(m => { const h = document.getElementById('mhint'); if (!h) return; h.hidden = !m.total; h.textContent = m.inView > m.labeled ? 'Amounts for the ' + m.labeled + ' largest of ' + m.inView + ' trades in view — zoom in for all' : ''; if (!h.textContent) h.hidden = true; });
+    ch.setOnMarkers(m => { const h = document.getElementById('mhint'); if (!h || V2) return; h.hidden = !m.total; h.textContent = m.inView > m.labeled ? 'Amounts for the ' + m.labeled + ' largest of ' + m.inView + ' trades in view — zoom in for all' : ''; if (!h.textContent) h.hidden = true; });
     ch.setExit(CFG.exit || null);
 
     // wallet story: markers on the chart (green bought, red sold; a ring when the wallet shares a funder) + the drawer

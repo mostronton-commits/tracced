@@ -134,6 +134,13 @@ if AioHTTPTestCase:
             chart = static_js("chart.js")
             self.assertIn("V2 && opts.tools", chart)                     # the toolbar above the chart only in v2
 
+        def test_chart_amounts_do_not_pile_up_in_v2_only(self):
+            chart = static_js("chart.js")
+            self.assertIn("if (V2) labeled = amountsThatFit(inView);", chart)
+            self.assertIn("else if (inView.length <= 40) labeled = new Set(inView);", chart)   # the old look keeps its rule
+            self.assertIn("window.EarlyChart.fitLabels", chart)
+            self.assertIn("if (!h || V2) return;", static_js("result.js"))   # no line under the chart that comes and goes
+
 
 if __name__ == "__main__":
     unittest.main()

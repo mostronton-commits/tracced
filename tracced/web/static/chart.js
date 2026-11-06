@@ -400,13 +400,25 @@
       const mid = v[Math.floor(v.length * 0.5)], top = v[Math.floor(v.length * 0.85)];
       return usd => (usd >= top ? 1.3 : usd >= mid ? 0.95 : 0.65);
     }
+    // v2 (owner, 06.11: the amounts of a busy wallet piled up): as many as the chart's width holds, the largest first,
+    // none over one already there. Zooming in spreads the trades, so the rest come out
+    function amountsThatFit(inView) {
+      const ts = chart.timeScale(), items = [];
+      inView.forEach(m => {
+        const c = data.get(m.t), x = ts.timeToCoordinate(m.t), buy = m.side === 'buy';
+        const p = c ? series.priceToCoordinate(buy ? c.low : c.high) : null;
+        if (x != null) items.push({ m, usd: m.usd, x, y: (p == null ? 0 : p) + (buy ? 24 : -24), w: fmtUsd(m.usd).length * 7 + 6, h: 14 });
+      });
+      return new Set(window.EarlyChart.fitLabels(items, Math.max(6, Math.round(el.clientWidth / 70))).map(i => i.m));
+    }
     function renderMarkers() {
       if (!LW.createSeriesMarkers || !tf) return;
       const v = visible(), all = groupTrades(wallets, TF_SEC[tf]);
       // labels: every marker when ≤ 40 are in view, otherwise only the 12 largest in view — zoom in for the rest
       const inView = v ? all.filter(m => m.t >= v.a && m.t <= v.b) : all;
       let labeled;
-      if (inView.length <= 40) labeled = new Set(inView);
+      if (V2) labeled = amountsThatFit(inView);
+      else if (inView.length <= 40) labeled = new Set(inView);
       else labeled = new Set([...inView].sort((x, y) => y.usd - x.usd).slice(0, 12));
       const sizeOf = sizeSteps(inView), ms = [];
       all.forEach(m => {
@@ -495,4 +507,12 @@
     };
   };
   window.EarlyChart.SHADES = SHADES;
+  // which labels fit: the largest first, none over one already placed, at most max; x and y are each label's centre
+  window.EarlyChart.fitLabels = (items, max) => {
+    const out = [];
+    [...items].sort((a, b) => b.usd - a.usd).forEach(i => {
+      if (out.length < max && !out.some(o => Math.abs(o.x - i.x) < (o.w + i.w) / 2 && Math.abs(o.y - i.y) < (o.h + i.h) / 2)) out.push(i);
+    });
+    return out;
+  };
 })();

@@ -200,6 +200,8 @@ The greys, the lines and the cards were lifted on 26.10 so the page reads in a b
   logo, the live dot, a selected chip (`primary-wash` with a `primary-line` edge). Text on mint is `on-primary`.
   **Mint never colours a number.**
 - **Profit and loss** colour figures, bars and chart marks only: PnL, ROI, candles, buys and sells on the chart.
+- **A wallet's amounts on the chart never pile up** (owner, 06.11): the largest first, as many as the width holds, none
+  over one already there; every trade keeps its arrow, zooming in brings out the rest. No line under the chart about it.
 - **Meanings, each used for its meaning only:** `risk` amber (sniper, bundle, fresh, transfer in, bot-like, partial
   data, the saved star), `danger` red (the creator, launch and own bundles, an organised launch), `known` blue (a KOL
   or an exchange), `repeat` violet, `sleeper` pink. A tag carries its hue at 16 % fill, about 40 % edge, the glyph in
