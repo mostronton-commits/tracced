@@ -16,22 +16,22 @@
   {% set r = result %}{% set c = r.counts %}
   <div class="onchart-bar" id="onchart" hidden></div>
   <p class="muted small mhint" id="mhint" hidden></p>
-  {# what tracced counted and found, one strip: three counts large, then three chips (owner, 06.11), each a click into exactly
-     its wallets. findings() fills #finds, the alarming first; the plain counts stand in when a token has less to say #}
+  {# what tracced counted and found (owner, 06.11: zones left and right did not add up): six equal cells, one size of number,
+     a thin scale under each share: wallets, spent, realized profit, in profit, sold out, and the token's main finding, which
+     findings() puts in #finds. The share still holding stands in when a token has nothing to say #}
   {% set n0 = sm.n or 0 %}
   {% set pso = [((100 * (sm.exited or 0) / n0)|round|int), (99 if (sm.exited or 0) < n0 else 100)]|min if n0 else 0 %}
   {% set phd = [((100 * (sm.holding or 0) / n0)|round|int), (99 if (sm.holding or 0) < n0 else 100)]|min if n0 else 0 %}
   {% set cv = r.coverage or {} %}{% set partial = cv and cv.mode != 'trades' and (cv.exits_known or 0) < (cv.total or 0) %}
+  {% set rz = sm.realized_total or 0 %}
   <div class="tally" id="tally">
-    <span class="tbig" title="Wallets that bought inside the range: the list below"><b data-count="{{ sm.n }}" data-fmt="int">0</b><i>wallets bought</i><span class="kinfo tipt{{ ' warn' if partial }}" tabindex="0" title="{{ c.n_wallets|num }} traded in the range · {{ c.dust|num }} below ${{ s.min_invested_usd }} · {{ ((c.pre_range_only or 0) + (c.before_range_only or 0))|num }} sold only · {{ c.n_trades|num }} trades, up to {{ job_end|dt }} UTC{% if cov_text %} · {{ cov_text }}{% endif %}" aria-label="{{ 'Exits are not known for every wallet' if partial else 'How these numbers were counted' }}">{{ '!' if partial else 'i' }}</span></span>
-    <span class="tbig" title="What these wallets spent inside the range"><b class="amt" data-usd="{{ (sm.invested_range or 0)|round(0)|int }}"{% if sm.invested_range_sol is not none %} data-sol="{{ sm.invested_range_sol|round(2) }}"{% endif %} data-count="{{ (sm.invested_range or 0)|round(0)|int }}" data-fmt="usd">0</b><i>spent</i></span>
-    <button type="button" class="tbig tc" data-act="profit" id="tprofit" hidden title="Wallets with a realized profit here · click to show them"><b class="pos" data-fmt="pct">0</b><i>in profit</i></button>
-    <span class="tline">
-      <span class="tfinds" id="finds"></span>
-      <button type="button" class="tc tfill" hidden data-act="sold" title="{{ (sm.exited or 0)|num }} of {{ n0|num }} sold 99% or more · click to show them"><b>{{ pso }}%</b> sold out</button>
-      <button type="button" class="tc tfill" hidden data-act="holding" title="{{ (sm.holding or 0)|num }} of {{ n0|num }} sold less than half · click to show them"><b>{{ phd }}%</b> still holding</button>
-      <button type="button" class="tc tfill" hidden data-act="best" title="Highest average exit cap ÷ average entry cap, buys before the range included · click to sort by ROI"><b>{{ (sm.best_multiple or 0)|round(1) if (sm.best_multiple or 0) < 10 else (sm.best_multiple or 0)|round|int }}×</b> best</button>
-    </span>
+    <span class="tcell tbig" title="Wallets that bought inside the range: the list below"><b data-count="{{ sm.n }}" data-fmt="int">0</b><i>wallets bought<span class="kinfo tipt{{ ' warn' if partial }}" tabindex="0" title="{{ c.n_wallets|num }} traded in the range · {{ c.dust|num }} below ${{ s.min_invested_usd }} · {{ ((c.pre_range_only or 0) + (c.before_range_only or 0))|num }} sold only · {{ c.n_trades|num }} trades, up to {{ job_end|dt }} UTC{% if cov_text %} · {{ cov_text }}{% endif %}" aria-label="{{ 'Exits are not known for every wallet' if partial else 'How these numbers were counted' }}">{{ '!' if partial else 'i' }}</span></i></span>
+    <span class="tcell tbig" title="What these wallets spent inside the range"><b class="amt" data-usd="{{ (sm.invested_range or 0)|round(0)|int }}"{% if sm.invested_range_sol is not none %} data-sol="{{ sm.invested_range_sol|round(2) }}"{% endif %} data-count="{{ (sm.invested_range or 0)|round(0)|int }}" data-fmt="usd">0</b><i>spent</i></span>
+    <button type="button" class="tcell tbig tc" data-act="sort" title="What these wallets took out above what it cost them, across all their trades of this token · click to sort by PnL"><b class="amt{{ ' pos' if rz > 0 else ' neg' if rz < 0 }}" data-usd="{{ rz|round(0)|int }}"{% if sm.realized_total_sol is defined and sm.realized_total_sol is not none %} data-sol="{{ sm.realized_total_sol|round(2) }}"{% endif %} data-count="{{ rz|round(0)|int }}" data-fmt="signed">0</b><i>realized profit</i></button>
+    <button type="button" class="tcell tbig tc" data-act="profit" id="tprofit" hidden title="Wallets with a realized profit here · click to show them"><b class="pos" data-fmt="pct">0</b><i>in profit</i><u class="tsc good"><s></s></u></button>
+    <button type="button" class="tcell tbig tc" data-act="sold" title="{{ (sm.exited or 0)|num }} of {{ n0|num }} sold 99% or more · click to show them"><b>{{ pso }}%</b><i>sold out</i><u class="tsc"><s style="width:{{ pso }}%"></s></u></button>
+    <span class="tfinds" id="finds"></span>
+    <button type="button" class="tcell tbig tc tfill" hidden data-act="holding" title="{{ (sm.holding or 0)|num }} of {{ n0|num }} sold less than half · click to show them"><b>{{ phd }}%</b><i>still holding</i><u class="tsc"><s style="width:{{ phd }}%"></s></u></button>
   </div>
 
   {% if not sm.has_sol %}<p class="muted small solnote" hidden>This analysis was saved before tracced started recording SOL amounts, so its figures stay in dollars.</p>{% endif %}
@@ -44,11 +44,19 @@
         <option value="mult">ROI</option><option value="entry" data-dir="1">Entry cap</option>
         <option value="hold">Hold time</option><option value="buys">Buys</option><option value="" hidden disabled>your order</option></select></label>
       <span class="factive" id="factive" hidden></span>
+      {# owner, 06.11: left what is shown and in what order, right what you can do with it. Hide bots is at the top of Filters,
+         Columns in ⋯, Reset a small × on Filters #}
+      <span class="fwrap"><button type="button" class="tbtn" id="ftoggle" aria-expanded="false" aria-controls="fpanel">{{ ag.g('filter', size=13) }}<span id="ftext">Filters</span></button><button type="button" class="frst" id="freset" hidden title="Back to no filters and the PnL order" aria-label="Reset the filters">×</button></span>
       <span class="tb-sp"></span>
-      <button type="button" class="tbtn" id="hidebots" aria-pressed="false" title="Hide every wallet tagged bot-like: its own trades on this token look automated">{{ ag.g('bot', size=13) }}Hide bots</button>
-      <button type="button" class="tbtn" id="ftoggle" aria-expanded="false" aria-controls="fpanel">{{ ag.g('filter', size=13) }}<span id="ftext">Filters</span></button><button type="button" class="ghost frst" id="freset" hidden title="Back to no filters and the PnL order">Reset</button>
-      <div class="menu cols">
-        <button type="button" class="tbtn" id="colsbtn" aria-haspopup="true" aria-expanded="false" title="Show, hide and order the columns">{{ ag.g('columns', size=13) }}Columns</button>
+      <div class="menu">
+        <button type="button" class="tbtn tmore" id="xbtn" aria-haspopup="true" aria-expanded="false" title="Columns and export" aria-label="Columns and export">{{ ag.g('more', size=16) }}</button>
+        <div class="menu-panel r" id="xpanel" hidden>
+          <button type="button" class="xcols" id="colsbtn" aria-haspopup="true" aria-expanded="false" title="Show, hide and order the columns"><span>{{ ag.g('columns', size=13) }}Columns</span></button>
+          <span class="mh">Export</span>
+          <button type="button" data-x="csv">CSV <small id="xcsv"></small></button>
+          <button type="button" data-x="txt">TXT <small id="xtxt"></small></button>
+          <button type="button" data-x="json">JSON <small id="xjson"></small></button>
+        </div>
         <div class="colpanel" id="colpanel" hidden></div>
       </div>
       <div class="soonwrap" id="aiwrap">
@@ -56,15 +64,6 @@
         <div class="soon-pop" id="aipop" hidden>
           <b>Coming soon</b>
           <span>The agent will read this analysis and tell you what happened in the range, what to weigh and whose wallets stand out, then answer your questions about it. It is not switched on on this server yet.</span>
-        </div>
-      </div>
-      <div class="menu">
-        <button type="button" class="tbtn tmore" id="xbtn" aria-haspopup="true" aria-expanded="false" title="Export the wallets shown: CSV, TXT or JSON" aria-label="Export">{{ ag.g('more', size=16) }}</button>
-        <div class="menu-panel r" id="xpanel" hidden>
-          <span class="mh">Export</span>
-          <button type="button" data-x="csv">CSV <small id="xcsv"></small></button>
-          <button type="button" data-x="txt">TXT <small id="xtxt"></small></button>
-          <button type="button" data-x="json">JSON <small id="xjson"></small></button>
         </div>
       </div>
     </div>

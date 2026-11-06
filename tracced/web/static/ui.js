@@ -13,6 +13,7 @@
   const FMT = {
     int: v => Math.round(v).toLocaleString('en-US'),
     usd: v => (v < 0 ? '-$' : '$') + fmtShort(Math.abs(v)),
+    signed: v => (v < 0 ? '−$' : '+$') + fmtShort(Math.abs(v)),
     short: v => fmtShort(v),
     mult: v => (v ? (v >= 10 ? v.toFixed(0) : v.toFixed(1)) + '×' : '—'),
     pct: v => Math.round(v) + '%',

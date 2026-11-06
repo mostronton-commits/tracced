@@ -401,11 +401,15 @@ no second, dark line.
 - **Tooltips** come from `title` and stay short, about 90 characters at most. On a touch screen a tap on a `.tipt`
   element shows the same text as a toast. An `i` mark (`.dinfo`, `.kinfo`) holds the method; it turns into an amber
   `!` when the data is incomplete.
-- **The tally** sits under the chart (owner, 06.11): three large counts (bought, with the `i` of the method, spent, in
-  profit), then exactly three chips, nothing hidden behind a "more". The launch word comes first, then the findings,
-  the alarming before the rest; a token with less to say fills up with sold out, still holding and best. Colour only for
-  meaning: amber a warning, red the creator or a staged launch, violet repeats. A chip with a filter or an order behind
-  it is a button. The home page shows none.
+- **The tally** sits under the chart (owner, 06.11: zones left and right did not add up): six equal cells in one row, one
+  size of number, a hairline between them, a thin scale under each share. Wallets bought (with the `i` of the method), spent,
+  realized profit, in profit, sold out, and the token's main finding: the launch word, else the first of organised launch,
+  creator bought, bundled, bundles out, fresh, share of the top 10, seen before, from exchanges; a token with nothing to say
+  shows still holding. Colour only for meaning: amber a warning, red the creator or a staged launch, violet repeats. A cell
+  with a filter or an order behind it is a button. Under 640 px two rows of three. The home page shows none.
+- **The toolbar over the table** (owner, 06.11: the buttons looked random): on the left what is shown and in what order,
+  Sorted by and Filters; on the right what you can do with it, ⋯ and Ask AI. Hide bots is the first thing inside Filters,
+  Reset a small × on the Filters button when something is set, Columns and Export in ⋯.
 - **No search for a wallet in a result** (owner, 06.11: «це зайве»): the filters narrow the list.
 - **Saving an analysis** is an icon-only star at the right end of the chart's toolbar (owner, 06.11: «просто зірочка»); amber once saved. All the chart's switches stand together on the left: candle length, Market cap | Price, UTC | Local, USD | SOL (owner, 06.11).
 - **The home's four blocks** are not equal (owner, 06.11): a zigzag, Fresh pumps wide beside Live on tracced, then the month's

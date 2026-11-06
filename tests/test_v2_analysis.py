@@ -87,8 +87,8 @@ if AioHTTPTestCase:
             page = await (await self.client.get(f"/job/{jid}", headers=self.v2())).text()
             self.assertIn('class="token ana"', page)
             self.assertIn('id="resultroot"', page)
-            for part in ('id="tally"', 'class="tbig"', 'id="tprofit"', 'data-act="sold"', 'data-act="holding"', 'data-act="best"', 'id="finds"',
-                         'id="msort"', 'Sorted by', 'id="hidebots"', 'id="ftoggle"', 'id="freset"', 'id="fpanel"',
+            for part in ('id="tally"', 'class="tcell tbig"', 'id="tprofit"', 'data-act="sold"', 'data-act="holding"', 'data-act="sort"', 'realized profit', 'id="finds"',
+                         'id="msort"', 'Sorted by', 'id="ftoggle"', 'id="freset"', 'id="fpanel"',
                          'id="colsbtn"', 'id="colpanel"', 'id="askbtn"', 'Ask AI', 'id="xbtn"', 'id="xpanel"',
                          'data-x="csv"', 'data-x="txt"', 'data-x="json"',               # ⋯ holds Export
                          '<th class="wh">Wallet</th>', 'data-fil="real"', 'data-fil="hold"', 'id="shown"', 'id="more100"', 'id="moreall"',
@@ -136,9 +136,12 @@ if AioHTTPTestCase:
 
         async def test_result_strip_holds_three_chips_and_the_table_says_roi(self):
             html = await (await self.client.get(f"/job/{await self.finished_job()}", headers=self.v2())).text()
-            self.assertEqual(html.count('class="tc tfill" hidden'), 3)   # the plain counts wait, and stand in when a token has less to say
-            self.assertNotIn('class="tsep"', html)
-            self.assertLess(html.index('id="finds"'), html.index('tc tfill'))   # findings first
+            self.assertEqual(html.count('tc tfill" hidden'), 1)          # still holding stands in when a token has nothing to say
+            self.assertNotIn('class="tline"', html[html.index('id="tally"'):html.index('class="tcard"')])
+            self.assertLess(html.index('id="finds"'), html.index('tc tfill'))
+            self.assertNotIn('id="hidebots"', html)                      # owner, 06.11: Hide bots is inside Filters, Columns in ⋯
+            self.assertLess(html.index('id="xpanel"'), html.index('id="colsbtn"'))
+            self.assertLess(html.index('id="ftoggle"'), html.index('id="freset"'))
             self.assertIn('<option value="mult">ROI</option>', html)
             self.assertNotIn('Multiple', html)
 
@@ -156,7 +159,8 @@ if AioHTTPTestCase:
             res, css = static_js("result.js"), static_js("v2/analysis.css")
             self.assertIn("const SHARE = {", res)
             self.assertIn("tripSvg(o, 100, 18, null, false, true)", res) # the line takes its column's width
-            self.assertIn("const places = 3 - (verdictNote ? 1 : 0);", res)
+            self.assertIn("const main = verdictNote ? null : out.find(x => x.k !== 'won') || null;", res)
+            self.assertIn("data-bots", res)
             self.assertIn("tr:nth-child(even) td { background-color: var(--row-alt); }", css)
             self.assertIn("--row-alt:", static_js("v2/tokens.css"))
             self.assertIn("position: sticky; left: 0;", css)             # Wallet stays when the rest scrolls sideways

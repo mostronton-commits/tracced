@@ -484,19 +484,18 @@
         out.push({ k: 'won', sev: 'good', act: ['profit'], v: won + '%', p: won, l: 'in profit', tip: won + '% of the wallets have a realized profit here' });
       }
       if (V2) {
-        // v2 (owner, 06.11): three findings and nothing behind a «more». `out` has the alarming ones first; the launch word
-        // takes a place of its own; a token with less to say fills up with the plain counts, each a click into its wallets
-        const places = 3 - (verdictNote ? 1 : 0);
-        findActs = out.filter(x => x.k !== 'won').slice(0, places);
-        const W = { launch: () => 'organised launch', dev: x => 'creator bought <b>' + x.v + '</b>', bout: x => '<b>' + x.v + '</b> of bundles out',
-          cex: x => '<b>' + x.v + '</b> funded from exchanges', top: x => '<b>' + x.v + '</b> of the profit to the top 10', repeat: x => '<b>' + x.v + '</b> seen before' };
-        const words = x => (W[x.k] ? W[x.k](x) : '<b>' + x.v + '</b> ' + x.l);
-        const v2html = (verdictNote ? '<span class="tc bad tipt" tabindex="0" title="' + esc(verdictNote) + '"><b>' + verdictWord + '</b> launch</span>' : '')
-          + findActs.map((x, i) => (x.act ? '<button type="button" class="tc ' + x.sev + '" data-i="' + i + '" title="' + esc(x.tip) + ' · click to show them">'
-            : '<span class="tc ' + x.sev + '" title="' + esc(x.tip) + '">') + words(x) + (x.act ? '</button>' : '</span>')).join('');
+        // v2 (owner, 06.11): one cell for the token's main finding: the launch word if there is one, else the first of `out`,
+        // which has the alarming ones first. A token with nothing to say shows the share still holding instead
+        const main = verdictNote ? null : out.find(x => x.k !== 'won') || null;
+        findActs = main ? [main] : [];
+        const W = { launch: 'organised launch', dev: 'creator bought', bout: 'of bundles out', cex: 'from exchanges', top: 'profit to the top 10', repeat: 'seen before' };
+        const inner = x => (x.v === '✓' ? '<b>Organised</b><i>launch</i>' : '<b>' + x.v + '</b><i>' + (W[x.k] || x.l) + '</i>')
+          + (x.p != null ? '<u class="tsc"><s style="width:' + x.p + '%"></s></u>' : '');
+        const v2html = verdictNote ? '<span class="tcell tbig tc bad tipt" tabindex="0" title="' + esc(verdictNote) + '"><b>' + verdictWord + '</b><i>launch</i></span>'
+          : !main ? '' : (main.act ? '<button type="button" class="tcell tbig tc ' + main.sev + '" data-i="0" title="' + esc(main.tip) + ' · click to show them">'
+            : '<span class="tcell tbig tc ' + main.sev + '" title="' + esc(main.tip) + '">') + inner(main) + (main.act ? '</button>' : '</span>');
         if (el.dataset.h !== v2html) { el.innerHTML = v2html; el.dataset.h = v2html; }
-        let free = places - findActs.length;
-        document.querySelectorAll('#tally .tfill').forEach(b => { b.hidden = free-- <= 0; });
+        document.querySelectorAll('#tally .tfill').forEach(b => { b.hidden = !!(verdictNote || main); });
         return;
       }
       findActs = out.slice(0, FIND_MAX);
@@ -523,9 +522,9 @@
       // to the toolbar, not the table: the note of what is shown and its × sit there (review 01.10)
       (document.querySelector('.row.toolbar') || document.getElementById('facts')).scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
-    if (V2) {                                                   // the third large count: the share of wallets in profit
+    if (V2) {                                                   // the share of wallets in profit, its number and its scale
       const tp = document.getElementById('tprofit');
-      if (tp && all.length) { tp.querySelector('b').dataset.count = pc(all.filter(o => (+o.real || 0) > 0).length, all.length); tp.hidden = false; }
+      if (tp && all.length) { const w = pc(all.filter(o => (+o.real || 0) > 0).length, all.length); tp.querySelector('b').dataset.count = w; tp.querySelector('.tsc s').style.width = w + '%'; tp.hidden = false; }
     }
     // the one filter a click can set without the panel open is named beside the count, with its own ×
     const ONLY = { bundle: 'Only bundles', dev: 'Only the creator', fresh: 'Only fresh wallets', cex: 'Only funded from exchanges',
@@ -551,11 +550,8 @@
       const na = nActive(), n = pass.length, left = Math.max(0, n - limit);
       shown.textContent = (left ? Math.min(n, limit) + ' of ' + n + ' shown' : n + ' of ' + all.length) + (na ? ' · filtered' : '');
       more.hidden = !left; document.getElementById('more100').hidden = left <= 100; document.getElementById('moren').textContent = n;
-      if (V2) {                                                 // the label beside its drawing; the toolbar's own search and bot switch
-        document.getElementById('ftext').textContent = na ? 'Filters · ' + na : 'Filters';
-        const q = document.getElementById('tfind'); if (q && document.activeElement !== q && q.value !== f.q) q.value = f.q;
-        const hb = document.getElementById('hidebots'); if (hb) { const on = f.hide.includes('bot-like'); hb.classList.toggle('on', on); hb.setAttribute('aria-pressed', String(on)); }
-      } else ftoggle.textContent = na ? 'Filters · ' + na : 'Filters';
+      if (V2) document.getElementById('ftext').textContent = na ? 'Filters · ' + na : 'Filters';   // the label beside its drawing
+      else ftoggle.textContent = na ? 'Filters · ' + na : 'Filters';
       ftoggle.classList.toggle('on', !!na);
       const fr = document.getElementById('freset'); if (fr) fr.hidden = !na && sortKey === 'real' && sortDir === -1;
       syncExport();
@@ -611,16 +607,18 @@
       if (!fpop.hidden && !e.target.closest('.fpop, .hfil, #ftoggle')) closeFilter();
     });
     on(document, 'keydown', e => { if (e.key === 'Escape') closeFilter(); });
-    // the panel: find a wallet, your watchlist, every number from and to, the tags to hide; all of it applies as you type.
+    // the panel: v2 Hide bots, the old look find a wallet; your watchlist, every number from and to, the tags to hide; all of it applies as you type.
     // The funnels in the head edit the same numbers, so either one shows what the other set
     const PANEL_NUMS = ['inv', 'sold', 'real', 'mult', 'hold', 'buys'];
     function drawPanel() {
       const fp = document.getElementById('fpanel');
-      fp.innerHTML = '<div class="fp-top">' + (V2 ? '' : '<input type="text" class="fq" maxlength="44" placeholder="Find a wallet: address or name" aria-label="Find a wallet">')   // owner, 06.11: no wallet search in v2
+      fp.innerHTML = '<div class="fp-top">' + (V2   // owner, 06.11: no wallet search in v2; Hide bots moved here from the toolbar
+          ? '<label class="fck fbots" title="Hide every wallet tagged bot-like: its own trades on this token look automated"><input type="checkbox" data-bots>' + (EarlyTags.ICON['bot-like'] || '') + 'Hide bots</label>'
+          : '<input type="text" class="fq" maxlength="44" placeholder="Find a wallet: address or name" aria-label="Find a wallet">')
         + '<label class="fck fmine" hidden><input type="checkbox" data-mine>' + EarlyIcon('star-on') + 'Only my watchlist</label></div>'
         + '<div class="fp-nums">' + PANEL_NUMS.map(k => '<label class="fnum" title="' + esc(RANGES[k].hint) + '"><span>' + RANGES[k].t + (RANGES[k].u ? ', ' + RANGES[k].u : '')
           + '</span>' + numIn(k, 0, null) + '<i>–</i>' + numIn(k, 1, null) + '</label>').join('') + '</div>'
-        + '<div class="fp-hide"><span class="fph">Hide</span>' + HIDE_TAGS.map(x => '<button type="button" class="tagchip t-' + x + '" data-hide="' + x + '" aria-pressed="false" title="Hide wallets tagged '
+        + '<div class="fp-hide"><span class="fph">Hide</span>' + (V2 ? HIDE_TAGS.filter(x => x !== 'bot-like') : HIDE_TAGS).map(x => '<button type="button" class="tagchip t-' + x + '" data-hide="' + x + '" aria-pressed="false" title="Hide wallets tagged '
           + x + ': ' + esc(TAGDEF[x] || '') + '">' + (EarlyTags.ICON[x] || '') + x + '</button>').join('') + '</div>'
         + '<div class="fp-views"><span class="fph">Views</span><span class="fvlist"></span>'
         + '<button type="button" class="ghost fvsave" title="Keep these filters and this order under a name, for any analysis">Save these filters</button>'
@@ -630,6 +628,7 @@
     function fillPanel() {                                     // the values from the state, never under the field being typed in
       const fp = document.getElementById('fpanel'); if (!fp || fp.hidden || !fp.firstChild) return;
       const q = fp.querySelector('.fq'); if (q && q !== document.activeElement) q.value = f.q;
+      const hb = fp.querySelector('[data-bots]'); if (hb) hb.checked = f.hide.includes('bot-like');
       const m = fp.querySelector('.fmine'); m.hidden = !(hasLists || f.mine); m.querySelector('input').checked = !!f.mine;
       fp.querySelectorAll('input[data-k]').forEach(x => { if (x !== document.activeElement) { const v = (f.r[x.dataset.k] || [null, null])[+x.dataset.i]; x.value = v == null ? '' : v; } });
       fp.querySelectorAll('[data-hide]').forEach(b => { const on = f.hide.includes(b.dataset.hide); b.classList.toggle('off', on); b.setAttribute('aria-pressed', String(on)); });
@@ -647,6 +646,12 @@
       fpanel.hidden = !open; ftoggle.setAttribute('aria-expanded', String(open));
       if (open) { closeFilter(); fillPanel(); }
       EarlyUI.use('filters-toggle', { on: open });
+    });
+    if (V2) fpanel.addEventListener('change', e => {
+      if (!e.target.matches('[data-bots]')) return;
+      const on = e.target.checked;
+      f.hide = on ? f.hide.concat(['bot-like']) : f.hide.filter(y => y !== 'bot-like');
+      saveF(); limit = LIMIT; apply(); fillPanel(); EarlyUI.use('hide', { tag: 'bot-like', on, via: 'panel' });
     });
     let qT = 0, nT = 0;
     fpanel.addEventListener('input', e => {
@@ -899,13 +904,7 @@
 
     if (V2) {
       headV2(); markSort();
-      // the toolbar (canvas Analysis4): Hide bots hides the bot-like tag, as the panel's chip does; Columns shows, hides
-      // and orders the columns; ⋯ holds Export
-      document.getElementById('hidebots').addEventListener('click', () => {
-        const on = !f.hide.includes('bot-like');
-        f.hide = on ? f.hide.concat(['bot-like']) : f.hide.filter(y => y !== 'bot-like');
-        saveF(); limit = LIMIT; apply(); fillPanel(); EarlyUI.use('hide', { tag: 'bot-like', on, via: 'toolbar' });
-      });
+      // the toolbar: ⋯ holds Columns, which shows, hides and orders the columns, and Export
       const colbtn = document.getElementById('colsbtn'), colpanel = document.getElementById('colpanel');
       const drawCols = () => {
         colpanel.innerHTML = '<div class="mh">Show columns</div>' + cols.map((x, i) => '<label class="colrow" draggable="true" data-i="' + i + '" title="Drag, or Alt and an arrow key, to move it">'
@@ -918,6 +917,7 @@
         e.stopPropagation();
         const open = colpanel.hidden; if (open) drawCols();
         colpanel.hidden = !open; colbtn.setAttribute('aria-expanded', String(open)); colbtn.classList.toggle('open', open);
+        const xp = document.getElementById('xpanel'), xb = document.getElementById('xbtn'); xp.hidden = true; xb.setAttribute('aria-expanded', 'false'); xb.classList.remove('open');   // the panel takes the menu's place
       });
       colpanel.addEventListener('click', e => e.stopPropagation());
       colpanel.addEventListener('change', e => {
@@ -944,7 +944,7 @@
       on(document, 'keydown', e => { if (e.key === 'Escape' && !colpanel.hidden) closeCols(); });
       const xbtn = document.getElementById('xbtn'), xpanel = document.getElementById('xpanel');
       if (xbtn) {
-        xbtn.addEventListener('click', e => { e.stopPropagation(); const open = xpanel.hidden; xpanel.hidden = !open; xbtn.setAttribute('aria-expanded', String(open)); xbtn.classList.toggle('open', open); });
+        xbtn.addEventListener('click', e => { e.stopPropagation(); if (!colpanel.hidden) closeCols(); const open = xpanel.hidden; xpanel.hidden = !open; xbtn.setAttribute('aria-expanded', String(open)); xbtn.classList.toggle('open', open); });
         const shut = () => { xpanel.hidden = true; xbtn.setAttribute('aria-expanded', 'false'); xbtn.classList.remove('open'); };
         xpanel.addEventListener('click', e => { if (e.target.closest('[data-x]')) setTimeout(shut, 0); });
         on(document, 'click', e => { if (!xpanel.hidden && !e.target.closest('#xpanel')) shut(); });
