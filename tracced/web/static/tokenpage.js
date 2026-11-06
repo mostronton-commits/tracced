@@ -287,7 +287,9 @@
         + '<i class="tdot" aria-hidden="true"></i><b>' + EarlyTags.esc(t.label) + '</b><small>' + sub + '</small>'
         + (t.deletable ? '<span class="tdel" role="button" tabindex="0" title="Delete this analysis — the slot is free again" aria-label="Delete">×</span>' : '') + '</button>';
     }).join('')
-      + (DEMO ? '' : '<button type="button" class="atab new' + (draft.from ? ' on' : '') + '" data-new="1"' + (taken() >= MAX_TABS ? ' disabled title="' + EarlyTags.esc(limitMsg()) + '"' : ' title="Mark a new range on the chart"') + '>'
+      + (DEMO ? '' : V2 ? '<button type="button" class="atab new' + (draft.from ? ' on' : '') + '" data-new="1" aria-label="New range"' + (taken() >= MAX_TABS ? ' disabled title="' + EarlyTags.esc(limitMsg()) + '"' : ' title="New range: ' + VERB.toLowerCase() + ' the chart"')   // owner, 06.11: a small plus, no visual noise
+        + '><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg></button>'
+        : '<button type="button" class="atab new' + (draft.from ? ' on' : '') + '" data-new="1"' + (taken() >= MAX_TABS ? ' disabled title="' + EarlyTags.esc(limitMsg()) + '"' : ' title="Mark a new range on the chart"') + '>'
         + '<b>+ New range</b><small>' + (draft.from && draft.to ? dur(Math.round((parse(draft.to) - parse(draft.from)) / 60000)) : VERB.toLowerCase() + ' the chart') + '</small></button>');
     tabsEl.hidden = !tabs.length && !draft.from;
     if (V2 && $('tabsum')) {                                   // v2: the chosen range's times at the row's end (its result adds the rest)

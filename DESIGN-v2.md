@@ -244,7 +244,7 @@ Cyrillic of the agent's Ukrainian, the arrows, and a checkout without the files.
   and the footer sits at the bottom.
 - **A token's page is one page from the token to its wallets** (owner, 09.10: «юзер вводить токен і на тій самій
   сторінці виділяє діапазон і отримує результат»). Top to bottom: the token's head with its chips, the chart, the
-  token's analyses as tabs (each in its band's shade: «Pump 1 · 765 wallets», a dashed «+ New range»), the run's line
+  token's analyses as tabs (each in its band's shade: «Pump 1 · 765 wallets», a small round + for a new range, owner, 06.11: no visual noise), the run's line
   while it goes, and the chosen
   result: the tally (the counts and the insights in one strip), the toolbar, the table with its filters in its head.
   The wallet card slides in from the right.

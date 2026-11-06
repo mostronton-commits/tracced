@@ -162,6 +162,11 @@ if AioHTTPTestCase:
             self.assertIn("position: sticky; left: 0;", css)             # Wallet stays when the rest scrolls sideways
             self.assertIn("tr.botlike td > * { opacity: .5; }", css)     # what a bot's cell holds dims, not the shade
 
+        def test_new_range_is_a_small_plus_in_v2_only(self):
+            js = static_js("tokenpage.js")
+            self.assertIn('class="atab new\' + (draft.from ? \' on\' : \'\') + \'" data-new="1" aria-label="New range"', js)
+            self.assertIn("<b>+ New range</b>", js)                      # the old look keeps its tab
+
         def test_chart_amounts_do_not_pile_up_in_v2_only(self):
             chart = static_js("chart.js")
             self.assertIn("if (V2) labeled = amountsThatFit(inView);", chart)
