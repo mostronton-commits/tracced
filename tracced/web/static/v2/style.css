@@ -402,7 +402,7 @@ td.wcell .wid .star, td.wcell .wid .mk { vertical-align: middle; }
   .docs-nav ul { display: flex; flex-wrap: wrap; gap: 6px; } .docs-pager { grid-template-columns: 1fr; } .docs-pager .pg.next { grid-column: 1; } }
 .menu { position: relative; display: inline-block; }
 .menu-panel { position: absolute; top: 38px; left: 0; z-index: 20; min-width: 260px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 4px; }
-.menu-panel button { display: flex; width: 100%; justify-content: space-between; gap: 12px; border: 0; height: 34px; padding: 6px 10px; font-weight: 500; }
+.menu-panel button { display: flex; width: 100%; justify-content: space-between; gap: 12px; border: 0; height: 34px; padding: 6px 10px; background: none; font-weight: 500; }
 .menu-panel button small { color: var(--muted); font-weight: 400; }
 .menu-panel button:hover { background: var(--hover); }
 #ftoggle.on { background: var(--sage); border-color: var(--mint); }
