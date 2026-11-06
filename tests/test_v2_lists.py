@@ -157,6 +157,7 @@ if AioHTTPTestCase:
         async def test_the_watchlist_in_v2_keeps_every_control(self):
             self.seed()
             html = await self.page("/me", self.me())
+            self.assertIn("d.spam ?", html)                               # the list's bell says who it left off as a bot, as the old page does
             self.assertIn('<main class="withcard v2me">', html)
             # Telegram alerts: a head and three tiles (switches, the sum with quick picks, today's use)
             self.assertIn('id="tgbar"', html)
