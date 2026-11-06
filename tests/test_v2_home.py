@@ -76,13 +76,13 @@ if AioHTTPTestCase:
             html = await self.page()
             self.assertIn('data-design="v2"', html)
             for part in ('class="hm-sky"', 'class="hm-world"', "Every wallet<br>on the record.", 'class="hm-ask"', 'action="/token"',
-                         'placeholder="Paste a Solana token address"', ">Analyze</button>", "wallets on the record", "tokens analyzed",
-                         "trades processed", 'class="hm-call"', "Someone always<br>buys first.", "Free during beta.", "data-focus-mint",
+                         'placeholder="Paste a Solana token address"', ">Analyze</button>", "<span>wallets</span>", "<span>tokens</span>",
+                         "<span>trades</span>", 'title="Wallets on the record"', 'class="hm-call"', "Someone always<br>buys first.", "Free during beta.", "data-focus-mint",
                          "x.com/intent/follow?screen_name=tracced_xyz", 'data-umami-event="home-follow"', '<footer class="foot">',
-                         'href="/static/v2/home.css'):
+                         'href="/static/v2/home.css', "data-type-address", 'src="/static/v2/home.js'):   # owner, 06.11: the field types again; the blocks move
                 self.assertIn(part, html, part)
             self.assertIn("data-wallet-signin", html)                                  # a guest sees Connect in the hero's corner
-            for gone in ('class="hero-dark"', 'class="steps3"', "Paste address", 'class="top"', "data-type-address", "early:theme"):
+            for gone in ('class="hero-dark"', 'class="steps3"', "Paste address", 'class="top"', "early:theme"):
                 self.assertNotIn(gone, html, gone)
             self.assertIsNone(CYRILLIC.search(html))
             old = await self.page(headers={"Cookie": ""})
@@ -180,13 +180,10 @@ if AioHTTPTestCase:
             with mock.patch.object(app_mod, "_live_feed", return_value={"rows": rows, "day": 9}):
                 html = await self.page()
             feed = html[html.index('id="lfeed"'):html.index('</article>', html.index('id="lfeed"'))]
-            shown, queued = feed.split('<template id="liveq">')
-            self.assertEqual(shown.count('class="hm-lrow"'), 7)                       # seven on screen, the three newest queued
-            self.assertEqual(queued.count('class="hm-lrow"'), 3)
-            self.assertIn('data-id="J3"', feed)
-            self.assertNotIn('data-id="J0"', shown)
-            self.assertIn('data-id="J0"', queued)
-            self.assertIn("analyzing now", queued)
+            self.assertEqual(feed.count('class="hm-lrow"'), 11)                       # all of them, newest first: they roll
+            self.assertLess(feed.index('data-id="J0"'), feed.index('data-id="J1"'))
+            self.assertNotIn('id="liveq"', feed)
+            self.assertIn("analyzing now", feed)
             self.assertIn("saved 3 wallets", feed)
             self.assertIn("/live.json", html)
             self.assertIn("Live on tracced", html)

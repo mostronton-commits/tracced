@@ -181,7 +181,7 @@ Rules the owner set (do not undo them):
   controls hide behind a `⋯` or a menu; they are never deleted.
 - **Facts, not verdicts.** Numbers and their sources; no scores, no "good wallet" badges, no hype words.
 - **Not «AI-made».** No default AI fonts, no stock icon kits, no Tailwind colours, no glowing blobs, no arrows inside
-  buttons, no hover lifts, no mascots (the eyed candle was rejected).
+  buttons, no hover lifts outside the home's cards (owner, 06.11), no mascots (the eyed candle was rejected).
 - **Real brands where trust matters.** Wallet apps show their original logos; tokens their real pictures.
 - **No fake activity.** Feeds and counters show real events only.
 
@@ -405,11 +405,15 @@ no second, dark line.
   the alarming before the rest; a token with less to say fills up with sold out, still holding and best. Colour only for
   meaning: amber a warning, red the creator or a staged launch, violet repeats. A chip with a filter or an order behind
   it is a button. The home page shows none.
+- **The home's four blocks** are not equal (owner, 06.11): a zigzag, Fresh pumps wide beside Live on tracced, then the month's
+  top traders beside Alerts wide (7 : 5, then 5 : 7), one column under 960 px. A block has a body: a lit top edge, it falls away
+  downwards and casts a shadow. Behind each top trader's profit a bar shows its share of the leader's.
+- **The numbers under the home's field** are one short line (owner, 06.11: «тексту забагато»): "55,231 wallets · 153 tokens ·
+  372,138 trades", with what each means in its tooltip.
 - **Live on tracced** on the home page is a feed, not a list of links (owner, 05.10: people opened others' finished
   analyses and took them for our verdicts, not seeing they could run their own). It shows the latest twenty analyses by
   anyone, one row each: a letter mark, the symbol, the wallets found and the best ×, or "analyzing now", and how long
-  ago. Never who ran them. Rows lead nowhere. No caption and no day count above it (owner, 08.10). Seven rows show at once (owner, 07.10): the newest arrive one at a time at the top, 3–10 s apart, as
-  they happened, and real new ones come every 20 s from `/live.json`. Nothing loops. A row: the token's picture (its
+  ago. Never who ran them. Rows lead nowhere. No caption and no day count above it (owner, 08.10). Seven rows show at once and roll (see Motion); real new ones come every 20 s from `/live.json`. A row: the token's picture (its
   letter while it loads or when it has none), symbol, one fact, how long ago. The fact is "saved N wallets" with the
   star when people really saved wallets from that analysis, otherwise nothing (owner, 08.10: "found 180 wallets" said
   nothing, the market cap neither, and "made 2×+" left unclear who made it). Never a made-up number: the owner asked
@@ -484,12 +488,18 @@ no second, dark line.
 - **Panels, popovers and tooltips** come in within 200–300 ms with `ease-out`. Nothing that answers a click lasts
   longer than 300 ms, and nothing uses `ease-in`.
 - **Nothing jumps on hover.** No `translateY` on buttons, rows, chips or cards; a chip in a clipped strip gets cut.
+  The exception is the home page (owner, 06.11: «все виглядає тухло», the blocks flat): a card leans at most 1.2° towards the
+  pointer and catches its light, a fresh-pumps tile grows 2.5 %. Pages of tables and numbers stay still.
+- **The home's sky drifts**, about a pixel a second, so slowly it is hardly seen, the mint stars a little faster (owner, 06.11).
+  Stars move only across: a star's height says what its wallet made.
+- **The home's field types** a made-up address until it is touched, as the old page did (owner, 06.11).
 - **Name the properties being animated.** Never write `transition: all`.
 - **Decorative loops** (the agent button's sheen, the live dot) run briefly or only under the pointer.
 - **The fresh-pumps tape** moves slowly all the time and stops under the pointer. Each chip leads with the market
   cap now, the number the token page opens with, and the peak follows it, smaller (owner, 10.10).
-- **The live feed does not roll**: a new row slides in at the top (300 ms, `ease-out`) and the seventh fades out
-  at the bottom.
+- **The live feed rolls** (owner, 06.11: «вони не біжуть», replacing 07.10's «nothing loops»): the real latest analyses go
+  slowly upward, 14 px a second, newest first, each with its real time, and stop under the pointer. A real new one goes to
+  the top and the roll starts over from it. Too few to fill the card stand still.
 - **The phone's wallet card** rises in 260 ms (`ease-out`) and follows the finger when its head is pulled down; past
   90 px it closes, short of it it goes back.
 - All of these stop under `prefers-reduced-motion: reduce`: the tape then scrolls by hand, new feed rows appear
