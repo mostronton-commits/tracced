@@ -401,9 +401,10 @@ no second, dark line.
 - **Tooltips** come from `title` and stay short, about 90 characters at most. On a touch screen a tap on a `.tipt`
   element shows the same text as a toast. An `i` mark (`.dinfo`, `.kinfo`) holds the method; it turns into an amber
   `!` when the data is incomplete.
-- **The tally** sits under the chart (owner, 06.11: zones left and right did not add up): six equal cells in one row, one
-  size of number, a hairline between them, a thin scale under each share. Wallets bought (with the `i` of the method), spent,
-  realized profit, in profit, sold out, and the token's main finding: the launch word, else the first of organised launch,
+- **The tally** sits under the chart (owner, 06–07.11: zones left and right did not add up): six equal cells in one row,
+  centred, one size of number, a hairline between them, a thin scale under every one. Wallets bought (with the `i` of the
+  method; its scale: of all that traded in the range), spent (of all they bought), realized profit (profits green, losses
+  red), in profit, sold out, and the token's main finding: the launch word, else the first of organised launch,
   creator bought, bundled, bundles out, fresh, share of the top 10, seen before, from exchanges; a token with nothing to say
   shows still holding. Colour only for meaning: amber a warning, red the creator or a staged launch, violet repeats. A cell
   with a filter or an order behind it is a button. Under 640 px two rows of three. The home page shows none.

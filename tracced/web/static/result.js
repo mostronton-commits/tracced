@@ -413,13 +413,13 @@
     const VERDICT_PCT = CFG.verdict_pct, VERDICT_TOP = CFG.age_n;   // not AGE_N: apply() runs before it is declared
     // the word follows what the top is made of: the creator in it — Rigged; one operator's wallets — Bundled;
     // wallets made for the launch — Staged; both at once — Cabal. The numbers are in the tooltip
-    let verdictNote = '', verdictWord = '';
+    let verdictNote = '', verdictWord = '', verdictPct = 0;
     function verdict() {
       const top = all.slice(0, VERDICT_TOP), has = t => top.filter(o => o.tags.includes(t)).length;
       const n = top.filter(o => o.tags.includes('fresh') || o.tags.includes('bundle')).length, nb = has('bundle'), nf = has('fresh');
       const pct = top.length >= 20 ? Math.floor(100 * n / top.length) : 0;   // 199 of 200 is 99%, not 100%
       const dev = all.some(o => o.tags.includes('dev'));
-      const on = ageDone && VERDICT_PCT && pct >= VERDICT_PCT;
+      const on = ageDone && VERDICT_PCT && pct >= VERDICT_PCT; verdictPct = pct;
       verdictWord = !on ? '' : dev ? 'Rigged' : nb >= 0.6 * top.length && nf < 0.6 * top.length ? 'Bundled'
         : nf >= 0.6 * top.length && nb < 0.6 * top.length ? 'Staged' : 'Cabal';
       verdictNote = on ? n + ' of the top ' + top.length + ' by PnL (' + pct + '%) are fresh or bundled: ' + nb + ' in bundles, ' + nf + ' fresh'
@@ -489,9 +489,11 @@
         const main = verdictNote ? null : out.find(x => x.k !== 'won') || null;
         findActs = main ? [main] : [];
         const W = { launch: 'organised launch', dev: 'creator bought', bout: 'of bundles out', cex: 'from exchanges', top: 'profit to the top 10', repeat: 'seen before' };
-        const inner = x => (x.v === '✓' ? '<b>Organised</b><i>launch</i>' : '<b>' + x.v + '</b><i>' + (W[x.k] || x.l) + '</i>')
-          + (x.p != null ? '<u class="tsc"><s style="width:' + x.p + '%"></s></u>' : '');
-        const v2html = verdictNote ? '<span class="tcell tbig tc bad tipt" tabindex="0" title="' + esc(verdictNote) + '"><b>' + verdictWord + '</b><i>launch</i></span>'
+        const sc = p => '<u class="tsc"><s style="width:' + (p || 0) + '%"></s></u>';   // every cell has its scale (owner, 07.11)
+        const pOf = x => x.p != null ? x.p : x.k === 'launch' ? (ls.bought_back_pct || pc(all.filter(o => o.tags.includes('own-bundle') || o.tags.includes('launch-bundle')).length, n))
+          : x.k === 'dev' ? pc(inv(dev), tot) : x.k === 'repeat' ? pc(rep, n) : 0;
+        const inner = x => (x.v === '✓' ? '<b>Organised</b><i>launch</i>' : '<b>' + x.v + '</b><i>' + (W[x.k] || x.l) + '</i>') + sc(pOf(x));
+        const v2html = verdictNote ? '<span class="tcell tbig tc bad tipt" tabindex="0" title="' + esc(verdictNote) + '"><b>' + verdictWord + '</b><i>launch</i>' + sc(verdictPct) + '</span>'
           : !main ? '' : (main.act ? '<button type="button" class="tcell tbig tc ' + main.sev + '" data-i="0" title="' + esc(main.tip) + ' · click to show them">'
             : '<span class="tcell tbig tc ' + main.sev + '" title="' + esc(main.tip) + '">') + inner(main) + (main.act ? '</button>' : '</span>');
         if (el.dataset.h !== v2html) { el.innerHTML = v2html; el.dataset.h = v2html; }
@@ -525,6 +527,11 @@
     if (V2) {                                                   // the share of wallets in profit, its number and its scale
       const tp = document.getElementById('tprofit');
       if (tp && all.length) { const w = pc(all.filter(o => (+o.real || 0) > 0).length, all.length); tp.querySelector('b').dataset.count = w; tp.querySelector('.tsc s').style.width = w + '%'; tp.hidden = false; }
+      const sum = g => all.reduce((s, o) => s + g(o), 0), inRange = sum(o => +o.inv || 0), bought = sum(o => +o.tot || +o.inv || 0);
+      const gain = sum(o => Math.max(0, +o.real || 0)), loss = -sum(o => Math.min(0, +o.real || 0));
+      const sp = document.getElementById('tspent'), rz = document.getElementById('trz');
+      if (sp && bought) { sp.querySelector('.tsc s').style.width = pc(inRange, bought) + '%'; sp.title = money(inRange) + ' spent inside the range, of the ' + money(bought) + ' these wallets bought in all'; }
+      if (rz && gain + loss) { const g = pc(gain, gain + loss), [a, b] = rz.querySelectorAll('.tsc s'); a.style.width = g + '%'; b.style.width = (100 - g) + '%'; rz.title = money(gain) + ' in profits, ' + money(loss) + ' in losses · click to sort by PnL'; }
     }
     // the one filter a click can set without the panel open is named beside the count, with its own ×
     const ONLY = { bundle: 'Only bundles', dev: 'Only the creator', fresh: 'Only fresh wallets', cex: 'Only funded from exchanges',

@@ -139,6 +139,8 @@ if AioHTTPTestCase:
             self.assertEqual(html.count('tc tfill" hidden'), 1)          # still holding stands in when a token has nothing to say
             self.assertNotIn('class="tline"', html[html.index('id="tally"'):html.index('class="tcard"')])
             self.assertLess(html.index('id="finds"'), html.index('tc tfill'))
+            self.assertEqual(html[html.index('id="tally"'):html.index('class="tcard"')].count('class="tsc'), 6)   # a scale in every cell the page draws; #finds has its own
+            self.assertIn('class="tsc split"', html)                     # realized profit: profits against losses
             self.assertNotIn('id="hidebots"', html)                      # owner, 06.11: Hide bots is inside Filters, Columns in ⋯
             self.assertLess(html.index('id="xpanel"'), html.index('id="colsbtn"'))
             self.assertLess(html.index('id="ftoggle"'), html.index('id="freset"'))

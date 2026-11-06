@@ -186,17 +186,17 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 .ana .run-skel b:nth-child(n+4) { justify-self: end; }
 .ana .run.err .run-skel, .ana .run.done .run-skel { display: none; }
 
-/* the tally (owner, 06.11): six equal cells in one row, one size of number, a thin scale under each share */
+/* the tally (owner, 07.11): six equal cells in one row, centred, one size of number, a thin scale under every one */
 :root .ana .tally { display: flex; align-items: stretch; gap: 0; margin: 0; padding: 14px 0; border: 0; border-radius: var(--r-l); background: var(--surface); grid-template-columns: none; }
 .ana .tally .tfinds { display: contents; }
-:root .ana .tally .tcell { flex: 1 1 0; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 0; min-width: 0; height: auto; margin: 0; padding: 2px 22px; border: 0; border-radius: 0; background: none;
-  box-shadow: inset 1px 0 0 var(--line); color: var(--muted); font: 400 var(--fs-caption)/1.3 var(--font); text-align: left; transition: none; }
+:root .ana .tally .tcell { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 0; min-width: 0; height: auto; margin: 0; padding: 2px 22px; border: 0; border-radius: 0; background: none;
+  box-shadow: inset 1px 0 0 var(--line); color: var(--muted); font: 400 var(--fs-caption)/1.3 var(--font); text-align: center; transition: none; }
 :root .ana .tally > .tcell:first-child { box-shadow: none; }
 :root .ana .tally .tcell[hidden] { display: none; }
 :root .ana .tally .tcell b { color: var(--ink); font: 600 var(--fs-title)/1.15 var(--font); letter-spacing: var(--track-tight); font-variant-numeric: tabular-nums; white-space: nowrap; }
 :root .ana .tally .tcell b.pos { color: var(--profit); }
 :root .ana .tally .tcell b.neg { color: var(--loss); }
-:root .ana .tally .tcell i { display: flex; align-items: center; gap: 5px; margin: 3px 0 9px; color: var(--muted); font: 400 var(--fs-caption)/1.3 var(--font); font-style: normal; letter-spacing: 0; text-transform: none; }
+:root .ana .tally .tcell i { display: flex; align-items: center; justify-content: center; gap: 5px; margin: 3px 0 9px; color: var(--muted); font: 400 var(--fs-caption)/1.3 var(--font); font-style: normal; letter-spacing: 0; text-transform: none; }
 :root .ana .tally button.tcell { cursor: pointer; }
 :root .ana .tally button.tcell:hover { background: none; }
 :root .ana .tally button.tcell:hover i { color: var(--ink); }
@@ -206,9 +206,13 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 .ana .tally .tcell.bad.tipt { cursor: help; }
 .ana .tally .kinfo { margin-left: 0; }
 :root body.drawer-open .ana .tally .tcell { padding: 2px 14px; }
-.ana .tally .tsc { display: block; height: 3px; margin-top: auto; border-radius: 2px; background: var(--surface-3); overflow: hidden; text-decoration: none; }
+.ana .tally .tsc { display: block; align-self: stretch; height: 3px; margin-top: auto; border-radius: 2px; background: var(--surface-3); overflow: hidden; text-decoration: none; }
 .ana .tally .tsc s { display: block; height: 100%; width: 0; border-radius: 2px; background: var(--ink-2); text-decoration: none; }
 .ana .tally .tsc.good s { background: var(--profit); }
+.ana .tally .tsc.split { display: flex; gap: 2px; }
+.ana .tally .tsc.split s { flex: none; }
+.ana .tally .tsc.split .up { background: var(--profit); }
+.ana .tally .tsc.split .dn { background: var(--loss); }
 .ana .tally .warn .tsc s { background: var(--risk); }
 .ana .tally .bad .tsc s { background: var(--danger); }
 .ana .tally .rep .tsc s { background: var(--repeat); }
