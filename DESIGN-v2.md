@@ -286,6 +286,7 @@ Cyrillic of the agent's Ukrainian, the arrows, and a checkout without the files.
   card, the account pill, the lists and home's top 10 show the name or the address alone, the table the address; the card shows a
   real avatar (X) when there is one. The **star** stands left of the address in every result row, always visible
   (muted, amber when saved): one click saves the wallet. `fingerprint()` stays for the orbits on home (owner, 06.11: they stay) and is kept for showing users' own wallets later, never traders' in the data.
+- **The header of the inner pages** (owner, 06.11: the field was louder than the logo): the logo leads at 20 px with a 28 px mark; the search is small and quiet, "Paste token", 150 px with no outline, and opens to 420 px when it is used; X and the account are 34 px. "/" still jumps to it.
 - **The home header:** the small logo on the left, the X button and the account on the right, over the planet (canvas Home6).
 - **The footer** is one line on every page: Demo (when there is one), Docs, How it works, The project, What's new,
   Contact; then the Telegram and GitHub marks and the version. No logo, no status bar, no bell (owner, 26.10).
