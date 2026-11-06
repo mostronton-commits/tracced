@@ -79,6 +79,7 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 .ana .chartbox .overlay .win.draft { background: rgba(var(--wc), .07); border-left: 1px dashed rgb(var(--wc)); border-right: 1px dashed rgb(var(--wc)); }
 .ana .chartbox .overlay .win .lbl { top: 26px; left: 0; margin-left: 6px; padding: 2px 8px; border: 0; border-radius: var(--r-s); background: var(--surface-2);
   color: var(--muted); font: 600 var(--fs-micro)/1.3 var(--font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ana .chartbox .overlay .win .lbl { white-space: pre; line-height: 1.35; }   /* the name over its times (owner, 06.11) */
 .ana .chartbox .overlay .win.sel .lbl, .ana .chartbox .overlay .win.draft .lbl, .ana .chartbox .overlay .win.run .lbl { color: rgb(var(--wc)); }
 .ana .chartbox .overlay .exitline { bottom: 26px; }
 .ana .chartbox .overlay .marker { bottom: 26px; border-left-style: dashed; }

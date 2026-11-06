@@ -322,8 +322,8 @@
         d.style.setProperty('--wc', SHADES[i % SHADES.length]);
         d.style.left = Math.min(x1, W) + 'px'; d.style.width = Math.max(2, Math.min(x2, W) - Math.min(x1, W)) + 'px';
         const lbl = document.createElement('span'); lbl.className = 'lbl';
-        // v2 (canvas Analysis4): every band says its name and its minutes, «Pump 1 · 02:43–03:30»
-        lbl.textContent = V2 ? (w.label || 'Range ' + (w.n || i + 1)) + ' · ' + fmtTime(w.from) + '–' + fmtTime(w.to) : (w.n || (i + 1)) + (w.label && i === selected ? ' · ' + w.label : '');
+        // v2: every band says its name and, under it, its minutes (owner, 06.11)
+        lbl.textContent = V2 ? (w.label || 'Range ' + (w.n || i + 1)) + '\n' + fmtTime(w.from) + '–' + fmtTime(w.to) : (w.n || (i + 1)) + (w.label && i === selected ? ' · ' + w.label : '');
         lbl.title = w.label || '';
         lbl.addEventListener('click', e => { e.stopPropagation(); if (opts.onSelect) opts.onSelect(i); else focus(w.from, w.to, null); });
         d.appendChild(lbl); layer.appendChild(d); bands.push({ x: Math.min(x1, W), lbl });
