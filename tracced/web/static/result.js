@@ -777,6 +777,7 @@
       const saved = !!(me && me.analyses && me.analyses[jobId]);
       sjob.innerHTML = EarlyIcon(saved ? 'star-on' : 'star') + '<span>' + (saved ? 'Saved' : 'Save analysis') + '</span>'; sjob.classList.toggle('on', saved);
       sjob.title = saved ? 'In My analyses · click to remove' : 'Keep this analysis under My analyses';
+      if (V2) sjob.setAttribute('aria-label', saved ? 'Saved: remove it from My analyses' : 'Save analysis');
       hasLists = !!(me && me.wallets && Object.keys(me.wallets).length);   // «Only my watchlist» appears with the first saved wallet
       fillPanel(); refreshRows();                                // your tags reach the rows with the account
       try { myChip(); } catch (e) {}                               // the agent's question about them, once the account is known
@@ -990,11 +991,13 @@
     ch.setExit(CFG.exit || null);
 
     // wallet story: markers on the chart (green bought, red sold; a ring when the wallet shares a funder) + the drawer
-    // v2: the wallets on the chart stand in the chart's toolbar, the range line and Save in the tabs' row (canvas Analysis4)
+    // v2: the wallets on the chart and the star that saves the analysis stand in the chart's toolbar
     const ctw = V2 ? document.getElementById('ctw') : null;
     const bar = ctw || document.getElementById('onchart');
     const rheadEl = root.querySelector('.rhead'), tabsres = V2 ? document.getElementById('tabsres') : null;
     if (rheadEl && tabsres) { tabsres.innerHTML = ''; tabsres.appendChild(rheadEl); }
+    const ctsave = V2 ? document.getElementById('ctsave') : null;   // owner, 06.11: saving is a star over the chart, no words
+    if (ctsave) { ctsave.innerHTML = ''; ctsave.appendChild(sjob); }
     if (ctw) { ctw.innerHTML = ''; ctw.hidden = true; }
     const drawer = document.getElementById('drawer'), dtrades = document.getElementById('dtrades');
     // the symbol is whatever the token's creator wrote, so it is escaped like every other one
@@ -1649,7 +1652,7 @@
       off.forEach(fn => { try { fn(); } catch (e) {} });
       fpop.remove(); listpop.remove();
       if (wwho) { wwho.remove(); removeEventListener('scroll', hideNote, true); }
-      if (V2) { if (tabsres && rheadEl) rheadEl.remove(); if (ctw) { ctw.innerHTML = ''; ctw.hidden = true; } }   // what v2 moved out of the result
+      if (V2) { if (tabsres && rheadEl) rheadEl.remove(); if (ctsave) sjob.remove(); if (ctw) { ctw.innerHTML = ''; ctw.hidden = true; } }   // what v2 moved out of the result
       document.body.classList.remove('drawer-open');
       ch.setWalletMarkers([]); ch.setOnMarkers(null); ch.setExit(null);
     };

@@ -162,6 +162,13 @@ if AioHTTPTestCase:
             self.assertIn("position: sticky; left: 0;", css)             # Wallet stays when the rest scrolls sideways
             self.assertIn("tr.botlike td > * { opacity: .5; }", css)     # what a bot's cell holds dims, not the shade
 
+        async def test_saving_is_a_star_over_the_chart(self):
+            html = await (await self.client.get(f"/job/{await self.finished_job()}", headers=self.v2())).text()
+            self.assertLess(html.index('id="ctsave"'), html.index('id="ctr"'))   # in the chart's toolbar, left of UTC | Local
+            res = static_js("result.js")
+            self.assertIn("ctsave.appendChild(sjob);", res)
+            self.assertIn("if (ctsave) sjob.remove();", res)             # a closed tab takes its star with it
+
         def test_new_range_is_a_small_plus_in_v2_only(self):
             js = static_js("tokenpage.js")
             self.assertIn('class="atab new\' + (draft.from ? \' on\' : \'\') + \'" data-new="1" aria-label="New range"', js)

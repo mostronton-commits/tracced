@@ -405,6 +405,7 @@ no second, dark line.
   the alarming before the rest; a token with less to say fills up with sold out, still holding and best. Colour only for
   meaning: amber a warning, red the creator or a staged launch, violet repeats. A chip with a filter or an order behind
   it is a button. The home page shows none.
+- **Saving an analysis** is an icon-only star in the chart's toolbar, left of UTC | Local (owner, 06.11: «просто зірочка»); amber once saved.
 - **The home's four blocks** are not equal (owner, 06.11): a zigzag, Fresh pumps wide beside Live on tracced, then the month's
   top traders beside Alerts wide (7 : 5, then 5 : 7), one column under 960 px. A block has a body: a lit top edge, it falls away
   downwards and casts a shadow. Behind each top trader's profit a bar shows its share of the leader's.
