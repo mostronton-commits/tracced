@@ -17,8 +17,8 @@
   {% set r = result %}{% set c = r.counts %}
   <div class="onchart-bar" id="onchart" hidden></div>
   <p class="muted small mhint" id="mhint" hidden></p>
-  {# what tracced counted and found, one strip (owner, 02.10: no pills, no sentence of counts): three counts large, then
-     the rest and the findings as words, each a click into exactly its wallets (findings() fills #finds) #}
+  {# what tracced counted and found, one strip: three counts large, then three chips (owner, 06.11), each a click into exactly
+     its wallets. findings() fills #finds, the alarming first; the plain counts stand in when a token has less to say #}
   {% set n0 = sm.n or 0 %}
   {% set pso = [((100 * (sm.exited or 0) / n0)|round|int), (99 if (sm.exited or 0) < n0 else 100)]|min if n0 else 0 %}
   {% set phd = [((100 * (sm.holding or 0) / n0)|round|int), (99 if (sm.holding or 0) < n0 else 100)]|min if n0 else 0 %}
@@ -28,10 +28,10 @@
     <span class="tbig" title="What these wallets spent inside the range"><b class="amt" data-usd="{{ (sm.invested_range or 0)|round(0)|int }}"{% if sm.invested_range_sol is not none %} data-sol="{{ sm.invested_range_sol|round(2) }}"{% endif %} data-count="{{ (sm.invested_range or 0)|round(0)|int }}" data-fmt="usd">0</b><i>spent</i></span>
     <button type="button" class="tbig tc" data-act="profit" id="tprofit" hidden title="Wallets with a realized profit here · click to show them"><b class="pos" data-fmt="pct">0</b><i>in profit</i></button>
     <span class="tline">
-      <button type="button" class="tc" data-act="sold" title="{{ (sm.exited or 0)|num }} of {{ n0|num }} sold 99% or more · click to show them"><b>{{ pso }}%</b> sold out</button><span class="tsep" aria-hidden="true">·</span>
-      <button type="button" class="tc" data-act="holding" title="{{ (sm.holding or 0)|num }} of {{ n0|num }} sold less than half · click to show them"><b>{{ phd }}%</b> still holding</button><span class="tsep" aria-hidden="true">·</span>
-      <button type="button" class="tc" data-act="best" title="Highest average exit cap ÷ average entry cap, buys before the range included · click to sort by ROI"><b>{{ (sm.best_multiple or 0)|round(1) if (sm.best_multiple or 0) < 10 else (sm.best_multiple or 0)|round|int }}×</b> best</button>
       <span class="tfinds" id="finds"></span>
+      <button type="button" class="tc tfill" hidden data-act="sold" title="{{ (sm.exited or 0)|num }} of {{ n0|num }} sold 99% or more · click to show them"><b>{{ pso }}%</b> sold out</button>
+      <button type="button" class="tc tfill" hidden data-act="holding" title="{{ (sm.holding or 0)|num }} of {{ n0|num }} sold less than half · click to show them"><b>{{ phd }}%</b> still holding</button>
+      <button type="button" class="tc tfill" hidden data-act="best" title="Highest average exit cap ÷ average entry cap, buys before the range included · click to sort by ROI"><b>{{ (sm.best_multiple or 0)|round(1) if (sm.best_multiple or 0) < 10 else (sm.best_multiple or 0)|round|int }}×</b> best</button>
     </span>
   </div>
 
@@ -42,7 +42,7 @@
       <label class="sortby"><span>Sorted by</span><select id="msort" aria-label="Sort the wallets">
         <option value="real" selected>PnL</option><option value="inv">Bought</option>
         <option value="etime" data-dir="1">First buy</option><option value="got">Sold</option>
-        <option value="mult">Multiple</option><option value="entry" data-dir="1">Entry cap</option>
+        <option value="mult">ROI</option><option value="entry" data-dir="1">Entry cap</option>
         <option value="hold">Hold time</option><option value="buys">Buys</option><option value="" hidden disabled>your order</option></select></label>
       <span class="factive" id="factive" hidden></span>
       <span class="tb-sp"></span>
@@ -80,11 +80,11 @@
       <thead>
       <tr>
         <th class="wh">Wallet</th>
-        <th class="c-trip sortable" data-key="entry" data-dir="1">Trip <span class="hsub">cap in → out · held</span></th>
+        <th class="c-trip sortable" data-key="entry" data-dir="1">Entry → exit <span class="hsub">market cap</span></th>
         <th class="num sortable" data-key="inv"><span class="thc"><span class="hl">Bought</span><button type="button" class="hfil" data-fil="inv" title="Filter by what it bought" aria-label="Filter Bought">{{ ag.g('filter', size=12) }}</button></span></th>
         <th class="num sortable" data-key="got"><span class="thc"><span class="hl">Sold</span><button type="button" class="hfil" data-fil="sold" title="Filter by the share sold" aria-label="Filter Sold">{{ ag.g('filter', size=12) }}</button></span></th>
         <th class="num sortable desc" data-key="real"><span class="thc"><span class="hl">PnL</span><button type="button" class="hfil" data-fil="real" title="Filter by PnL" aria-label="Filter PnL">{{ ag.g('filter', size=12) }}</button></span></th>
-        <th class="num sortable" data-key="mult"><span class="thc"><span class="hl">×</span><button type="button" class="hfil" data-fil="mult" title="Filter by the multiple" aria-label="Filter the multiple">{{ ag.g('filter', size=12) }}</button></span></th>
+        <th class="num sortable" data-key="mult"><span class="thc"><span class="hl">ROI</span><button type="button" class="hfil" data-fil="mult" title="Filter by ROI" aria-label="Filter ROI">{{ ag.g('filter', size=12) }}</button></span></th>
         <th class="num sortable" data-key="hold" hidden><span class="thc"><span class="hl">Held</span><button type="button" class="hfil" data-fil="hold" title="Filter by hold time and buys" aria-label="Filter Held">{{ ag.g('filter', size=12) }}</button></span></th>
       </tr></thead>
       <tbody></tbody>

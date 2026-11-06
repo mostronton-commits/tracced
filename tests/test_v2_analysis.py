@@ -134,6 +134,34 @@ if AioHTTPTestCase:
             chart = static_js("chart.js")
             self.assertIn("V2 && opts.tools", chart)                     # the toolbar above the chart only in v2
 
+        async def test_result_strip_holds_three_chips_and_the_table_says_roi(self):
+            html = await (await self.client.get(f"/job/{await self.finished_job()}", headers=self.v2())).text()
+            self.assertEqual(html.count('class="tc tfill" hidden'), 3)   # the plain counts wait, and stand in when a token has less to say
+            self.assertNotIn('class="tsep"', html)
+            self.assertLess(html.index('id="finds"'), html.index('tc tfill'))   # findings first
+            self.assertIn('<option value="mult">ROI</option>', html)
+            self.assertNotIn('Multiple', html)
+
+        def test_table_is_the_address_and_its_marks_the_name_comes_up_in_a_note(self):
+            res, css = static_js("result.js"), static_js("v2/analysis.css")
+            self.assertNotIn('class="wn"', res)                          # owner, 06.11: the row holds the address
+            self.assertIn("EarlyTags.idLines(idn)", res)
+            self.assertIn("idLines", static_js("ui.js"))
+            self.assertIn(".wwho { position: fixed;", css)
+            self.assertNotIn(".wnote", css)                              # the wallet sheet has a .wnote of its own
+            self.assertIn("mult: { h: 'ROI'", res)
+            self.assertIn('data-h="ROI"', res)
+
+        def test_table_shares_its_width_and_keeps_its_rows_apart(self):
+            res, css = static_js("result.js"), static_js("v2/analysis.css")
+            self.assertIn("const SHARE = {", res)
+            self.assertIn("tripSvg(o, 100, 18, null, false, true)", res) # the line takes its column's width
+            self.assertIn("const places = 3 - (verdictNote ? 1 : 0);", res)
+            self.assertIn("tr:nth-child(even) td { background-color: var(--row-alt); }", css)
+            self.assertIn("--row-alt:", static_js("v2/tokens.css"))
+            self.assertIn("position: sticky; left: 0;", css)             # Wallet stays when the rest scrolls sideways
+            self.assertIn("tr.botlike td > * { opacity: .5; }", css)     # what a bot's cell holds dims, not the shade
+
         def test_chart_amounts_do_not_pile_up_in_v2_only(self):
             chart = static_js("chart.js")
             self.assertIn("if (V2) labeled = amountsThatFit(inView);", chart)

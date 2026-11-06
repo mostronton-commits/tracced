@@ -11,6 +11,7 @@ colors:
   surface: "#1A1C1F"           # cards, the chart, menus, the header's search and buttons
   surface-2: "#25282C"         # rows, tiles, quiet buttons, the chosen half of a switch
   surface-3: "#30343A"         # hover on surface-2
+  row-alt: "#212428"           # every other row of a table on surface
   line: "rgba(255, 255, 255, 0.12)"          # dividers, card edges
   line-strong: "rgba(237, 238, 239, 0.24)"   # outlines of inputs and round buttons
   ink: "#F5F6F7"               # text, numbers; the fill of an ink button
@@ -282,7 +283,7 @@ Cyrillic of the agent's Ukrainian, the arrows, and a checkout without the files.
   menu: Watchlist, My analyses, Top traders (when a list is out), Docs, Sign out. A guest sees Connect, an ink key.
   How many analyses are left today is said where an analysis starts (the bar on the chart), not in the pill.
 - **No wallet pictures in the data** (owner, 26.10: «займає корисне простір і не несе практичної користі»): the
-  table, the card, the account pill, the lists and home's top 10 show the name or the address alone; the card shows a
+  card, the account pill, the lists and home's top 10 show the name or the address alone, the table the address; the card shows a
   real avatar (X) when there is one. The **star** stands left of the address in every result row, always visible
   (muted, amber when saved): one click saves the wallet. `fingerprint()` remains only for decoration the owner keeps.
 - **The home header:** the small logo on the left, the X button and the account on the right, over the planet (canvas Home6).
@@ -330,8 +331,20 @@ no second, dark line.
   shows that bundle alone. A filter chip that is on gets a filled background. A hidden
   tag is struck through and pale. Your own tag carries its own × and goes only by it, with an Undo in the toast; a
   click on the word does nothing (owner, 02.10: tags went by accident).
-- **Tables** sit on their card, with 1 px `line` rows, a sticky uppercase header, numbers right-aligned in tabular
-  figures, addresses in Tabular, and a `profit-wash` bar behind PnL (`loss-wash` for a loss). The first 100 rows are drawn and the rest wait behind "Show more".
+- **Tables** sit on their card, numbers right-aligned in tabular figures, addresses in Tabular, a `profit-wash` bar
+  behind PnL (`loss-wash` for a loss). The first 100 rows are drawn and the rest wait behind "Show more". Lists and the
+  watchlist keep 1 px `line` rows; the analysis table has none (next rule).
+- **The analysis table** (owner, 06.11: «щоб все один відносно одного знаходилось зручно»), from 961 px:
+  - Wallet is the star, the address and its marks on one line. The nickname is not in the row: a small note over the
+    address says who it is (the name, its X account, the apps it trades through, a known role). No name, no note. A phone
+    has no pointer: the card says it. Columns: Entry → exit · market cap, Bought, Sold, PnL, ROI, the last one the word over values in `×`.
+  - Nothing out of line: every cell starts at the top, so first lines stay level whether or not a row has a line under
+    them; each head stands exactly over its numbers, its funnel in the space to its left; the marks start at one x in every row.
+  - Two shades in turn (`surface`, `row-alt`) so the eye holds a row, no rules between them; under the pointer and for
+    the open card `surface-3`. A bot-like row dims what its cells hold, never their shade.
+  - Each column has a share of the width (`SHARE` in result.js), so no empty middle, and more columns shrink every share
+    in step. Entry → exit takes its column's width, its circles stay round. When the card leaves too little room the
+    main five still fit at 1280 and the rest scroll sideways under a Wallet column that stays, with a soft edge once scrolled.
 - **Bought is everything the wallet bought of the token** (owner, 11.10: «bought $32, sold $13K» read as a mistake):
   before, inside and after the range, the same base as Sold, PnL and ROI. Under it, small: what it bought inside the
   range and the cap there ("$32 in range · 169K"), or the cap alone when it bought only inside. Its funnel and its sort
@@ -387,12 +400,11 @@ no second, dark line.
 - **Tooltips** come from `title` and stay short, about 90 characters at most. On a touch screen a tap on a `.tipt`
   element shows the same text as a toast. An `i` mark (`.dinfo`, `.kinfo`) holds the method; it turns into an amber
   `!` when the data is incomplete.
-- **The tally** sits under the chart (owner, 02.10: no pills, no sentence of counts): one strip of cells, each a
-  number in tabular figures at 18 px over one uppercase word, the way the table's head reads. First the counts (bought, spent,
-  sold out, holding, best ROI, with the `i` of the method), then up to four findings and the launch word when they say
-  something. Colour only for meaning: amber a warning, red the creator or a staged launch, violet repeats. A cell with
-  a filter or an order behind it is a button. The strip is a grid: a short last row keeps its cells' width. The home
-  page shows none.
+- **The tally** sits under the chart (owner, 06.11): three large counts (bought, with the `i` of the method, spent, in
+  profit), then exactly three chips, nothing hidden behind a "more". The launch word comes first, then the findings,
+  the alarming before the rest; a token with less to say fills up with sold out, still holding and best. Colour only for
+  meaning: amber a warning, red the creator or a staged launch, violet repeats. A chip with a filter or an order behind
+  it is a button. The home page shows none.
 - **Live on tracced** on the home page is a feed, not a list of links (owner, 05.10: people opened others' finished
   analyses and took them for our verdicts, not seeing they could run their own). It shows the latest twenty analyses by
   anyone, one row each: a letter mark, the symbol, the wallets found and the best ×, or "analyzing now", and how long
@@ -507,9 +519,9 @@ no second, dark line.
      when the list is off or stale, «Quiet: no new pumps in 24 h» when it is fresh and empty), Live on tracced, Top 10
      beside Alerts in Telegram, the closing call with the first buyers of that analysis on orbits;
    - analysis (`v2/token.html`, `v2/_result.html`, `analysis.css`, v2 branches in result.js, tokenpage.js, chart.js,
-     card.js): toolbar above the chart (timeframes, Market cap | Price, back to range, first hours, wallets on the
+     card.js): toolbar above the chart (timeframes, Market cap | Price, wallets on the
      chart, UTC | Local, USD | SOL), the range bar on the chart, tabs and the progress card, the tally of counts and
-     findings, the table with fingerprints and the trip line, a Columns menu that shows, hides and reorders columns
+     findings, the table with the entry → exit line, a Columns menu that shows, hides and reorders columns
      (Held, Buys/sells, First buy, Funded by live there), `⋯` with Export, the card as a right column from 1200 px with
      Share (`/job/<id>?w=<wallet>` opens that card) and Watch;
    - lists and watchlist (`v2/lists.html`, `v2/me.html`, `lists.css`): the leaderboard on one card, Telegram alerts as

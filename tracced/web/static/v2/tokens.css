@@ -13,6 +13,7 @@
   --surface:     #1A1C1F;   /* cards */
   --surface-2:   #25282C;   /* rows, tiles, quiet buttons, inputs */
   --surface-3:   #30343A;   /* hover on surface-2 */
+  --row-alt:     #212428;   /* every other row of a table on surface */
   --line:        rgba(255, 255, 255, 0.12);   /* dividers */
   --line-strong: rgba(237, 238, 239, 0.24);   /* outlines of inputs and round buttons */
 

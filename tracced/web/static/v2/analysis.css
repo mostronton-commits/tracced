@@ -182,7 +182,7 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 .ana .run-skel b:nth-child(n+4) { justify-self: end; }
 .ana .run.err .run-skel, .ana .run.done .run-skel { display: none; }
 
-/* the tally (canvas Analysis4): three counts large, then the rest and the findings as words, each a click into its wallets */
+/* the tally: three counts large, then three chips (owner, 06.11), the alarming first; nothing waits behind a «more» */
 :root .ana .tally { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 28px; margin: 0; padding: 14px 20px; border: 0; border-radius: var(--r-l); background: var(--surface); grid-template-columns: none; }
 :root .ana .tally .tbig { display: inline-flex; flex-direction: row; align-items: baseline; gap: 6px; box-shadow: none; height: auto; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; color: var(--muted); font: 400 var(--fs-small)/1.2 var(--font); }
 :root .ana .tally .tbig[hidden] { display: none; }
@@ -193,17 +193,17 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 :root .ana .tally button.tbig:hover { background: none; }
 :root .ana .tally button.tbig:hover i { color: var(--ink); }
 .ana .tally .tbig .kinfo { align-self: center; margin-left: 2px; }
-.ana .tally .tline { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 6px; margin-left: auto; color: var(--muted); font-size: var(--fs-caption); }
+.ana .tally .tline { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-left: auto; }
 .ana .tally .tfinds { display: contents; }
-.ana .tally .tsep { color: var(--faint); }
-:root .ana .tally .tline .tc { display: inline; height: auto; box-shadow: none; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; color: var(--muted);
-  font: 400 var(--fs-caption)/1.4 var(--font); text-align: left; transition: color var(--t-fast) ease; }
-:root .ana .tally .tline .tc b { color: inherit; font: inherit; font-weight: 500; white-space: nowrap; }
+:root .ana .tally .tline .tc { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; height: 30px; box-shadow: none; min-width: 0; margin: 0; padding: 0 12px; border: 0; border-radius: var(--r-pill); background: var(--surface-2); color: var(--ink-2);
+  font: 400 var(--fs-small)/1 var(--font); white-space: nowrap; transition: background-color var(--t-fast) ease; }
+:root .ana .tally .tline .tc[hidden] { display: none; }
+:root .ana .tally .tline .tc b { color: var(--ink); font: inherit; font-weight: 600; }
 :root .ana .tally .tline button.tc { cursor: pointer; }
-:root .ana .tally .tline button.tc:hover { background: none; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-strong); }
-:root .ana .tally .tline .tc.warn { color: var(--risk); }
-:root .ana .tally .tline .tc.bad { color: var(--danger); }
-:root .ana .tally .tline .tc.rep { color: var(--repeat); }
+:root .ana .tally .tline button.tc:hover { background: var(--surface-3); }
+:root .ana .tally .tline .tc.warn b { color: var(--risk); }
+:root .ana .tally .tline .tc.bad, :root .ana .tally .tline .tc.bad b { color: var(--danger); }
+:root .ana .tally .tline .tc.rep b { color: var(--repeat); }
 .ana .tally .tline .tc.bad.tipt { cursor: help; }
 
 /* the table's card and its toolbar: Sorted by … · Find a wallet · Hide bots · Filters · Columns · Ask AI · ⋯ */
@@ -260,12 +260,12 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 :root .ana .fpanel { margin: 0 16px 10px; padding: 14px 16px; border: 0; border-radius: var(--r-l); background: var(--bg); }
 :root .fpop { border: 0; border-radius: var(--r-l); background: var(--surface-2); box-shadow: var(--shadow-pop); }
 
-/* the table (canvas Analysis4): no lines, a row lights under the pointer; Wallet | Trip | Bought | Sold | PnL | × */
+/* the table: no lines, two shades in turn, a row lights under the pointer; Wallet | Entry → exit | Bought | Sold | PnL | ROI */
 :root .ana .tablewrap { overflow-x: auto; margin: 0; padding: 0 6px; border: 0; border-radius: 0; background: none; }
 .ana #facts { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: auto; }
 .ana #facts th { position: static; height: 30px; padding: 0 7px; border: 0; background: none; color: var(--muted); font: 500 var(--fs-micro)/1.2 var(--font);
   text-transform: none; letter-spacing: 0; white-space: nowrap; text-align: left; vertical-align: middle; }
-.ana #facts th.wh { padding-left: 46px; }
+.ana #facts th.wh { padding-left: 42px; }
 .ana #facts th.num { text-align: right; }
 .ana #facts th .thc { display: inline-flex; align-items: center; gap: 2px; }
 .ana #facts th.sortable { cursor: pointer; transition: color var(--t-fast) ease; }
@@ -286,8 +286,8 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 .ana #facts td:last-child { padding-right: 10px; border-radius: 0 var(--r-l) var(--r-l) 0; }
 @media (hover: hover) { .ana #facts tbody tr:hover td { background-color: var(--surface-2); } }
 :root .ana #facts tbody tr.carded td, :root .ana #facts tbody tr.carded { background: var(--surface-2); }
-.ana #facts tr.botlike td { opacity: .5; }
-.ana #facts tr.botlike:hover td { opacity: .85; }
+.ana #facts tr.botlike td > * { opacity: .5; }             /* what the cell holds: its shade stays in step with the other rows */
+.ana #facts tr.botlike:hover td > * { opacity: .85; }
 .ana #facts tr.onchart td:first-child { box-shadow: inset 3px 0 0 var(--c, var(--mint)); }
 .ana #facts td.num { text-align: right; }
 .ana #facts td.two b, .ana #facts td.num b { display: block; font-weight: 500; font-size: var(--fs-small); line-height: 1.3; }
@@ -296,27 +296,26 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 .ana #facts .pos { color: var(--profit); }
 .ana #facts .neg { color: var(--loss); }
 .ana #facts .none { color: var(--faint); }
-/* the wallet: fingerprint, name and address, the star and the chart mark with the row under the pointer, its marks under */
-.ana #facts td.wcell { width: 100%; min-width: 210px; }
-.ana #facts .wbox { display: grid; grid-template-columns: 22px minmax(0, max-content) auto minmax(0, 1fr); grid-template-areas: "star addr mk ." "star tags tags tags";
-  align-items: center; column-gap: 8px; row-gap: 3px; min-width: 0; }
+/* the wallet (owner, 06.11): the star, the address, its marks on the same line, the chart mark with the row under the pointer; the name in .wwho */
+.ana #facts .wbox { display: grid; grid-template-columns: 22px minmax(88px, max-content) auto minmax(22px, 1fr); grid-template-areas: "star addr tags mk";
+  align-items: center; column-gap: 10px; min-width: 280px; height: 18px; margin-top: -2px; }
 .ana #facts td.wcell .wid { display: contents; }
 .ana #facts .wface { grid-area: face; display: block; width: 20px; height: 20px; border-radius: 0; background: none; overflow: visible; }
 .ana #facts .wface .fp { width: 20px; height: 20px; }
 :root .ana #facts .wname { grid-area: addr; display: inline-flex; align-items: baseline; gap: 8px; min-width: 0; height: auto; min-height: 0; padding: 0; border: 0;
   background: none; color: var(--ink); font: 400 var(--fs-small)/1.3 var(--font); white-space: nowrap; overflow: visible; }
-.ana #facts .wname .wn { min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
-.ana #facts .wname .mono { flex: none; }
-.ana #facts .wname .mono { font-family: var(--mono); font-size: var(--fs-caption); border-bottom: 1px dotted transparent; }
-.ana #facts .wname .wn + .mono { color: var(--muted); font-size: var(--fs-micro); }
+.ana #facts .wname .mono { flex: none; color: var(--ink); font-family: var(--mono); font-size: var(--fs-small); line-height: 18px; border-bottom: 1px dotted transparent; }
+.wwho { position: fixed; z-index: 90; min-width: 190px; max-width: 320px; padding: 10px 12px; border-radius: var(--r-m); background: var(--surface-3); box-shadow: var(--shadow-pop); color: var(--muted); font: 400 var(--fs-caption)/1.5 var(--font); pointer-events: none; }
+.wwho[hidden] { display: none; }
+.wwho b { display: block; color: var(--ink); font: 600 var(--fs-small)/1.4 var(--font); }
 .ana #facts tbody tr:hover .wname .mono { border-bottom-color: var(--line-strong); }
 /* owner, 26.10: no wallet picture; the star stands left of the address, always there, amber once the wallet is saved */
-:root .ana #facts .star { grid-area: star; align-self: start; width: 22px; height: 22px; margin: 0; opacity: 1; color: var(--muted); }
+:root .ana #facts .star { grid-area: star; align-self: center; width: 22px; height: 18px; margin: 0; opacity: 1; color: var(--muted); }
 :root .ana #facts .star.on { color: var(--risk); }
 :root #dav[hidden] { display: none; }
 :root .ana #facts .mk { grid-area: mk; width: 22px; height: 22px; padding: 0; }
 .ana #facts .mk svg { width: 14px; height: 14px; }
-.ana #facts .tags { grid-area: tags; display: flex; align-items: center; flex-wrap: nowrap; gap: 7px; min-height: 14px; overflow: hidden; }
+.ana #facts .tags { grid-area: tags; display: flex; align-items: center; flex-wrap: nowrap; gap: 6px; min-height: 18px; overflow: hidden; }
 .ana #facts .tags:empty { display: none; }
 .ana #facts .msub { display: none; }
 /* our marks: small drawings in the hue of their meaning, no fill (canvas Analysis4) */
@@ -352,15 +351,16 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 .trip.big .t-in { stroke-width: 2; }
 .trip .t-out.up { fill: var(--profit); }
 .trip .t-out.dn { fill: var(--loss); }
-.ana #facts th.h-trip, .ana #facts td.c-trip { width: 146px; min-width: 146px; }
-.ana #facts th.h-inv, .ana #facts td.c-inv { width: 106px; min-width: 106px; }
-.ana #facts th.h-got, .ana #facts td.c-sold { width: 98px; min-width: 98px; }
-.ana #facts th.h-real, .ana #facts td.c-pnl { width: 142px; min-width: 142px; }
-.ana #facts th.h-mult, .ana #facts td.c-roi { width: 62px; min-width: 62px; }
-.ana #facts th.h-hold, .ana #facts td.c-held { width: 76px; min-width: 76px; }
-.ana #facts th.h-buys, .ana #facts td.c-buys { width: 96px; min-width: 96px; }
-.ana #facts th.h-first, .ana #facts td.c-first { width: 92px; min-width: 92px; }
-.ana #facts th.h-fund, .ana #facts td.c-fund { width: 120px; min-width: 120px; }
+/* each column's least width; what is left is shared out by SHARE in result.js */
+.ana #facts td.c-trip { min-width: 146px; }
+.ana #facts td.c-inv { min-width: 106px; }
+.ana #facts td.c-sold { min-width: 98px; }
+.ana #facts td.c-pnl { min-width: 142px; }
+.ana #facts td.c-roi { min-width: 62px; }
+.ana #facts td.c-held { min-width: 76px; }
+.ana #facts td.c-buys { min-width: 96px; }
+.ana #facts td.c-first { min-width: 92px; }
+.ana #facts td.c-fund { min-width: 120px; }
 .ana #facts .pcell { position: relative; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; }
 .ana #facts .pcell .pbar { position: absolute; top: 0; right: 0; height: 18px; border-radius: var(--r-s); background: var(--profit-wash); }
 .ana #facts td.c-pnl.neg .pbar { background: var(--loss-wash); }
@@ -370,14 +370,39 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 .ana #facts td.c-buys .up { color: var(--profit); } .ana #facts td.c-buys .dn { color: var(--loss); } .ana #facts td.c-buys .sl { color: var(--faint); }
 .ana #facts td.c-fund { max-width: 140px; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-small); }
 .ana #facts td.c-fund .mono { font-family: var(--mono); font-size: var(--fs-caption); }
-.ana #facts tr.outside > td:not(.wcell) { opacity: .55; }
+.ana #facts tr.outside > td:not(.wcell) > * { opacity: .55; }
+/* owner, 06.11: nothing out of line. First lines with first lines whatever a row has under them, the heads over their numbers,
+   two shades in turn; on a narrow page the rest scrolls sideways under the Wallet column */
+@media (min-width: 961px) {
+  .ana #facts td { padding-top: 7px; vertical-align: top; }
+  .ana #facts td.two b, .ana #facts td.num b, .ana #facts td.c-fund { line-height: 18px; }
+  .ana #facts td.two small, .ana #facts td.c-trip small, .ana #facts .pcell small { display: block; min-height: 14px; margin-top: 1px; line-height: 14px; }
+  .ana #facts .pcell { justify-content: flex-start; }
+  .ana #facts .c-trip svg { max-width: 340px; }
+  .ana #facts th.num .thc { position: relative; justify-content: flex-end; }
+  :root .ana #facts th.num .hfil { position: absolute; right: 100%; top: 50%; margin: -9px 2px 0 0; }
+  .ana #facts th.h-real { padding-right: 13px; }
+  .ana #facts th:last-child { padding-right: 10px; }
+  .ana #facts tbody tr:nth-child(even) td { background-color: var(--row-alt); }
+  @media (hover: hover) { .ana #facts tbody tr:hover td { background-color: var(--surface-3); } }
+  :root .ana #facts tbody tr.carded td { background: var(--surface-3); }
+  .ana #facts th.wh, .ana #facts td.wcell { position: sticky; left: 0; z-index: 1; background-color: var(--surface); }
+  .ana .tablewrap.scrolled #facts th.wh, .ana .tablewrap.scrolled #facts td.wcell { box-shadow: 6px 0 6px -6px rgba(0, 0, 0, .4); }
+  .ana .tablewrap.scrolled #facts tr.onchart td.wcell { box-shadow: inset 3px 0 0 var(--c, var(--mint)), 6px 0 6px -6px rgba(0, 0, 0, .4); }
+  .ana #facts tr:has(.chint), .ana #facts td.wcell:has(.chint) { position: relative; z-index: 3; }
+  .ana #facts .chint-tip { left: 0; top: calc(100% + 8px); transform: none; animation-name: chint-tip-m; }
+  /* the card takes the width: the main five columns still fit at 1280 */
+  body.drawer-open .ana #facts th .hsub { display: none; }
+  body.drawer-open .ana #facts td.c-trip { min-width: 116px; }
+  body.drawer-open .ana #facts .wbox { min-width: 270px; }
+}
 /* the count and Show more under the table */
 .ana .tfoot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 10px 16px 4px; color: var(--muted); font-size: var(--fs-caption); }
 .ana .tfoot #enrich { color: var(--muted); }
 .ana .tfoot #enrich[hidden] { display: none; }
 .ana .tfoot .more { display: inline-flex; align-items: center; gap: 16px; margin: 0; }
 .ana .tfoot .more[hidden] { display: none; }
-:root .ana .tfoot .link { gap: 0; height: auto; padding: 0; border: 0; background: none; color: var(--ink); font: 600 var(--fs-caption)/1.3 var(--font); }
+:root .ana .tfoot .link { gap: 4px; height: auto; padding: 0; border: 0; background: none; color: var(--ink); font: 600 var(--fs-caption)/1.3 var(--font); }
 :root .ana .tfoot .link.quiet { color: var(--muted); font-weight: 400; }
 :root .ana .tfoot .link:hover { background: none; text-decoration: underline; text-underline-offset: 3px; }
 .ana .tfoot .link[hidden] { display: none; }
@@ -590,8 +615,8 @@ main.wide:has(> #token.ana) { padding-top: 0; }
   .ana #facts .pcell { align-items: flex-start; }
   .ana #facts .pcell .pbar { display: none; }
   .ana #facts .pcell b, .ana #facts .pcell small { padding-right: 0; }
-  .ana #facts td.wcell { display: grid; grid-template-columns: 24px auto auto auto minmax(0, 1fr); grid-template-areas: "face addr star mk ." "face tags tags tags tags"; align-items: center; column-gap: 8px; row-gap: 3px; }
-  .ana #facts tr.botlike td { opacity: 1; }
+  .ana #facts td.wcell { display: grid; grid-template-columns: 24px auto auto minmax(0, 1fr); grid-template-areas: "star addr tags mk"; align-items: center; column-gap: 8px; }
+  .ana #facts tr.botlike td > * { opacity: 1; }
   .ana #facts tr.botlike { opacity: .6; }
 }
 /* a tablet only (641–960): the five facts under the wallet */
@@ -652,7 +677,7 @@ main.wide:has(> #token.ana) { padding-top: 0; }
   :root .ana .tbtn, :root .ana .askai { height: 36px; }
   :root .ana .tbtn.tmore { width: 36px; }
   .ana .tablewrap { padding: 0; }
-  /* the list: star, picture, the address with three marks, what it put in under it; PnL and × on the right */
+  /* the list: star, the address with its marks, what it put in under it; PnL and ROI on the right */
   .ana #facts tbody tr { margin: 0; padding: 10px 12px; border-radius: 0; background: none; border-top: 1px solid var(--line); }
   :root .ana #facts tbody tr.carded { background: var(--surface-2); }
   .ana #facts td.wcell { grid-template-columns: 30px auto minmax(0, 1fr); grid-template-areas: "star addr tags" "star sub sub"; column-gap: 6px; }
@@ -662,8 +687,6 @@ main.wide:has(> #token.ana) { padding-top: 0; }
   :root .ana #facts .star { width: 30px; height: 30px; min-width: 30px; min-height: 30px; }
   :root .ana #facts .mk { display: none; }
   :root .ana #facts .wname { min-height: 0; }
-  .ana #facts .wname .mono { font-size: var(--fs-small); }
-  .ana #facts .wname .wn + .mono { display: none; }
   .ana #facts .msub { grid-area: sub; display: block; min-width: 0; color: var(--muted); font-size: var(--fs-caption); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ana #facts td.c-pnl { min-width: 0; text-align: right; }
   .ana #facts .pcell { align-items: flex-end; }

@@ -225,12 +225,12 @@
       return { lo: lo - pad, hi: hi + pad };
     })();
     const tripX = (v, W, sc) => { sc = sc || TRIPS; if (!sc || !(v > 0)) return null; const t = (Math.log10(v) - sc.lo) / (sc.hi - sc.lo); return Math.max(4, Math.min(W - 4, t * W)); };
-    function tripSvg(o, W, H, sc, big) {
+    function tripSvg(o, W, H, sc, big, fluid) {                // fluid: v2's table, percents along a line as wide as its column, so the circles stay round
       W = W || 120; H = H || 12;
       const a = +o.eavg || +o.entry, b = +o.exitcap, y = H / 2, xa = tripX(a, W, sc), xb = b > 0 ? tripX(b, W, sc) : null, xn = NOWCAP ? tripX(NOWCAP, W, sc) : null;
-      const up = b >= a, f = v => v.toFixed(1);
-      let s = '<svg class="trip' + (big ? ' big' : '') + '" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"><line class="t-base" x1="0" y1="' + y + '" x2="' + W + '" y2="' + y + '"/>';
-      if (xn != null) s += '<line class="t-now" x1="' + f(xn) + '" y1="' + (big ? 6 : 2) + '" x2="' + f(xn) + '" y2="' + (H - (big ? 6 : 2)) + '"/>';
+      const up = b >= a, f = v => fluid ? v.toFixed(2) + '%' : v.toFixed(1), tk = big ? 6 : fluid ? 5 : 2;
+      let s = '<svg class="trip' + (big ? ' big' : '') + '" width="' + (fluid ? '100%' : W) + '" height="' + H + '"' + (fluid ? '' : ' viewBox="0 0 ' + W + ' ' + H + '"') + ' aria-hidden="true"><line class="t-base" x1="0" y1="' + y + '" x2="' + (fluid ? '100%' : W) + '" y2="' + y + '"/>';
+      if (xn != null) s += '<line class="t-now" x1="' + f(xn) + '" y1="' + tk + '" x2="' + f(xn) + '" y2="' + (H - tk) + '"/>';
       if (xa != null && xb != null) s += '<line class="t-run ' + (up ? 'up' : 'dn') + '" x1="' + f(xa) + '" y1="' + y + '" x2="' + f(xb) + '" y2="' + y + '"/>';
       if (xa != null) s += '<circle class="t-in" cx="' + f(xa) + '" cy="' + y + '" r="' + (big ? 5 : 3) + '"/>';
       if (xb != null) s += '<circle class="t-out ' + (up ? 'up' : 'dn') + '" cx="' + f(xb) + '" cy="' + y + '" r="' + (big ? 6 : 3.5) + '"/>';
@@ -259,12 +259,14 @@
       inv: { h: 'Bought', key: 'inv', fil: 'inv', num: 1, menu: 'Bought', fl: 'what it bought' },
       got: { h: 'Sold', key: 'got', fil: 'sold', num: 1, menu: 'Sold', fl: 'the share sold' },
       real: { h: 'PnL', key: 'real', fil: 'real', num: 1, menu: 'PnL', fl: 'PnL' },
-      mult: { h: '×', key: 'mult', fil: 'mult', num: 1, menu: '× <span>multiple</span>', fl: 'the multiple' },
+      mult: { h: 'ROI', key: 'mult', fil: 'mult', num: 1, menu: 'ROI', fl: 'ROI' },   // owner, 06.11: the word, the values stay in ×
       hold: { h: 'Held', key: 'hold', fil: 'hold', num: 1, menu: 'Held', fl: 'hold time and buys' },
       buys: { h: 'Buys / sells', key: 'buys', fil: 'buys', num: 1, menu: 'Buys / sells', fl: 'its buys' },
       first: { h: 'First buy', key: 'etime', dir: 1, num: 1, menu: 'First buy' },
       fund: { h: 'Funded by', key: 'funder', text: 1, menu: 'Funded by' },
     };
+    // each column a share of the width (owner, 06.11: no empty middle): more columns, and every share shrinks in step
+    const SHARE = { wallet: 23, trip: 23, inv: 15, got: 13, real: 18, mult: 8, hold: 9, buys: 11, first: 11, fund: 14 };
     const CKEY = 'early:cols', CDEF = ['trip', 'inv', 'got', 'real', 'mult', 'hold', 'buys', 'first', 'fund'], CON = new Set(['trip', 'inv', 'got', 'real', 'mult']);
     let cols = (() => {
       let v = null; try { v = JSON.parse(localStorage.getItem(CKEY) || 'null'); } catch (e) {}
@@ -279,7 +281,7 @@
       const unk = o.sells == null, UNK = 'Its sells were not read: only the largest buyers\' are', cap = v => v ? fm(v) : '—';
       if (k === 'trip') { const a = +o.eavg || +o.entry;
         return '<td class="c-trip" data-h="Entry → exit" title="Average entry ' + cap(a) + (o.exitcap ? ' → average exit ' + cap(o.exitcap) : unk ? ' · ' + UNK : ' · nothing sold yet')
-          + (o.hold != null ? ' · held ' + holdText(o.hold) + ' on average' : '') + (NOWCAP ? ' · the tick: the cap now, ' + fm(NOWCAP) : '') + '">' + tripSvg(o) + '<small>' + tripText(o) + '</small></td>'; }
+          + (o.hold != null ? ' · held ' + holdText(o.hold) + ' on average' : '') + (NOWCAP ? ' · the tick: the cap now, ' + fm(NOWCAP) : '') + '">' + tripSvg(o, 100, 18, null, false, true) + '<small>' + tripText(o) + '</small></td>'; }
       if (k === 'inv') return '<td class="num two c-inv" data-h="Bought" title="' + money(o.tot || o.inv) + ' bought of this token in all'
         + (extra(o) ? ', ' + money(o.inv) + ' of it inside the range' : ', all of it inside the range') + ' · its first buy in the range at a ' + cap(o.entry) + ' market cap">'
         + amt2(o.tot || o.inv, o.totsol != null ? o.totsol : o.invsol) + '<small>' + (extra(o) ? money(o.inv) + ' in range' : '') + '</small></td>';
@@ -291,7 +293,7 @@
           + '<span class="pcell">' + (unk || w < 3 ? '' : '<i class="pbar" style="width:' + w + '%"></i>') + (unk ? '<b>—</b>' : amt2(o.real, o.realsol, c, true))
           + '<small>' + (o.unreal ? '<span class="' + (o.unreal > 0 ? 'pos' : 'neg') + '">' + sgn(o.unreal) + '</span> on ' + leftPct(o.sold) + ' left' : !unk && o.sold >= 99 ? '<span class="none">sold out</span>' : '') + '</small></span></td>';
       }
-      if (k === 'mult') return '<td class="num c-roi" data-h="×"' + (o.mult ? ' title="' + roiPct(o.mult) + ' · average exit ' + cap(o.exitcap) + ' ÷ average entry ' + cap(o.eavg) + '"' : ' title="' + (unk ? UNK : 'Nothing sold yet') + '"') + '>'
+      if (k === 'mult') return '<td class="num c-roi" data-h="ROI"' + (o.mult ? ' title="' + roiPct(o.mult) + ' · average exit ' + cap(o.exitcap) + ' ÷ average entry ' + cap(o.eavg) + '"' : ' title="' + (unk ? UNK : 'Nothing sold yet') + '"') + '>'
         + '<b class="' + (o.mult && o.mult < 1 ? 'neg' : '') + '">' + roiX(o.mult) + '</b></td>';
       if (k === 'hold') return '<td class="num two c-held" data-h="Held" title="How long it held what it sold, on average, weighted by amount"><b>' + holdText(o.hold) + '</b></td>';
       if (k === 'buys') return '<td class="num c-buys" data-h="Buys / sells" title="' + plural(o.buys, 'buy') + ', ' + (unk ? 'sells unknown' : plural(o.sells, 'sell')) + '">'
@@ -302,6 +304,11 @@
       if (k === 'fund') return '<td class="c-fund" data-h="Funded by">' + fundHtml(o.w) + '</td>';
       return '<td></td>';
     }
+    // owner, 06.11: the row holds the address and its marks; the nickname and who it is come up over the address
+    const wwho = V2 ? document.createElement('div') : null;
+    if (V2) { wwho.className = 'wwho'; wwho.hidden = true; wwho.setAttribute('role', 'tooltip'); document.body.appendChild(wwho); }
+    const OPEN_CARD = 'Open the wallet\'s card: its trades here, its PnL on every token, its funder';
+    const nameAttrs = (w, nm) => nm ? ' aria-label="' + esc(nm) + ', ' + short(w) + '"' : ' title="' + OPEN_CARD + '"';
     function rowHtmlV2(o, n, i) {
       const oc = onChart.find(x => x.wallet === o.w), tg = tagsHtmlV2(o);
       cells.set(o.w, { tg });
@@ -312,17 +319,18 @@
       return '<tr data-w="' + o.w + '"' + (cl ? ' class="' + cl + '"' : '') + (out ? ' title="On the chart; the filters would hide it"' : '') + (style ? ' style="' + style + '"' : '') + '>'
         + '<td class="wcell"><div class="wbox"><span class="wid">' + STAR(o.w)   // owner, 26.10: no wallet picture, the star left of the address
         + '<button type="button" class="mk" title="Show its buys and sells on the chart" aria-label="Show on the chart">' + CHARTIC + '</button>'
-        + '<button type="button" class="wname" data-nm="' + esc(nm || '') + '" title="Open the wallet\'s card: its trades here, its PnL on every token, its funder">' + (nm ? '<b class="wn">' + esc(nm) + '</b>' : '') + '<span class="mono">' + short(o.w) + '</span></button>'
+        + '<button type="button" class="wname" data-nm="' + esc(nm || '') + '"' + nameAttrs(o.w, nm) + '><span class="mono">' + short(o.w) + '</span></button>'
         + '</span><span class="tags">' + tg + '</span><span class="msub">' + msub(o) + '</span></div></td>'
         + shownCols().map(k => cellV2(k, o)).join('') + '</tr>';
     }
     const FILG = ag('filter', 12);
     function headV2() {                                        // the head follows Columns: name, sort mark, funnel on one line
+      const sum = shownCols().reduce((a, k) => a + (SHARE[k] || 10), SHARE.wallet), pc = v => (100 * v / sum).toFixed(2) + '%';
       const th = k => { const c = COLS[k];
-        return '<th class="' + (c.num ? 'num ' : '') + 'sortable h-' + k + '" data-key="' + c.key + '"' + (c.dir ? ' data-dir="' + c.dir + '"' : '') + (c.text ? ' data-type="text"' : '')
+        return '<th class="' + (c.num ? 'num ' : '') + 'sortable h-' + k + '" style="width:' + pc(SHARE[k] || 10) + '" data-key="' + c.key + '"' + (c.dir ? ' data-dir="' + c.dir + '"' : '') + (c.text ? ' data-type="text"' : '')
           + '><span class="thc"><span class="hl">' + c.h + '</span>' + (c.sub ? '<span class="hsub">' + c.sub + '</span>' : '')
           + (c.fil ? '<button type="button" class="hfil" data-fil="' + c.fil + '" title="Filter by ' + c.fl + '" aria-label="Filter by ' + c.fl + '">' + FILG + '</button>' : '') + '</span></th>'; };
-      table.tHead.innerHTML = '<tr><th class="wh">Wallet</th>' + shownCols().map(th).join('') + '</tr>';
+      table.tHead.innerHTML = '<tr><th class="wh" style="width:' + pc(SHARE.wallet) + '">Wallet</th>' + shownCols().map(th).join('') + '</tr>';
     }
     function rowHtml(o, n, i) {
       if (V2) return rowHtmlV2(o, n, i);
@@ -378,6 +386,7 @@
       pinned.forEach(w => { const o = byW.get(w); if (o && !okRow(o)) rows.push([o, '']); });
       const ws = rows.map(x => x[0].w), nums = rows.map(x => x[1]);
       if (!first && ws.length === drawn.length && ws.every((w, k) => w === drawn[k])) { refreshRows(nums); return; }
+      if (wwho) wwho.hidden = true;                           // a redraw takes the address under the pointer with it
       tbody.innerHTML = rows.map(([o, n]) => rowHtml(o, n, first && n && n <= 40 ? n - 1 : -1)).join('');
       drawn = ws; first = false;
     }
@@ -390,8 +399,8 @@
         cells.set(o.w, { tg });
         if (V2) {                                               // names and funders arrive after the page
           const nm = EarlyTags.displayName(idents[o.w]) || '', wn = tr.querySelector('.wname');
-          if (wn && (wn.dataset.nm || '') !== nm) { wn.dataset.nm = nm; const s = wn.querySelector('.mono'); const b = wn.querySelector('.wn');
-            if (nm) { if (b) b.textContent = nm; else s.insertAdjacentHTML('beforebegin', '<b class="wn">' + esc(nm) + '</b>'); } else if (b) b.remove(); }
+          if (wn && (wn.dataset.nm || '') !== nm) { wn.dataset.nm = nm;
+            if (nm) { wn.removeAttribute('title'); wn.setAttribute('aria-label', nm + ', ' + short(o.w)); } else { wn.title = OPEN_CARD; wn.removeAttribute('aria-label'); } }
           const fc = tr.querySelector('.c-fund'); if (fc) { const h = fundHtml(o.w); if (fc.dataset.h !== h) { fc.innerHTML = h; fc.dataset.h = h; } }
         }
         const oc = onChart.find(x => x.wallet === o.w);
@@ -475,16 +484,19 @@
         out.push({ k: 'won', sev: 'good', act: ['profit'], v: won + '%', p: won, l: 'in profit', tip: won + '% of the wallets have a realized profit here' });
       }
       if (V2) {
-        // v2: the share in profit is one of the three large counts, the rest a line of words, each a click into its wallets
-        findActs = out.filter(x => x.k !== 'won').slice(0, FIND_MAX);
+        // v2 (owner, 06.11): three findings and nothing behind a «more». `out` has the alarming ones first; the launch word
+        // takes a place of its own; a token with less to say fills up with the plain counts, each a click into its wallets
+        const places = 3 - (verdictNote ? 1 : 0);
+        findActs = out.filter(x => x.k !== 'won').slice(0, places);
         const W = { launch: () => 'organised launch', dev: x => 'creator bought <b>' + x.v + '</b>', bout: x => '<b>' + x.v + '</b> of bundles out',
           cex: x => '<b>' + x.v + '</b> funded from exchanges', top: x => '<b>' + x.v + '</b> of the profit to the top 10', repeat: x => '<b>' + x.v + '</b> seen before' };
         const words = x => (W[x.k] ? W[x.k](x) : '<b>' + x.v + '</b> ' + x.l);
-        const SEP = '<span class="tsep" aria-hidden="true">·</span>';
-        const v2html = (verdictNote ? SEP + '<span class="tc bad tipt" tabindex="0" title="' + esc(verdictNote) + '"><b>' + verdictWord + '</b> launch</span>' : '')
-          + findActs.map((x, i) => SEP + (x.act ? '<button type="button" class="tc ' + x.sev + '" data-i="' + i + '" title="' + esc(x.tip) + ' · click to show them">'
+        const v2html = (verdictNote ? '<span class="tc bad tipt" tabindex="0" title="' + esc(verdictNote) + '"><b>' + verdictWord + '</b> launch</span>' : '')
+          + findActs.map((x, i) => (x.act ? '<button type="button" class="tc ' + x.sev + '" data-i="' + i + '" title="' + esc(x.tip) + ' · click to show them">'
             : '<span class="tc ' + x.sev + '" title="' + esc(x.tip) + '">') + words(x) + (x.act ? '</button>' : '</span>')).join('');
         if (el.dataset.h !== v2html) { el.innerHTML = v2html; el.dataset.h = v2html; }
+        let free = places - findActs.length;
+        document.querySelectorAll('#tally .tfill').forEach(b => { b.hidden = free-- <= 0; });
         return;
       }
       findActs = out.slice(0, FIND_MAX);
@@ -1400,6 +1412,28 @@
       if (story) viaCard = w;
       onChart.push(o); renderOnChart(); if (story && lastAsked === w) openStory(o);
     }
+    const hideNote = () => { if (wwho) wwho.hidden = true; };
+    if (V2) {
+      const showNote = b => {
+        const idn = idents[b.closest('tr').dataset.w], nm = EarlyTags.displayName(idn), lines = EarlyTags.idLines(idn);
+        if (!nm && !lines.length) return;
+        wwho.innerHTML = (nm ? '<b>' + esc(nm) + '</b>' : '') + lines.map(l => '<div>' + esc(l) + '</div>').join('');
+        wwho.hidden = false;
+        const r = b.getBoundingClientRect(), h = wwho.offsetHeight;
+        wwho.style.left = Math.max(8, Math.min(r.left, innerWidth - wwho.offsetWidth - 8)) + 'px';
+        wwho.style.top = (r.bottom + 6 + h > innerHeight ? r.top - 6 - h : r.bottom + 6) + 'px';
+      };
+      if (matchMedia('(hover: hover)').matches) {               // a phone has no pointer: the card says who it is
+        tbody.addEventListener('mouseover', e => { const b = e.target.closest('.wname'); if (b) showNote(b); });
+        tbody.addEventListener('mouseout', e => { if (e.target.closest('.wname')) hideNote(); });
+      }
+      tbody.addEventListener('focusin', e => { if (e.target.matches('.wname:focus-visible')) showNote(e.target); });
+      tbody.addEventListener('focusout', hideNote);
+      tbody.addEventListener('click', hideNote);
+      addEventListener('scroll', hideNote, true);
+      const twrap = table.closest('.tablewrap');                // the Wallet column stays when the rest scrolls sideways: a soft edge says so
+      if (twrap) twrap.addEventListener('scroll', () => twrap.classList.toggle('scrolled', twrap.scrollLeft > 0), { passive: true });
+    }
     // every button in a row answers here, so a redrawn row needs no listeners of its own
     tbody.addEventListener('click', e => {
       const tr = e.target.closest('tr'); if (!tr) return;
@@ -1614,6 +1648,7 @@
       drawer.hidden = true; delete drawer.dataset.w;          // a late answer's «is this card still open» check now fails
       off.forEach(fn => { try { fn(); } catch (e) {} });
       fpop.remove(); listpop.remove();
+      if (wwho) { wwho.remove(); removeEventListener('scroll', hideNote, true); }
       if (V2) { if (tabsres && rheadEl) rheadEl.remove(); if (ctw) { ctw.innerHTML = ''; ctw.hidden = true; } }   // what v2 moved out of the result
       document.body.classList.remove('drawer-open');
       ch.setWalletMarkers([]); ch.setOnMarkers(null); ch.setExit(null);

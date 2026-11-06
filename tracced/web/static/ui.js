@@ -270,7 +270,17 @@ window.EarlyTags = (function () {
     });
     return out.join('');
   }
-  return { ICON, BRANDS, chip, iconify, idMarks, isKol, handle, platforms, displayName, esc };
+  /* the same facts as words, for the note over an address in v2's table */
+  function idLines(idn) {
+    if (!idn) return [];
+    const out = [], h = handle(idn), apps = platforms(idn).map(f => Object.values(BRANDS).find(b => b[0] === f)[1]);
+    if (isKol(idn)) out.push('A known trader (KOL)');
+    if (h) out.push('@' + h + ' on X');
+    if (apps.length) out.push('Trades through ' + apps.join(', '));
+    [...new Set([idn.type].concat(idn.tags || []))].filter(r => ROLES[r]).forEach(r => out.push(ROLES[r]));
+    return out;
+  }
+  return { ICON, BRANDS, chip, iconify, idMarks, idLines, isKol, handle, platforms, displayName, esc };
 })();
 /* Ready lists (owner, 07.10): «Follow N wallets» puts a list's wallets in the person's watchlist, under the list's own
    name, with their bells on while the account has bells left. A guest connects first, and the follow goes on by itself. */
