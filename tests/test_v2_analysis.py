@@ -142,6 +142,7 @@ if AioHTTPTestCase:
             self.assertNotIn('id="hidebots"', html)                      # owner, 06.11: Hide bots is inside Filters, Columns in ⋯
             self.assertLess(html.index('id="xpanel"'), html.index('id="colsbtn"'))
             self.assertLess(html.index('id="ftoggle"'), html.index('id="freset"'))
+            self.assertLess(html.index('id="askbtn"'), html.index('id="xbtn"'))   # owner, 06.11: ⋯ at the far end
             self.assertIn('<option value="mult">ROI</option>', html)
             self.assertNotIn('Multiple', html)
 

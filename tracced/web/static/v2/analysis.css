@@ -213,7 +213,7 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 .ana .tally .bad .tsc s { background: var(--danger); }
 .ana .tally .rep .tsc s { background: var(--repeat); }
 
-/* the table's card and its toolbar (owner, 06.11): on the left Sorted by … · Filters, on the right ⋯ · Ask AI */
+/* the table's card and its toolbar (owner, 06.11): on the left Sorted by … · Filters, on the right Ask AI · ⋯ */
 .ana .tcard { position: relative; padding: 6px 0 8px; border-radius: var(--r-card); background: var(--surface); }
 .ana .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; padding: 10px 16px; }
 .ana .tb-sp { flex: 1; }
@@ -672,13 +672,13 @@ main.wide:has(> #token.ana) { padding-top: 0; }
   .ana .tcard { border-radius: var(--r-l); padding: 4px 0 6px; }
   .ana .toolbar { padding: 8px 12px; gap: 6px; }
   :root .ana #xpanel .xcols, .ana #colpanel { display: none; }    /* a phone's list has no columns to choose */
-  /* one line: the order and Filters on the left, ⋯ and the agent on the right */
+  /* one line: the order and Filters on the left, the agent and ⋯ on the right */
   :root .ana .toolbar .sortby { order: 1; margin: 0; }
   :root .ana .toolbar .sortby > span { display: none; }
   .ana .toolbar .fwrap { order: 2; }
   .ana .toolbar .tb-sp { order: 3; display: block; flex: 1; }
-  .ana .toolbar > .menu { order: 4; margin: 0; }
-  .ana .toolbar #aiwrap { order: 5; margin: 0; }
+  .ana .toolbar #aiwrap { order: 4; margin: 0; }
+  .ana .toolbar > .menu { order: 5; margin: 0; }
   .ana .toolbar #factive { order: 6; flex-basis: 100%; justify-content: space-between; }
   .ana .toolbar::before { display: none; }
   .ana #facts td.c-pnl small { display: none; }

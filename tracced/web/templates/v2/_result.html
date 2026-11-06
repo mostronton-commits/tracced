@@ -48,6 +48,13 @@
          Columns in ⋯, Reset a small × on Filters #}
       <span class="fwrap"><button type="button" class="tbtn" id="ftoggle" aria-expanded="false" aria-controls="fpanel">{{ ag.g('filter', size=13) }}<span id="ftext">Filters</span></button><button type="button" class="frst" id="freset" hidden title="Back to no filters and the PnL order" aria-label="Reset the filters">×</button></span>
       <span class="tb-sp"></span>
+      <div class="soonwrap" id="aiwrap">
+        <button type="button" class="ink askai" id="askbtn" title="{{ 'Ask about this pump: the agent reads this analysis only' if assistant_on else 'Coming soon' }}">{{ ag.g('ai', size=13) }}Ask AI</button>
+        <div class="soon-pop" id="aipop" hidden>
+          <b>Coming soon</b>
+          <span>The agent will read this analysis and tell you what happened in the range, what to weigh and whose wallets stand out, then answer your questions about it. It is not switched on on this server yet.</span>
+        </div>
+      </div>
       <div class="menu">
         <button type="button" class="tbtn tmore" id="xbtn" aria-haspopup="true" aria-expanded="false" title="Columns and export" aria-label="Columns and export">{{ ag.g('more', size=16) }}</button>
         <div class="menu-panel r" id="xpanel" hidden>
@@ -58,13 +65,6 @@
           <button type="button" data-x="json">JSON <small id="xjson"></small></button>
         </div>
         <div class="colpanel" id="colpanel" hidden></div>
-      </div>
-      <div class="soonwrap" id="aiwrap">
-        <button type="button" class="ink askai" id="askbtn" title="{{ 'Ask about this pump: the agent reads this analysis only' if assistant_on else 'Coming soon' }}">{{ ag.g('ai', size=13) }}Ask AI</button>
-        <div class="soon-pop" id="aipop" hidden>
-          <b>Coming soon</b>
-          <span>The agent will read this analysis and tell you what happened in the range, what to weigh and whose wallets stand out, then answer your questions about it. It is not switched on on this server yet.</span>
-        </div>
       </div>
     </div>
 

@@ -408,7 +408,7 @@ no second, dark line.
   shows still holding. Colour only for meaning: amber a warning, red the creator or a staged launch, violet repeats. A cell
   with a filter or an order behind it is a button. Under 640 px two rows of three. The home page shows none.
 - **The toolbar over the table** (owner, 06.11: the buttons looked random): on the left what is shown and in what order,
-  Sorted by and Filters; on the right what you can do with it, ⋯ and Ask AI. Hide bots is the first thing inside Filters,
+  Sorted by and Filters; on the right what you can do with it, Ask AI and ⋯. Hide bots is the first thing inside Filters,
   Reset a small × on the Filters button when something is set, Columns and Export in ⋯.
 - **No search for a wallet in a result** (owner, 06.11: «це зайве»): the filters narrow the list.
 - **Saving an analysis** is an icon-only star in the chart's toolbar (owner, 06.11: «просто зірочка»); amber once saved. Everything there stands together on the left: candle length, Market cap | Price, UTC | Local, USD | SOL, the star (owner, 06.11).
