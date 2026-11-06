@@ -285,7 +285,7 @@ Cyrillic of the agent's Ukrainian, the arrows, and a checkout without the files.
 - **No wallet pictures in the data** (owner, 26.10: «займає корисне простір і не несе практичної користі»): the
   card, the account pill, the lists and home's top 10 show the name or the address alone, the table the address; the card shows a
   real avatar (X) when there is one. The **star** stands left of the address in every result row, always visible
-  (muted, amber when saved): one click saves the wallet. `fingerprint()` remains only for decoration the owner keeps.
+  (muted, amber when saved): one click saves the wallet. `fingerprint()` stays for the orbits on home (owner, 06.11: they stay) and is kept for showing users' own wallets later, never traders' in the data.
 - **The home header:** the small logo on the left, the X button and the account on the right, over the planet (canvas Home6).
 - **The footer** is one line on every page: Demo (when there is one), Docs, How it works, The project, What's new,
   Contact; then the Telegram and GitHub marks and the version. No logo, no status bar, no bell (owner, 26.10).
