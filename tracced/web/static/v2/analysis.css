@@ -141,10 +141,8 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 :root .ana .atab.new:disabled { opacity: .5; }
 :root .ana .atabs:has(.atab.new.on) .atab.on:not(.new) { background: var(--surface-2); color: var(--ink); box-shadow: none; }
 .ana .tabs-end { display: flex; align-items: center; gap: 12px; margin-left: auto; min-width: 0; color: var(--muted); font-size: var(--fs-caption); }
-.ana .tabs-end:has(.rhead) .tabsum { display: none; }
-.ana .tabsum:empty, .ana .tabsres:empty { display: none; }
+.ana .tabsres:empty { display: none; }
 .ana .rhead { display: flex; align-items: center; gap: 12px; margin: 0; flex-wrap: wrap; justify-content: flex-end; }
-.ana .rhead .rrange { color: var(--muted); font-size: var(--fs-caption); }
 .ana .rhead-act { display: flex; gap: 6px; }
 :root .ana .rhead .ghost { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border: 0; border-radius: var(--r-pill);
   background: var(--surface-2); color: var(--ink); font: 500 var(--fs-caption)/1 var(--font); }
@@ -653,8 +651,7 @@ main.wide:has(> #token.ana) { padding-top: 0; }
   .ana .atabs::-webkit-scrollbar { display: none; }
   :root .ana .atab { min-width: 0; flex: none; }
   .ana .tabs-end { flex-basis: 100%; margin-left: 0; justify-content: space-between; }
-  .ana .rhead { justify-content: space-between; width: 100%; flex-wrap: nowrap; }
-  .ana .rhead .rrange { min-width: 0; }
+  .ana .rhead { width: 100%; flex-wrap: nowrap; }
   :root .ana .rhead .savejob { width: 36px; height: 36px; padding: 0; justify-content: center; }
   .ana .run-card { padding: 16px; border-radius: var(--r-l); }
   .ana .run-phase, .ana .run-count { font-size: var(--fs-read); }

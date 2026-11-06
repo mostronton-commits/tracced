@@ -68,7 +68,7 @@ if AioHTTPTestCase:
             self.assertIn('href="/static/v2/analysis.css', html)
             for part in ('id="ctools"', 'id="ctl"', 'id="ctw"', 'id="ctr"', 'id="cur"',       # the chart's toolbar, USD/SOL on it
                          'id="chart"', 'id="pick"', 'id="getw"', 'id="pickt"', 'id="picknote"',  # the bar on the chart
-                         'id="tabs"', 'id="tabsum"', 'id="tabsres"',                         # the tabs and the range at their end
+                         'id="tabs"', 'id="tabsres"',                                        # the tabs and Save at their end
                          'id="run"', 'class="run-skel"', 'id="runsteps"', 'id="result"',      # the run's line and the rows it holds
                          'data-mcap=', 'data-supply=', 'class="tline"'):
                 self.assertIn(part, html, part)
@@ -93,7 +93,7 @@ if AioHTTPTestCase:
                          'data-x="csv"', 'data-x="txt"', 'data-x="json"',               # ⋯ holds Export
                          '<th class="wh">Wallet</th>', 'data-fil="real"', 'data-fil="hold"', 'id="shown"', 'id="more100"', 'id="moreall"',
                          'id="drawer"', 'id="dshare"', 'id="dpos"', 'id="dgroups"', 'id="dstar"', 'id="dprof"', 'id="dper"',
-                         'id="apanel"', 'id="aform"', 'Reads this analysis only', 'id="savejob"', 'trades up to', 'id="rcfg"', 'id="rowsdata"'):
+                         'id="apanel"', 'id="aform"', 'Reads this analysis only', 'id="savejob"', ', up to ', 'id="rcfg"', 'id="rowsdata"'):
                 self.assertIn(part, page, part)
             self.assertNotIn('data-menu title="Export', page)            # ⋯ opens by result.js, not by the header's menus
             self.assertNotIn('<span aria-hidden="true">→</span>', page)  # no arrows inside buttons

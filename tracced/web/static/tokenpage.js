@@ -292,9 +292,7 @@
         : '<button type="button" class="atab new' + (draft.from ? ' on' : '') + '" data-new="1"' + (taken() >= MAX_TABS ? ' disabled title="' + EarlyTags.esc(limitMsg()) + '"' : ' title="Mark a new range on the chart"') + '>'
         + '<b>+ New range</b><small>' + (draft.from && draft.to ? dur(Math.round((parse(draft.to) - parse(draft.from)) / 60000)) : VERB.toLowerCase() + ' the chart') + '</small></button>');
     tabsEl.hidden = !tabs.length && !draft.from;
-    if (V2 && $('tabsum')) {                                   // v2: the chosen range's times at the row's end (its result adds the rest)
-      const t = tabOf(sel);
-      $('tabsum').textContent = t ? sumText(t) : '';
+    if (V2) {                                                  // owner, 06.11: the band on the chart says the times; a tab says them only under the pointer
       tabsEl.querySelectorAll('.atab[data-id]').forEach(b => { const x = tabOf(b.dataset.id); if (x && x.status === 'done' && x.n != null) b.title = nf(x.n) + ' wallets bought in ' + sumText(x); });
     }
   }
