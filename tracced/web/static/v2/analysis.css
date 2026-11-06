@@ -209,7 +209,7 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 :root .ana .tally .tline .tc.rep b { color: var(--repeat); }
 .ana .tally .tline .tc.bad.tipt { cursor: help; }
 
-/* the table's card and its toolbar: Sorted by … · Find a wallet · Hide bots · Filters · Columns · Ask AI · ⋯ */
+/* the table's card and its toolbar: Sorted by … · Hide bots · Filters · Columns · Ask AI · ⋯ */
 .ana .tcard { position: relative; padding: 6px 0 8px; border-radius: var(--r-card); background: var(--surface); }
 .ana .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; padding: 10px 16px; }
 .ana .tb-sp { flex: 1; }
@@ -224,10 +224,6 @@ main.wide:has(> #token.ana) { padding-top: 0; }
   background: var(--mint-wash); color: var(--mint); font: 500 var(--fs-caption)/1 var(--font); }
 .ana .factive[hidden] { display: none; }
 :root .ana .factive button { height: 22px; min-width: 22px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--mint); justify-content: center; }
-.ana .tfind { display: flex; align-items: center; gap: 8px; width: 170px; min-width: 0; height: 30px; padding: 0 12px; border-radius: var(--r-pill); background: var(--bg); color: var(--faint); transition: box-shadow var(--t-fast) ease; }
-.ana .tfind:focus-within { box-shadow: inset 0 0 0 1px var(--mint-line), 0 0 0 3px var(--mint-wash); }
-:root .ana .tfind input { flex: 1; min-width: 0; width: 0; height: 28px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--ink); font: 400 var(--fs-small)/1 var(--font); }
-.ana .tfind input::placeholder { color: var(--muted); }
 :root .ana .tbtn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 0; border-radius: var(--r-pill);
   background: var(--surface-2); color: var(--muted); font: 500 var(--fs-small)/1 var(--font); transition: color var(--t-fast) ease, background var(--t-fast) ease; }
 :root .ana .tbtn:hover { background: var(--surface-3); color: var(--ink); border: 0; }
@@ -602,7 +598,6 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 @media (max-width: 960px) {
   .ana .toolbar .tb-sp { flex-basis: 100%; height: 0; }
   :root .ana .toolbar .sortby { margin: 0 auto 2px 0; }
-  .ana .tfind { flex: 1 1 160px; }
   /* one card per wallet (DESIGN.md «Layout»): the wallet on top, its facts under it, each with its name */
   .ana .tablewrap { padding: 0 12px; }
   .ana #facts .wbox { display: contents; }
@@ -667,14 +662,13 @@ main.wide:has(> #token.ana) { padding-top: 0; }
   .ana .tcard { border-radius: var(--r-l); padding: 4px 0 6px; }
   .ana .toolbar { padding: 8px 12px; gap: 6px; }
   .ana .menu.cols { display: none; }
-  /* two lines: the order, the agent and ⋯; then the search, Hide bots and Filters */
+  /* two lines: the order, the agent and ⋯; then Hide bots and Filters */
   :root .ana .toolbar .sortby { order: 1; flex: 1 1 auto; margin: 0; }
   .ana .toolbar #factive { order: 2; }
   .ana .toolbar #aiwrap { order: 3; margin: 0; }
   .ana .toolbar > .menu:not(.cols) { order: 4; margin: 0; }
   .ana .toolbar::before { order: 5; }
   .ana .toolbar .tb-sp { display: none; }
-  .ana .tfind { order: 6; flex: 1 1 120px; width: auto; height: 36px; }
   .ana .toolbar #hidebots { order: 7; } .ana .toolbar #ftoggle { order: 8; } .ana .toolbar #freset { order: 9; }
   .ana #facts td.c-pnl small { display: none; }
   :root .ana .tbtn, :root .ana .askai { height: 36px; }

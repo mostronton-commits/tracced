@@ -616,7 +616,7 @@
     const PANEL_NUMS = ['inv', 'sold', 'real', 'mult', 'hold', 'buys'];
     function drawPanel() {
       const fp = document.getElementById('fpanel');
-      fp.innerHTML = '<div class="fp-top"><input type="text" class="fq" maxlength="44" placeholder="Find a wallet: address or name" aria-label="Find a wallet">'
+      fp.innerHTML = '<div class="fp-top">' + (V2 ? '' : '<input type="text" class="fq" maxlength="44" placeholder="Find a wallet: address or name" aria-label="Find a wallet">')   // owner, 06.11: no wallet search in v2
         + '<label class="fck fmine" hidden><input type="checkbox" data-mine>' + EarlyIcon('star-on') + 'Only my watchlist</label></div>'
         + '<div class="fp-nums">' + PANEL_NUMS.map(k => '<label class="fnum" title="' + esc(RANGES[k].hint) + '"><span>' + RANGES[k].t + (RANGES[k].u ? ', ' + RANGES[k].u : '')
           + '</span>' + numIn(k, 0, null) + '<i>–</i>' + numIn(k, 1, null) + '</label>').join('') + '</div>'
@@ -629,7 +629,7 @@
     }
     function fillPanel() {                                     // the values from the state, never under the field being typed in
       const fp = document.getElementById('fpanel'); if (!fp || fp.hidden || !fp.firstChild) return;
-      const q = fp.querySelector('.fq'); if (q !== document.activeElement) q.value = f.q;
+      const q = fp.querySelector('.fq'); if (q && q !== document.activeElement) q.value = f.q;
       const m = fp.querySelector('.fmine'); m.hidden = !(hasLists || f.mine); m.querySelector('input').checked = !!f.mine;
       fp.querySelectorAll('input[data-k]').forEach(x => { if (x !== document.activeElement) { const v = (f.r[x.dataset.k] || [null, null])[+x.dataset.i]; x.value = v == null ? '' : v; } });
       fp.querySelectorAll('[data-hide]').forEach(b => { const on = f.hide.includes(b.dataset.hide); b.classList.toggle('off', on); b.setAttribute('aria-pressed', String(on)); });
@@ -899,11 +899,8 @@
 
     if (V2) {
       headV2(); markSort();
-      // the toolbar (canvas Analysis4): Find a wallet is the panel's search; Hide bots hides the bot-like tag, as the
-      // panel's chip does; Columns shows, hides and orders the columns; ⋯ holds Export
-      const tfind = document.getElementById('tfind'); let tfT = 0;
-      tfind.addEventListener('input', () => { clearTimeout(tfT); tfT = later(() => { f.q = tfind.value.trim(); saveF(); limit = LIMIT; apply(); fillPanel(); }, 250); });
-      tfind.addEventListener('keydown', e => { if (e.key === 'Escape' && tfind.value) { e.stopPropagation(); tfind.value = ''; f.q = ''; saveF(); limit = LIMIT; apply(); fillPanel(); } });
+      // the toolbar (canvas Analysis4): Hide bots hides the bot-like tag, as the panel's chip does; Columns shows, hides
+      // and orders the columns; ⋯ holds Export
       document.getElementById('hidebots').addEventListener('click', () => {
         const on = !f.hide.includes('bot-like');
         f.hide = on ? f.hide.concat(['bot-like']) : f.hide.filter(y => y !== 'bot-like');

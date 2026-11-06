@@ -1,8 +1,8 @@
 {# design v2 of the result under the token's chart (canvas Analysis4, AnalysisMark; 26.10). The same part as before:
    served inside /job/<id> and alone by /job/<id>/view; static/result.js mounts it and unmounts it, and what it needs
    from the server is in #rcfg. The look moved: the tally is one strip of three counts and the findings as words, the
-   table sits on its own card with its toolbar (Find a wallet, Hide bots, Filters, Columns, Ask AI, ⋯), the wallet card
-   and the agent stand in the right column. The range line and Save go up into the tabs' row, the wallets on the chart
+   table sits on its own card with its toolbar (Hide bots, Filters, Columns, Ask AI, ⋯), the wallet card
+   and the agent stand in the right column. Save and the wallets on the chart go up
    into the chart's toolbar (result.js moves them there and takes them back) #}
 {% import "v2/_ag.html" as ag %}
 {% set job_end = (result.window.end or job.t_exit or job.t_to) %}
@@ -45,7 +45,6 @@
         <option value="hold">Hold time</option><option value="buys">Buys</option><option value="" hidden disabled>your order</option></select></label>
       <span class="factive" id="factive" hidden></span>
       <span class="tb-sp"></span>
-      <label class="tfind">{{ ag.g('search', size=13) }}<input type="text" id="tfind" maxlength="44" placeholder="Find a wallet" aria-label="Find a wallet: address, name or your tag" autocomplete="off" spellcheck="false"></label>
       <button type="button" class="tbtn" id="hidebots" aria-pressed="false" title="Hide every wallet tagged bot-like: its own trades on this token look automated">{{ ag.g('bot', size=13) }}Hide bots</button>
       <button type="button" class="tbtn" id="ftoggle" aria-expanded="false" aria-controls="fpanel">{{ ag.g('filter', size=13) }}<span id="ftext">Filters</span></button><button type="button" class="ghost frst" id="freset" hidden title="Back to no filters and the PnL order">Reset</button>
       <div class="menu cols">

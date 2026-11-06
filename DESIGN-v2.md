@@ -359,7 +359,7 @@ no second, dark line.
   the sort mark, the name, the funnel. Only the numbers sort; the address does not, and there is no Funded by column:
   the card says who funded a wallet. Funnels stand only by numbers and open one small window: "from … to …", Reset, Apply; Enter applies and
   Escape closes. A funnel holding a filter turns mint. The money unit is a small `$`/◎ key by "Bought". **Filters**
-  opens a panel over the table, its full width (owner, 04.10: as it was, not a pop-up): finding a wallet and ★ Only my
+  opens a panel over the table, its full width (owner, 04.10: as it was, not a pop-up): ★ Only my
   watchlist, then every number from and to, then the tags to hide, struck through when hidden. It applies as you type,
   and it and the funnels edit the same numbers. On a phone or a tablet, where the table has no head, it is the way in.
   **Reset** stands beside Filters whenever a filter is on or the order is not "PnL, highest first", and clears both.
@@ -405,6 +405,7 @@ no second, dark line.
   the alarming before the rest; a token with less to say fills up with sold out, still holding and best. Colour only for
   meaning: amber a warning, red the creator or a staged launch, violet repeats. A chip with a filter or an order behind
   it is a button. The home page shows none.
+- **No search for a wallet in a result** (owner, 06.11: «це зайве»): the filters narrow the list.
 - **Saving an analysis** is an icon-only star in the chart's toolbar, left of UTC | Local (owner, 06.11: «просто зірочка»); amber once saved.
 - **The home's four blocks** are not equal (owner, 06.11): a zigzag, Fresh pumps wide beside Live on tracced, then the month's
   top traders beside Alerts wide (7 : 5, then 5 : 7), one column under 960 px. A block has a body: a lit top edge, it falls away

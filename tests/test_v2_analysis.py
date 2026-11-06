@@ -88,7 +88,7 @@ if AioHTTPTestCase:
             self.assertIn('class="token ana"', page)
             self.assertIn('id="resultroot"', page)
             for part in ('id="tally"', 'class="tbig"', 'id="tprofit"', 'data-act="sold"', 'data-act="holding"', 'data-act="best"', 'id="finds"',
-                         'id="msort"', 'Sorted by', 'id="tfind"', 'id="hidebots"', 'id="ftoggle"', 'id="freset"', 'id="fpanel"',
+                         'id="msort"', 'Sorted by', 'id="hidebots"', 'id="ftoggle"', 'id="freset"', 'id="fpanel"',
                          'id="colsbtn"', 'id="colpanel"', 'id="askbtn"', 'Ask AI', 'id="xbtn"', 'id="xpanel"',
                          'data-x="csv"', 'data-x="txt"', 'data-x="json"',               # ⋯ holds Export
                          '<th class="wh">Wallet</th>', 'data-fil="real"', 'data-fil="hold"', 'id="shown"', 'id="more100"', 'id="moreall"',
@@ -164,6 +164,7 @@ if AioHTTPTestCase:
 
         async def test_saving_is_a_star_over_the_chart(self):
             html = await (await self.client.get(f"/job/{await self.finished_job()}", headers=self.v2())).text()
+            self.assertNotIn('id="tfind"', html)                         # owner, 06.11: no wallet search in a result
             self.assertLess(html.index('id="ctsave"'), html.index('id="ctr"'))   # in the chart's toolbar, left of UTC | Local
             res = static_js("result.js")
             self.assertIn("ctsave.appendChild(sjob);", res)
