@@ -406,7 +406,7 @@ no second, dark line.
   meaning: amber a warning, red the creator or a staged launch, violet repeats. A chip with a filter or an order behind
   it is a button. The home page shows none.
 - **No search for a wallet in a result** (owner, 06.11: «це зайве»): the filters narrow the list.
-- **Saving an analysis** is an icon-only star in the chart's toolbar, left of UTC | Local (owner, 06.11: «просто зірочка»); amber once saved.
+- **Saving an analysis** is an icon-only star at the right end of the chart's toolbar (owner, 06.11: «просто зірочка»); amber once saved. All the chart's switches stand together on the left: candle length, Market cap | Price, UTC | Local, USD | SOL (owner, 06.11).
 - **The home's four blocks** are not equal (owner, 06.11): a zigzag, Fresh pumps wide beside Live on tracced, then the month's
   top traders beside Alerts wide (7 : 5, then 5 : 7), one column under 960 px. A block has a body: a lit top edge, it falls away
   downwards and casts a shadow. Behind each top trader's profit a bar shows its share of the leader's.

@@ -165,7 +165,8 @@ if AioHTTPTestCase:
         async def test_saving_is_a_star_over_the_chart(self):
             html = await (await self.client.get(f"/job/{await self.finished_job()}", headers=self.v2())).text()
             self.assertNotIn('id="tfind"', html)                         # owner, 06.11: no wallet search in a result
-            self.assertLess(html.index('id="ctsave"'), html.index('id="ctr"'))   # in the chart's toolbar, left of UTC | Local
+            self.assertLess(html.index('id="ctl"'), html.index('id="ctr"'))      # every switch together on the left (owner, 06.11)
+            self.assertLess(html.index('id="cur"'), html.index('id="ctsave"'))   # the star alone on the right of the chart's toolbar
             res = static_js("result.js")
             self.assertIn("ctsave.appendChild(sjob);", res)
             self.assertIn("if (ctsave) sjob.remove();", res)             # a closed tab takes its star with it

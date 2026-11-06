@@ -36,14 +36,14 @@
     </div>
 
     {# the chart's toolbar (owner, 26.10: UTC/Local where time is read, the money unit beside it): chart.js fills the
-       left part and the time zone; the wallets put on the chart stand after the left part (result.js) #}
+       left part and the time zone; every switch on the left (owner, 06.11), then the wallets put on the chart, the star at the far end (result.js) #}
     <div class="ctools" id="ctools">
       <span class="ct-l" id="ctl"></span>
+      <span class="ct-r" id="ctr"></span>
+      <button type="button" class="seg" id="cur" title="Show every amount in dollars or in SOL" aria-label="Money unit" onclick="EarlyCur.toggle()"><b class="on">USD</b><b>SOL</b></button>
       <span class="ctw" id="ctw"></span>
       <span class="ct-sp"></span>
       <span class="ctsave" id="ctsave"></span>
-      <span class="ct-r" id="ctr"></span>
-      <button type="button" class="seg" id="cur" title="Show every amount in dollars or in SOL" aria-label="Money unit" onclick="EarlyCur.toggle()"><b class="on">USD</b><b>SOL</b></button>
     </div>
 
     <div class="chartbox" id="chart"><div class="charthint" id="charthint" hidden></div>
