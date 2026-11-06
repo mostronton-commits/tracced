@@ -7,7 +7,11 @@
 Але тут обидві сторони угоди мають суму в доларах: купівля — токен прийшов, а SOL чи стейбл пішли; продаж — навпаки.
 Усе інше (переказ токена комусь, airdrop, вхідний SOL, обмін токена на токен) — не купівля і не продаж.
 """
+import collections
 import html
+import json
+import os
+import random
 import secrets
 import threading
 import time
@@ -103,6 +107,151 @@ def prefs_of(raw, default_min=None):
 
 def wants(ev, prefs):
     return bool(prefs["buys" if ev["side"] == "buy" else "sells"]) and ev["usd"] >= prefs["min_usd"]
+
+
+class SpamWallets:
+    """Гаманці-боти (власник, 05.11): їх транзакції — не сигнал, читання кожної коштує запит до ноди, і такий гаманець займає одне
+    зі 100 місць у потоці. Блок і винятки власника лежать у файлі: переживають перезапуск і деплой."""
+
+    def __init__(self, path=None, now=time.time):
+        self.path, self._now, self.recent, self.blocked, self.allowed = path, now, {}, {}, set()   # гаманець → (коли, підпис) за добу
+        self.checking, self.pending = set(), set()            # кого перевіряємо зараз; кого не вдалось перевірити: спробувати знову
+        self.spared = {}                                      # перевірено, не бот: до цього часу лічильник не будить перевірку
+        try:
+            with open(path, encoding="utf-8") as f:
+                d = json.load(f)
+            self.blocked = {w: dict(v) for w, v in d["blocked"].items()}
+            self.allowed = set(d["allowed"])
+        except (OSError, TypeError, ValueError, AttributeError, KeyError):
+            self.blocked, self.allowed = {}, set()            # нема файлу чи битий = нікого не блокуємо
+
+    def until(self, wallet):
+        """Час, до якого гаманець заблоковано (секунди), або None."""
+        t = (self.blocked.get(wallet) or {}).get("until")
+        return t if t and t > self._now() else None
+
+    def hit(self, wallet, sig, per_day):
+        """Ще одна транзакція; True — за останню добу їх стало понад per_day. Той самий підпис від потоку і страховки — раз."""
+        if wallet in self.allowed:
+            return False
+        now, q = self._now(), self.recent.setdefault(wallet, collections.deque())
+        if any(s == sig for _, s in q):
+            return False
+        q.append((now, sig))
+        while q and now - q[0][0] > 86400:
+            q.popleft()
+        if len(self.recent) > 5000:
+            self.recent = {wallet: q}
+        return len(q) > per_day
+
+    def block(self, wallet, days, **facts):
+        now = self._now()
+        self.recent.pop(wallet, None)
+        self.pending.discard(wallet)
+        self.blocked = {w: v for w, v in self.blocked.items() if v.get("until", 0) > now}
+        self.blocked[wallet] = dict(facts, at=now, until=now + float(days) * 86400)
+        self._save()
+        return self.blocked[wallet]["until"]
+
+    def allow(self, wallet, on):
+        """Виняток власника: «не бот» знімає блок і більше не рахує цей гаманець."""
+        if on:
+            self.allowed.add(wallet)
+            self.blocked.pop(wallet, None)
+            self.recent.pop(wallet, None)
+            self.pending.discard(wallet)
+        else:
+            self.allowed.discard(wallet)
+        self._save()
+
+    def rows(self):
+        now = self._now()
+        return sorted(({"wallet": w, **v} for w, v in self.blocked.items() if v.get("until", 0) > now), key=lambda r: -r["at"])
+
+    def _save(self):
+        if not self.path:
+            return
+        try:
+            os.makedirs(os.path.dirname(str(self.path)) or ".", exist_ok=True)
+            tmp = str(self.path) + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump({"blocked": self.blocked, "allowed": sorted(self.allowed)}, f)
+            os.replace(tmp, self.path)
+        except OSError:
+            pass
+
+
+def spam_counts(sigs, now):
+    """(за добу, за 7 днів) у підписах гаманця. Невдалі теж: бот, що за шість хвилин шле тисячу невдалих, — теж бот (замір 05.11)."""
+    return (sum(1 for x in sigs or [] if now - (x.get("blockTime") or 0) < 86400),
+            sum(1 for x in sigs or [] if now - (x.get("blockTime") or 0) < 7 * 86400))
+
+
+def spam_suspect(day, week, per_day):
+    return day > per_day or week > per_day * 7
+
+
+def spam_window(sigs, now, day, per_day):
+    """Де брати вибірку: у вікні, яке перевищило межу."""
+    span = 86400 if day > per_day else 7 * 86400
+    return [x for x in sigs or [] if now - (x.get("blockTime") or 0) < span]
+
+
+def spam_rates(sigs, now, cut, min_hours=6):
+    """(за добу, за 7 днів). Доба, обрізана сторінками (чужий шум: тисячі на годину), — у перерахунку з того проміжку, який прочитали:
+    інакше 300 своїх за 4 години серед шуму виглядали б як 300 на день. Коротший за min_hours рахуємо як min_hours: одна гаряча
+    година людини ще не робить її ботом. Тиждень не перераховуємо: учорашній сплеск, розтягнутий на сім днів, зробив бота з людини
+    (замір 05.11: 95 своїх на день). Обрізаний тиждень — це «щонайменше», і його вистачає лише для певного висновку."""
+    day, week = spam_counts(sigs, now)
+    if not cut or not sigs:
+        return day, week
+    read = max(now - (sigs[-1].get("blockTime") or now), min_hours * 3600)
+    return (round(day * 86400 / read) if read < 86400 else day, week)
+
+
+def noise_tx(logs, programs):
+    """Чужий шум, видно вже зі сповіщення: транзакція верхнім рівнем викликає програму зі списку. Такі боти згадують гаманець лише
+    для читання (замір 05.11: 92 % успішних згадок завалених шумом гаманців, власного підпису — 0 з 24); запит на читання не потрібен."""
+    if not programs:
+        return False
+    return any(line.endswith(" invoke [1]") and line.split(" ")[1] in programs for line in logs or [] if line.startswith("Program "))
+
+
+def sample_some(items, n):
+    """n випадкових елементів. Не через рівні кроки: боти шлють пачками з постійним ритмом, і кроки могли б потрапляти в той самий ритм."""
+    if len(items) <= n:
+        return list(items)
+    return random.Random(str(items[0])).sample(items, n)
+
+
+def signed_by(tx, wallet):
+    """Чи підписав транзакцію сам гаманець (jsonParsed). Вхідний переказ чи пил лише згадує його, і гаманець за них не відповідає."""
+    keys = (((tx or {}).get("transaction") or {}).get("message") or {}).get("accountKeys") or []
+    return any(isinstance(k, dict) and k.get("pubkey") == wallet and k.get("signer") for k in keys)
+
+
+def _wilson(k, n, sign, z=1.645):
+    """Межа довіри 90 % для частки k з n. Вибірка з 20 транзакцій помилялась уп'ятеро (замір 05.11), тож рахуємо і найгірше, і найкраще."""
+    if not n:
+        return 0.0 if sign < 0 else 1.0
+    p, d = k / n, 1 + z * z / n
+    return max(0.0, min(1.0, (p + z * z / (2 * n) + sign * z * (p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5) / d))
+
+
+def spam_share(ok_n, failed_n, ok_read, failed_read, wallet):
+    """Частка підписаних самим гаманцем: (оцінка, найменше, найбільше). Успішні й невдалі окремо, бо їх пропорція випадкова: серед шуму
+    своїх кілька на сотню чужих невдалих, і спільна вибірка їх не побачила б. Кого в групі немає, того й не рахуємо."""
+    total = ok_n + failed_n
+    if not total:
+        return 0.0, 0.0, 0.0
+    parts = [(n, sum(1 for t in txs if signed_by(t, wallet)), len(txs)) for n, txs in ((ok_n, ok_read), (failed_n, failed_read)) if n]
+    weigh = lambda f: sum(n * f(k, r) for n, k, r in parts) / total   # noqa: E731
+    return (weigh(lambda k, r: k / r if r else 0.0), weigh(lambda k, r: _wilson(k, r, -1)), weigh(lambda k, r: _wilson(k, r, 1)))
+
+
+def spam_bot(day, week, share, per_day):
+    """Понад per_day підписаних за добу або стільки ж на день у середньому за 7 днів, якщо частка підписаних саме така."""
+    return day * share > per_day or week * share > per_day * 7
 
 
 def watch_map(accounts, admins=(), open_to_all=False, max_wallets=10, default_min=None):

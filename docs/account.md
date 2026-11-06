@@ -93,7 +93,9 @@ happen. The bell is per wallet, so you choose exactly whose trades you hear abou
 switch on *Alerts for this list* in its bar: every wallet in it gets its bell, the newest first while there is room
 under the cap, and switching it off silences them all. If the live stream misses a trade, a check that runs every minute finds the trades of the last 10 minutes; an
 alert that comes a minute or more late says how long ago the trade was. A wallet that trades more than 30 times a
-minute is taken for a bot: the rest of that minute is skipped.
+minute is taken for a bot: the rest of that minute is skipped. A wallet that signs over {{ s.alerts_spam_per_day }} transactions
+in 24 hours, or that many a day on average over 7 days, can't get a bell. Failed transactions count; what other people send or bots that only name the wallet don't. If it starts later, its bell switches off, Telegram tells you, and you can try again in
+{{ s.alerts_spam_days }} days.
 Only trades count: a wallet has to sign the transaction itself and pay SOL or a stablecoin for a token, or get them for
 one. Transfers, incoming SOL, airdrops and token-for-token swaps stay silent, and so does anything under your minimum.
 

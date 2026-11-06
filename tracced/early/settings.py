@@ -29,6 +29,7 @@ DEFAULTS = {
     "insightx_reserve_pct": 10,
     "insightx_pace_s": 13,
     "private_hosts": [],          # копії сайту лише для власника (config.yaml: dev.tracced.xyz)
+    "private_copy": {},           # що закрита копія (її SITE_URL серед private_hosts) робить інакше: вона ділить ключ ST із сайтом
     "alerts_open": False,
     "alerts_max_wallets": 20,     # гаманців зі сповіщеннями на акаунт: найновіші в списках з дзвіночком (власник, 02.10: 50 → 10; 08.10: 20)
     "alerts_min_usd": 100,        # мінімальна сума за замовчуванням
@@ -68,6 +69,16 @@ DEFAULTS = {
     "alerts_poll_pages": 4,       # сторінок по 25 підписів на гаманець за одне опитування
     "alerts_chat_gap_s": 1.0,     # між повідомленнями в один чат (Telegram: не частіше раза на секунду в чат)
     "alerts_rpc_url": "https://solana-rpc.publicnode.com",
+    "alerts_paid_per_day": 200_000,  # платна нода ALERTS_RPC_URL: запитів сповіщень за добу; решта тарифу Builder (7,5 млн на місяць) — запас
+    "alerts_paid_month": 7_500_000,  # її місяць за тарифом Builder (портал власника, 05.11); 5 % лишаються резервом
+    # понад стільки підписаних транзакцій за добу або стільки ж на день у середньому за 7 днів гаманець — бот (власник, 05.11):
+    # дзвіночок вимикається і не вмикається alerts_spam_days днів; усі дзвіночки перевіряються раз на alerts_spam_sweep_h годин
+    "alerts_spam_per_day": 0, "alerts_spam_days": 7, "alerts_spam_sweep_h": 6,
+    "alerts_noise_programs": [],  # програми ботів, що згадують чужі гаманці лише для читання: сповіщення про них не читаємо і не рахуємо
+    # сторінок по 1000 підписів; мала вибірка транзакцій вирішує очевидне, спірне — повна (успішних і невдалих), у своєму темпі
+    "alerts_spam_pages": 5, "alerts_spam_sample": 20, "alerts_spam_sample_ok": 150, "alerts_spam_sample_failed": 50, "alerts_check_rps": 5,
+    "alerts_history_url": "https://api.mainnet-beta.solana.com",   # повна історія, 2 запити на секунду; безкоштовна (замір 05.11)
+    "alerts_sub_gap_s": 0,        # пауза між підписками потоку
     "verdict_organised_pct": 90,  # стільки % топу за PnL (перевіреного на вік і спонсора) свіжі чи в бандлах — угорі результату «Organised launch»
     "st_eur_per_million": 0,     # ціна мільйона запитів тарифу в євро: дашборд власника переводить «запитів на аналіз» у гроші (0 — не показувати)
     "full_fetch_margin": 1.15,   # запас до оцінки сторінок повного діапазону
@@ -197,9 +208,13 @@ PLAN_CAPS = {
                  "budget_guard_pct": 25, "pause_s": 0.35, "st_concurrency": 1, "credits_month": 2500},
     # pause_s 0: спільний темп між потоками інакше тримав би стелю 1/pause запитів на секунду, скільки б
     # потоків не було. Швидкість тримає st_concurrency, а не пауза
+    # тарифи Solana Tracker без стелі швидкості: ті самі ендпоінти, різниться лише місяць запитів
     "advanced": {"max_trade_pages": 2000, "max_wallet_lookups": 3000, "max_window_pages": 400,
                  "budget_guard_pct": 0, "pause_s": 0.0, "st_concurrency": 8,
-                 "credits_month": 1_000_000, "credits_reserve_pct": 5},
+                 "credits_month": 200_000, "credits_reserve_pct": 5},      # €50 за 200 000 (власник, 27.10)
+    "pro":      {"max_trade_pages": 2000, "max_wallet_lookups": 3000, "max_window_pages": 400,
+                 "budget_guard_pct": 0, "pause_s": 0.0, "st_concurrency": 8,
+                 "credits_month": 1_000_000, "credits_reserve_pct": 5},    # €200 за 1 000 000 (24.09–24.11)
 }
 
 

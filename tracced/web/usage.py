@@ -338,7 +338,7 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
 
     # ── пульс і графік за 30 днів ──
     days = [_day(now_ms, tz) - datetime.timedelta(days=i) for i in range(29, -1, -1)]
-    daily = {d: {"active": set(), "new": 0, "runs": 0, "failed": 0, "st": 0, "rpc": 0, "ai_usd": 0.0} for d in days}
+    daily = {d: {"active": set(), "new": 0, "runs": 0, "failed": 0, "st": 0, "rpc": 0, "de": 0, "ai_usd": 0.0} for d in days}
     for e in events:
         if e["ts_ms"] < d30:
             continue
@@ -352,6 +352,7 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
             slot["failed"] += 0 if e.get("ok") else 1
         slot["st"] += int(e.get("st") or 0) if e.get("event") in ("run", "spend") else 0
         slot["rpc"] += int(e.get("rpc") or 0) if e.get("event") == "spend" else 0
+        slot["de"] += int(e.get("de") or 0) if e.get("event") == "node" else 0
         slot["ai_usd"] += _ai_usd(e) if e.get("event") == "agent" else 0
     for a in accounts:                                   # нові гаманці за днями — міні-графік плитки «Connected»
         if person(a.get("pubkey")) and (a.get("created_ms") or 0) >= d30:
@@ -359,7 +360,7 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
             if slot is not None:
                 slot["new"] += 1
     series = [{"day": d.isoformat(), "label": f"{d:%b} {d.day}", "active": len(v["active"]), "new": v["new"], "runs": v["runs"], "failed": v["failed"],
-               "st": v["st"], "rpc": v["rpc"], "ai_usd": round(v["ai_usd"], 4)} for d, v in daily.items()]
+               "st": v["st"], "rpc": v["rpc"], "de": v["de"], "ai_usd": round(v["ai_usd"], 4)} for d, v in daily.items()]
     mau = len({e["pubkey"] for e in acts if e["ts_ms"] >= d30})
     wau = len({e["pubkey"] for e in acts if e["ts_ms"] >= period_start(now_ms, "7d", tz)})
     dau = len({e["pubkey"] for e in acts if e["ts_ms"] >= today})
@@ -938,7 +939,7 @@ def credit_meters(budget, *, now_ms):
 
     Solana Tracker: баланс ключа (один ключ на сайт і dev); API дає лише залишок, тож розмір тарифу — `credits_month`,
     день оновлення — `credits_renew_day`. Helius: власний лічильник цього сервера — його частка акаунта на календарний
-    місяць UTC. AI: ліміт ключа OpenRouter і гроші на акаунті, діє менше з двох. Прогноз — за темпом від початку циклу
+    місяць UTC. Digital Energy: теж власний лічильник (API ліміту не віддає, точна цифра — у її порталі). AI: ліміт ключа OpenRouter і гроші на акаунті, діє менше з двох. Прогноз — за темпом від початку циклу
     (для AI — від понеділка): `lasts` True — вистачить до оновлення, False — `runs_out_ms`, None — судити рано."""
     b, out = budget or {}, []
     of, left = int(b.get("credits_month") or 0), b.get("credits_left")
@@ -952,6 +953,11 @@ def credit_meters(budget, *, now_ms):
         first, nxt = renewal(1, now_ms)
         lim, spent = int(rpc["limit"]), int(rpc.get("spent") or 0)
         out.append(_meter("rpc", "Helius", max(0, lim - spent), lim, nxt, _runs_out(max(0, lim - spent), spent, first, now_ms), now_ms))
+    de = b.get("de") or {}
+    if de.get("limit"):
+        first, nxt = renewal(1, now_ms)
+        lim, spent = int(de["limit"]), int(de.get("spent") or 0)
+        out.append(_meter("de", "Digital Energy", max(0, lim - spent), lim, nxt, _runs_out(max(0, lim - spent), spent, first, now_ms), now_ms))
     ai = b.get("ai") or {}
     lefts = [v for v in (ai.get("key_left"), ai.get("account_left")) if isinstance(v, (int, float))]
     if lefts:
