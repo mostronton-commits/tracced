@@ -63,9 +63,9 @@
   }
   function show() {
     open = true; render(); spot.hidden = tip.hidden = false;
-    // a phone's sheet covers the bottom of the screen: a target that starts under it comes up to the top
-    const top = STEPS[step].el().getBoundingClientRect().top;
-    if (innerWidth <= 640 && top > innerHeight / 2) scrollBy({ top: top - 16, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    // a target low on the screen comes up: on a phone to the top, from under the sheet; elsewhere to the middle, the tip above it
+    const top = STEPS[step].el().getBoundingClientRect().top, phone = innerWidth <= 640, H = innerHeight;
+    if (top > H * (phone ? .5 : .7)) scrollBy({ top: phone ? top - 16 : top - H * .45, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
     place();
   }
   function hide() { open = false; spot.hidden = tip.hidden = true; }

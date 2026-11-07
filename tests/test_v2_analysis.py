@@ -186,7 +186,7 @@ if AioHTTPTestCase:
             tour = static_js("tour.js")
             # the bar with Get wallets goes when pressed and the table comes later: a hidden step must still end, or the last two never show
             self.assertLess(tour.index("if (s.done()) { next(); return; }"), tour.index("if (open) { ask(); return; }"))
-            self.assertIn("top > innerHeight / 2", tour)                 # on a phone the table comes up from under the sheet
+            self.assertIn("if (top > H * (phone ? .5 : .7)) scrollBy", tour)   # a table low on the screen comes up, on a phone from under the sheet
             self.assertIn("n >= 3 || touring()", static_js("result.js")) # the pill says what the tour's step already says
 
         def test_a_narrow_range_has_no_cut_label(self):
