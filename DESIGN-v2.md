@@ -273,19 +273,34 @@ Cyrillic of the agent's Ukrainian, the arrows, and a checkout without the files.
     (static/result.js); motion in CSS only, none with reduced motion; the table draws a hundred rows at a time. On a 4×
     slower processor a tab switch stays under 200 ms of blocking.
 
+## Big screens
+
+A wider window at 100 % does not get a wider strip with empty sides: the whole page zooms in steps, so about 1920 px of page fill the
+screen (owner, 07.11, on 4K). `tokens.css` holds the steps: 1.15 from 2240 px, 1.33 from 2560, 1.5 from 3000, 1.75 from 3440, 2 from 3840,
+2.66 from 5120, 4 from 7680, each with a height it needs, so a very wide, low window keeps a smaller step. Three things follow:
+
+- **`--z` is the same number.** Zoom multiplies viewport units too, so every `100vw` and `100vh` in v2 divides it back:
+  `calc(100vw / var(--z))`.
+- **Scripts:** what a script reads off the screen (`getBoundingClientRect`, `innerWidth`, `clientX`) is in real pixels; what it writes into
+  a style is in the page's. `EarlyZoom()` in `ui.js` is the ratio, exactly 1 everywhere else. Divide by it before writing a position.
+- **The chart's canvas stays one to one** (`.chartbox .lw`), or the library reads the pointer in one scale and draws in another:
+  its text grows by hand in `chart.js`, and `xOf`, `yOf`, `bw`, `bh` hand the overlay the page's pixels.
+
+Safari is left out: nobody has tried it there, so it keeps the page at its own width. Checked by `tools/zoom_check.py` at 3840 and 2560.
+
 ## Page frame
 
 - **The header** (every page but home), 68 px, aligned with the page's content: the logo (the mark in mint and
   *tracced* at 18 px), one search pill (420 px, "Paste a token address", a `/` key that puts the cursor in it), a
   spacer, a round X button that follows @tracced_xyz, and who is signed in. No links in the header (owner, 26.10).
   The search takes a token; it will take a wallet too once a wallet has a page of its own.
-- **Who is signed in:** a pill with the wallet's fingerprint, its short address in Tabular and a chevron; it opens a
+- **Who is signed in:** a pill with the short address in Tabular and a chevron, on a phone too (no fingerprint in it: owner, 07.11); it opens a
   menu: Watchlist, My analyses, Top traders (when a list is out), Docs, Sign out. A guest sees Connect, an ink key.
   How many analyses are left today is said where an analysis starts (the bar on the chart), not in the pill.
 - **No wallet pictures in the data** (owner, 26.10: «займає корисне простір і не несе практичної користі»): the
   card, the account pill, the lists and home's top 10 show the name or the address alone, the table the address; the card shows a
   real avatar (X) when there is one. The **star** stands left of the address in every result row, always visible
-  (muted, amber when saved): one click saves the wallet. `fingerprint()` stays for the orbits on home (owner, 06.11: they stay) and is kept for showing users' own wallets later, never traders' in the data.
+  (muted, amber when saved): one click saves the wallet. `fingerprint()` stays for the orbits on home (owner, 06.11: they stay), and only for what the page shows anyway: the first buyers of the public analysis or the list's top five, never the closed rest of a list.
 - **The header of the inner pages** (owner, 06.11: the field was louder than the logo): the logo leads at 20 px with a 28 px mark; the search is small and quiet, "Paste token", 150 px with no outline, and opens to 420 px when it is used; X and the account are 34 px. "/" still jumps to it.
 - **The home header:** the small logo on the left, the X button and the account on the right, over the planet (canvas Home6).
 - **The footer** is one line on every page: Demo (when there is one), Docs, How it works, The project, What's new,
@@ -498,15 +513,22 @@ no second, dark line.
 - **Nothing jumps on hover.** No `translateY` on buttons, rows, chips or cards; a chip in a clipped strip gets cut.
   The exception is the home page (owner, 06.11: «все виглядає тухло», the blocks flat): a card leans at most 1.2° towards the
   pointer and catches its light, a fresh-pumps tile grows 2.5 %. Pages of tables and numbers stay still.
+- **The page must not load the machine** (owner, 07.11: «лагає»). Anything that loops makes the browser draw the whole screen
+  60 times a second, however slow it looks, so a loop must earn its place. Measure it: CPU of every browser process with one thing
+  off at a time (`tools/perf_ab.py`). What moves on its own moves only while it is on screen; nothing slower than a pixel a second is
+  an animation. A blurred or masked thing never moves. A card has no layer of its own until the pointer is on it.
+  Measured on the home, idle: at 3840 × 2160, 48 % of a core before, 20 % now; at 1920, 18 %.
 - **The home's sky drifts**, about a pixel a second, so slowly it is hardly seen, the mint stars a little faster (owner, 06.11).
-  Stars move only across: a star's height says what its wallet made.
-- **The home's field types** a made-up address until it is touched, as the old page did (owner, 06.11).
+  One canvas, drawn five times a second while it is seen. Stars move only across: a star's height says what its wallet made.
+- **The home's field types** a made-up address until it is touched (owner, 06.11), slower than the old page, resting on the real
+  hint between addresses and while off screen.
+- **Still on purpose:** the dawn, the dot before the counts and the blurred sixth trader. They breathed once; it cost more than it gave.
 - **Name the properties being animated.** Never write `transition: all`.
 - **Decorative loops** (the agent button's sheen, the live dot) run briefly or only under the pointer.
 - **The fresh-pumps tape** moves slowly all the time and stops under the pointer. Each chip leads with the market
   cap now, the number the token page opens with, and the peak follows it, smaller (owner, 10.10).
 - **The live feed rolls** (owner, 06.11: «вони не біжуть», replacing 07.10's «nothing loops»): the real latest analyses go
-  slowly upward, 14 px a second, newest first, each with its real time, and stop under the pointer. A real new one goes to
+  slowly upward, 14 px a second, newest first, each with its real time, and stop under the pointer and off screen. The orbits stop off screen too. A real new one goes to
   the top and the roll starts over from it. Too few to fill the card stand still.
 - **The phone's wallet card** rises in 260 ms (`ease-out`) and follows the finger when its head is pulled down; past
   90 px it closes, short of it it goes back.

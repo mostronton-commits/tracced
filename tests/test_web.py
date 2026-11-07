@@ -291,7 +291,10 @@ if AioHTTPTestCase:
             self.assertNotIn('data-design="v2"', html)                                 # anyone can set a cookie by hand
             html = await (await self.client.get("/docs", headers={"Cookie": wallet_cookie(TEST_PK) + "; design=v2"})).text()
             self.assertIn('data-design="v2"', html)                                    # the owner's wallet
-            self.app["s"]["design_v2"] = "all"                                         # the release
+            self.app["s"]["design_v2"] = "cookie"                                      # the release by a button: anyone may switch
+            r = await self.client.get("/design?to=v2", headers={"Cookie": ""}, allow_redirects=False)
+            self.assertEqual(r.status, 302)
+            self.app["s"]["design_v2"] = "all"                                         # the release for everyone
             try:
                 self.assertIn('data-design="v2"', await (await self.client.get("/docs", headers={"Cookie": ""})).text())
                 self.assertNotIn('data-design="v2"', await (await self.client.get("/docs", headers={"Cookie": "design=old"})).text())

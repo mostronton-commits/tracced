@@ -4795,7 +4795,7 @@ async def live_json(request):
 async def design_switch(request):
     """/design?to=v2 shows this browser the rebrand (26.10), /design?to=old the site as it was; back to ?back= or home.
     Only the closed copy and the owner's wallets switch: everyone else keeps the old look and gets a missing page here."""
-    if not (_private_host(request) or request.get("acct") in request.app["admins"]):
+    if request.app["s"].get("design_v2", "closed") == "closed" and not (_private_host(request) or request.get("acct") in request.app["admins"]):
         raise web.HTTPNotFound()
     back = request.query.get("back") or "/"
     if not SITE_PATH.fullmatch(back):                                          # тільки свої адреси: не відкритий редирект (таб браузер викидає, лишаючи «//»)
