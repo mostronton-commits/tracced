@@ -2,13 +2,15 @@
 
 <div class="ulog" markdown="1">
 
-## 0.8.0 <span class="ud">Oct 23, 2026</span>
+## 0.8.0 <span class="ud">Nov 7, 2026</span>
 
+- A new look across the whole site
+- It fills a big screen to the edges
+- Six numbers over the wallets, with the token's main finding
 - Telegram bot: /early with a token's address, in a chat or a group
-- It finds the pump on its own, after the migration
-- The early wallets worth a look, with PnL and ROI
+- It finds the pump and the early wallets worth a look, with PnL and ROI
 - The launch check's facts, each with its proof
-- The migration on the chart for more pump.fun tokens
+- A wallet that trades like a bot can't get a bell
 
 ## 0.7.10 <span class="ud">Oct 18, 2026</span>
 

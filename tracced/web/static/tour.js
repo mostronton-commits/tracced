@@ -61,7 +61,13 @@
       + (s.last ? '' : '<button type="button" class="ghost tour-skip">Skip</button>')
       + '<button type="button" class="primary tour-next">' + (s.last ? 'Got it' : 'Next') + '</button></span></div>';
   }
-  function show() { open = true; render(); spot.hidden = tip.hidden = false; place(); }
+  function show() {
+    open = true; render(); spot.hidden = tip.hidden = false;
+    // a phone's sheet covers the bottom of the screen: a target that starts under it comes up to the top
+    const top = STEPS[step].el().getBoundingClientRect().top;
+    if (innerWidth <= 640 && top > innerHeight / 2) scrollBy({ top: top - 16, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    place();
+  }
   function hide() { open = false; spot.hidden = tip.hidden = true; }
   const told = () => dispatchEvent(new Event('early:tour'));   // tokenpage.js stops the chart's click animation
   function next() { hide(); step += 1; write(step); told(); }
@@ -73,11 +79,13 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && open) next(); });
   addEventListener('scroll', ask, { passive: true }); addEventListener('resize', ask);
 
-  // the page changes on its own (a range marked, a run done, a card opened): look twice a second
+  // the page changes on its own (a range marked, a run done, a card opened): look twice a second. The bar with Get wallets
+  // goes as soon as it is pressed and the table comes later, so a step ends by what it asked for, on screen or not
   const timer = setInterval(() => {
     if (step >= 4) { stop(); return; }
     const s = STEPS[step];
-    if (open) { if (s.done()) { next(); } else ask(); return; }
+    if (s.done()) { next(); return; }
+    if (open) { ask(); return; }
     if (s.when()) show();
   }, 500);
   function stop() { clearInterval(timer); hide(); }

@@ -335,7 +335,8 @@
         d.appendChild(lbl); layer.appendChild(d); bands.push({ x: Math.min(x1, W), lbl });
       });
       // a label ends where the next range starts, so "1 · Pump 1" never hides the 2 of a close neighbour (phone, 01.10)
-      bands.forEach(b => { const nx = Math.min(W, ...bands.filter(o => o.x > b.x).map(o => o.x)); b.lbl.style.maxWidth = Math.max(16, nx - b.x - 8) + 'px'; });
+      // v2: with no room for a word it says nothing rather than "P…": the range's name stands in the row under the chart too
+      bands.forEach(b => { const nx = Math.min(W, ...bands.filter(o => o.x > b.x).map(o => o.x)), room = nx - b.x - 8; b.lbl.style.maxWidth = Math.max(16, room) + 'px'; b.lbl.hidden = V2 && room < 56; });
       // events of the token's own life: the move off the launchpad, the payments for visibility. Thin full-height
       // lines, because trade markers already live next to the candles and must not compete with these.
       // A badge at the point where it happened, not a line through the whole chart: these events sit within a

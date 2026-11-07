@@ -974,14 +974,15 @@
     })();
     // a pointer comes to the first address and clicks it, the address rings, a label says what it does: once the first
     // row is on screen (the table sits under the chart), until the person has opened a card, at most on three visits;
-    // gone at the first click or after a few seconds
+    // gone at the first click or after a few seconds. While the first-visit tour runs it says this itself
     (function cardHint() {
       const seen = () => { try { return +localStorage.getItem('early:cardhint') || 0; } catch (e) { return 3; } };
+      const touring = () => { try { const t = localStorage.getItem('early:tour') || '0'; return t !== 'skip' && +t < 4; } catch (e) { return false; } };
       const a = seen() < 3 && tbody.rows[0] && tbody.rows[0].querySelector('.wname'); if (!a || !window.IntersectionObserver) return;
       const io = new IntersectionObserver(es => {
         if (!es.some(x => x.isIntersecting)) return;
         io.disconnect();
-        const n = seen(); if (n >= 3 || !a.isConnected) return;
+        const n = seen(); if (n >= 3 || touring() || !a.isConnected) return;
         try { localStorage.setItem('early:cardhint', String(n + 1)); } catch (e) {}
         const h = document.createElement('span'); h.className = 'chint'; h.setAttribute('aria-hidden', 'true');
         h.innerHTML = '<svg class="chint-cur" viewBox="0 0 16 22"><path d="M1.5 1.5v16.2l4.3-4.1 2.8 6.4 2.8-1.2-2.8-6.3h5.9z"/></svg><span class="chint-tip">' + (matchMedia('(max-width: 640px)').matches ? 'Tap a wallet: its card opens' : 'Click an address: its card opens') + '</span>';

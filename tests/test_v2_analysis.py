@@ -182,6 +182,16 @@ if AioHTTPTestCase:
             res = static_js("result.js")
             self.assertEqual(res.count("EarlyZoom()"), 3)                # a filter's popup, the list menu, the name's note
 
+        def test_the_tour_goes_on_after_get_wallets(self):
+            tour = static_js("tour.js")
+            # the bar with Get wallets goes when pressed and the table comes later: a hidden step must still end, or the last two never show
+            self.assertLess(tour.index("if (s.done()) { next(); return; }"), tour.index("if (open) { ask(); return; }"))
+            self.assertIn("top > innerHeight / 2", tour)                 # on a phone the table comes up from under the sheet
+            self.assertIn("n >= 3 || touring()", static_js("result.js")) # the pill says what the tour's step already says
+
+        def test_a_narrow_range_has_no_cut_label(self):
+            self.assertIn("b.lbl.hidden = V2 && room < 56", static_js("chart.js"))
+
         def test_funded_by_keeps_its_label_on_a_phone(self):
             res = static_js("result.js")
             self.assertIn("fc.dataset.was = h", res)                     # data-h is the label the phone prints above the cell
