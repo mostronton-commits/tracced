@@ -1,5 +1,6 @@
 /* design v2 · home, the small motion the owner asked for (06.11): a card leans towards the pointer and catches its light,
-   what lies below the fold rises in once, the month's total counts up. All of it off with reduced motion. */
+   what lies below the fold rises in once, the month's total counts up, the feed and the orbits move only while seen (owner,
+   07.11: the page must not load the machine). All of it off with reduced motion. */
 (function () {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const cards = Array.from(document.querySelectorAll('.hm-card'));
@@ -7,18 +8,25 @@
   if (matchMedia('(hover: hover) and (pointer: fine)').matches) {
     const MAX = 1.2;
     cards.forEach(c => {
-      let raf = 0, last = null;
+      let raf = 0, last = null, light = null;
       const paint = () => {
         raf = 0; if (!last) return;
         const r = c.getBoundingClientRect(), x = (last.clientX - r.left) / r.width, y = (last.clientY - r.top) / r.height;
-        c.style.setProperty('--mx', (x * 100).toFixed(1) + '%'); c.style.setProperty('--my', (y * 100).toFixed(1) + '%');
+        light.style.transform = 'translate(' + (x * 100).toFixed(1) + 'cqw,' + (y * 100).toFixed(1) + 'cqh)';   // the light is one piece that moves: nothing is drawn again
         c.style.setProperty('--ry', ((x - .5) * 2 * MAX).toFixed(2) + 'deg'); c.style.setProperty('--rx', ((.5 - y) * 2 * MAX).toFixed(2) + 'deg');
       };
-      c.addEventListener('pointerenter', () => c.classList.add('hm-lean'));
+      c.addEventListener('pointerenter', () => {
+        if (!light) { const box = document.createElement('i'); box.className = 'hm-light'; light = document.createElement('i'); box.appendChild(light); c.prepend(box); }
+        c.classList.add('hm-lean');
+      });
       c.addEventListener('pointermove', e => { last = e; if (!raf) raf = requestAnimationFrame(paint); });
       c.addEventListener('pointerleave', () => { last = null; c.classList.remove('hm-lean'); c.style.removeProperty('--rx'); c.style.removeProperty('--ry'); });
     });
   }
+  if (window.IntersectionObserver) {
+    const moving = new IntersectionObserver(es => es.forEach(x => x.target.classList.toggle('hm-seen', x.isIntersecting)));
+    document.querySelectorAll('.hm-feed, .hm-orbits').forEach(el => moving.observe(el));
+  } else document.querySelectorAll('.hm-feed, .hm-orbits').forEach(el => el.classList.add('hm-seen'));
   /* the month's total: counts up the first time it is seen, and lands on the text the server wrote */
   const money = v => { const a = Math.abs(v); return (v < 0 ? '−$' : '+$') + (a >= 1e6 ? (a / 1e6).toFixed(2) + 'M' : a >= 1e3 ? (a / 1e3).toFixed(0) + 'K' : a.toFixed(0)); };
   const countUp = el => {

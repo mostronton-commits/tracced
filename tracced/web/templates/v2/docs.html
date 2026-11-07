@@ -62,7 +62,7 @@
   aside.hidden = false;
   const links = [...toc.children];
   function mark() {
-    let n = 0; const y = 120;
+    let n = 0; const y = 120 * EarlyZoom();
     hs.forEach((h, i) => { if (h.getBoundingClientRect().top <= y) n = i; });
     if (innerHeight + scrollY >= document.documentElement.scrollHeight - 2) n = hs.length - 1;
     links.forEach((a, i) => a.classList.toggle('on', i === n));

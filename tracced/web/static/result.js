@@ -401,7 +401,7 @@
           const nm = EarlyTags.displayName(idents[o.w]) || '', wn = tr.querySelector('.wname');
           if (wn && (wn.dataset.nm || '') !== nm) { wn.dataset.nm = nm;
             if (nm) { wn.removeAttribute('title'); wn.setAttribute('aria-label', nm + ', ' + short(o.w)); } else { wn.title = OPEN_CARD; wn.removeAttribute('aria-label'); } }
-          const fc = tr.querySelector('.c-fund'); if (fc) { const h = fundHtml(o.w); if (fc.dataset.h !== h) { fc.innerHTML = h; fc.dataset.h = h; } }
+          const fc = tr.querySelector('.c-fund'); if (fc) { const h = fundHtml(o.w); if (fc.dataset.was !== h) { fc.innerHTML = h; fc.dataset.was = h; } }   // data-h is the cell's label on a phone
         }
         const oc = onChart.find(x => x.wallet === o.w);
         tr.classList.toggle('onchart', !!oc);
@@ -582,10 +582,10 @@
       return '<div class="fph">' + RANGES[k].t + (RANGES[k].u ? ', ' + RANGES[k].u : '') + '<small>' + RANGES[k].hint + '</small></div>'
         + '<div class="fprow">' + numIn(k, 0, v[0]) + '<span>to</span>' + numIn(k, 1, v[1]) + '</div>'; };
     function placeUnder(el, anchor, w) {                         // under its funnel: right-aligned, or from its left edge near the page's left
-      const r = anchor.getBoundingClientRect(), cw = document.documentElement.clientWidth;
-      let x = r.right - w; if (x < 8) x = r.left;
-      el.style.top = (window.scrollY + r.bottom + 6) + 'px';
-      el.style.left = (window.scrollX + Math.max(8, Math.min(x, cw - w - 8))) + 'px';
+      const z = EarlyZoom(), r = anchor.getBoundingClientRect(), cw = document.documentElement.clientWidth / z;
+      let x = r.right / z - w; if (x < 8) x = r.left / z;
+      el.style.top = ((window.scrollY + r.bottom) / z + 6) + 'px';
+      el.style.left = (window.scrollX / z + Math.max(8, Math.min(x, cw - w - 8))) + 'px';
     }
     function openFilter(key, anchor) {
       fpopFor = key;
@@ -748,9 +748,9 @@
           }).join('')
         + '<form class="lnew"><input type="text" maxlength="32" placeholder="New list" aria-label="Name of a new list"><button type="submit">Create</button></form>'
         + (!single && ws.some(inList) ? '<button type="button" class="li rm" data-rm="1">Remove from all lists</button>' : '');
-      const r = anchor.getBoundingClientRect();
-      listpop.style.top = (window.scrollY + r.bottom + 6) + 'px';
-      listpop.style.left = Math.max(8, Math.min(window.scrollX + r.left, window.scrollX + document.documentElement.clientWidth - 248)) + 'px';
+      const z = EarlyZoom(), r = anchor.getBoundingClientRect();
+      listpop.style.top = ((window.scrollY + r.bottom) / z + 6) + 'px';
+      listpop.style.left = Math.max(8, Math.min((window.scrollX + r.left) / z, (window.scrollX + document.documentElement.clientWidth) / z - 248)) + 'px';
       listpop.hidden = false;
       listpop.onclick = async e => {
         const b = e.target.closest('.li'); if (!b) return;
@@ -1426,9 +1426,9 @@
         if (!nm && !lines.length) return;
         wwho.innerHTML = (nm ? '<b>' + esc(nm) + '</b>' : '') + lines.map(l => '<div>' + esc(l) + '</div>').join('');
         wwho.hidden = false;
-        const r = b.getBoundingClientRect(), h = wwho.offsetHeight;
-        wwho.style.left = Math.max(8, Math.min(r.left, innerWidth - wwho.offsetWidth - 8)) + 'px';
-        wwho.style.top = (r.bottom + 6 + h > innerHeight ? r.top - 6 - h : r.bottom + 6) + 'px';
+        const z = EarlyZoom(), r = b.getBoundingClientRect(), h = wwho.offsetHeight, top = r.top / z, bottom = r.bottom / z;
+        wwho.style.left = Math.max(8, Math.min(r.left / z, innerWidth / z - wwho.offsetWidth - 8)) + 'px';
+        wwho.style.top = (bottom + 6 + h > innerHeight / z ? top - 6 - h : bottom + 6) + 'px';
       };
       if (matchMedia('(hover: hover)').matches) {               // a phone has no pointer: the card says who it is
         tbody.addEventListener('mouseover', e => { const b = e.target.closest('.wname'); if (b) showNote(b); });

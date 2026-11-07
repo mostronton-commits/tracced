@@ -13,16 +13,11 @@ body:has(.hm-sky) .foot { position: relative; z-index: 1; }
 .hm-sp { flex: 1; }
 
 /* the stars: one per wallet of the latest analysis, drawn by the page's script; fading around the headline */
-.hm-stars { position: absolute; left: 0; right: 0; top: 0; height: 760px; overflow: hidden; pointer-events: none;
+.hm-stars { position: absolute; left: 0; right: 0; top: 0; height: 760px; overflow: hidden; pointer-events: none; }
+.hm-stars canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hm-stars.hm-stars-q { background: url("stars.svg") 50% 0 / 1440px 320px no-repeat;
   -webkit-mask-image: radial-gradient(ellipse 560px 260px at 50% 330px, transparent 0, transparent 50%, #000 100%);
           mask-image: radial-gradient(ellipse 560px 260px at 50% 330px, transparent 0, transparent 50%, #000 100%); }
-.hm-drift { position: absolute; left: 0; top: 0; display: flex; width: 200%; height: 100%; animation: hm-drift 1500s linear infinite; }
-.hm-drift.smd { animation-duration: 950s; }                  /* the mint ones a little nearer */
-.hm-drift svg { display: block; flex: 0 0 50%; width: 50%; height: 100%; }
-@keyframes hm-drift { to { transform: translateX(-50%); } }
-.hm-stars .si { fill: var(--ink); fill-opacity: .24; }
-.hm-stars .sm { fill: var(--mint); fill-opacity: .7; }
-.hm-stars.hm-stars-q { background: url("stars.svg") 50% 0 / 1440px 320px no-repeat; }
 
 /* ── the header: the logo, X and who is signed in (the home's own; the hero is below it) ── */
 .hm-top { position: relative; z-index: 3; }
@@ -53,20 +48,19 @@ body:has(.hm-sky) .foot { position: relative; z-index: 1; }
 .hm-go:focus-visible, .hm-btn:focus-visible, .hm-tile:focus-visible, .hm-more button:focus-visible { outline: none; box-shadow: var(--focus); }
 /* owner, 06.11: one short line under the field, the numbers carry it */
 .hm-count { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px 0; margin-top: 22px; color: var(--muted); font-size: var(--fs-small); }
-.hm-count::before { content: ""; width: 7px; height: 7px; margin-right: 10px; border-radius: 50%; background: var(--mint); animation: hm-breathe 1.8s ease-in-out infinite alternate; }
+.hm-count::before { content: ""; width: 7px; height: 7px; margin-right: 10px; border-radius: 50%; background: var(--mint); }
 .hm-count > div { display: inline-flex; align-items: baseline; gap: 5px; }
 .hm-count > div + div::before { content: "·"; margin: 0 10px; color: var(--faint); }
 .hm-count b { color: var(--ink); font-weight: var(--w-semi); font-variant-numeric: tabular-nums; }
 
-/* the planet: its edge sits 31 px under the hero, a mint dawn breathing above it. This band reaches 600 px below the
+/* the planet: its edge sits 31 px under the hero, a mint dawn above it. This band reaches 600 px below the
    edge, where main's deep background takes over (--deep = 31 + 600). The radius grows with a wide screen (owner, 06.11, on
    4K: the edge and the dawn were cut by the band): at the screen's sides the edge is then at most about 450 px down, inside the band */
-.hm-world { --R: max(2600px, 150vw); --hz: 300px; position: absolute; left: 0; right: 0; top: calc(100% + 31px - var(--hz)); height: calc(var(--hz) + 600px);
+.hm-world { --R: max(2600px, calc(150vw / var(--z))); --hz: 300px; position: absolute; left: 0; right: 0; top: calc(100% + 31px - var(--hz)); height: calc(var(--hz) + 600px);
   overflow: hidden; pointer-events: none; z-index: 0; }
 .hm-world i { position: absolute; left: 0; right: 0; display: block; }
 .hm-glow { top: calc(var(--hz) - 300px); bottom: 0;
-  background: radial-gradient(circle at 50% calc(300px + var(--R)), color-mix(in srgb, var(--mint) 30%, transparent) var(--R), transparent calc(var(--R) + 260px));
-  animation: hm-breathe 7s ease-in-out infinite alternate; }
+  background: radial-gradient(circle at 50% calc(300px + var(--R)), color-mix(in srgb, var(--mint) 30%, transparent) var(--R), transparent calc(var(--R) + 260px)); opacity: .88; }
 .hm-planet { top: calc(var(--hz) - 6px); bottom: 0;
   background: radial-gradient(circle at 50% calc(var(--R) + 6px), var(--bg-deep) calc(var(--R) - 39px),
     color-mix(in srgb, var(--bg-deep), var(--mint) 3%) var(--R), transparent calc(var(--R) + .5px)); }
@@ -78,7 +72,6 @@ body:has(.hm-sky) .foot { position: relative; z-index: 1; }
       transparent calc(var(--R) + 5px));
   -webkit-mask-image: linear-gradient(90deg, rgb(0 0 0 / .6), #000 50%, rgb(0 0 0 / .6));
           mask-image: linear-gradient(90deg, rgb(0 0 0 / .6), #000 50%, rgb(0 0 0 / .6)); }
-@keyframes hm-breathe { from { opacity: .75; } to { opacity: 1; } }
 
 /* ── the rows of cards: a zigzag (owner, 06.11: four equal blocks were dull), the wide one on the left, then on the right ── */
 .hm-row { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 20px; }
@@ -91,14 +84,15 @@ body:has(.hm-sky) .foot { position: relative; z-index: 1; }
 .hm-card { position: relative; display: flex; flex-direction: column; min-width: 0; padding: 22px; border-radius: var(--r-card);
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface), var(--ink) 3.5%) 0, var(--surface) 34%, color-mix(in srgb, var(--surface), #000 16%) 100%);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / .08), inset 0 0 0 1px rgb(255 255 255 / .035), 0 1px 2px rgb(0 0 0 / .5), 0 26px 50px -30px rgb(0 0 0 / .9);
-  transform: perspective(1500px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
   transition: transform .45s cubic-bezier(.2, .7, .2, 1), box-shadow .25s ease, opacity .5s ease-out; }
-.hm-card::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .25s ease;
-  background: radial-gradient(440px circle at var(--mx, 50%) var(--my, 0%), color-mix(in srgb, var(--mint) 8%, transparent), transparent 70%); }
-.hm-card.hm-lean { transition: transform .14s linear, box-shadow .25s ease; box-shadow: inset 0 1px 0 rgb(255 255 255 / .11), inset 0 0 0 1px rgb(255 255 255 / .05), 0 1px 2px rgb(0 0 0 / .5), 0 34px 60px -30px rgb(0 0 0 / 1); }
-.hm-card.hm-lean::before { opacity: 1; }
 .hm-card > * { position: relative; }
-.hm-card.hm-rev:not(.in) { opacity: .25; transform: perspective(1500px) translateY(18px); }
+.hm-card > .hm-light { position: absolute; inset: 0; container-type: size; overflow: hidden; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .25s ease; }
+.hm-light i { position: absolute; left: -440px; top: -440px; width: 880px; height: 880px; will-change: transform;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--mint) 8%, transparent), transparent 70%); }
+.hm-card.hm-lean { transform: perspective(1500px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform .14s linear, box-shadow .25s ease;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .11), inset 0 0 0 1px rgb(255 255 255 / .05), 0 1px 2px rgb(0 0 0 / .5), 0 34px 60px -30px rgb(0 0 0 / 1); }
+.hm-card.hm-lean > .hm-light { opacity: 1; }
+.hm-card.hm-rev:not(.in) { opacity: .25; transform: translateY(18px); }
 .hm-card.hm-rev.in { transition-delay: var(--d, 0ms); }
 .hm-card.hm-rev.in.hm-lean { transition-delay: 0ms; }
 .hm-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); }
@@ -172,11 +166,13 @@ body:has(.hm-sky) .foot { position: relative; z-index: 1; }
   color: var(--muted); font-size: var(--fs-body); }
 
 /* Live on tracced: seven rows in view, the real latest ones rolling slowly upward; the pointer stops them */
-.hm-feed { margin-top: 10px; max-height: calc(7 * 54px); overflow: hidden;
-  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 22px, #000 calc(100% - 34px), transparent 100%);
-          mask-image: linear-gradient(180deg, transparent 0, #000 22px, #000 calc(100% - 34px), transparent 100%); }
-.hm-ftrack.on { animation: hm-roll var(--roll, 60s) linear infinite; }
-.hm-feed:hover .hm-ftrack { animation-play-state: paused; }
+.hm-feed { position: relative; margin-top: 10px; max-height: calc(7 * 54px); overflow: hidden; }
+.hm-feed::before, .hm-feed::after { content: ""; position: absolute; left: 0; right: 0; z-index: 1; pointer-events: none; }
+.hm-feed::before { top: 0; height: 22px; background: linear-gradient(180deg, color-mix(in srgb, var(--surface), var(--ink) 2.3%), transparent); }   /* the card's own colour at this height */
+.hm-feed::after { bottom: 0; height: 34px; background: linear-gradient(0deg, color-mix(in srgb, var(--surface), #000 13%), transparent); }
+.hm-ftrack.on { animation: hm-roll var(--roll, 60s) linear infinite paused; }
+.hm-feed.hm-seen .hm-ftrack.on { animation-play-state: running; }
+.hm-feed.hm-seen:hover .hm-ftrack.on { animation-play-state: paused; }
 @keyframes hm-roll { to { transform: translateY(var(--dist, 0)); } }
 .hm-lrow.hm-lnew { animation: hm-lnew 2.4s ease-out; }
 @keyframes hm-lnew { from { background: color-mix(in srgb, var(--mint) 14%, transparent); } to { background: transparent; } }
@@ -205,8 +201,6 @@ body:has(.hm-sky) .foot { position: relative; z-index: 1; }
 .hm-rank .hm-rbar.neg { background: var(--loss-wash); }
 .hm-rev:not(.in) .hm-rbar { transform: scaleX(0); }
 .hm-pnl { padding-right: 6px; }
-.hm-rank li.hm-peek { animation: hm-peek 3.2s ease-in-out infinite alternate; }
-@keyframes hm-peek { from { opacity: .4; } to { opacity: .7; } }
 .hm-rk { color: var(--faint); font-weight: var(--w-semi); }
 .hm-rank li:first-child .hm-rk { color: var(--ink); }
 .hm-rank .fp { justify-self: center; }
@@ -263,7 +257,8 @@ body:has(.hm-sky) .foot { position: relative; z-index: 1; }
 .hm-sat { --d: 140s; --turn: 360deg; position: absolute; left: 50%; top: 50%; width: 42px; height: 42px; margin: -21px 0 0 -21px;
   display: grid; place-items: center; border-radius: 50%; background: var(--surface); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 12%, transparent);
   transform: rotate(var(--a)) translateX(calc(var(--r) * var(--k) * 1px)) rotate(calc(-1 * var(--a)));
-  animation: hm-orbit var(--d) linear infinite; }
+  animation: hm-orbit var(--d) linear infinite paused; }
+.hm-orbits.hm-seen .hm-sat { animation-play-state: running; }
 .hm-sat.o570 { --d: 190s; --turn: -360deg; }
 .hm-sat.o730 { --d: 250s; }
 .hm-sat.first { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mint) 60%, transparent); }
@@ -279,9 +274,9 @@ body:has(.hm-sky) .foot { position: relative; z-index: 1; }
 :root .hm-x { width: 50px; height: 50px; background: var(--surface-2); }
 :root .hm-x:hover { background: var(--surface-3); }
 
-/* ── motion off: the dawn stops breathing, the orbits and the stars stand, the feed stands still, nothing leans ── */
+/* ── motion off: the orbits and the stars stand, the feed stands still, nothing leans ── */
 @media (prefers-reduced-motion: reduce) {
-  .hm-glow, .hm-sat, .hm-drift, .hm-ftrack.on, .hm-rank li.hm-peek, .hm-lrow.hm-lnew, .hm-count::before { animation: none; }
+  .hm-sat, .hm-ftrack.on, .hm-lrow.hm-lnew { animation: none; }
   .hm-card, :root .hm-tile { transition: none; }
   :root .hm-tile:hover { transform: none; }
 }
@@ -323,7 +318,7 @@ body:has(.hm-sky) .foot { position: relative; z-index: 1; }
   .hm-more .hm-n6 { display: none; }
   .hm-more .hm-n4 { display: inline; }
   :root .hm-more .menu-panel a.hm-m56 { display: grid; }
-  .hm-more .menu-panel { top: calc(100% + 8px); bottom: auto; min-width: 260px; max-width: calc(100vw - 32px); }   /* on a phone it opens down, into view */
+  .hm-more .menu-panel { top: calc(100% + 8px); bottom: auto; min-width: 260px; max-width: calc(calc(100vw / var(--z)) - 32px); }   /* on a phone it opens down, into view */
   .hm-lrow { height: 50px; }
   .hm-feed { max-height: calc(7 * 50px); }
   .hm-rank li:nth-child(4), .hm-rank li:nth-child(5) { display: none; }

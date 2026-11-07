@@ -37,7 +37,8 @@
   function place() {
     raf = 0; if (!open) return;
     const t = STEPS[step].el(); if (!shown(t)) { hide(); return; }
-    const r = t.getBoundingClientRect(), pad = 6, vw = innerWidth, vh = innerHeight;
+    const z = EarlyZoom(), q = t.getBoundingClientRect(), pad = 6, vw = innerWidth / z, vh = innerHeight / z;
+    const r = { left: q.left / z, top: q.top / z, bottom: q.bottom / z, width: q.width / z };
     // a target taller than the screen (the table, the card) is outlined only where it is in view
     const top = Math.max(r.top, 8), bottom = Math.min(r.bottom, vh - 8);
     Object.assign(spot.style, { left: (r.left - pad) + 'px', top: (top - pad) + 'px', width: (r.width + 2 * pad) + 'px', height: Math.max(0, bottom - top + 2 * pad) + 'px' });

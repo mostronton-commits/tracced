@@ -127,7 +127,7 @@
 
 {# ── row 2: the month's top 10 | its alerts in Telegram (owner, 07.10–08.10; one list on the home page) ── #}
 {% if ready %}{% set l = ready[0] %}
-{% macro rrow(r, peek=false, mx=0) %}<li{% if peek %} class="hm-peek" aria-hidden="true"{% endif %}>{% if mx %}<i class="hm-rbar{{ ' neg' if r.pnl < 0 }}" style="width:{{ (45 * (r.pnl|abs) / mx)|round(1) }}%"></i>{% endif %}<span class="hm-rk">{{ r.rank }}</span><span class="hm-who"><b{% if not r.name %} class="hm-addr"{% endif %}>{{ r.label }}</b><small>{% if r.x %}@{{ r.x }}{% if r.win_rate is not none %} · {{ r.win_rate|round|int }}% win rate{% endif %}{% else %}{% if r.name %}<span class="hm-addr">{{ r.short }}</span> · {% endif %}{% if r.win_rate is not none %}{{ r.win_rate|round|int }}% win rate · {% endif %}{{ r.tokens }} tokens{% endif %}</small></span><b class="hm-pnl{{ ' neg' if r.pnl < 0 }}">{{ '+' if r.pnl >= 0 }}{{ r.rv }}</b></li>{% endmacro %}
+{% macro rrow(r, peek=false, mx=0) %}<li{% if peek %} class="hm-peek" aria-hidden="true"{% endif %}>{% if mx %}<i class="hm-rbar{{ ' neg' if r.pnl < 0 }}" style="width:{{ (45 * (r.pnl|abs) / mx)|round(1) }}%"></i>{% endif %}<span class="hm-rk">{{ r.rank }}</span><span class="hm-who"><b{% if not r.name %} class="hm-addr"{% endif %}>{{ r.label }}</b><small>{% if r.x %}@{{ r.x }}{% if r.win_rate is not none %} · {{ r.win_rate|round|int }}% win rate{% endif %}{% else %}{% if r.win_rate is not none %}{{ r.win_rate|round|int }}% win rate · {% endif %}{{ r.tokens }} tokens{% endif %}</small></span><b class="hm-pnl{{ ' neg' if r.pnl < 0 }}">{{ '+' if r.pnl >= 0 }}{{ r.rv }}</b></li>{% endmacro %}
 <section class="hm-wrap hm-row hm-row2" id="ready" aria-label="Follow the best traders">
   <article class="hm-card hm-top10" aria-labelledby="hmtop">
     <div class="hm-head"><h2 id="hmtop">{{ l.label }}'s top {{ l.summary.n }} traders</h2><span class="hm-note">next list {{ l.next_label }}</span></div>
@@ -160,7 +160,7 @@
    one is ringed in mint. Free during beta, a follow on X is the only payment (owner, 07.10) ── #}
 {% set orbit = [] %}
 {% for r in (srows|selectattr('first_buy_ms')|sort(attribute='first_buy_ms'))[:13] %}{% if r.wallet %}{% set _ = orbit.append(r.wallet) %}{% endif %}{% endfor %}
-{% if orbit|length < 13 and ready %}{% for r in ready[0].rows %}{% if orbit|length < 13 and r.wallet not in orbit %}{% set _ = orbit.append(r.wallet) %}{% endif %}{% endfor %}{% endif %}
+{% if orbit|length < 13 and ready %}{% for r in ready[0].top %}{% if orbit|length < 13 and r.wallet not in orbit %}{% set _ = orbit.append(r.wallet) %}{% endif %}{% endfor %}{% endif %}
 {% set slots = [(430, 25), (430, 115), (430, -160), (430, -60), (430, -20), (570, 60), (570, 160), (570, -125), (570, -75), (730, 10), (730, 95), (730, 180), (730, -100)] %}
 <section class="hm-call" aria-labelledby="hmcall">
   <div class="hm-rings" aria-hidden="true"><svg viewBox="-1200 -1200 2400 2400" width="2400" height="2400">{% for rr, o in [(250, 0.05), (330, 0.06), (430, 0.08), (570, 0.07), (730, 0.06), (910, 0.05), (1100, 0.04)] %}<circle r="{{ rr }}" stroke-opacity="{{ o }}"/>{% endfor %}</svg></div>
@@ -188,15 +188,30 @@
     const rnd = () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
     const n = d.length, order = d.map((_, i) => i).sort((a, b) => d[b][0] - d[a][0]);
     const logs = d.map(v => Math.log10(Math.max(1, v[1]))), lo = Math.min(...logs), span = Math.max(0.5, Math.max(...logs) - lo);
-    let ink = '', mint = '';
-    order.forEach((i, k) => {
-      const x = rnd() * 1440, y = Math.min(750, Math.max(70, 80 + 660 * (k + 0.5) / n + (rnd() - 0.5) * 70));
-      const c = '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (0.6 + 1.4 * (logs[i] - lo) / span).toFixed(2) + '"/>';
-      if (d[i][0] >= 3) mint += c; else ink += c;
-    });
-    /* owner, 06.11: they drift, so slowly it is hardly seen. Two copies side by side, each layer at its own pace; only across, so a star's height still says what it made */
-    const sky = (cls, stars) => { const s = '<svg viewBox="0 0 1440 760" preserveAspectRatio="xMidYMin slice"><g class="' + cls + '">' + stars + '</g></svg>'; return '<div class="hm-drift ' + cls + 'd">' + s + s + '</div>'; };
-    host.innerHTML = sky('si', ink) + sky('sm', mint);
+    const stars = order.map((i, k) => ({ x: rnd() * 1440, y: Math.min(750, Math.max(70, 80 + 660 * (k + 0.5) / n + (rnd() - 0.5) * 70)),
+      r: 0.6 + 1.4 * (logs[i] - lo) / span, mint: d[i][0] >= 3 }));
+    /* owner, 06.11: they drift, so slowly it is hardly seen; only across, so a star's height still says what it made. One
+       canvas drawn five times a second while it is seen: at this pace nothing more shows, and the page stays cool (owner, 07.11) */
+    const cv = document.createElement('canvas'), cx = cv.getContext('2d'), st = getComputedStyle(host), H = 760;
+    const INK = st.getPropertyValue('--ink').trim(), MINT = st.getPropertyValue('--mint').trim();
+    host.appendChild(cv);
+    function draw() {
+      const W = host.clientWidth, k = Math.max(W / 1440, 1), box = host.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 3840 / Math.max(box.width, 1));
+      const pw = Math.round(box.width * dpr), ph = Math.round(box.height * dpr);
+      if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; }
+      cx.setTransform(pw / W, 0, 0, ph / H, 0, 0); cx.clearRect(0, 0, W, H);
+      const t = reduced ? 0 : performance.now() / 1000, off = (1440 * k - W) / 2;
+      for (const s of stars) {
+        const px = (s.x + t * (s.mint ? 1.5 : .96)) % 1440 * k - off, py = s.y * k; if (px < -3 || px > W + 3 || py > H + 3) continue;
+        const a = Math.hypot((px - W / 2) / 560, (py - 330) / 260), fade = Math.min(1, (a - .5) * 2); if (fade <= 0) continue;   // they fade around the headline
+        cx.globalAlpha = fade * (s.mint ? .7 : .24); cx.fillStyle = s.mint ? MINT : INK;
+        cx.beginPath(); cx.arc(px, py, s.r * k, 0, 6.2832); cx.fill();
+      }
+    }
+    draw(); if (window.ResizeObserver) new ResizeObserver(draw).observe(host);
+    if (reduced || !window.IntersectionObserver) return;
+    let timer = 0;
+    new IntersectionObserver(es => { const on = es[es.length - 1].isIntersecting; clearInterval(timer); timer = on ? setInterval(() => { if (!document.hidden) draw(); }, 200) : 0; }).observe(host);
   })();
   /* "x min ago" keeps itself fresh; the closing call's key and "/" put the cursor in the hero's field */
   const ago = ms => { const m = Math.max(0, Math.round((Date.now() - ms) / 60000));

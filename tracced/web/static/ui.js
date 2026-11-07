@@ -123,11 +123,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const ALPHA = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
   const fake = () => { let s = ''; for (let i = 0; i < 40; i++) s += ALPHA[Math.floor(Math.random() * ALPHA.length)]; return s + 'pump'; };
   let addr = fake(), i = 0, dir = 1;
+  // v2 types slower, rests between addresses and off screen (owner, 07.11: the page must not load the machine)
+  const rest = el.placeholder, V2 = document.documentElement.dataset.design === 'v2';
+  const away = () => V2 && (document.hidden || el.getBoundingClientRect().bottom < 0);
   const tick = () => {
-    if (document.activeElement === el || el.value) { el.placeholder = 'Paste a token address'; setTimeout(tick, 1500); return; }
+    if (document.activeElement === el || el.value || away()) { el.placeholder = rest; setTimeout(tick, 1500); return; }
+    if (V2 && dir === -1) { i = 0; dir = 1; addr = fake(); el.placeholder = rest; setTimeout(tick, 2500); return; }
     i += dir; el.placeholder = addr.slice(0, i) + (i < addr.length ? '▍' : '');
-    let d = 26;
-    if (dir === 1 && i >= addr.length) { dir = -1; d = 2200; }
+    let d = V2 ? 70 : 26;
+    if (dir === 1 && i >= addr.length) { dir = -1; d = V2 ? 4000 : 2200; }
     else if (dir === -1 && i <= 0) { dir = 1; addr = fake(); d = 600; }
     else if (dir === -1) d = 10;
     setTimeout(tick, d);
@@ -169,11 +173,14 @@ document.addEventListener('click', e => {
 
 /* a card or the agent opens under the site's top bar and ends above the footer: --dtop is where the bar's bottom edge
    is on screen now, --dbot how much of the footer is in view (owner, 30.09: the card covered the whole footer) */
+/* a big screen zooms the whole page (v2/tokens.css): what a script reads off the screen is in real pixels, what it writes
+   into a style is in the page's, this many to one. Exactly 1 on every other screen and in the old look */
+window.EarlyZoom = () => { const b = document.body, k = b ? b.getBoundingClientRect().width / (b.offsetWidth || 1) : 1; return Math.abs(k - 1) < .01 || !k ? 1 : k; };
 (function () {
   let raf = 0;
-  const set = () => { raf = 0; const bar = document.querySelector('header.top'); const h = bar ? Math.max(0, Math.round(bar.getBoundingClientRect().bottom)) : 0;
+  const set = () => { raf = 0; const z = EarlyZoom(), bar = document.querySelector('header.top'); const h = bar ? Math.max(0, Math.round(bar.getBoundingClientRect().bottom / z)) : 0;
     // a hidden footer (a wide screen, where the status bar is the footer) has no box: its top would read 0, the card none
-    const foot = document.querySelector('footer.foot'), b = foot && foot.getClientRects().length ? Math.max(0, Math.round(innerHeight - foot.getBoundingClientRect().top)) : 0;
+    const foot = document.querySelector('footer.foot'), b = foot && foot.getClientRects().length ? Math.max(0, Math.round((innerHeight - foot.getBoundingClientRect().top) / z)) : 0;
     document.documentElement.style.setProperty('--dtop', h + 'px'); document.documentElement.style.setProperty('--dbot', b + 'px'); };
   const soon = () => { if (!raf) raf = requestAnimationFrame(set); };
   addEventListener('scroll', soon, { passive: true }); addEventListener('resize', soon);

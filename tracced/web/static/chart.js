@@ -61,14 +61,17 @@
     const box = document.createElement('div'); box.className = 'lw'; el.appendChild(box);
     const layer = document.createElement('div'); layer.className = 'overlay'; el.appendChild(layer);
 
+    // on a zoomed big screen (ui.js) the canvas stays at one to one, so the pointer lands true: its text grows by hand, and
+    // what the library measures is real pixels, this many to one against the overlay's. 1 everywhere else
+    const zk = () => (window.EarlyZoom ? EarlyZoom() : 1), bw = () => box.clientWidth / zk(), bh = () => box.clientHeight / zk();
     const chart = LW.createChart(box, {
       autoSize: true,
-      layout: { background: C.bg, textColor: C.text, fontSize: 11, fontFamily: C.font, attributionLogo: false },
+      layout: { background: C.bg, textColor: C.text, fontSize: 11 * zk(), fontFamily: C.font, attributionLogo: false },
       grid: { vertLines: { color: C.gridV }, horzLines: { color: C.gridH } },
       rightPriceScale: { borderColor: C.edge, scaleMargins: { top: 0.08, bottom: 0.08 } },
       // minBarSpacing 2: the renderer draws a candle body only when it is wider than its two borders, so bars packed
       // below a pixel or two turn into outlines on the dark ground and the chart reads as empty (it did on phones)
-      timeScale: { borderColor: C.edge, timeVisible: true, secondsVisible: false, rightOffset: 4, minBarSpacing: 2,
+      timeScale: { borderColor: C.edge, timeVisible: true, secondsVisible: false, rightOffset: 4, minBarSpacing: 2, barSpacing: 6 * zk(),
                    tickMarkFormatter: (t, type) => (type <= 2 ? fmtTime(t, true).replace(/, \d\d:\d\d$/, '') : fmtTime(t, false)) },
       crosshair: { mode: LW.CrosshairMode.Normal, vertLine: { color: C.cross, labelBackgroundColor: C.crossBg }, horzLine: { color: C.cross, labelBackgroundColor: C.crossBg } },
       localization: { priceFormatter: fmtMcap, timeFormatter: s => fmtTime(s, true) },
@@ -138,9 +141,9 @@
 
     const sec = v => (v == null ? null : (v > 1e11 ? v / 1000 : v));   // accept ms or seconds
     // how many candles fit the width at ~5 px each: the timeframe is chosen from the width as well as the time span
-    const scaleW = () => { try { return chart.priceScale('right').width() || 64; } catch (e) { return 64; } };
-    const maxBars = () => Math.max(60, Math.floor((box.clientWidth - scaleW()) / 5));
-    const narrow = () => box.clientWidth < 600;
+    const scaleW = () => { try { return (chart.priceScale('right').width() || 64 * zk()) / zk(); } catch (e) { return 64; } };
+    const maxBars = () => Math.max(60, Math.floor((bw() - scaleW()) / 5));
+    const narrow = () => bw() < 600;
     function pickTf(spanSec) {
       let i = TF_ORDER.indexOf(autoTf(spanSec));
       while (i < TF_ORDER.length - 1 && spanSec / TF_SEC[TF_ORDER[i]] > maxBars()) i++;
@@ -267,11 +270,13 @@
       lastDr = dr; const v = visible(); if (!v) return;
       keepRange = { from: v.a, to: v.b }; clearTimeout(keepT); keepT = setTimeout(() => { keepRange = null; }, 600);   // a phone's full-screen card changes no width
     }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    let fontZ = zk();
     new ResizeObserver(() => {
+      if (zk() !== fontZ) { fontZ = zk(); chart.applyOptions({ layout: { fontSize: 11 * fontZ } }); }   // the window moved to another screen
       if (keepRange) { const k = keepRange; keepRange = null; requestAnimationFrame(() => { try { chart.timeScale().setVisibleRange(k); } catch (e) {} place(); }); }
       place();
       // turning a phone or narrowing a window by a third: re-pick the timeframe if the candles no longer fit
-      const w = box.clientWidth, v = visible(), dr = document.body.classList.contains('drawer-open');
+      const w = bw(), v = visible(), dr = document.body.classList.contains('drawer-open');
       if (!pickedW || dr !== pickedDrawer) { pickedW = w; pickedDrawer = dr; return; }   // a card opening beside the chart keeps the timeframe
       if (!tf || !v || busy || Math.abs(w - pickedW) < pickedW * 0.3) return;
       pickedW = w;
@@ -283,7 +288,8 @@
     // A time that is not exactly a candle's timestamp has no coordinate of its own: timeToCoordinate only
     // answers for bars that exist. A range drawn by hand almost never lands on the grid, so we interpolate
     // between the two neighbouring bars — otherwise the band silently disappears on coarser timeframes.
-    function xOf(sec) {
+    const xOf = sec => { const x = xOnCanvas(sec); return x == null ? null : x / zk(); };
+    function xOnCanvas(sec) {
       const v = visible(); if (!v) return null;
       const s = Math.min(Math.max(sec, v.a), v.b), ts = chart.timeScale();
       const exact = ts.timeToCoordinate(s);
@@ -309,12 +315,12 @@
       while (lo < hi) { const m = (lo + hi + 1) >> 1; if (times[m] <= sec) lo = m; else hi = m - 1; }
       const c = data.get(times[lo]); if (!c) return null;
       const y = series.priceToCoordinate(c.high != null ? c.high : c.close);
-      return y == null ? null : y - 24;
+      return y == null ? null : y / zk() - 24;
     }
     function place() {
       layer.innerHTML = '';
       const v = visible(); if (!v) return;
-      const W = box.clientWidth - scaleW(), bands = [];   // price scale on the right
+      const W = bw() - scaleW(), bands = [];   // price scale on the right
       windows.forEach((w, i) => {
         if (!w.from || !w.to || w.to < v.a || w.from > v.b) return;
         const x1 = xOf(w.from), x2 = xOf(w.to); if (x1 == null || x2 == null) return;
@@ -341,7 +347,7 @@
         const x = Math.max(12, Math.min(x0, W - 12));   // a badge at the very edge stays whole (phone, 01.10: the M was cut in half)
         const kind = e.kind || 'ev', prev = drawn[kind];
         if (prev && Math.abs(x - prev.x) < 16) { prev.n++; prev.el.title += '\n' + (e.title || ''); prev.el.dataset.n = prev.n; return; }
-        const y = stackY(x, Math.min(Math.max(18, yOf(e.sec) ?? 40), box.clientHeight - 30), placed, box.clientHeight - 30);   // never below the box, whatever the scale says
+        const y = stackY(x, Math.min(Math.max(18, yOf(e.sec) ?? 40), bh() - 30), placed, bh() - 30);   // never below the box, whatever the scale says
         placed.push({ x, y });
         const d = document.createElement('div'); d.className = 'evdot ' + kind;
         d.style.left = x + 'px'; d.style.top = y + 'px';
@@ -368,7 +374,7 @@
       demoEl.hidden = false; demoEl.classList.toggle('one', !!demo.after);
       demoEl.style.width = W + 'px';
       demoEl.style.setProperty('--x1', Math.round(x1) + 'px'); demoEl.style.setProperty('--x2', Math.round(x2) + 'px');
-      demoEl.style.setProperty('--y', Math.round((box.clientHeight - 34) * 0.56) + 'px');
+      demoEl.style.setProperty('--y', Math.round((bh() - 34) * 0.56) + 'px');
     }
     if (opts.interactive) chart.subscribeClick(p => { if (p.time && opts.onClick) opts.onClick(p.time * 1000); });
 
@@ -403,11 +409,11 @@
     // v2 (owner, 06.11: the amounts of a busy wallet piled up): as many as the chart's width holds, the largest first,
     // none over one already there. Zooming in spreads the trades, so the rest come out
     function amountsThatFit(inView) {
-      const ts = chart.timeScale(), items = [];
+      const ts = chart.timeScale(), items = [], z = zk();
       inView.forEach(m => {
         const c = data.get(m.t), x = ts.timeToCoordinate(m.t), buy = m.side === 'buy';
         const p = c ? series.priceToCoordinate(buy ? c.low : c.high) : null;
-        if (x != null) items.push({ m, usd: m.usd, x, y: (p == null ? 0 : p) + (buy ? 24 : -24), w: fmtUsd(m.usd).length * 7 + 6, h: 14 });
+        if (x != null) items.push({ m, usd: m.usd, x: x / z, y: (p == null ? 0 : p / z) + (buy ? 24 : -24), w: fmtUsd(m.usd).length * 7 + 6, h: 14 });
       });
       return new Set(window.EarlyChart.fitLabels(items, Math.max(6, Math.round(el.clientWidth / 70))).map(i => i.m));
     }

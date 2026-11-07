@@ -5,6 +5,7 @@
    the cards lifted so the page reads in a bright room; still one dark theme. */
 
 :root {
+  --z: 1;                          /* the page's zoom on a big screen, below */
   color-scheme: dark;
 
   /* ---------- surfaces ---------- */
@@ -109,4 +110,18 @@
 
 @media (prefers-reduced-motion: reduce) {
   :root { --t-fast: 0ms; --t-base: 0ms; }
+}
+
+/* a big screen at 100 %: the whole site grows with it and fills it, instead of a strip in the middle (owner, 07.11, on 4K).
+   Each step leaves about 1920 px of page. --z is the same number: viewport units have to divide it back, and the chart's
+   canvas (.lw) stays at one to one so the pointer lands true; ui.js has EarlyZoom for scripts. Safari stays out, as nobody
+   has tried it there; it keeps the page at its own width */
+@supports not (font: -apple-system-body) {
+  @media (min-width: 2240px) and (min-height: 900px) { :root { zoom: 1.15; --z: 1.15; } }
+  @media (min-width: 2560px) and (min-height: 1040px) { :root { zoom: 1.33; --z: 1.33; } }
+  @media (min-width: 3000px) and (min-height: 1160px) { :root { zoom: 1.5; --z: 1.5; } }
+  @media (min-width: 3440px) and (min-height: 1360px) { :root { zoom: 1.75; --z: 1.75; } }
+  @media (min-width: 3840px) and (min-height: 1560px) { :root { zoom: 2; --z: 2; } }
+  @media (min-width: 5120px) and (min-height: 2080px) { :root { zoom: 2.66; --z: 2.66; } }
+  @media (min-width: 7680px) and (min-height: 3120px) { :root { zoom: 4; --z: 4; } }
 }

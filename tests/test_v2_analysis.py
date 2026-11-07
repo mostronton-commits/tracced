@@ -169,6 +169,24 @@ if AioHTTPTestCase:
             self.assertIn("position: sticky; left: 0;", css)             # Wallet stays when the rest scrolls sideways
             self.assertIn("tr.botlike td > * { opacity: .5; }", css)     # what a bot's cell holds dims, not the shade
 
+        def test_a_big_screen_zooms_the_page_and_keeps_the_chart_true(self):
+            tokens, css = static_js("v2/tokens.css"), static_js("v2/analysis.css")
+            self.assertIn("zoom: 2; --z: 2;", tokens)                    # 3840 px holds a page of about 1920
+            self.assertIn(".chartbox .lw { zoom: calc(1 / var(--z)); }", css)   # the canvas stays one to one, or the pointer lands off
+            self.assertNotRegex(static_js("v2/style.css"), r"(?<![(\d])100v[wh]\b(?! / var)")   # a viewport unit divides the zoom back
+            self.assertIn("window.EarlyZoom", static_js("ui.js"))
+            chart = static_js("chart.js")
+            self.assertIn("fontSize: 11 * zk()", chart)
+            self.assertIn("x / zk()", chart)                             # the overlay takes the page's pixels
+            self.assertIn("EarlyZoom()", static_js("tour.js"))
+            res = static_js("result.js")
+            self.assertEqual(res.count("EarlyZoom()"), 3)                # a filter's popup, the list menu, the name's note
+
+        def test_funded_by_keeps_its_label_on_a_phone(self):
+            res = static_js("result.js")
+            self.assertIn("fc.dataset.was = h", res)                     # data-h is the label the phone prints above the cell
+            self.assertNotIn("fc.dataset.h = h", res)
+
         async def test_saving_is_a_star_over_the_chart(self):
             html = await (await self.client.get(f"/job/{await self.finished_job()}", headers=self.v2())).text()
             self.assertNotIn('id="tfind"', html)                         # owner, 06.11: no wallet search in a result

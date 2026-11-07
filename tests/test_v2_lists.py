@@ -68,6 +68,7 @@ if AioHTTPTestCase:
         async def get_application(self):
             self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
             s = settings.load()
+            s["design_v2"] = "cookie"                                    # a guest's cookie counts
             s["ready_lists_on"], s["ready_top_pages"], s["ready_min_pnl"] = True, 4, 0
             s["ready_human"] = dict(s["ready_human"], min_closed=1, win_rate=[0, 100])
             s["ready_roi_pages"], s["ready_roi_min_invested"], s["ready_roi_min_pnl"] = 2, 0, 0

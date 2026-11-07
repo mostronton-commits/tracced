@@ -14,10 +14,10 @@ except ImportError:  # host without aiohttp: page tests are skipped
 from tracced.early import settings
 
 try:
-    from tests.test_web import FakeWebST, CYRILLIC
+    from tests.test_web import FakeWebST, CYRILLIC, static_js
     from tests.test_early_pipeline import TRADES
 except ImportError:                       # discover -s tests without -t: modules without package prefix
-    from test_web import FakeWebST, CYRILLIC
+    from test_web import FakeWebST, CYRILLIC, static_js
     from test_early_pipeline import TRADES
 
 
@@ -53,6 +53,7 @@ if AioHTTPTestCase:
             self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
             self.st = FakeWebST(TRADES)
             s = settings.load()
+            s["design_v2"] = "cookie"                                    # a guest's cookie counts
             app = create_app(self.st, s, {}, out_dir=self.tmp.name + "/web", store_dir=self.tmp.name + "/cache")
             app["admins"] = {TEST_PK}
             return app
@@ -164,11 +165,23 @@ if AioHTTPTestCase:
             self.app["ready"]["lists"]["top-traders"] = ready_list(example=False)
             html = await self.page()
             orbit = html[html.index('class="hm-orbits"'):html.index('class="hm-call-in"')]
-            self.assertEqual(orbit.count('class="hm-sat'), 10)
-            for r in self.app["ready"]["lists"]["top-traders"]["rows"]:
+            rows = self.app["ready"]["lists"]["top-traders"]["rows"]
+            self.assertEqual(orbit.count('class="hm-sat'), 5)                          # only the five the page shows anyway
+            for r in rows[:5]:
                 self.assertIn(str(_fingerprint(r["wallet"], 21)), orbit)
                 self.assertNotIn(r["wallet"], orbit)                                  # pictures only, never the address
+            for r in rows[5:]:
+                self.assertNotIn(str(_fingerprint(r["wallet"], 21)), orbit)            # the closed list's rest stays closed
             self.assertNotIn("first", re.findall(r'class="hm-sat([^"]*)"', orbit)[0])  # no analysis: nobody bought first here
+
+        def test_the_page_moves_only_what_is_seen(self):
+            css, js = static_js("v2/home.css"), static_js("v2/home.js")
+            self.assertNotIn("hm-drift", css)                            # the stars are one canvas, drawn five times a second
+            self.assertNotIn("hm-breathe", css)                          # the dawn and the dot stand still
+            self.assertNotIn("hm-peek {", css.replace(".hm-rank li.hm-peek { filter", ""))
+            self.assertIn("infinite paused", css)                        # the feed and the orbits wait until they are in view
+            self.assertIn("hm-seen", js)
+            self.assertNotIn("perspective", css.split(".hm-card.hm-lean")[0])   # a card is no layer of its own until the pointer is on it
 
         async def test_live_on_tracced_keeps_its_feed(self):
             self.assertNotIn('id="live"', await self.page())                         # no analyses yet: no block

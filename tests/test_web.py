@@ -281,6 +281,31 @@ if AioHTTPTestCase:
             r = await self.client.get("/design?to=v2", headers=GUEST, allow_redirects=False)
             self.assertEqual(r.status, 404)                                            # a guest on the public site
             self.assertNotIn("design=v2", r.headers.get("Set-Cookie", ""))
+            for bad in ("/%09/elsewhere.example/", "/%0d/elsewhere.example", "/\\elsewhere.example"):   # a browser drops the tab and reads «//…»
+                r = await self.client.get("/design?to=v2&back=" + bad, allow_redirects=False)
+                self.assertEqual(r.headers["Location"], "/", bad)
+
+        async def test_a_cookie_alone_shows_no_stranger_the_new_look(self):
+            self.assertEqual(self.app["s"].get("design_v2", "closed"), "closed")
+            html = await (await self.client.get("/docs", headers={"Cookie": "design=v2"})).text()
+            self.assertNotIn('data-design="v2"', html)                                 # anyone can set a cookie by hand
+            html = await (await self.client.get("/docs", headers={"Cookie": wallet_cookie(TEST_PK) + "; design=v2"})).text()
+            self.assertIn('data-design="v2"', html)                                    # the owner's wallet
+            self.app["s"]["design_v2"] = "all"                                         # the release
+            try:
+                self.assertIn('data-design="v2"', await (await self.client.get("/docs", headers={"Cookie": ""})).text())
+                self.assertNotIn('data-design="v2"', await (await self.client.get("/docs", headers={"Cookie": "design=old"})).text())
+            finally:
+                self.app["s"].pop("design_v2")
+
+        def test_project_x_link_stays_on_x(self):
+            from tracced.web.app import _x_link
+            self.assertEqual(_x_link("https://x.com/tracced_xyz"), "https://x.com/tracced_xyz")
+            self.assertEqual(_x_link(" https://twitter.com/i/communities/123 "), "https://twitter.com/i/communities/123")
+            self.assertEqual(_x_link("http://www.x.com/a"), "https://x.com/a")
+            for bad in ("https://x-login.example/claim", "javascript:alert(1)", "https://x.com.evil.example/a", "https://evil.example/x.com/a",
+                        'https://x.com/a"><script>', "@tracced", "", None, 7):
+                self.assertIsNone(_x_link(bad), bad)
 
         async def test_layout_containers(self):
             # верстка тримається на трьох речах: смуги шапки/підвалу з внутрішнім контейнером і широка сторінка результату
@@ -2496,6 +2521,7 @@ if AioHTTPTestCase:
             self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
             self.st = FakeWebST(TRADES)
             s = settings.load()
+            s["design_v2"] = "cookie"                                # the pill follows a guest's cookie
             s["replay_s"] = 0.6
             return create_app(self.st, s, {}, out_dir=self.tmp.name + "/web", store_dir=self.tmp.name + "/cache")
 

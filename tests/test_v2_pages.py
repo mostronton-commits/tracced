@@ -44,6 +44,7 @@ if AioHTTPTestCase:
         async def get_application(self):
             self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
             s = settings.load()
+            s["design_v2"] = "cookie"                                    # a guest's cookie counts
             s["replay_s"] = 0.6
             s["ranges_per_token"] = 50
             app = create_app(FakeWebST(TRADES), s, {}, out_dir=self.tmp.name + "/web", store_dir=self.tmp.name + "/cache")

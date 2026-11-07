@@ -183,6 +183,19 @@ env.globals["fingerprint"] = _fingerprint
 from .. import __version__                                   # noqa: E402 — product version for the footer
 env.globals["version"] = ".".join(__version__.split(".")[:2])
 env.globals["news"] = docs_mod.latest(DOCS_DIR)                # the bell beside the wallet: which update is the newest
+
+
+X_LINK = re.compile(r"(?:https?://)?(?:www\.|mobile\.)?((?:x|twitter)\.com/[^\s\"'<>\\]{1,200})", re.I)
+
+
+def _x_link(v):
+    """The project's X on a token's page comes from whoever made the token: only an address on X itself goes into a link, so
+    it cannot lead to a site of theirs."""
+    m = X_LINK.fullmatch(v.strip()) if isinstance(v, str) else None
+    return "https://" + m[1] if m else None
+
+
+env.filters["xlink"] = _x_link
 env.filters["dt"] = chart.fmt_dt
 env.filters["dtu"] = lambda ms: chart.fmt_dt(ms, year=True, utc=True)   # експорт: у файлі колонка мусить назвати зону
 env.filters["dty"] = lambda ms: chart.fmt_dt(ms, year=True)            # на сторінці зону називає перемикач у підвалі
@@ -4155,6 +4168,16 @@ def render(name, request, status=200, **ctx):
     return web.Response(text=_render_html(name, request, **ctx), content_type="text/html", status=status)
 
 
+def _design_v2(request):
+    """Whether this request gets the rebrand. Setting design_v2: closed (default) lets the cookie count only on the closed copy
+    and for the owner's wallets, since anyone can set a cookie by hand; cookie, for whoever has it; all, the new look for
+    everyone, the old one only with design=old (the release)."""
+    mode, got = request.app["s"].get("design_v2", "closed"), request.cookies.get(DESIGN_COOKIE)
+    if mode == "all":
+        return got != "old"
+    return got == "v2" and (mode == "cookie" or _private_host(request) or request.get("acct") in request.app["admins"])
+
+
 def _render_html(name, request, **ctx):
     """A template with the site's own context, as text: a page, or a part of one (the result under the chart)."""
     ctx.setdefault("request", request)
@@ -4169,7 +4192,7 @@ def _render_html(name, request, **ctx):
         dark = str(request.app["s"].get("dark_theme", "draft"))      # власник, 08.10: темна — лише на закритій копії, поки не доведена
         ctx.setdefault("dark_on", dark == "on" or (dark == "draft" and _private_host(request)))
         # the rebrand lives beside the old look (owner, 26.10): base.html takes its stylesheet, header and footer by this
-        ctx.setdefault("design_v2", request.cookies.get(DESIGN_COOKIE) == "v2")
+        ctx.setdefault("design_v2", _design_v2(request))
         lists = (request.app.get("ready") or {}).get("lists") or {}   # «Top traders» у меню акаунта v2 веде на список, коли він є
         ctx.setdefault("top_list", next(((lists[k].get("slug") or k) for k in READY_ORDER if lists.get(k)), None))
     # аналітика вмикається лише там, де задано id, і ніколи на сторінках власника: там показується новий ключ API,
@@ -4773,11 +4796,12 @@ async def design_switch(request):
     if not (_private_host(request) or request.get("acct") in request.app["admins"]):
         raise web.HTTPNotFound()
     back = request.query.get("back") or "/"
-    if not back.startswith("/") or back.startswith("//") or "\\" in back:      # тільки свої адреси: не відкритий редирект
+    if not SITE_PATH.fullmatch(back):                                          # тільки свої адреси: не відкритий редирект (таб браузер викидає, лишаючи «//»)
         back = "/"
     resp = web.HTTPFound(back)
-    if request.query.get("to", "v2") == "v2":
-        resp.set_cookie(DESIGN_COOKIE, "v2", max_age=365 * 86400, path="/", httponly=True, samesite="Lax", secure=True)
+    to = request.query.get("to", "v2")
+    if to == "v2" or request.app["s"].get("design_v2") == "all":               # коли новий вигляд у всіх, до старого веде лише кука
+        resp.set_cookie(DESIGN_COOKIE, "v2" if to == "v2" else "old", max_age=365 * 86400, path="/", httponly=True, samesite="Lax", secure=True)
     else:
         resp.del_cookie(DESIGN_COOKIE, path="/")
     raise resp

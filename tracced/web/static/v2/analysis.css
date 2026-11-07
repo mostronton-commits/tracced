@@ -72,6 +72,7 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 .ana .chartbox { height: 380px; margin: 10px 0 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
 @media (min-width: 1400px) { .ana .chartbox { height: 400px; } }
 .ana .chartbox .lw, .ana .chartbox .overlay { inset: 0; border-radius: 0; }
+.chartbox .lw { zoom: calc(1 / var(--z)); }                    /* the chart's canvas at one to one: chart.js scales its text and hands the overlay page pixels */
 .ana .chartbox .legend { top: 0; left: 4px; padding: 0; border-radius: 0; background: none; color: var(--muted); font: 400 var(--fs-caption)/1.4 var(--font); white-space: nowrap; max-width: calc(100% - 70px); overflow: hidden; text-overflow: ellipsis; }
 .ana .chartbox .legend b { color: var(--muted); font-weight: 400; }
 .ana .chartbox .overlay .win { bottom: 26px; background: rgba(var(--wc), .04); border-left: 1px solid rgba(var(--wc), .3); border-right: 1px solid rgba(var(--wc), .3); }
@@ -425,15 +426,15 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 :root .drawer.wcard, :root .drawer.apanel { border: 0; background: var(--surface); color: var(--ink); }
 @media (min-width: 1200px) {
   body.drawer-open main.wide:has(> #token.ana) {
-    --dl: max(0px, min(calc((100vw - var(--page)) / 2), calc(100vw - 396px - var(--page))));
-    margin-left: var(--dl); margin-right: max(396px, calc(100vw - var(--page) - var(--dl)));
-    max-width: min(var(--page), calc(100vw - 396px));
+    --dl: max(0px, min(calc((calc(100vw / var(--z)) - var(--page)) / 2), calc(calc(100vw / var(--z)) - 396px - var(--page))));
+    margin-left: var(--dl); margin-right: max(396px, calc(calc(100vw / var(--z)) - var(--page) - var(--dl)));
+    max-width: min(var(--page), calc(calc(100vw / var(--z)) - 396px));
   }
   :root .ana .drawer.wcard, :root .ana .drawer.apanel { top: max(16px, var(--dtop, 0px)); bottom: max(24px, calc(var(--dbot, 0px) + 16px)); right: max(24px, calc(var(--dl, 0px) - 372px));
     width: 380px; border-radius: var(--r-card); box-shadow: var(--shadow-card); overflow: hidden; }
 }
 @media (min-width: 641px) and (max-width: 1199px) {
-  :root .drawer.wcard, :root .drawer.apanel { width: min(400px, 100vw); border-radius: var(--r-card) 0 0 var(--r-card); box-shadow: var(--shadow-modal); overflow: hidden; }
+  :root .drawer.wcard, :root .drawer.apanel { width: min(400px, calc(100vw / var(--z))); border-radius: var(--r-card) 0 0 var(--r-card); box-shadow: var(--shadow-modal); overflow: hidden; }
 }
 :root .wcard .drawer-scroll { padding: 0 0 22px; }
 :root .wcard { --cg: 22px; }
@@ -715,7 +716,7 @@ main.wide:has(> #token.ana) { padding-top: 0; }
   :root .wcard .dshare { width: 36px; height: 36px; padding: 0; justify-content: center; }
   :root .wcard .drawer-head .x { width: 36px; height: 36px; }
   :root .wcard .dp-pnl b { font-size: var(--fs-h2); }
-  :root .drawer.apanel { width: 100vw; }
+  :root .drawer.apanel { width: calc(100vw / var(--z)); }
 }
 /* the migration on the chart says its word (owner, 26.10: «чому тут буква К»): a pill from the moment it happened */
 :root .ana .chartbox .overlay .evdot.evword { width: auto; height: 22px; margin: -11px 0 0 -7px; padding: 0 9px 0 7px; gap: 6px; border-radius: var(--r-pill);
