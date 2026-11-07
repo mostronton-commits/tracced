@@ -25,20 +25,20 @@ An AI agent that reads only the analysis in front of it: answers to your questio
 (what happened, what to weigh, whose wallets stand out), each line carrying a number from the table. It needs a connected
 wallet.{% if not assistant_on %}
 
-!!! warning "🤖 The agent is off on this server"
+!!! warning "The agent is off on this server"
     It needs a model key that this deployment does not have yet, so its button explains itself instead of
     answering.
 {% endif %}
 
 ## Next
 
-!!! agent "✦ An analyst you can talk to"
+!!! agent "An analyst you can talk to"
     Describe how you pick wallets, in your own words. The agent reads the table, opens the wallet cards it needs
     (30-day PnL, win rate, when it trades, what it bought lately), checks funders and your earlier analyses, and
     returns a short list. Every reason points at a number you can open: a row, a card, a swap on Solscan. It judges
     only by those facts and your method, and it never predicts a price.
 
-!!! agent "✦ tracced for agents"
+!!! agent "tracced for agents"
     The same tools, open to any AI agent through the Model Context Protocol (MCP): analyze a token's range, read the
     wallets, open a card, keep lists. An agent you already use, in Claude, Cursor or your own trading bot, asks
     tracced who bought before a pump the way it would search the web. Alerts reach it next, then copy-trading, and

@@ -722,3 +722,11 @@ main.wide:has(> #token.ana) { padding-top: 0; }
 :root .ana .chartbox .overlay .evdot.evword { width: auto; height: 22px; margin: -11px 0 0 -7px; padding: 0 9px 0 7px; gap: 6px; border-radius: var(--r-pill);
   background: var(--surface-3); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-strong); font: 500 var(--fs-micro)/1 var(--font); white-space: nowrap; }
 .ana .chartbox .overlay .evdot.evword i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-2); }
+
+/* a finger needs more than the small marks are drawn at (the final pass, 07.11): each reaches further than it shows, nothing moves */
+@media (pointer: coarse), (max-width: 768px) {
+  .ana .th-ic, .ana .tc-addr, .ana #facts .tags .idm.xacc, .ana .atab .tdel, .ana #facts .wname { position: relative; }
+  .ana .th-ic::after, .ana .tc-addr::after, .ana #facts .tags .idm.xacc::after, .ana .atab .tdel::after, .ana #facts .wname::after { content: ""; position: absolute; inset: -9px; }
+  :root .ana .chartbox .cjump { height: 30px; }
+}
+

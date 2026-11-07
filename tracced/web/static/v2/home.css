@@ -149,7 +149,7 @@ body:has(.hm-sky) .foot { position: relative; z-index: 1; }
 .hm-sw { width: 10px; height: 10px; border-radius: var(--r-xs); background: var(--tb); box-shadow: inset 0 0 0 1px var(--te); }
 .hm-sw.t1 { --tb: color-mix(in srgb, var(--profit) 45%, transparent); --te: transparent; }
 .hm-sw.t4 { --te: color-mix(in srgb, var(--ink) 12%, transparent); }
-:root .hm-more > button { height: auto; padding: 2px 0; border: 0; border-radius: var(--r-s); background: transparent; color: var(--mint);
+:root .hm-more > button { height: auto; padding: 8px 0; margin: -6px 0; border: 0; border-radius: var(--r-s); background: transparent; color: var(--mint);
   font: var(--w-semi) var(--fs-small) var(--font); }
 :root .hm-more > button:hover { background: transparent; color: var(--mint-hover); }
 .hm-more .hm-n4 { display: none; }
@@ -192,8 +192,8 @@ body:has(.hm-sky) .foot { position: relative; z-index: 1; }
 .hm-sum span { color: var(--muted); }
 .hm-rank { list-style: none; margin: 0; padding: 0; }
 .hm-rank li { position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 0 var(--s-3); align-items: center; height: 50px;
-  margin: 0 -10px; padding: 0 10px; border-top: 1px solid var(--line); border-radius: var(--r-m); transition: background-color var(--t-fast) ease; }
-.hm-rank li:hover { background-color: color-mix(in srgb, var(--surface-2) 70%, transparent); }
+  margin: 0 -10px; padding: 0 10px; border-top: 1px solid var(--line); transition: background-color var(--t-fast) ease; }
+.hm-rank li:hover { border-radius: var(--r-m); background-color: color-mix(in srgb, var(--surface-2) 70%, transparent); }   /* a radius at rest bent the lines between rows */
 .hm-rank li > * { position: relative; }
 /* owner, 06.11: behind each profit its share of the leader's, as behind PnL in the analysis table; they grow in when the card rises in */
 .hm-rank .hm-rbar { position: absolute; right: 10px; top: 13px; height: 24px; border-radius: var(--r-s); background: var(--profit-wash); transform-origin: right center;

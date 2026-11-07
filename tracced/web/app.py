@@ -843,6 +843,8 @@ async def _security_headers(request, response):
         response.headers.setdefault(k, v)
     if request.path.startswith(("/me", "/admin")):          # свої списки, експорт, сторінки власника, ключ партнера
         response.headers.setdefault("Cache-Control", "no-store")   # (аудит 15.10): ні браузер, ні проксі їх не зберігають
+    elif request.path.startswith("/static/") and request.query.get("v"):
+        response.headers.setdefault("Cache-Control", "public, max-age=31536000, immutable")   # ?v= міняється з кожним деплоєм: сторінка не питає про кожен файл щоразу
     response.headers["Server"] = "tracced"
 
 

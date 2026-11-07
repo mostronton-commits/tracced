@@ -68,7 +68,7 @@ if AioHTTPTestCase:
         async def test_docs_in_v2(self):
             html = await self.page("/docs", V2, name="docs.html")
             self.assertIn('data-design="v2"', html)
-            for part in ('class="docs-nav"', 'class="dn-h">Documentation', 'class="docs-crumb">Docs', 'class="docs-body p-index"',
+            for part in ('class="docs-nav"', 'class="dn-h">Documentation', 'class="docs-body p-index"',
                          'class="docs-toc"', 'id="dtoc"', 'class="pg next" href="/docs/compare"', '<svg class="dic"',
                          'class="on" aria-current="page"'):
                 self.assertIn(part, html)

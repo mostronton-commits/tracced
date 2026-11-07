@@ -14,7 +14,6 @@
 .docs-nav a.on { background: var(--surface-2); color: var(--ink); font-weight: var(--w-semi); }
 .docs-nav a.on .dic { color: var(--mint); }
 
-.docs-crumb { color: var(--muted); font-size: var(--fs-small); }
 .docs .docs-body { padding: 0; margin: 0; border: 0; background: none; }
 .docs-body > h1:first-child { margin: 6px 0 0; font-size: var(--fs-h1); font-weight: var(--w-semi); line-height: 1.05; letter-spacing: -0.03em; }
 .docs-body > h1:first-child + p { margin: 18px 0 0; font-size: var(--fs-title); line-height: 1.5; color: var(--ink); }

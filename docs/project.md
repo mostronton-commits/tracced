@@ -33,7 +33,7 @@ is now checked for completeness.
 The same audit found trades that arrive with a broken token amount. The dollar figure is right, the derived price
 is not. Those trades are repaired, and the count is shown with the results.
 
-!!! info "📏 What that costs to prove"
+!!! info "What that costs to prove"
     On the demo token the whole trade history had to be reconstructed, 489,000 swaps, before a single exit could be
     called complete. It is, for all 4,634 wallets across the three ranges, and 370 of them share a funding source.
     Those are not user numbers. They are the size of the claim being checked.

@@ -17,13 +17,13 @@
       h: 'Mark the pump', p: 'Click where the buying starts, then where the price takes off.',
       done: () => shown(document.getElementById('pick')) },
     { el: () => document.getElementById('pick'), when: () => shown(document.getElementById('pick')),
-      h: 'Get wallets', p: DEMO ? 'Press it to replay this pump.' : 'Press it to see who bought in your zone.',
+      h: 'Get wallets', p: DEMO ? 'Press it to replay this pump.' : 'Press it to see who bought in your range.',
       done: () => !!document.getElementById('facts') },
     { el: () => document.getElementById('facts'), when: () => shown(document.getElementById('facts')),
       h: 'The wallets', p: 'What each one bought, sold and earned. Click a wallet to open it.',
       done: () => shown(document.getElementById('drawer')) },
     { el: () => document.getElementById('drawer'), when: () => shown(document.getElementById('drawer')),
-      h: 'Follow a wallet', p: 'Star it to get its trades in Telegram.',
+      h: 'Follow a wallet', p: 'The star keeps it. In your watchlist, its bell sends its trades to Telegram.',
       done: () => false, last: true },
   ];
 

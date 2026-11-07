@@ -1,9 +1,8 @@
 {# design v2 of the result under the token's chart (canvas Analysis4, AnalysisMark; 26.10). The same part as before:
    served inside /job/<id> and alone by /job/<id>/view; static/result.js mounts it and unmounts it, and what it needs
-   from the server is in #rcfg. The look moved: the tally is one strip of three counts and the findings as words, the
-   table sits on its own card with its toolbar (Hide bots, Filters, Columns, Ask AI, ⋯), the wallet card
-   and the agent stand in the right column. Save and the wallets on the chart go up
-   into the chart's toolbar (result.js moves them there and takes them back) #}
+   from the server is in #rcfg. The look moved: six cells of what was counted and found, the table on its own card with
+   its toolbar (order, Filters; Ask AI, ⋯), the wallet card and the agent in the right column. Save is a star in the chart's
+   toolbar (result.js moves it there and takes it back) #}
 {% import "v2/_ag.html" as ag %}
 {% set job_end = (result.window.end or job.t_exit or job.t_to) %}
 <div class="result" id="resultroot" data-id="{{ save_id }}">
@@ -52,7 +51,7 @@
         <button type="button" class="ink askai" id="askbtn" title="{{ 'Ask about this pump: the agent reads this analysis only' if assistant_on else 'Coming soon' }}">{{ ag.g('ai', size=13) }}Ask AI</button>
         <div class="soon-pop" id="aipop" hidden>
           <b>Coming soon</b>
-          <span>The agent will read this analysis and tell you what happened in the range, what to weigh and whose wallets stand out, then answer your questions about it. It is not switched on on this server yet.</span>
+          <span>The agent reads this analysis and says what happened, what to weigh and whose wallets stand out. It is not on here yet.</span>
         </div>
       </div>
       <div class="menu">

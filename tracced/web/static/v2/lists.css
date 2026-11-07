@@ -219,12 +219,12 @@ main.v2me { padding-top: var(--page-pad); }
 .v2me .mv-wlh.c-bare, .v2me .mv-rows.c-bare .mv-row { grid-template-columns: 112px minmax(0, 1fr) 40px; }
 .v2me .mv-wlh { padding: 14px 14px 6px; color: var(--faint); font-size: var(--fs-caption); }
 .v2me .mv-rows.none + .mv-empty { margin-top: var(--s-2); }
-.v2me .mv-row { min-height: 58px; padding: var(--s-2) 14px; border-radius: var(--r-l); border-top: 1px solid var(--line); cursor: pointer;
+.v2me .mv-row { min-height: 58px; padding: var(--s-2) 14px; border-top: 1px solid var(--line); cursor: pointer;   /* no radius at rest: it bent the lines between rows */
   transition: background-color var(--t-fast) ease, box-shadow var(--t-fast) ease; }
 .v2me .mv-rows .mv-row:first-child, .v2me .mv-rows .mv-row[hidden] + .mv-row, .v2me .mv-row:hover, .v2me .mv-row.carded,
 .v2me .mv-row:hover + .mv-row, .v2me .mv-row.carded + .mv-row { border-top-color: transparent; }
-.v2me .mv-row:hover { background: var(--surface-2); }
-.v2me .mv-row.carded { background: var(--surface-2); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mint) 25%, transparent); }
+.v2me .mv-row:hover { background: var(--surface-2); border-radius: var(--r-l); }
+.v2me .mv-row.carded { border-radius: var(--r-l); background: var(--surface-2); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mint) 25%, transparent); }
 .v2me .mv-fp { display: none; width: 34px; height: 34px; border-radius: var(--r-m); background: var(--surface-2); display: flex; align-items: center; justify-content: center; transition: background-color var(--t-fast) ease; }
 .v2me .mv-row:hover .mv-fp, .v2me .mv-row.carded .mv-fp { background: var(--surface-3); }
 .v2me .mv-adr { font: var(--w-regular) var(--fs-small) var(--mono); white-space: nowrap; }

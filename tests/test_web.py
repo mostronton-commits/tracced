@@ -298,6 +298,12 @@ if AioHTTPTestCase:
             finally:
                 self.app["s"].pop("design_v2")
 
+        async def test_a_versioned_static_file_is_kept_and_asks_nothing_again(self):
+            r = await self.client.get("/static/ui.js?v=abc")
+            self.assertIn("immutable", r.headers.get("Cache-Control", ""))
+            r = await self.client.get("/static/ui.js")
+            self.assertNotIn("immutable", r.headers.get("Cache-Control", ""))
+
         def test_project_x_link_stays_on_x(self):
             from tracced.web.app import _x_link
             self.assertEqual(_x_link("https://x.com/tracced_xyz"), "https://x.com/tracced_xyz")

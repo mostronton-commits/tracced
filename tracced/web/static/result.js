@@ -645,6 +645,7 @@
         + '<button type="button" class="vx" data-vdel="' + i + '" title="Delete" aria-label="Delete ' + esc(v.name) + '">×</button></span>').join('');
       const plain = !nActive() && sortKey === 'real' && sortDir === -1;   // nothing set: nothing to save
       fp.querySelector('.fvsave').hidden = plain || vs.length >= MAX_VIEWS || !fp.querySelector('.fvname').hidden;
+      if (V2) fp.querySelector('.fp-views').hidden = !vs.length && plain && fp.querySelector('.fvname').hidden;   // no saved view and nothing to save: no empty row
     }
     const fpanel = document.getElementById('fpanel');
     ftoggle.addEventListener('click', () => {

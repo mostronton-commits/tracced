@@ -121,7 +121,7 @@
     // for the candle under the pointer, else the last one in view
     let hovering = false;
     const legendV2 = c => fmtTime(c.time, true) + ' · O <b>' + fmtVal(c.open) + '</b> · H <b>' + fmtVal(c.high) + '</b> · L <b>' + fmtVal(c.low) + '</b> · C <b>' + fmtVal(c.close) + '</b>'
-      + (c.volume != null ? ' · Vol <b>' + fmtVol(c.volume) + '</b>' : '');
+      + (c.volume != null && !narrow() ? ' · Vol <b>' + fmtVol(c.volume) + '</b>' : '');
     function legendIdle() {
       if (!V2 || hovering) return;
       const v = visible(); if (!v || !times.length || v.b < times[0]) { legend.hidden = true; return; }
