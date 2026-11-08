@@ -4698,6 +4698,52 @@ def _made_2x(result):
     return sum(1 for r in (result or {}).get("rows") or [] if (r.get("sells") or 0) > 0 and (r.get("multiple") or 0) >= 2)
 
 
+def _pct(a, b):
+    """Частка як на сторінці результату: 299 з 300 — 99 %, а не 100 %."""
+    if not b:
+        return 0
+    p = int(100 * a / b + 0.5)
+    return 99 if a < b and p >= 100 else p
+
+
+def _feed_fact(result, s):
+    """Один факт про токен для «Live on tracced» (власник, 08.11), двома словами, і чи він тривожний: те саме, що
+    сторінка результату рахує для головної клітинки (result.js findings, verdict), лише тривожне й без «seen before»,
+    бо воно своє в кожного акаунта. Нема що сказати — None."""
+    rows = (result or {}).get("rows") or []
+    if not rows:
+        return None
+    bund, funders, en = result.get("bundle") or {}, result.get("funders") or {}, result.get("enrich") or {}
+    tg = lambda x: x.get("tag_list") or []
+    in_bundle = lambda x: x["wallet"] in bund or ("bundle" in tg(x) and x["wallet"] not in funders)
+    dev = any("dev" in tg(x) for x in rows)
+    top = rows[:int(s.get("age_lookups_max") or 0)]
+    aged = not en.get("total") or (en.get("done") or 0) >= en["total"]
+    if aged and len(top) >= 20:                                   # 199 з 200 — 99 %, як на сторінці
+        nb, nf = sum(1 for x in top if in_bundle(x)), sum(1 for x in top if "fresh" in tg(x))
+        n = sum(1 for x in top if in_bundle(x) or "fresh" in tg(x))
+        if 100 * n // len(top) >= int(s.get("verdict_organised_pct") or 90):
+            half = 0.6 * len(top)
+            word = "Rigged" if dev else "Bundled" if nb >= half and nf < half else "Staged" if nf >= half and nb < half else "Cabal"
+            return {"text": word + " launch", "sev": "bad"}
+    lc = result.get("launch")
+    if lc and lc.get("rev") is not None:
+        ls = launch_mod.summary(lc, (result.get("info") or {}).get("supply") or 0)
+        if ls.get("pairs") or ls.get("launch_wallets") or ls.get("fee_to"):
+            return {"text": "Organised launch", "sev": "bad"}
+    if dev:
+        return {"text": "Creator bought", "sev": "bad"}
+    inv = lambda x: x.get("invested_in_range_usd") or 0
+    sh = _pct(sum(inv(x) for x in rows if in_bundle(x)), sum(inv(x) for x in rows) or 1)
+    if sh >= 10:
+        return {"text": f"{sh}% bundled", "sev": "warn"}
+    fr = sum(1 for x in rows if "fresh" in tg(x))
+    checked = max(en.get("total") or min(len(rows), int(s.get("age_lookups_max") or 0) or len(rows)), fr) or 1   # чий вік перевіряли
+    if fr >= 10 and fr / checked >= 0.1:
+        return {"text": f"{_pct(fr, checked)}% fresh", "sev": "warn"}
+    return None
+
+
 def _live_ago(ms, now_ms):
     """«4 min ago» для стрічки на головній; далі сторінка оновлює це сама щопівхвилини."""
     m = max(0, int((now_ms - (ms or 0)) // 60000))
@@ -4720,7 +4766,8 @@ def _live_feed(app, now_ms=None):
         img = _token_image(app, j.mint, info)
         if not img:
             missing.append(j.mint)
-        rows.append({"id": j.id, "symbol": sym, "letter": sym[:1].upper(), "image": img,
+        rows.append({"id": j.id, "mint": j.mint, "symbol": sym, "letter": sym[:1].upper(), "image": img,
+                     "fact": _feed_fact(r, app["s"]) if j.status == "done" else None,
                      "hue": int(hashlib.sha1(j.mint.encode()).hexdigest()[:4], 16) % 360,
                      "running": j.status in ("queued", "running"), "wallets": (r.get("counts") or {}).get("n_early"),
                      "cap": info.get("mcap") if isinstance(info.get("mcap"), (int, float)) and info.get("mcap") > 0 else None,
@@ -4991,7 +5038,7 @@ async def token_page(request):
         # огляд ≈2 запити, кеш — 0; підказок детектора сторінка більше не показує (30.09), свічки він кладе в кеш графіка
         info, _ = await _overview(app, mint, _browse_budget(request, 2) if not _overview_cached(app, mint) else None, pk)
     src = request.query.get("src")
-    src = src if src in ("alert", "fresh") else None               # звідки прийшли: алерт у Telegram чи стрічка пампів
+    src = src if src in ("alert", "fresh", "live") else None       # звідки прийшли: алерт у Telegram, свіжі пампи чи «Live on tracced»
     _view(request, "token", mint, demo=1 if demo and demo["mint"] == mint else None, src=src)
     if src and not request.get("acct"):
         # гість: лише звідки, без адреси. Раз на мережу, токен і джерело за 6 годин і під стелею мережі: інакше цикл

@@ -45,7 +45,7 @@
 {% set fresh_ok = s.get('fresh_on') and fresh_min is not none and fresh_min < (s.get('fresh_stale_hours', 3)|float) * 60 %}
 {% set hours = s.get('fresh_hours', 24)|int %}
 {% macro tk(t, size) %}<span class="hm-tk" style="--s: {{ size }}px" data-l="{{ (t.symbol or '?')[:1] }}" aria-hidden="true">{% if t.image %}<img src="{{ t.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span>{% endmacro %}
-{% macro lrow(r) %}<div class="hm-lrow" data-id="{{ r.id }}" data-at="{{ r.at }}"><span class="hm-tk" data-l="{{ r.letter }}" aria-hidden="true">{% if r.image %}<img src="{{ r.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span><b class="hm-sym">{{ r.symbol }}</b>{% if r.running %}<span class="hm-now"><i class="hm-dot" aria-hidden="true"></i>analyzing now</span>{% elif r.saved %}<span class="hm-fact" title="Wallets from this analysis that people saved to their watchlists">{{ icon('star-on') }}saved {{ '{:,}'.format(r.saved) }} wallet{{ '' if r.saved == 1 else 's' }}</span>{% else %}<span class="hm-fact"></span>{% endif %}<span class="hm-ago" data-ago="{{ r.at }}">{{ r.ago }}</span></div>{% endmacro %}
+{% macro lrow(r) %}<a class="hm-lrow" href="/token?mint={{ r.mint }}&amp;src=live" rel="nofollow" data-id="{{ r.id }}" data-at="{{ r.at }}"><span class="hm-tk" data-l="{{ r.letter }}" aria-hidden="true">{% if r.image %}<img src="{{ r.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span><span class="hm-name"><b class="hm-sym">{{ r.symbol }}</b>{% if r.fact %}<span class="hm-flag {{ r.fact.sev }}">{{ r.fact.text }}</span>{% endif %}</span>{% if r.running %}<span class="hm-now"><i class="hm-dot" aria-hidden="true"></i>analyzing now</span>{% elif r.saved %}<span class="hm-fact" title="Wallets from this analysis that people saved to their watchlists">{{ icon('star-on') }}saved {{ '{:,}'.format(r.saved) }} wallet{{ '' if r.saved == 1 else 's' }}</span>{% else %}<span class="hm-fact"></span>{% endif %}<span class="hm-ago" data-ago="{{ r.at }}">{{ r.ago }}</span></a>{% endmacro %}
 {% if fresh or fresh_ok or live.rows %}
 <section class="hm-wrap hm-row" aria-label="Fresh pumps and live analyses">
   {% if fresh or fresh_ok %}
@@ -115,8 +115,10 @@
   </article>
   {% endif %}
   {% if live.rows %}
-  {# Live on tracced (owner, 05.10; 06.11: «вони не біжуть»): everyone's latest analyses, leading nowhere, newest first, each
-     with its real time. They roll slowly upward and stop under the pointer; /live.json brings real new ones every 20 s #}
+  {# Live on tracced (owner, 05.10; 06.11: «вони не біжуть»; 08.11): everyone's latest analyses, newest first, each with its
+     real time and one alarming fact when there is one. A row opens the token's chart for one's own range, not that
+     analysis: someone else's result is not our verdict. They roll slowly upward and stop under the pointer; /live.json
+     brings real new ones every 20 s #}
   <article class="hm-card hm-live" id="live" aria-labelledby="hmlive">
     <div class="hm-head"><h2 id="hmlive"><i class="hm-dot" aria-hidden="true"></i>Live on tracced</h2></div>
     <div class="hm-feed" id="lfeed"><div class="hm-ftrack">{% for r in live.rows[:20] %}{{ lrow(r) }}{% endfor %}</div></div>
@@ -243,10 +245,13 @@
   const fmt = n => Number(n).toLocaleString('en-US');
   function el(tag, cls, text) { const x = document.createElement(tag); if (cls) x.className = cls; if (text != null) x.textContent = text; return x; }
   function build(r) {                                     // a row from /live.json, text only through textContent
-    const row = el('div', 'hm-lrow'); row.dataset.id = r.id; row.dataset.at = r.at;
+    const row = el('a', 'hm-lrow'); row.dataset.id = r.id; row.dataset.at = r.at; row.rel = 'nofollow';
+    row.href = '/token?mint=' + encodeURIComponent(r.mint || '') + '&src=live';
     const pic = el('span', 'hm-tk'); pic.dataset.l = r.letter || '?'; pic.setAttribute('aria-hidden', 'true');
     if (r.image) { const im = new Image(); im.alt = ''; im.loading = 'lazy'; im.referrerPolicy = 'no-referrer'; im.onerror = () => im.remove(); im.src = r.image; pic.appendChild(im); }
-    row.append(pic, el('b', 'hm-sym', r.symbol));
+    const name = el('span', 'hm-name'); name.appendChild(el('b', 'hm-sym', r.symbol));
+    if (r.fact) name.appendChild(el('span', 'hm-flag ' + (r.fact.sev === 'bad' ? 'bad' : 'warn'), r.fact.text));
+    row.append(pic, name);
     if (r.running) { const now = el('span', 'hm-now'); const dot = el('i', 'hm-dot'); dot.setAttribute('aria-hidden', 'true'); now.append(dot, 'analyzing now'); row.appendChild(now); }
     else if (r.saved) {
       const sv = el('span', 'hm-fact'); sv.title = 'Wallets from this analysis that people saved to their watchlists';
@@ -261,7 +266,7 @@
     track.classList.remove('on'); track.querySelectorAll('.hm-lcopy').forEach(x => x.remove());
     const h = rows.reduce((s, r) => s + r.offsetHeight, 0), view = box.clientHeight;
     if (reduced || !h || h < view * 0.7) return;           // too few: they would meet themselves on screen
-    for (let k = Math.ceil(view / h); k > 0; k--) rows.forEach(r => { const c = r.cloneNode(true); c.classList.add('hm-lcopy'); c.setAttribute('aria-hidden', 'true'); track.appendChild(c); });
+    for (let k = Math.ceil(view / h); k > 0; k--) rows.forEach(r => { const c = r.cloneNode(true); c.classList.add('hm-lcopy'); c.setAttribute('aria-hidden', 'true'); c.tabIndex = -1; track.appendChild(c); });
     track.style.setProperty('--dist', -h + 'px'); track.style.setProperty('--roll', (h / SPEED).toFixed(1) + 's');
     void track.offsetHeight; track.classList.add('on');
   }

@@ -436,10 +436,14 @@ no second, dark line.
 - **Live on tracced** on the home page is a feed, not a list of links (owner, 05.10: people opened others' finished
   analyses and took them for our verdicts, not seeing they could run their own). It shows the latest twenty analyses by
   anyone, one row each: a letter mark, the symbol, the wallets found and the best ×, or "analyzing now", and how long
-  ago. Never who ran them. Rows lead nowhere. No caption and no day count above it (owner, 08.10). Seven rows show at once and roll (see Motion); real new ones come every 20 s from `/live.json`. A row: the token's picture (its
+  ago. Never who ran them. A row opens the token's chart, `/token?mint=…&src=live`, never that analysis: one's own range,
+  not someone else's result taken for our verdict (owner, 08.11, replacing «rows lead nowhere»). No caption and no day count above it (owner, 08.10). Seven rows show at once and roll (see Motion); real new ones come every 20 s from `/live.json`. A row: the token's picture (its
   letter while it loads or when it has none), symbol, one fact, how long ago. The fact is "saved N wallets" with the
   star when people really saved wallets from that analysis, otherwise nothing (owner, 08.10: "found 180 wallets" said
-  nothing, the market cap neither, and "made 2×+" left unclear who made it). Never a made-up number: the owner asked
+  nothing, the market cap neither, and "made 2×+" left unclear who made it). Beside the symbol, in two words, the one
+  alarming fact the result itself would lead with (owner, 08.11): Rigged/Bundled/Staged/Cabal launch, Organised launch,
+  Creator bought (red), N% bundled, N% fresh (amber); nothing when there is none. On a phone it goes under the symbol and
+  takes the place of "saved". Never a made-up number: the owner asked
   for random saved counts three times and they stay out, as they would show activity that never happened. The demo is
   neither a row nor a card on the home page (owner, 08.10): it is a link, Demo, first in the footer's line.
 - **Ready lists** (owner, 07.10: «цікаво, зрозуміло і привабливо»; 08.10: one list, simpler) sit on the home page under
