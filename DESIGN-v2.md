@@ -442,7 +442,8 @@ no second, dark line.
   star when people really saved wallets from that analysis, otherwise nothing (owner, 08.10: "found 180 wallets" said
   nothing, the market cap neither, and "made 2×+" left unclear who made it). Beside the symbol, in two words, the one
   alarming fact the result itself would lead with (owner, 08.11): Rigged/Bundled/Staged/Cabal launch, Organised launch,
-  Creator bought (red), N% bundled, N% fresh (amber); nothing when there is none. Only what a person learns through
+  Creator bought (red), N% bundled buys, N% fresh wallets (amber, from 30%: `feed_fact_min_pct`, as 14% is usual),
+  each explained on hover; nothing when there is none. Only what a person learns through
   tracced alone (owner, 08.11): "69% profit to the top 10" and the like are not interesting and stay out. On a phone it goes under the symbol and
   takes the place of "saved". Never a made-up number: the owner asked
   for random saved counts three times and they stay out, as they would show activity that never happened. The demo is

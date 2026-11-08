@@ -4707,9 +4707,10 @@ def _pct(a, b):
 
 
 def _feed_fact(result, s):
-    """Один факт про токен для «Live on tracced» (власник, 08.11), двома словами, і чи він тривожний: те саме, що
-    сторінка результату рахує для головної клітинки (result.js findings, verdict), лише тривожне й без «seen before»,
-    бо воно своє в кожного акаунта. Нема що сказати — None."""
+    """Один факт про токен для «Live on tracced» (власник, 08.11), кількома словами, з поясненням при наведенні: те саме,
+    що сторінка результату рахує для головної клітинки (result.js findings, verdict), лише те, що людина дізнається
+    тільки через tracced, і без «seen before», бо воно своє в кожного акаунта. Свіжі й бандли — від feed_fact_min_pct,
+    бо 14 % — звичайна справа. Нема що сказати — None."""
     rows = (result or {}).get("rows") or []
     if not rows:
         return None
@@ -4725,22 +4726,29 @@ def _feed_fact(result, s):
         if 100 * n // len(top) >= int(s.get("verdict_organised_pct") or 90):
             half = 0.6 * len(top)
             word = "Rigged" if dev else "Bundled" if nb >= half and nf < half else "Staged" if nf >= half and nb < half else "Cabal"
-            return {"text": word + " launch", "sev": "bad"}
+            return {"text": word + " launch", "sev": "bad",
+                    "tip": f"{n} of the top {len(top)} by PnL are fresh or bundled" + (", and the creator bought" if dev else "") + ": one hand ran this launch"}
     lc = result.get("launch")
     if lc and lc.get("rev") is not None:
         ls = launch_mod.summary(lc, (result.get("info") or {}).get("supply") or 0)
-        if ls.get("pairs") or ls.get("launch_wallets") or ls.get("fee_to"):
-            return {"text": "Organised launch", "sev": "bad"}
+        many = lambda k, w: f"{k} {w}" + ("" if k == 1 else "s")
+        bits = ([many(ls["pairs"], "Jito bundle") + " where one wallet sold and another bought"] if ls.get("pairs") else []) \
+            + ([many(ls["launch_wallets"], "wallet") + " in the creator's own launch bundle"] if ls.get("launch_wallets") else []) \
+            + (["the creator fee goes to another wallet"] if ls.get("fee_to") else [])
+        if bits:
+            return {"text": "Organised launch", "sev": "bad", "tip": "; ".join(bits).capitalize()}
     if dev:
-        return {"text": "Creator bought", "sev": "bad"}
+        return {"text": "Creator bought", "sev": "bad", "tip": "The token's creator bought in this range"}
+    least = int(s.get("feed_fact_min_pct") or 30)
     inv = lambda x: x.get("invested_in_range_usd") or 0
-    sh = _pct(sum(inv(x) for x in rows if in_bundle(x)), sum(inv(x) for x in rows) or 1)
-    if sh >= 10:
-        return {"text": f"{sh}% bundled", "sev": "warn"}
+    bw = [x for x in rows if in_bundle(x)]
+    sh = _pct(sum(inv(x) for x in bw), sum(inv(x) for x in rows) or 1)
+    if sh >= max(10, least):
+        return {"text": f"{sh}% bundled buys", "sev": "warn", "tip": f"{len(bw)} wallets that share a funder bought {sh}% of this range"}
     fr = sum(1 for x in rows if "fresh" in tg(x))
     checked = max(en.get("total") or min(len(rows), int(s.get("age_lookups_max") or 0) or len(rows)), fr) or 1   # чий вік перевіряли
-    if fr >= 10 and fr / checked >= 0.1:
-        return {"text": f"{_pct(fr, checked)}% fresh", "sev": "warn"}
+    if fr >= 10 and _pct(fr, checked) >= max(10, least):
+        return {"text": f"{_pct(fr, checked)}% fresh wallets", "sev": "warn", "tip": f"{fr} of the {checked} wallets checked were under a day old when they bought"}
     return None
 
 

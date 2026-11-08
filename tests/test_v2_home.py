@@ -190,7 +190,7 @@ if AioHTTPTestCase:
             now = int(time.time() * 1000)
             rows = [{"id": f"J{i}", "mint": f"M{i}" * 22, "symbol": f"SYM{i}", "letter": "S", "image": "", "hue": 10, "running": i == 0, "wallets": 5,
                      "cap": None, "made2x": 0, "saved": 3 if i == 1 else 0, "at": now - i * 60_000, "ago": f"{i} min ago",
-                     "fact": {"text": "Staged launch", "sev": "bad"} if i == 2 else {"text": "43% fresh", "sev": "warn"} if i == 3 else None}
+                     "fact": {"text": "Staged launch", "sev": "bad", "tip": "one hand"} if i == 2 else {"text": "43% fresh wallets", "sev": "warn", "tip": "43 of 100"} if i == 3 else None}
                     for i in range(11)]
             with mock.patch.object(app_mod, "_live_feed", return_value={"rows": rows, "day": 9}):
                 html = await self.page()
@@ -205,29 +205,37 @@ if AioHTTPTestCase:
             # owner, 08.11: a row opens the token's chart for one's own range (not that analysis), with one fact beside the name
             self.assertIn('<a class="hm-lrow" href="/token?mint=' + "M2" * 22 + '&amp;src=live"', feed)
             self.assertNotIn('href="/job/', feed)
-            self.assertIn('<span class="hm-flag bad">Staged launch</span>', feed)
-            self.assertIn('<span class="hm-flag warn">43% fresh</span>', feed)
+            self.assertIn('<span class="hm-flag bad" title="one hand">Staged launch</span>', feed)
+            self.assertIn('<span class="hm-flag warn" title="43 of 100">43% fresh wallets</span>', feed)
             self.assertEqual(feed.count("hm-flag"), 2)                               # no fact, no word
 
         def test_a_feed_row_says_what_the_result_would_lead_with(self):
             from tracced.web.app import _feed_fact
-            s = {"age_lookups_max": 200, "verdict_organised_pct": 90}
+            s = {"age_lookups_max": 200, "verdict_organised_pct": 90, "feed_fact_min_pct": 30}
             row = lambda i, tags=(), inv=100: {"wallet": f"W{i}", "tag_list": list(tags), "invested_in_range_usd": inv}
             done = lambda n: {"done": n, "total": n}
             self.assertIsNone(_feed_fact({"rows": [row(i) for i in range(30)]}, s))                       # nothing to say
             staged = {"rows": [row(i, ["fresh"]) for i in range(30)], "enrich": done(30)}
-            self.assertEqual(_feed_fact(staged, s), {"text": "Staged launch", "sev": "bad"})
+            self.assertEqual({k: v for k, v in _feed_fact(staged, s).items() if k != "tip"}, {"text": "Staged launch", "sev": "bad"})
+            self.assertIn("30 of the top 30 by PnL", _feed_fact(staged, s)["tip"])
             staged["enrich"]["done"] = 10                                                                  # ages still coming: no verdict yet
-            self.assertEqual(_feed_fact(staged, s), {"text": "100% fresh", "sev": "warn"})
+            self.assertEqual(_feed_fact(staged, s)["text"], "100% fresh wallets")
             rigged = {"rows": [row(0, ["dev", "fresh"])] + [row(i, ["fresh"]) for i in range(1, 30)], "enrich": done(30)}
             self.assertEqual(_feed_fact(rigged, s)["text"], "Rigged launch")
             self.assertEqual(_feed_fact({"rows": [row(0, ["dev"])] + [row(i) for i in range(1, 30)]}, s)["text"], "Creator bought")
             launch = {"rows": [row(i) for i in range(30)], "launch": {"rev": 2, "pairs": [], "launch": {"wallets": ["W1"]}}, "info": {"supply": 1e9}}
-            self.assertEqual(_feed_fact(launch, s), {"text": "Organised launch", "sev": "bad"})
+            self.assertEqual(_feed_fact(launch, s)["text"], "Organised launch")
+            self.assertEqual(_feed_fact(launch, s)["tip"], "1 wallet in the creator's own launch bundle")
             bundled = {"rows": [row(i, inv=700 if i < 3 else 100) for i in range(30)], "bundle": {f"W{i}": {"funder": "F", "n": 3} for i in range(3)}}
-            self.assertEqual(_feed_fact(bundled, s), {"text": "44% bundled", "sev": "warn"})           # 2,100 of 4,800 in the range
-            fresh = {"rows": [row(i, ["fresh"] if 50 <= i < 62 else []) for i in range(100)], "enrich": done(100)}
-            self.assertEqual(_feed_fact(fresh, s)["text"], "12% fresh")
+            self.assertEqual(_feed_fact(bundled, s)["text"], "44% bundled buys")                     # 2,100 of 4,800 dollars in the range
+            self.assertEqual(_feed_fact(bundled, s)["tip"], "3 wallets that share a funder bought 44% of this range")
+            fresh = {"rows": [row(i, ["fresh"] if 50 <= i < 90 else []) for i in range(100)], "enrich": done(100)}
+            self.assertEqual(_feed_fact(fresh, s)["text"], "40% fresh wallets")
+            self.assertEqual(_feed_fact(fresh, s)["tip"], "40 of the 100 wallets checked were under a day old when they bought")
+            usual = {"rows": [row(i, ["fresh"] if 50 <= i < 64 else []) for i in range(100)], "enrich": done(100)}
+            self.assertIsNone(_feed_fact(usual, s))                                                     # 14% is usual: the feed stays quiet
+            bundled["rows"][0]["invested_in_range_usd"] = bundled["rows"][1]["invested_in_range_usd"] = bundled["rows"][2]["invested_in_range_usd"] = 200
+            self.assertIsNone(_feed_fact(bundled, s))                                                   # 600 of 3,300: 18%, under the bar
 
 if __name__ == "__main__":
     unittest.main()
