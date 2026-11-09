@@ -32,7 +32,7 @@ CASH = {
     "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1",          # bSOL
 }
 CLOSED_SHARE = 99.0          # позиція закрита, коли продано стільки відсотків купленого
-VERSION = 6                  # змінився порахунок — нова версія, і картки з кешу рахуються заново (6: прибуток за датою продажу)
+VERSION = 7                  # змінився порахунок — нова версія, і картки з кешу рахуються заново (6: прибуток за датою продажу; 7: без обмінів із капою понад трильйон)
 RECENT_TRADES = 40           # угод на токен у «Recent tokens»: мітки графіка того токена в картці і «після алертів»
 UNCOVERED = 0.01             # продано понад куплене менше ніж на стільки від купленого — похибка округлення, а не продаж без купівлі
 
@@ -53,6 +53,15 @@ def _leg(raw, side):
             "symbol": tok.get("symbol"), "name": tok.get("name")}
 
 
+# капа понад трильйон доларів — не токен, а зсунута кома в джерела: 09.11 гаманець DtPt… «продав» swordcat по $68 тис.
+# за токен (капа $68 трлн) за 65 тис. SOL, і місяць показав +$30 млн при $18 тис. вкладених. Такий обмін не рахуємо
+MAX_CAP_USD = 1e12
+
+
+def _broken(raw):
+    return any((_num((raw.get(side) or {}).get("marketCap")) or 0) > MAX_CAP_USD for side in ("from", "to"))
+
+
 def normalize_wallet_swap(raw, wallet=None, cash=CASH):
     """Один обмін з `/wallet/{owner}/trades` → 0, 1 або 2 події леджера.
 
@@ -60,7 +69,7 @@ def normalize_wallet_swap(raw, wallet=None, cash=CASH):
     Сума в доларах: обсяг обміну, коли одна нога — гроші; для токен→токен кожна нога рахується з власної ціни."""
     t = to_ms(raw.get("time"))
     w = raw.get("wallet") or wallet
-    if t is None or not w:
+    if t is None or not w or _broken(raw):
         return []
     vol = raw.get("volume")
     vol_usd = _num(vol)

@@ -4,12 +4,12 @@
 
 ## 0.8.0 <span class="ud">Nov 9, 2026</span>
 
-- A new look across the whole site
-- It fills a big screen to the edges
+- A new look across the whole site, from a big screen to a phone
 - Six numbers over the wallets, with the token's main finding
 - Telegram bot: /early with a token's address, in a chat or a group
 - It finds the pump and the early wallets worth a look, with PnL and ROI
 - The launch check's facts, each with its proof
+- Top traders: no wallets whose sales the data source priced wrong
 - A wallet that trades like a bot can't get a bell
 
 ## 0.7.10 <span class="ud">Oct 18, 2026</span>

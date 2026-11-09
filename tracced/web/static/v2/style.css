@@ -2042,10 +2042,13 @@ body { background: transparent; font-variant-numeric: tabular-nums; }
   :root .acct-pill { height: 38px; padding: 0 9px 0 10px; gap: 5px; font-size: var(--fs-caption); }   /* a lone arrow said nothing: the address stays */
   :root .acct-in { height: 38px; padding: 0 14px; }
   .foot { padding: 0 12px; }
-  .foot-in { max-width: none; gap: 10px 18px; padding: 18px 0 22px; }
-  .foot-links { gap: 2px 18px; }
+  /* on a phone the links wrapped one by one and left Contact and the version alone on two more lines (owner, 09.11):
+     even columns, Telegram and the version beside the first row */
+  .foot-in { display: grid; grid-template-columns: 1fr auto; align-items: start; max-width: none; gap: 10px 18px; padding: 18px 0 22px; }
+  .foot-links { display: grid; grid-template-columns: repeat(3, auto); justify-content: start; gap: 2px 18px; }
   .foot-links a { padding: 6px 0; }
   .foot-end a { padding: 8px; margin: -8px 0; }
-  .foot-end { gap: 2px; }
+  .foot-end { margin-left: 0; gap: 2px; padding-top: 6px; }
 }
+@media (max-width: 360px) { .foot-links { grid-template-columns: repeat(2, auto); } }
 @media (hover: none) { .topsearch kbd { display: none; } }

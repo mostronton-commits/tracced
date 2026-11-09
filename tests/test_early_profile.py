@@ -37,6 +37,15 @@ class TestNormalize(unittest.TestCase):
         self.assertEqual((sell["type"], sell["mint"], sell["usd"]), ("sell", "TOKA", 100.0))
         self.assertEqual((buy["type"], buy["mint"], buy["usd"]), ("buy", "TOKB", 100.0))
 
+    def test_a_swap_at_a_trillion_dollar_cap_is_the_source_s_error(self):
+        # 09.11, DtPt… on swordcat: $68K a token, a $68T cap, 65K SOL for one sale; the month showed +$30M
+        bad = swap(1, "TOKA", 106.482, SOL, 65611.6, 7_251_968.0)
+        bad["from"]["marketCap"] = 68_105_107_778_241.98
+        self.assertEqual(events([bad]), [])
+        good = swap(1, "TOKA", 1000, SOL, 1.0, 100.0)
+        good["from"]["marketCap"] = 250_000.0
+        self.assertEqual(len(events([good])), 1)
+
     def test_money_for_money_is_not_a_position(self):
         self.assertEqual(events([swap(1, SOL, 1.0, USDC, 150.0, 150.0)]), [])
 

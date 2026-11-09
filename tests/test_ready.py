@@ -209,7 +209,12 @@ class TestHuman(unittest.TestCase):
         self.assertEqual(ready.not_human(self.row(), self.SEP1, {"first_trade": self.SEP1 - 10 * ready.DAY}), "fresh")
         self.assertEqual(ready.not_human(self.row(), self.SEP1, {"arbitrage": True}), "bot")
         self.assertEqual(ready.not_human(self.row(), self.SEP1, {"type": "exchange"}), "bot")
+        self.assertEqual(ready.not_human(self.row(), self.SEP1, {"avg_buy": 118.98, "avg_sell": 144_998.95}), "data")
+        self.assertIsNone(ready.not_human(self.row(), self.SEP1, {"avg_buy": 300.0, "avg_sell": 2850.0}))
         self.assertIsNone(ready.not_human(self.row(swaps=1501), self.SEP1, {}, {"max_swaps": 2000}))   # межі — з налаштувань
+        # 09.11: +$30.1M from $18K bought, the source's broken sells; a big month on a big stake stays
+        self.assertEqual(ready.not_human(self.row(pnl_usd=30_100_000.0, invested_usd=18_000.0), self.SEP1, {}), "data")
+        self.assertIsNone(ready.not_human(self.row(pnl_usd=2_000_000.0, invested_usd=400_000.0), self.SEP1, {}))
 
 
 class TestClientPaging(unittest.TestCase):
@@ -251,7 +256,7 @@ class TestClientPaging(unittest.TestCase):
         out = st.wallet_summaries(ws + ws[:5])                                       # повтори не питаються двічі
         self.assertEqual([len(b["wallets"]) for _, b in st.bodies], [100, 50])
         self.assertEqual(st.bodies[0][0], "/v2/pnl/wallets/batch")
-        self.assertEqual(out["W000"], {"first_trade": 1_700_000_000_000, "arbitrage": False, "type": "trader"})
+        self.assertEqual(out["W000"], {"first_trade": 1_700_000_000_000, "arbitrage": False, "type": "trader", "avg_buy": None, "avg_sell": None})
         self.assertTrue(out["W009"]["arbitrage"])
 
 
@@ -397,7 +402,13 @@ if AioHTTPTestCase:
             self.assertEqual(self.st.requests, 32)                                         # місяць уже пораховано: до 1-го — ні запиту
             with open(self.tmp.name + "/ready_lists.json") as f:
                 saved = json.load(f)
-            self.assertEqual((saved["v"], set(saved["lists"])), (5, {SLUG, "top-roi"}))      # після перезапуску — з файлу
+            self.assertEqual((saved["v"], set(saved["lists"])), (6, {SLUG, "top-roi"}))      # після перезапуску — з файлу
+
+        async def test_a_wallet_taken_out_after_a_check_stays_out(self):
+            self.app["s"]["ready_exclude"] = [addr("K", 1)]                                 # owner, 09.11: the top is checked twice
+            t = (await self.refresh())[SLUG]
+            self.assertNotIn(addr("K", 1), [r["wallet"] for r in t["rows"]])
+            self.assertIn(["taken out after a check", 1], t["funnel"]["reasons"])
 
         async def test_a_new_month_counts_again_but_not_after_every_failure(self):
             await self.refresh()
