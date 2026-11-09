@@ -210,6 +210,9 @@ class TestHuman(unittest.TestCase):
         self.assertEqual(ready.not_human(self.row(), self.SEP1, {"arbitrage": True}), "bot")
         self.assertEqual(ready.not_human(self.row(), self.SEP1, {"type": "exchange"}), "bot")
         self.assertIsNone(ready.not_human(self.row(swaps=1501), self.SEP1, {}, {"max_swaps": 2000}))   # межі — з налаштувань
+        # 09.11: +$30.1M from $18K bought, the source's broken sells; a big month on a big stake stays
+        self.assertEqual(ready.not_human(self.row(pnl_usd=30_100_000.0, invested_usd=18_000.0), self.SEP1, {}), "data")
+        self.assertIsNone(ready.not_human(self.row(pnl_usd=2_000_000.0, invested_usd=400_000.0), self.SEP1, {}))
 
 
 class TestClientPaging(unittest.TestCase):
@@ -397,7 +400,7 @@ if AioHTTPTestCase:
             self.assertEqual(self.st.requests, 32)                                         # місяць уже пораховано: до 1-го — ні запиту
             with open(self.tmp.name + "/ready_lists.json") as f:
                 saved = json.load(f)
-            self.assertEqual((saved["v"], set(saved["lists"])), (5, {SLUG, "top-roi"}))      # після перезапуску — з файлу
+            self.assertEqual((saved["v"], set(saved["lists"])), (6, {SLUG, "top-roi"}))      # після перезапуску — з файлу
 
         async def test_a_new_month_counts_again_but_not_after_every_failure(self):
             await self.refresh()

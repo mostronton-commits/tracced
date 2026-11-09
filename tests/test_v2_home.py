@@ -222,7 +222,7 @@ if AioHTTPTestCase:
             self.assertEqual(_feed_fact(staged, s)["text"], "100% fresh wallets")
             rigged = {"rows": [row(0, ["dev", "fresh"])] + [row(i, ["fresh"]) for i in range(1, 30)], "enrich": done(30)}
             self.assertEqual(_feed_fact(rigged, s)["text"], "Rigged launch")
-            self.assertEqual(_feed_fact({"rows": [row(0, ["dev"])] + [row(i) for i in range(1, 30)]}, s)["text"], "Creator bought")
+            self.assertIsNone(_feed_fact({"rows": [row(0, ["dev"])] + [row(i) for i in range(1, 30)]}, s))   # the creator alone says nothing (owner, 09.11)
             launch = {"rows": [row(i) for i in range(30)], "launch": {"rev": 2, "pairs": [], "launch": {"wallets": ["W1"]}}, "info": {"supply": 1e9}}
             self.assertEqual(_feed_fact(launch, s)["text"], "Organised launch")
             self.assertEqual(_feed_fact(launch, s)["tip"], "1 wallet in the creator's own launch bundle")

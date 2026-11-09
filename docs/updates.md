@@ -4,6 +4,8 @@
 
 ## 0.8.1 <span class="ud">Nov 9, 2026</span>
 
+- Top traders: a wallet whose sales the data source priced wrong is out
+- Live on tracced: no more "Creator bought"
 - On a phone, the tour points at the first wallet and the star
 - A tidy footer on a phone
 

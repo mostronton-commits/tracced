@@ -4436,7 +4436,7 @@ def _ready_load(path):
     return {"lists": {}, "at": 0, "busy": False}
 
 
-READY_FORMAT = 5             # 08.10: один список з KOL і рейтингу, за місяць, наш леджер, лише люди; v5 — з прикладом алерту
+READY_FORMAT = 6             # 6 (09.11): без обмінів із капою понад трильйон; 08.10: один список з KOL і рейтингу, за місяць, наш леджер, лише люди; v5 — з прикладом алерту
                               # для картки поруч; старі файли не читаємо: після деплою список рахується заново (~1 800 запитів)
 
 
@@ -4737,8 +4737,8 @@ def _feed_fact(result, s):
             + (["the creator fee goes to another wallet"] if ls.get("fee_to") else [])
         if bits:
             return {"text": "Organised launch", "sev": "bad", "tip": "; ".join(bits).capitalize()}
-    if dev:
-        return {"text": "Creator bought", "sev": "bad", "tip": "The token's creator bought in this range"}
+    # «Creator bought» сам по собі нічого не казав (власник, 09.11): чи продав творець — видно в терміналах; лишається
+    # лише в «Rigged launch», де творець — частина організованого запуску
     least = int(s.get("feed_fact_min_pct") or 30)
     inv = lambda x: x.get("invested_in_range_usd") or 0
     bw = [x for x in rows if in_bundle(x)]
