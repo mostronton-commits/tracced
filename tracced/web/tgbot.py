@@ -38,6 +38,19 @@ def parse_early(text, bot_name="", private=False):
     return None
 
 
+def parse_prism(text, bot_name=""):
+    """The owner's hidden command (09.11), not in the bot's menu: '/prism' → "" (the live panel), '/prism <mint>' → the
+    mint (/early as a widget card), anything else → None. Whose message it is, app.py checks."""
+    parts = str(text or "").strip().split()
+    if not parts:
+        return None
+    cmd, _, to = parts[0].partition("@")
+    if cmd.lower() != "/prism" or (to and bot_name and to.lower() != bot_name.lower()):
+        return None
+    arg = parts[1] if len(parts) > 1 else ""
+    return arg if ADDR.match(arg) else "" if not arg else None
+
+
 ZONE_X, PUMP_X, NEW_HIGH_X = 1.5, 3.0, 2.0   # a range: highest close within 1.5x the lowest; a pump: 3x its low,
                                          # or 2x to a new high since the migration (LILLY, 21.10: a 2x bounce inside
                                          # the range it had kept for two days is not a pump)

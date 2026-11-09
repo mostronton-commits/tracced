@@ -48,7 +48,7 @@ from . import demo as demo_mod
 from . import replay
 from . import partner_api as api_mod
 from . import usage as usage_mod
-from . import tgbot
+from . import tgbot, tgwidget
 from .agent_store import AgentStore
 from .feedback import FeedbackStore, KINDS as FEEDBACK_KINDS, MAX_CONTACT as FEEDBACK_CONTACT, MAX_PAGE as FEEDBACK_PAGE, MAX_TEXT as FEEDBACK_TEXT
 from .feedback import links as feedback_links
@@ -2045,12 +2045,17 @@ async def _tg_window(app, mint, info, who):
 def _tg_admin(app, user_id):
     """Чи пише власник: його Telegram прив'язаний до гаманця з ADMIN_WALLETS (власник, 21.10: уперся в 5 аналізів на день,
     перевіряючи бота). Як на сайті — без денних лічильників чату й бота; стеля одного прогону лишається."""
+    return _tg_admin_pk(app, user_id) is not None
+
+
+def _tg_admin_pk(app, user_id):
+    """Гаманець власника, до якого прив'язаний цей Telegram, або None."""
     if not isinstance(user_id, int) or not app["admins"]:
-        return False
-    return any((app["accounts"].load(pk).get("telegram") or {}).get("chat") == user_id for pk in app["admins"])
+        return None
+    return next((pk for pk in sorted(app["admins"]) if (app["accounts"].load(pk).get("telegram") or {}).get("chat") == user_id), None)
 
 
-async def _tg_new_job(app, chat, mint, who=None, admin=False):
+async def _tg_new_job(app, chat, mint, who=None, admin=False, window_ms=None):
     """Новий аналіз для /early: вікно — з _tg_window. Стелі: чат і бот за добу, прогони водночас, місячний резерв і денний
     бюджет запитів — ті самі, що в Analyze на сайті; власник — без денних лічильників. Витрати пишуться на чат (who).
     → (job, чи це новий аналіз)."""
@@ -2070,7 +2075,7 @@ async def _tg_new_job(app, chat, mint, who=None, admin=False):
     who = who or {}
     info, _ = await _overview(app, mint, None, "system", via="tg", **who)
     now = int(time.time() * 1000)
-    t_from, t_to = await _tg_window(app, mint, info, who)
+    t_from, t_to = window_ms or await _tg_window(app, mint, info, who)     # window_ms: розмічене на картці-віджеті
     max_h = float(s.get("max_window_hours", 6) or 6)
     errs = window.validate(t_from, t_to, info.get("created_time"), now, max_window_ms=int(max_h * HOUR))
     if errs:
@@ -2102,7 +2107,7 @@ async def _tg_new_job(app, chat, mint, who=None, admin=False):
     return job, True
 
 
-async def _tg_early(app, http, msg, mint):
+async def _tg_early(app, http, msg, mint, widget=False, window_ms=None):
     """/early <mint>: одразу «дивлюсь», далі те саме повідомлення оновлюється — гаманці, коли аналіз готовий, і факти
     запуску, коли пройде перевірка. Готовий аналіз токена нічого не коштує; новий — у межах стель _tg_new_job."""
     chat_o = msg.get("chat") or {}
@@ -2118,16 +2123,16 @@ async def _tg_early(app, http, msg, mint):
                               text=f"Looking at {html_mod.escape(tgbot.short(mint))}…", disable_web_page_preview=True,
                               reply_parameters={"message_id": msg.get("message_id"), "allow_sending_without_reply": True})
         mid = sent["message_id"]
-        job, new, who = _tg_existing(app, mint), False, _tg_who(chat_o)
+        job, new, who = None if window_ms else _tg_existing(app, mint), False, _tg_who(chat_o)
         try:
             if job is None:
-                job, new = await _tg_new_job(app, chat, mint, who, admin)
+                job, new = await _tg_new_job(app, chat, mint, who, admin, window_ms)
         except WebError as e:
             app["events"].add("system", "tg_early", mint=mint, refused=str(e)[:80], **who)
             await _tg_edit(app, http, chat, mid, html_mod.escape(str(e), quote=False))
             return
-        app["events"].add("system", "tg_early", job=job.id, symbol=job.symbol, new=int(new), **who)
-        entry = {"chat": chat, "mid": mid, "job": job.id, "at": time.time()}
+        app["events"].add("system", "tg_early", job=job.id, symbol=job.symbol, new=int(new), **who, **({"via": "prism"} if widget else {}))
+        entry = {"chat": chat, "mid": mid, "job": job.id, "at": time.time(), **({"w": 1} if widget else {})}
         await _tg_watch(app, http, entry)
     except asyncio.CancelledError:
         raise
@@ -2196,16 +2201,121 @@ async def _tg_watch(app, http, e):
                 last = text
             named = r.get("identities_done") or app["jobs"].namer is None or time.time() * 1000 - (job.finished_ms or 0) > 180_000
             if not waiting and named:
+                if e.get("w"):                                  # /prism: картка-віджет замість тексту, текст прибираємо
+                    await _tg_card(app, http, chat, mid, job, rows, info, ratio)
                 return
             await asyncio.sleep(15)
     finally:
         _tg_pending_set(app, pkey, None)
 
 
+async def _tg_card(app, http, chat, mid, job, rows, info, ratio):
+    """/prism: відповідь /early карткою-віджетом (Bot API 10.4; поки лише особистий чат). Графік — хвилинні свічки від
+    години до вікна до двох після (кеш спільний із графіком сайту, 1–2 запити); вікно затінене, двома тапами розмічається
+    інше. Не влізло чи Telegram відмовив — лишається текстова відповідь."""
+    s, r = app["s"], job.result
+    now = int(time.time() * 1000)
+    around = (job.t_from - HOUR, min(now, job.t_to + 2 * HOUR))
+    who = {"tg_chat": chat, "tg_kind": "private"}
+
+    def load():
+        st = app["st"]
+        with st.meter():
+            req0 = st.requests_here()
+            try:
+                return pipeline._chart(st, job.mint, "1m", around[0], around[1], info)
+            finally:
+                _spend(app, "system", "tg-card", st=st.requests_here() - req0, mint=job.mint, **who)
+    try:
+        pts = tgbot.caps(await asyncio.to_thread(load), info.get("supply") or 0)
+    except Exception as e:  # noqa: BLE001 — без графіка картка однаково корисна
+        log.warning("telegram card chart %s: %s", job.mint[:6], e)
+        pts = []
+    page = tgwidget.early_card(job.symbol or info.get("symbol"), job.mint, job.t_from, job.t_to, rows,
+                               r.get("identities") or {}, r, pts, job.id, _site_url(app),
+                               creator=info.get("creator") or info.get("deployer"),
+                               min_profit=float(s.get("tg_top_min_profit_usd", 250)),
+                               min_mult=float(s.get("tg_top_min_multiple", 2)), price_ratio=ratio, around=around)
+    if not tgwidget.fits(page):
+        log.warning("telegram card %s: %s bytes, over the widget limit", job.id, tgwidget.sizes(page))
+        return False
+    sym = html_mod.escape(str(job.symbol or tgbot.short(job.mint))[:16])
+    try:
+        await _tg_call(http, app["tg"]["token"], "sendWidget", chat_id=chat, html=page, allow_queries=True,
+                       caption=f"<b>${sym}</b> early wallets · <a href=\"{_site_url(app)}/job/{job.id}\">open on tracced</a>",
+                       parse_mode="HTML")
+    except Exception as e:  # noqa: BLE001
+        log.warning("telegram card %s: %s", job.id, e)
+        return False
+    with contextlib.suppress(Exception):
+        await _tg_call(http, app["tg"]["token"], "deleteMessage", chat_id=chat, message_id=mid)
+    return True
+
+
+async def _tg_panel_stats(app):
+    """Цифри живої панелі власника: те саме, що плитки й лічильники /admin за сьогодні."""
+    budget = await _budget(app)
+    u = await _usage_summary(app, "today", False, budget)
+    meters = usage_mod.credit_meters(budget, now_ms=int(time.time() * 1000))
+    running = sum(1 for j in list(app["jobs"].jobs.values()) if j.status in ("queued", "running") and not j.replay)
+    return tgwidget.panel_stats(u.get("pulse") or {}, meters, running, app["alerts_state"])
+
+
+async def _tg_prism(app, http, msg, arg):
+    """/prism — прихована команда власника (09.11): без адреси — жива панель «сьогодні», з адресою — /early карткою.
+    Будь-кому іншому бот відповідає так само, як на незнайому команду."""
+    chat_o = msg.get("chat") or {}
+    chat = chat_o.get("id")
+    owner = await asyncio.to_thread(_tg_admin, app, (msg.get("from") or {}).get("id"))
+    if not owner or chat_o.get("type") != "private":
+        reply = await asyncio.to_thread(tg_reply, app, {"message": msg})
+        if reply:
+            await _tg_send(app, http, *reply)
+        return
+    if arg:
+        await _tg_early(app, http, msg, arg, widget=True)
+        return
+    try:
+        stats = await _tg_panel_stats(app)
+    except Exception as e:  # noqa: BLE001 — панель домалює цифри сама за 5 с
+        log.warning("telegram panel: %s", e)
+        stats = None
+    await _tg_call(http, app["tg"]["token"], "sendWidget", chat_id=chat, html=tgwidget.panel_card(stats), allow_queries=True)
+
+
+async def _tg_widget_query(app, http, q):
+    """Запит із картки-віджета. Відповідь — завжди і до 15 с (інакше в картці «TIMEOUT»), не більше 1 КБ. Поки картки лише
+    у власника, тож і запити — лише від нього: решті «no»."""
+    answer = "no"
+    try:
+        pk = await asyncio.to_thread(_tg_admin_pk, app, (q.get("from") or {}).get("id"))
+        what = tgwidget.parse_query(q.get("data"))
+        if pk and what:
+            if what[0] == "stats":
+                answer = json.dumps(await asyncio.wait_for(_tg_panel_stats(app), 10), separators=(",", ":"))[:1024]
+            elif what[0] == "follow":
+                added, _ = await asyncio.to_thread(app["accounts"].add_wallets, pk, [{"wallet": what[1]}])
+                app["events"].add(pk, "save_wallets", n=added, via="tg-card")
+                answer = "ok"
+            elif what[0] == "range":
+                chat = (q.get("chat") or {}).get("id")
+                msg = {"message_id": q.get("message_id"), "chat": q.get("chat") or {}, "from": q.get("from") or {}}
+                _tg_task(app, _tg_early(app, http, msg, what[1], widget=True, window_ms=(what[2], what[3])))
+                answer = "ok" if isinstance(chat, int) else "no"
+    except acct_mod.AccountError as e:
+        answer = str(e)[:200]
+    except Exception as e:  # noqa: BLE001
+        log.warning("telegram widget query: %s", e)
+        answer = "Failed: try on the site"
+    with contextlib.suppress(Exception):
+        await _tg_call(http, app["tg"]["token"], "answerWidgetQuery", widget_query_id=q.get("id"), data=answer)
+
+
 async def _tg_bot_loop(app):
     """Бот: довге опитування getUpdates. /start і /stop — прив'язка сповіщень; /early — ранні гаманці токена (20.10),
     кожна відповідь своєю задачею. Ключ не потрапляє в журнал."""
     token, offset = app["tg"]["token"], 0
+    kinds = ["message", "widget_query", "shared_widget_query"]
     async with aiohttp.ClientSession(headers=UA_HEADERS) as http:
         for e in list(app["tg_pending"].values()):             # відповіді, які оновлювались до перезапуску
             if time.time() - float(e.get("at") or 0) < 2 * 3600 and e.get("chat") and e.get("mid") and e.get("job"):
@@ -2220,11 +2330,29 @@ async def _tg_bot_loop(app):
                     app["alerts_state"]["bot"] = app["tg"]["name"]
                     with contextlib.suppress(Exception):        # підказка команд у полі вводу: без неї бот працює так само
                         await _tg_call(http, token, "setMyCommands", commands=tgbot.COMMANDS)
-                ups = await _tg_call(http, token, "getUpdates", offset=offset, timeout=30, allowed_updates=["message"])
+                try:                                    # тапи в картках /prism — нові типи (Bot API 10.4, 09.11)
+                    ups = await _tg_call(http, token, "getUpdates", offset=offset, timeout=30, allowed_updates=kinds)
+                except TgError as e:
+                    if e.code != 400 or kinds == ["message"]:
+                        raise
+                    log.warning("telegram bot: %s; listening to messages only", e)
+                    kinds = ["message"]                 # Telegram не прийняв нові типи: бот працює, як до 09.11
+                    continue
                 for u in ups or []:
                     offset = max(offset, int(u.get("update_id") or 0) + 1)
+                    if u.get("widget_query"):                   # тап у картці-віджеті (/prism)
+                        _tg_task(app, _tg_widget_query(app, http, u["widget_query"]))
+                        continue
+                    if u.get("shared_widget_query"):            # пересланих карток у нас нема: відповідь порожня
+                        with contextlib.suppress(Exception):
+                            await _tg_call(http, token, "answerWidgetQuery", widget_query_id=u["shared_widget_query"].get("id"))
+                        continue
                     m = u.get("message") or {}
                     chat_o = m.get("chat") or {}
+                    prism = tgbot.parse_prism(m.get("text"), app["tg"]["name"])
+                    if prism is not None and isinstance(chat_o.get("id"), int):
+                        _tg_task(app, _tg_prism(app, http, m, prism))
+                        continue
                     mint = tgbot.parse_early(m.get("text"), app["tg"]["name"], chat_o.get("type") == "private")
                     if mint is not None and isinstance(chat_o.get("id"), int):
                         if mint:
