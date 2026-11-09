@@ -4,152 +4,69 @@ Every figure on a result page comes from a swap that happened. Here is the path 
 
 ## The range picks wallets, not numbers
 
-The range decides **which wallets appear**. Their numbers come from all of that wallet's trades on the token:
-before the range, inside it, after it.
-
-So a wallet can show a bigger total than what it spent in your range: it was buying earlier too.
-
-The scope switch above the table recounts the same stored trades up to 24 or 48 hours after the range. It costs
-nothing: the trades are already here.
+The range decides **which wallets appear**. Their numbers come from all of that wallet's trades on the token: before the
+range, inside it, after it. So a wallet can show a bigger total than what it spent in your range: it was buying earlier too.
 
 ## Fresh pumps on the home page
 
 Tokens created in the last {{ s.fresh_hours|int }} hours with a market cap of ${{ (s.fresh_min_mcap / 1000)|int }}K or more,
 ${{ (s.fresh_min_liquidity / 1000)|int }}K of liquidity, ${{ (s.fresh_min_vol_24h / 1000)|int }}K traded in a day and {{ s.fresh_min_holders|int }}+ holders.
-Clones with huge caps and no trading, and charts bought by one bot, are filtered out. Each one shows its market cap
-now and the peak it reached. Biggest peak first; the list is refreshed at most every {{ s.fresh_refresh_min|int }}
-minutes. A click opens the chart, where you mark the range.
+Clones with huge caps and no trading, and charts bought by one bot, are filtered out. A tile's size is its market cap now,
+its colour how close it still is to its peak. The list is refreshed at most every {{ s.fresh_refresh_min|int }} minutes. A
+click opens the chart.
 
 ## Ready lists
 
-**Top traders** on the home page: up to ten wallets that made the most last month and trade like people, for when
-you have no token to start from. The September list stays the same all October; on the 1st of the month (UTC) the
-next one is counted. Beside it, a card says why it is worth following.
+**Top traders**: up to ten wallets that made the most last month and trade like people, for when you have no token to start
+from. On the 1st of the month (UTC) the next list is counted.
 
-The candidates are known KOLs and the best of the market from Solana Tracker's rankings. How much each one made,
-tracced counts itself, from the wallet's own swaps over the whole month, the same way as its card. The rankings count
-as profit the tokens that came from another wallet with no purchase; we leave out a sale with no purchase found under
-it. A swap of a memecoin into a tokenized stock (RACE, SKHY, SPCX) is a real exit and counts at the stock's price.
+The candidates are known KOLs and the best of public PnL rankings. How much each one made, tracced counts itself, from
+the wallet's own swaps over the month, the same way as its card. A sale with no purchase under it is left out: the rankings
+count such tokens as profit. A swap of a memecoin into a tokenized stock (RACE, SKHY, SPCX) is a real exit and counts at the
+stock's price.
 
-Only people stay, not machines. A wallet is left out when, in the month, it made more than
-{{ '{:,}'.format(s.ready_human.max_swaps) }} swaps or traded more than {{ s.ready_human.max_tokens }} tokens, closed fewer than
-{{ s.ready_human.min_closed }} positions, won less than {{ s.ready_human.win_rate[0] }} % or more than {{ s.ready_human.win_rate[1] }} % of
-them, held a position less than {{ s.ready_human.min_hold_min }} minutes on average or closed most of them within a minute (a
-sniper's pace), started trading less than {{ s.ready_human.min_age_days }} days before the month began (a fresh wallet), or is
-marked a bot, an exchange or an arbitrageur. Of the rest, the list keeps the ones that made more than
-${{ '{:,}'.format(s.ready_min_pnl|int) }} in the month, best first.
+A wallet is left out when, in the month, it:
 
-The list's page opens with a connected wallet. Its rows are the month's numbers; a row opens the wallet's card, the
-same card as on a result, with its last 7 and 30 days, and under them **Best** shows the tokens it made its profit on. Beside
-the list, **Best ROI** ranks the same kind of people by the profit on what they bought in the month (at least
-${{ '{:,}'.format(s.ready_roi_min_invested|int) }} in and ${{ '{:,}'.format(s.ready_roi_min_pnl|int) }} made), with its own
-candidates from Solana Tracker's ranking by return. **Follow** puts a copy of the list in your watchlist, under the
-same name, with the bells on while your account has bells left. The copy is yours: next month's list does not change
-it; your watchlist says when the new one is out.
+- made more than {{ '{:,}'.format(s.ready_human.max_swaps) }} swaps or traded more than {{ s.ready_human.max_tokens }} tokens;
+- closed fewer than {{ s.ready_human.min_closed }} positions, or won less than {{ s.ready_human.win_rate[0] }} % or more than {{ s.ready_human.win_rate[1] }} % of them;
+- held less than {{ s.ready_human.min_hold_min }} minutes on average, or closed most positions within a minute;
+- started trading less than {{ s.ready_human.min_age_days }} days before the month began;
+- is marked a bot, an exchange or an arbitrageur.
+
+Of the rest, the list keeps those that made more than ${{ '{:,}'.format(s.ready_min_pnl|int) }}, best first.
+
+**Best ROI** ranks the same kind of people by profit on what they bought in the month (at least
+${{ '{:,}'.format(s.ready_roi_min_invested|int) }} in and ${{ '{:,}'.format(s.ready_roi_min_pnl|int) }} made).
+
+A list opens with a connected wallet. **Follow** puts a copy in your watchlist with the bells on while your account has bells
+left. The copy is yours: next month's list does not change it.
 
 ## The numbers under the chart
 
-One strip under the chart, a number and a word each. A click on a number shows exactly those wallets, or sorts by it.
+Six cells. A click on one that can be clicked shows exactly those wallets, or sorts by it.
 
-Always there:
-
-- **bought**: the wallets that bought in the range, the list below. Its **i** says how they were counted.
-- **spent**: what they spent in the range.
+- **wallets bought**: the list below. Its **i** says how they were counted, and turns into **!** when exits are not known
+  for every wallet.
+- **spent**: what they spent inside the range.
+- **realized profit**: what they took out above what it cost them, profits against losses on the scale.
+- **in profit**: the share with a realized profit.
 - **sold out**: the share that sold 99% or more of what they bought.
-- **holding**: the share that sold less than half.
-- **best ROI**: the highest average exit cap ÷ average entry cap among them.
+- **the token's main finding**, the first of these that holds:
 
-Then up to four findings, each only when it says something:
+| Finding | Shown when |
+|---|---|
+| organised launch | the launch check found facts (below) |
+| creator bought | the token's creator bought in the range |
+| bundled | wallets that share a funder made 10% or more of the buying |
+| fresh | 10 or more wallets, and 10% of those checked, were under a day old when they bought |
+| profit to the top 10 | the ten best took 40% or more of the profit, with 20+ wallets in profit |
+| seen before | with a wallet connected, 3+ wallets were early in your other saved analyses too |
+| from exchanges | 10 or more wallets, and 5% of those with a known funder, were funded straight from an exchange |
 
-- **creator bought**: the token's creator bought in the range, and how much.
-- **bundled**: wallets that share a funder made that share of the range's buying (shown from 10%).
-- **fresh**: of the wallets checked for age, the share under a day old when they bought (shown from 10 wallets and
-  10%).
-- **to top 10**: the ten most profitable wallets' share of all the profit made (shown from 20 wallets in profit and
-  40%).
-- **seen before**: with a wallet connected, wallets that were early in your other saved analyses too (shown from 3).
-- **from exchanges**: of the wallets whose first funder is known, the share funded straight from an exchange (shown
-  from 10 wallets and 5%).
-- **in profit**: wallets with a realized profit (shown from 20 wallets).
+With nothing to say, the cell shows **still holding**: the share that sold less than half.
 
-## Where the numbers come from
-
-Every row is a swap recorded on chain. Market cap is the swap price times the token supply, so an entry cap is the
-cap at that exact trade.
-
-The chart can have a gap, often right after a token leaves pump.fun, and that is usually the pump itself. Once a
-range is analyzed, the chart fills the gap with candles built from that analysis's own trades.
-
-**Held** is how long a wallet held what it sold, on average, weighted by amount. A wallet that sells $999 of its
-$1,000 two seconds after buying and keeps the last $1 for a day held about a minute and a half, not two seconds and
-not a day. What it still holds is not counted: the table shows it apart. The card's **average hold** over 7 or 30
-days is counted the same way, position by position.
-
-The range is always read in full. The **i** after the counts above the chart says for how many wallets exits are
-known, and how many traded in the range but stay out of the table (too small, or only sold); it turns into **!** when
-exits are not known for every wallet.
-
-## How long it takes
-
-A busy token takes seconds, not minutes.
-
-The result page stays light however many wallets it holds. The table arrives as numbers, the first hundred rows
-are drawn and more on request, and sorting, filters and export work on the numbers, so a result with
-thousands of wallets opens and sorts at once, on a phone too.
-
-!!! info "🔧 Checked on the way in"
-    Every history is checked for completeness, and trades that arrive with a broken token amount are repaired;
-    the count is shown with the results. The dollar amounts are never touched.
-
-## Dollars or SOL
-
-The `USD | SOL` switch above the table changes the unit of every amount that came from a swap: spent, sold, made.
-
-Nothing is converted at today's rate. Both figures were recorded by the same swap, so the SOL amount is what
-actually moved on chain and the dollar amount is what it was worth then. Profit is counted the same way in both
-units, from the cost of the tokens actually sold, so the two never disagree.
-
-What a wallet still holds stays in dollars. It is a valuation at a later price, not a swap that happened.
-
-## What the token itself did
-
-Two events are marked on the price itself: **M** where trading left the launchpad, the DexScreener logo where
-someone paid DexScreener to show the token's profile. Each badge sits above the candle where the event happened;
-hover it for the time and the detail. **⇤ Launch** under the chart brings the first hours of trading into view.
-Together the two events often explain the timing of a run.
-
-!!! warning "💸 Paid by someone, not necessarily the team"
-    Anyone can pay for a token's profile. The badge says a payment happened and when, and nothing about who made
-    it.
-
-## Age and funding
-
-Two facts are not trades: a wallet's age is its first transaction ever, and its funder is whoever sent it its first
-SOL. They are what `fresh` and `bundle` are built from. The same check reads the transaction right before the wallet's
-first buy here: when it is a week old or older, the wallet slept until this token and gets `dormant`.
-
-The first {{ s.age_lookups_max }} wallets by PnL, the ones that made money on the token, are checked in the
-background after the table is already on screen. Any other wallet is checked the moment its card is opened, and the
-answer stays in the result for everyone. When a funder cannot be found, it stays empty instead of guessed.
-
-A `bundle` is three or more wallets here whose first SOL came from the same wallet. An exchange or an app funds
-thousands of wallets that have nothing to do with each other, at any time. From such a busy funder, only the wallets
-it funded close together in time form a bundle: that is how one operator creates wallets for a launch. The rest stay
-out of any bundle. In the PAID demo most of what looked like bundles was one app's service wallet (154 of
-the buyers) and an exchange (33). On another token, one wallet created 200 wallets in 41 minutes, and all of them bought
-within minutes of the launch: that is still a bundle, however busy its funder.
-
-When the first SOL came straight from a known exchange, the wallet's card says "funded by" and the exchange's name
-instead of an address. From an exchange, as from any busy funder, only wallets created close together make a bundle.
-Funders our own list of exchange wallets does not know are looked up in the labels of [InsightX](https://insightx.network):
-the card then says the funder is an exchange, an app or a casino, such a funder makes no bundle, and its wallets count
-among those funded from exchanges in the strip under the chart. The names stay with InsightX.
-
-In the table a bundle's tag takes one colour per funder, so two bundles side by side are told apart; a click on the tag
-shows that bundle alone.
-
-When nearly all of the top {{ s.age_lookups_max }} by PnL are fresh or in bundles, one hand ran the launch and little
-in the list is organic buying. A red word, first among the findings under the chart, says which kind:
+When nearly all of the top {{ s.age_lookups_max }} by PnL are fresh or in bundles, one hand ran the launch and little in the
+list is organic buying. A red word takes the cell:
 
 | Word | The top is made of |
 |---|---|
@@ -158,103 +75,111 @@ in the list is organic buying. A red word, first among the findings under the ch
 | Staged | mostly fresh wallets, made for the launch, without one funder |
 | Cabal | both at once: fresh wallets from shared funders |
 
-Until the check reaches a wallet, `fresh`, `bundle` and the filters that hide them do not know about it yet. Below
-the first {{ s.age_lookups_max }} they stay unknown unless a card is opened: a bundle there counts only the wallets
-that were checked. When the check is paused, the page says so.
+## Where the numbers come from
+
+Every row is a swap recorded on chain. Market cap is the swap price times the token supply, so an entry cap is the cap at that
+exact trade. The range is always read in full.
+
+The chart can have a gap, often right after a token leaves pump.fun, and that is usually the pump itself. Once a range is
+analyzed, the chart fills the gap with candles built from that analysis's own trades.
+
+**Held** is how long a wallet held what it sold, on average, weighted by amount. A wallet that sells $999 of its $1,000 two
+seconds after buying and keeps the last $1 for a day held about a minute and a half. What it still holds is not counted.
+
+**ROI** is the average exit cap over the average entry cap, buys before and after the range included: `2×` is +100%. Hover it
+for the percent.
+
+!!! info "Checked on the way in"
+    Every history is checked for completeness, and trades that arrive with a broken token amount are repaired. The dollar
+    amounts are never touched.
+
+## Dollars or SOL
+
+The `USD | SOL` switch over the chart changes the unit of every amount that came from a swap. Nothing is converted at today's
+rate: both figures were recorded by the same swap, so the two never disagree. What a wallet still holds stays in dollars: it
+is a valuation at a later price, not a swap.
+
+## What the token itself did
+
+Two events are marked on the chart: **Migrated** where trading left the launchpad, the DexScreener logo where someone paid
+DexScreener to show the token's profile. Hover one for the time. **First hours** on the chart brings the start of trading into
+view.
+
+!!! warning "Paid by someone, not necessarily the team"
+    Anyone can pay for a token's profile. The badge says a payment happened and when, nothing about who made it.
+
+## Age and funding
+
+A wallet's age is its first transaction ever, and its funder is whoever sent it its first SOL. They are what `fresh` and `bundle`
+are built from. When the transaction right before a wallet's first buy here is a week old or older, it slept until this token and
+gets `dormant`.
+
+The first {{ s.age_lookups_max }} wallets by PnL are checked in the background after the table is on screen. Any other wallet
+is checked when its card is opened, and the answer stays in the result for everyone. A funder that cannot be found stays empty
+instead of guessed. Until the check reaches a wallet, `fresh`, `bundle` and the filters that hide them do not know about it.
+
+A `bundle` is three or more wallets here whose first SOL came from the same wallet. An exchange or an app funds thousands of
+unrelated wallets, so from such a busy funder only wallets funded close together in time form a bundle: that is how one operator
+creates wallets for a launch. In the table a bundle's tag has one colour per funder; a click shows that bundle alone.
+
+When the first SOL came straight from a known exchange, the card names it. Funders our own list does not know are looked up in
+address labels: an exchange, an app or a casino makes no bundle, and its wallets count among
+those funded from exchanges.
 
 ## Organised launches
 
-After the table, tracced checks how the token was launched, from two free sources, and adds only facts with a proof
-(owner, 14.10). There is no score.
+After the table, tracced checks how the token was launched, from two free sources, and adds only facts with a proof. There is
+no score.
 
-- **Jito bundles of the first {{ (s.launch_window_s / 60)|int }} minutes.** Each early sale is looked up at Jito, first
-  those with another wallet's buy in the same second: when that wallet bought in the same bundle, both get
-  `own-bundle`. Wallets in the bundle of the transaction that created the token get `launch-bundle`.
-- **The creator fee.** pump.fun lets a creator send the fee from every trade to another wallet. tracced reads where
-  it was sent and how much SOL it has paid out so far.
+- **Jito bundles of the first {{ (s.launch_window_s / 60)|int }} minutes.** Early sales are looked up at Jito: wallets that
+  bought in one bundle get `own-bundle`, those in the bundle that created the token get `launch-bundle`.
+- **The creator fee.** pump.fun lets a creator send the fee from every trade to another wallet. tracced reads where it went and
+  how much SOL it has paid out.
 
-When any of it is found, the strip above the table says **organised launch**, with the facts on hover; a click shows
-exactly those wallets. Such wallets are never in the ready lists of top traders.
-
-On one launch we checked by hand, 14 of the 20 most profitable early wallets belonged to the launch itself. These
-checks catch the ones that traded inside the launch's own bundles; wallets tied to it only by later shared signatures
-are not caught yet.
+Such wallets are never in the ready lists. Wallets tied to a launch only by later shared signatures are not caught yet.
 
 ## The wallet card
 
-Click a wallet's address, or anywhere else in its row. The chart mark before it, which comes out with the star when the
-pointer is over the row, puts its buys and sells on the chart instead, in the wallet's own colour. In the card, a click on
-the address copies it. On a phone each wallet is one line, its PnL and ROI on the right; a tap opens the card from the
-bottom of the screen, and a tap above it or pulling it down closes it. The card shows, top to bottom:
+Click a wallet's address. The chart mark that comes out on its row puts its buys and sells on the chart instead. On a phone a
+tap opens the card from below; a tap above it or pulling it down closes it. Top to bottom, the card shows:
 
-1. who it is, when the wallet is publicly identified (a star for a KOL, its X account, the app it trades through),
-   and next to the address its age, like `94d old`, and who sent it its first SOL (`funded by …`); hover either for
-   the detail. A wallet outside
-   the first {{ s.age_lookups_max }} shows `…` for a moment while its card checks it; when that cannot happen (no
-   wallet connected, the day's card checks used up) it shows `?` or `1k+ tx`: its age stays unknown rather than
-   guessed;
+1. who it is, when publicly identified, its age and who sent it its first SOL. A wallet outside the first
+   {{ s.age_lookups_max }} shows `…` while its card checks it, and `?` or `1k+ tx` when that cannot happen;
 2. its tags, ours and your own;
-3. how it trades on every token over the last 7 or 30 days: realized PnL and its curve, win rate with wins and
-   losses, volume, buys and sells, how many tokens and how many still open, average hold, best day, drawdown, how
-   its closed positions ended and the hours it trades. Point at the PnL curve for any day's result and the running total
-   after it;
-4. the analyses you saved where it was early too, if any;
-5. its trades, with a switch: on this token, its numbers here (bought, sold, PnL, ROI, held) and every trade; on all
-   tokens, the latest tokens it traded. Click one of them: its chart opens right there, on the hours of the wallet's
-   trades, with its buys and sells marked. The trades come with the 30 days; the candles cost what any chart costs.
+3. this token: its result, its trip from entry to exit, its buys and sells, every trade on request;
+4. the last 7 or 30 days on every token: PnL and its curve, win rate, volume, average hold, best day, drawdown, how positions
+   ended, the hours it trades, and its latest and best tokens. A click on a token opens its chart right there, with the
+   wallet's trades marked;
+5. the analyses you saved where it was early too.
 
-Bought, in the table and in the card, is everything the wallet bought of this token: before the range, inside it and
-after it. Under it: what it bought inside the range, and the market cap there. Sold, PnL and ROI count the same buys, so
-the four numbers add up: PnL is what the wallet received minus what the sold tokens cost at its average price.
+**Bought** is everything the wallet bought of this token, before the range, inside it and after it. Sold, PnL and ROI count the
+same buys, so the numbers add up: PnL is what it received minus what the sold tokens cost at its average price.
 
-Filters you use often can be kept: open Filters, press "Save these filters" and name them. The set (the numbers, the
-hidden tags and the order) stays in your browser and applies to any analysis in one click.
+The 30 days are counted by tracced from the wallet's own swaps. Profit counts on the day of the sale, at what the wallet really
+paid, even when the buy came earlier: the card reads earlier trades of up to {{ s.profile_history_tokens }} tokens with the
+biggest sales. A position is closed once 99% of it is sold. A token sold with no buy found is left out and counted apart: a
+transfer is not a profit.
 
-ROI, in the card and in its own column of the table, is the average exit cap over the average entry cap, buys
-before and after the range included: `2×` is +100%, `61.5×` is +6,050%. Hover it for the percent.
+A card someone already opened today opens free for everyone.
 
-The 30 days are counted by tracced from the wallet's own swaps, the same way as the table: average cost, and
-profit only on what the wallet actually bought. Profit counts on the day of the sale, as a broker counts it: a token
-sold in those days counts in full, at what the wallet really paid for it, even when the buy came earlier. For such a
-token the card reads the wallet's earlier trades of it too, up to {{ s.profile_history_tokens }} tokens with the biggest sales. A
-position is closed once 99% of it is sold; win rate is the positions closed in those days that made money, out of all
-of them.
+## Filters and views
 
-A token sold in those days with no buy found is left out and counted apart: it came by transfer, or its buy is
-older than what the card reads, so its cost is unknown, and a transfer is not a profit.
-
-!!! info "📊 Why not a third-party PnL"
-    Third-party PnL often comes from a formula nobody publishes, and a "win rate" over a period can count
-    profitable days, not positions. The card shows numbers you can rebuild from the swaps yourself.
-
-A card someone already opened today opens free for everyone. The 7-day view is counted from the same swaps.
+**Filters** holds every number from and to, the tags to hide, **Hide bots** and **Only my watchlist**. A set you use often can
+be kept: press *Save these filters* and name it. It stays in your browser and applies to any analysis in one click.
 
 ## The AI agent
 
-The agent on a result page reads that analysis and nothing else. Open it and pick a question (who sold the top,
-whether it was a bundled launch, who is still holding) or ask your own, in any language. **Summary of this pump**
-writes three cards: what happened in the range, what a buyer should weigh, and whose wallets stand out by the
-method written under the card. A wallet it names opens its card.
+The agent on a result page reads that analysis and nothing else. Pick a question or ask your own, in any language. **Summary of
+this pump** writes what happened in the range, what a buyer should weigh, and whose wallets stand out. A wallet it names opens
+its card.
 
-It reads only what the site computed from the table and does not compute a number of its own. Before an answer
-reaches the page, every number and wallet in it is checked against the analysis, and a line that fails is dropped.
-It never tells you to buy or sell, never predicts a price and never calls a wallet good or a token safe.
+It does not compute numbers of its own: before an answer reaches the page, every number and wallet in it is checked against the
+analysis, and a line that fails is dropped. It never tells you to buy or sell, predicts a price or calls a token safe. With a
+wallet connected it sees your own watchlist when you ask, so "which of my wallets are here?" has an answer.
 
-Ask who a wallet is, or who owns it, and the first line comes from tracced, not from the model: its X account or that
-it has none, a KOL or an exchange when the labels say so, a bot-like trader when its trades here look like one,
-otherwise a trader, then the app it trades through and the exchange its first SOL came from.
+Anything outside the analysis gets one fixed reply. Questions go to AI model hosts whose policy is not to collect them or train
+on them, or to keep them only for a limited time. Do not type anything personal into it.{% if not assistant_on %}
 
-It knows your watchlist too: when you ask, it sees which of your saved wallets bought in this range, the lists that hold
-them and your own tags for them, so "which of my wallets are here?" or "what did my insiders do?" has an answer. When
-some of them did buy here, the panel offers that question as a button. It sees only your own watchlist, and only when
-you ask.
-
-It answers only about the analysis it is on. Anything else, including a request to change how it works, gets one
-fixed reply. The agent needs a connected wallet; cards someone has already opened are kept, so opening them again is
-free for everyone. Questions go to AI model hosts whose policy is not to collect them or train on them; when they are
-unavailable, to Claude, Anthropic's model, which does not train on them and keeps them only for a limited time under
-its terms. Do not type anything personal into it.{% if not assistant_on %}
-
-!!! warning "🤖 The agent is off on this server"
+!!! warning "The agent is off on this server"
     It needs a model key that this deployment does not have yet.
 {% endif %}

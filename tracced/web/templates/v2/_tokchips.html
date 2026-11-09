@@ -1,0 +1,9 @@
+{# design v2 (canvas Analysis4, 26.10): under the symbol one quiet line — the short address that copies itself, where
+   the token was launched, its age, New for its first day. Solscan and the project's X stand beside the symbol #}
+{% import "v2/_ag.html" as ag %}
+{% set born = tc_created or 0 %}
+<div class="tline">
+  <button type="button" class="dwc tc-addr" data-copy="{{ tc_mint }}" title="Copy the token address: {{ tc_mint }}" aria-label="Copy the token address"><span class="mono">{{ tc_mint[:4] }}…{{ tc_mint[-4:] }}</span>{{ ag.g('copy', size=12) }}</button>
+  {% if tc_launchpad %}<span class="tl-sep" aria-hidden="true">·</span><span class="tl-pad" title="Where the token was launched">{{ ag.g('pump', size=12) }}{{ tc_launchpad|replace('https://','')|replace('http://','')|replace('www.','')|replace('.com','')|replace('.fun','')|replace('/','') }}</span>{% endif %}
+  {% if born %}<span class="tl-sep" aria-hidden="true">·</span><span title="Created {{ born|dty }}">{{ born|age }}</span>{% if now - born < 86400000 %}<span class="tl-new">New</span>{% endif %}{% endif %}
+</div>

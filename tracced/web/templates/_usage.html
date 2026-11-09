@@ -29,6 +29,7 @@
 {% set credit_help = {
   'st': 'Requests left on the Solana Tracker key, which the site and dev share. The API gives only the balance: the plan size and the day it renews are set in config.yaml.',
   'rpc': "Helius credits left of this server's monthly share, by the server's own counter: the account itself is shared with other projects. Resets on the 1st, UTC.",
+  'de': "Requests left this month on the Digital Energy node that serves the alerts, by this server's own counter. Its portal has the exact figure. Resets on the 1st, UTC.",
   'ai': "What the agent can still spend on OpenRouter: the key's own limit or the money on the account, whichever is lower."} %}
 
 {% if meters %}
@@ -105,7 +106,8 @@
   {% set errs = u.errors|sum(attribute='times') %}{% set lims = u.limits|sum(attribute='times') %}
   {% set st_low = budget.credits_left is not none and budget.reserve and budget.credits_left < 2 * budget.reserve %}
   {% set rpc_high = budget.rpc and budget.rpc.limit and budget.rpc.spent > 0.8 * budget.rpc.limit %}
-  {% if p.runs_failed or errs or lims or u.ai.errors or st_low or rpc_high or feedback_new %}
+  {% set de_high = budget.de and budget.de.limit and budget.de.spent > 0.8 * budget.de.limit %}
+  {% if p.runs_failed or errs or lims or u.ai.errors or st_low or rpc_high or de_high or feedback_new %}
   <h3 class="small">Needs a look</h3>
   <ul class="uwatch">
     {% if feedback_new %}<li><a href="{{ q }}&tab=feedback">{{ feedback_new }} new message{{ '' if feedback_new == 1 else 's' }}</a></li>{% endif %}
@@ -115,6 +117,7 @@
     {% if u.ai.errors %}<li><a href="{{ q }}&tab=agent">{{ u.ai.errors }} agent answer{{ '' if u.ai.errors == 1 else 's' }} failed</a></li>{% endif %}
     {% if st_low %}<li><a href="{{ q }}&tab=costs">Solana Tracker: {{ budget.credits_left|num }} left, close to the reserve</a></li>{% endif %}
     {% if rpc_high %}<li><a href="{{ q }}&tab=costs">Helius: {{ budget.rpc.spent|num }} of {{ budget.rpc.limit|num }} this month</a></li>{% endif %}
+    {% if de_high %}<li><a href="{{ q }}&tab=costs">Digital Energy: {{ budget.de.spent|num }} of {{ budget.de.limit|num }} this month</a></li>{% endif %}
   </ul>
   {% endif %}
 </section>
@@ -311,6 +314,7 @@
   <div class="stats">
     <div title="Solana Tracker requests the log counted since the 1st (UTC). What is left is at the top of the page"><b>{{ m.st|num }}</b><span>Solana Tracker spent · {{ m.month }}</span></div>
     {% if budget.rpc %}<div title="Helius credits this month by the server's own counter{% if m.rpc_unlogged %}; {{ m.rpc_unlogged|num }} of them are not in the log (spent before it, or by scripts){% endif %}"><b>{{ budget.rpc.spent|num }}</b><span>Helius spent · {{ m.month }}</span></div>{% endif %}
+    {% if budget.de %}<div title="Requests to the Digital Energy node this month by the server's own counter, alerts only. Its portal has the exact figure"><b>{{ budget.de.spent|num }}</b><span>Digital Energy of {{ budget.de.limit|num }} · {{ m.month }}</span></div>{% endif %}
     <div title="The agent's answers since the 1st"><b>{{ dollars(m.ai_usd) }}</b><span>AI spent · {{ m.month }}</span></div>
     {% if budget.insightx %}<div title="InsightX label requests this month: each names up to 100 funders. The free plan has {{ budget.insightx.limit|num }} a month"><b>{{ budget.insightx.spent|num }}</b><span>InsightX of {{ budget.insightx.limit|num }} · {{ m.month }}</span></div>{% endif %}
     <div title="Live analyses started today by anyone but you"><b>{{ budget.runs_today }}</b><span>Runs today</span></div>
@@ -318,6 +322,7 @@
   <div class="ucharts">
     {{ bars(u.daily, 'st', title='Solana Tracker a day · 30 d') }}
     {{ bars(u.daily, 'rpc', title='Helius a day · 30 d') }}
+    {% if budget.de %}{{ bars(u.daily, 'de', title='Digital Energy a day · 30 d') }}{% endif %}
   </div>
   <div class="ucols">
     <div class="tablewrap"><table class="facts melist"><thead><tr><th>On what</th><th class="num">Times</th><th class="num">Solana Tracker</th><th class="num">Helius</th><th class="num">AI</th></tr></thead><tbody>
@@ -331,6 +336,58 @@
 </section>
 {% endif %}
 
+{% if tab == 'tg' and tg_stats %}{% set t = tg_stats.total %}
+<section class="card me usage tgadm">
+  <div class="row mehead"><h2>Telegram</h2><span class="muted small">{% if tg_bot %}@{{ tg_bot }} · {% endif %}/early, this month{% if not tg_here %} · the bot is not on this server now{% endif %}</span></div>
+  <div class="stats">
+    <div title="/early asks this month, ready answers and new analyses together"><b>{{ t.asks }}</b><span>asks</span></div>
+    <div title="Chats that asked this month: groups by name, private chats by the person's username"><b>{{ t.chats }}</b><span>chats · {{ t.groups }} group{{ '' if t.groups == 1 else 's' }}</span></div>
+    <div title="New analyses the bot started: today (UTC) and this month"><b>{{ t.new }}</b><span>new analyses · {{ t.new_today }} today</span></div>
+    <div title="Solana Tracker requests the bot's analyses cost this month: the token, the window, the run and its names"><b>{{ '{:,}'.format(t.st) }}</b><span>Solana Tracker requests</span></div>
+  </div>
+  {% if tg_stats.chats %}
+  <div class="tablewrap"><table class="facts melist"><thead><tr><th>Chat</th><th>Type</th><th>Asks</th><th title="New analyses today, against the chat's daily limit">New today</th><th>New this month</th><th>Solana Tracker</th><th>Helius</th><th>Last ask</th></tr></thead><tbody>
+  {% for c in tg_stats.chats %}<tr><td>{{ c.name or '—' }} <span class="mono muted small">{{ c.chat }}</span></td><td>{{ c.kind }}</td>
+    <td>{{ c.asks }}{% if c.refused %} <span class="muted small">({{ c.refused }} refused)</span>{% endif %}</td>
+    <td>{{ c.new_today }} of {{ s.tg_runs_per_chat }}</td><td>{{ c.new }}</td><td>{{ '{:,}'.format(c.st) }}</td><td>{{ '{:,}'.format(c.rpc) }}</td>
+    <td class="small">{% if c.last_ms %}<span class="dtc" data-ms="{{ c.last_ms }}">{{ c.last_ms|dt }}</span>{% else %}—{% endif %}</td></tr>{% endfor %}
+  </tbody></table></div>
+  <h3 class="small">Recent asks</h3>
+  <div class="tablewrap"><table class="facts melist"><thead><tr><th>When</th><th>Chat</th><th>Token</th><th>Answer</th></tr></thead><tbody>
+  {% for e in tg_stats.recent %}<tr><td class="small"><span class="dtc" data-ms="{{ e.ts_ms }}">{{ e.ts_ms|dt }}</span></td><td>{{ e.tg_name or e.tg_chat }}</td>
+    <td>{% if e.job %}<a href="/job/{{ e.job }}">{{ e.symbol or e.job }}</a>{% else %}<a class="mono" href="/token?mint={{ e.mint }}">{{ (e.mint or '')[:4] }}…</a>{% endif %}</td>
+    <td>{% if e.refused %}<span class="neg">refused: {{ e.refused }}</span>{% elif e.new %}new analysis{% else %}ready{% endif %}</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% else %}<p class="muted">Nobody has asked the bot this month.</p>{% endif %}
+</section>
+{% endif %}
+
+{% if tab == 'tg' %}
+<section class="card me usage tgadm">
+  <div class="row mehead"><h2>Stopped as bots</h2><span class="muted small">signed over {{ s.alerts_spam_per_day }} transactions in 24 hours, or that a day on average over 7 days</span></div>
+  {% if spam_rows %}
+  <div class="tablewrap"><table class="facts melist"><thead><tr><th>Wallet</th><th class="num" title="Transactions that mention the wallet, last 24 hours, up to what the check read">24 h</th><th class="num" title="The same, last 7 days">7 d</th><th class="num" title="Of a sample of those transactions, the share the wallet signed itself">Signed</th><th>Stopped</th><th>Until</th><th></th></tr></thead><tbody>
+  {% for r in spam_rows %}<tr><td><a class="mono" href="/admin/w/{{ r.wallet }}">{{ r.wallet[:4] }}…{{ r.wallet[-4:] }}</a></td><td class="num mono">{{ r.day|num }}</td><td class="num mono">{{ r.week|num }}</td><td class="num mono">{{ (r.share * 100)|round|int }}%</td>
+    <td class="small"><span class="dtc" data-ms="{{ (r.at * 1000)|int }}">{{ (r.at * 1000)|int|dt }}</span></td><td class="small"><span class="dtc" data-ms="{{ (r.until * 1000)|int }}">{{ (r.until * 1000)|int|dt }}</span></td>
+    <td><button type="button" class="ghost" data-botallow="1" data-wallet="{{ r.wallet }}" title="Never stop this wallet again. Whoever had its bell turns it back on">Not a bot</button></td></tr>{% endfor %}
+  </tbody></table></div>
+  {% else %}<p class="muted small">No wallets stopped.</p>{% endif %}
+  {% if spam_allowed %}
+  <h3 class="small">Never stopped</h3>
+  <div class="tablewrap"><table class="facts melist"><tbody>
+  {% for w in spam_allowed %}<tr><td><a class="mono" href="/admin/w/{{ w }}">{{ w[:4] }}…{{ w[-4:] }}</a></td><td><button type="button" class="ghost" data-botallow="0" data-wallet="{{ w }}">Check it again</button></td></tr>{% endfor %}
+  </tbody></table></div>
+  {% endif %}
+</section>
+<script>
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-botallow]'); if (!b) return;
+  b.disabled = true;
+  try { await EarlyWallet.post('/admin/alerts/bot', { wallet: b.dataset.wallet, allow: b.dataset.botallow === '1' }); location.reload(); }
+  catch (x) { b.disabled = false; EarlyUI.toast(x.message); }
+});
+</script>
+{% endif %}
 {% if tab == 'api' %}
 {% set names = {} %}{% for k in api_keys %}{% set _ = names.update({k.id: k.name}) %}{% endfor %}
 <section class="card me usage apiadm">

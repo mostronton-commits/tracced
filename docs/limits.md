@@ -49,8 +49,10 @@ but bought before them: up to {{ s.profile_history_tokens }} tokens a card, from
 | Changes to your watchlist, tags and notes, and exports, per wallet a day | {{ '{:,}'.format(s.acct_writes_per_day) }} |
 | Questions to the AI agent, per person a day | {{ s.agent_questions_per_day }} |
 | Results the agent writes its cards for, per person a day (cards someone already opened are free) | {{ s.agent_cards_per_day }} |
+| New analyses from the Telegram bot, per chat or group a day (a token already analysed answers for free) | {{ s.tg_runs_per_chat }} |
+| New analyses from the Telegram bot, for everyone a day | {{ s.tg_runs_per_day }} |
 
-!!! info "📐 These numbers are the live settings"
+!!! info "These numbers are the live settings"
     The table is rendered from the same configuration the site runs on, so it cannot drift from what actually
     happens.
 
@@ -66,5 +68,5 @@ Near the end of a heavy month new analyses may wait; the demo, every finished re
 The largest buyers of the range. The rest keep their entry; their Sold and PnL show `—`, because we did not read
 their sells.
 
-On some tokens everyone gets exact exits and this cap does not apply at all. The line above the table always says
-which happened.
+On some tokens everyone gets exact exits and this cap does not apply at all. The **i** beside *wallets bought* says which
+happened.

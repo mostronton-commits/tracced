@@ -17,13 +17,13 @@
       h: 'Mark the pump', p: 'Click where the buying starts, then where the price takes off.',
       done: () => shown(document.getElementById('pick')) },
     { el: () => document.getElementById('pick'), when: () => shown(document.getElementById('pick')),
-      h: 'Get wallets', p: DEMO ? 'Press it to replay this pump.' : 'Press it to see who bought in your zone.',
+      h: 'Get wallets', p: DEMO ? 'Press it to replay this pump.' : 'Press it to see who bought in your range.',
       done: () => !!document.getElementById('facts') },
     { el: () => document.getElementById('facts'), when: () => shown(document.getElementById('facts')),
       h: 'The wallets', p: 'What each one bought, sold and earned. Click a wallet to open it.',
       done: () => shown(document.getElementById('drawer')) },
     { el: () => document.getElementById('drawer'), when: () => shown(document.getElementById('drawer')),
-      h: 'Follow a wallet', p: 'Star it to get its trades in Telegram.',
+      h: 'Follow a wallet', p: 'The star keeps it. In your watchlist, its bell sends its trades to Telegram.',
       done: () => false, last: true },
   ];
 
@@ -37,7 +37,8 @@
   function place() {
     raf = 0; if (!open) return;
     const t = STEPS[step].el(); if (!shown(t)) { hide(); return; }
-    const r = t.getBoundingClientRect(), pad = 6, vw = innerWidth, vh = innerHeight;
+    const z = EarlyZoom(), q = t.getBoundingClientRect(), pad = 6, vw = innerWidth / z, vh = innerHeight / z;
+    const r = { left: q.left / z, top: q.top / z, bottom: q.bottom / z, width: q.width / z };
     // a target taller than the screen (the table, the card) is outlined only where it is in view
     const top = Math.max(r.top, 8), bottom = Math.min(r.bottom, vh - 8);
     Object.assign(spot.style, { left: (r.left - pad) + 'px', top: (top - pad) + 'px', width: (r.width + 2 * pad) + 'px', height: Math.max(0, bottom - top + 2 * pad) + 'px' });
@@ -60,7 +61,13 @@
       + (s.last ? '' : '<button type="button" class="ghost tour-skip">Skip</button>')
       + '<button type="button" class="primary tour-next">' + (s.last ? 'Got it' : 'Next') + '</button></span></div>';
   }
-  function show() { open = true; render(); spot.hidden = tip.hidden = false; place(); }
+  function show() {
+    open = true; render(); spot.hidden = tip.hidden = false;
+    // a target low on the screen comes up: on a phone to the top, from under the sheet; elsewhere to the middle, the tip above it
+    const top = STEPS[step].el().getBoundingClientRect().top, phone = innerWidth <= 640, H = innerHeight;
+    if (top > H * (phone ? .5 : .7)) scrollBy({ top: phone ? top - 16 : top - H * .45, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    place();
+  }
   function hide() { open = false; spot.hidden = tip.hidden = true; }
   const told = () => dispatchEvent(new Event('early:tour'));   // tokenpage.js stops the chart's click animation
   function next() { hide(); step += 1; write(step); told(); }
@@ -72,11 +79,13 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && open) next(); });
   addEventListener('scroll', ask, { passive: true }); addEventListener('resize', ask);
 
-  // the page changes on its own (a range marked, a run done, a card opened): look twice a second
+  // the page changes on its own (a range marked, a run done, a card opened): look twice a second. The bar with Get wallets
+  // goes as soon as it is pressed and the table comes later, so a step ends by what it asked for, on screen or not
   const timer = setInterval(() => {
     if (step >= 4) { stop(); return; }
     const s = STEPS[step];
-    if (open) { if (s.done()) { next(); } else ask(); return; }
+    if (s.done()) { next(); return; }
+    if (open) { ask(); return; }
     if (s.when()) show();
   }, 500);
   function stop() { clearInterval(timer); hide(); }

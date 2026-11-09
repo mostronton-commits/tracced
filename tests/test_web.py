@@ -68,7 +68,7 @@ class FakeWebST(FakeST):
 if AioHTTPTestCase:
     from tracced.web import chart
     from tracced.web import accounts as acct_mod
-    from tracced.web.app import create_app, _acct_secret
+    from tracced.web.app import create_app, _acct_secret, _fingerprint
 
     TEST_PK = acct_mod.b58encode(b"\x07" * 32)          # гаманець, від імені якого тести запускають живі аналізи
     GUEST = {"Cookie": ""}                                # той самий запит без гаманця
@@ -244,6 +244,78 @@ if AioHTTPTestCase:
             self.assertGreater(t2.miss("a", 0), 0)
             self.assertGreater(t2.miss("a", 1), 60)                        # кожна наступна спроба довша
 
+        async def test_design_v2_lives_beside_the_old_look(self):
+            # owner, 26.10: the rebrand has its own stylesheet and tokens and the `design` cookie picks it; without the
+            # cookie the site is the old one, its style.css, status bar and bell untouched
+            old = await (await self.client.get("/docs")).text()
+            self.assertIn('href="/static/style.css', old)
+            self.assertNotIn("/static/v2/", old)
+            self.assertIn('class="sbar"', old)
+            self.assertNotIn('data-design="v2"', old)
+            v2 = {"Cookie": wallet_cookie(TEST_PK) + "; design=v2"}
+            for path in ("/", "/docs", f"/token?mint={MINT}"):
+                html = await (await self.client.get(path, headers=v2)).text()
+                self.assertIn('data-design="v2"', html, path)
+                self.assertLess(html.index('href="/static/v2/tokens.css'), html.index('href="/static/v2/style.css'), path)
+                self.assertNotIn('href="/static/style.css', html, path)
+                for gone in ('class="sbar"', 'id="newsmark"', "early:theme", "foot-brand"):
+                    self.assertNotIn(gone, html, path)
+                foot = html[html.index('<footer class="foot">'):]
+                for link in ('href="/docs/updates"', 'href="/feedback"', "t.me/tracced_xyz"):
+                    self.assertIn(link, foot, path)
+                self.assertIn("x.com/intent/follow?screen_name=tracced_xyz", html, path)
+                self.assertIn('class="acct-pill"', html, path)                          # the pill: the address alone (owner, 26.10)
+            for f in ("/static/v2/tokens.css", "/static/v2/style.css", "/static/v2/stars.svg", "/static/v2/icon.svg"):
+                self.assertEqual((await self.client.get(f)).status, 200, f)
+            self.assertEqual(_fingerprint(TEST_PK), _fingerprint(TEST_PK))
+            self.assertNotEqual(_fingerprint(TEST_PK), _fingerprint(TEST_PK[::-1]))
+
+        async def test_design_switch_is_for_the_owner_and_the_closed_copy(self):
+            r = await self.client.get("/design?to=v2&back=/docs", allow_redirects=False)     # the owner's wallet
+            self.assertEqual(r.status, 302)
+            self.assertEqual(r.headers["Location"], "/docs")
+            self.assertIn("design=v2", r.headers.get("Set-Cookie", ""))
+            r = await self.client.get("/design?to=old&back=//elsewhere.example", allow_redirects=False)
+            self.assertEqual(r.headers["Location"], "/")                               # our own addresses only
+            self.assertIn('design=""', r.headers.get("Set-Cookie", ""))                # the cookie goes
+            r = await self.client.get("/design?to=v2", headers=GUEST, allow_redirects=False)
+            self.assertEqual(r.status, 404)                                            # a guest on the public site
+            self.assertNotIn("design=v2", r.headers.get("Set-Cookie", ""))
+            for bad in ("/%09/elsewhere.example/", "/%0d/elsewhere.example", "/\\elsewhere.example"):   # a browser drops the tab and reads «//…»
+                r = await self.client.get("/design?to=v2&back=" + bad, allow_redirects=False)
+                self.assertEqual(r.headers["Location"], "/", bad)
+
+        async def test_a_cookie_alone_shows_no_stranger_the_new_look(self):
+            self.assertEqual(self.app["s"].get("design_v2", "closed"), "closed")
+            html = await (await self.client.get("/docs", headers={"Cookie": "design=v2"})).text()
+            self.assertNotIn('data-design="v2"', html)                                 # anyone can set a cookie by hand
+            html = await (await self.client.get("/docs", headers={"Cookie": wallet_cookie(TEST_PK) + "; design=v2"})).text()
+            self.assertIn('data-design="v2"', html)                                    # the owner's wallet
+            self.app["s"]["design_v2"] = "cookie"                                      # the release by a button: anyone may switch
+            r = await self.client.get("/design?to=v2", headers={"Cookie": ""}, allow_redirects=False)
+            self.assertEqual(r.status, 302)
+            self.app["s"]["design_v2"] = "all"                                         # the release for everyone
+            try:
+                self.assertIn('data-design="v2"', await (await self.client.get("/docs", headers={"Cookie": ""})).text())
+                self.assertNotIn('data-design="v2"', await (await self.client.get("/docs", headers={"Cookie": "design=old"})).text())
+            finally:
+                self.app["s"].pop("design_v2")
+
+        async def test_a_versioned_static_file_is_kept_and_asks_nothing_again(self):
+            r = await self.client.get("/static/ui.js?v=abc")
+            self.assertIn("immutable", r.headers.get("Cache-Control", ""))
+            r = await self.client.get("/static/ui.js")
+            self.assertNotIn("immutable", r.headers.get("Cache-Control", ""))
+
+        def test_project_x_link_stays_on_x(self):
+            from tracced.web.app import _x_link
+            self.assertEqual(_x_link("https://x.com/tracced_xyz"), "https://x.com/tracced_xyz")
+            self.assertEqual(_x_link(" https://twitter.com/i/communities/123 "), "https://twitter.com/i/communities/123")
+            self.assertEqual(_x_link("http://www.x.com/a"), "https://x.com/a")
+            for bad in ("https://x-login.example/claim", "javascript:alert(1)", "https://x.com.evil.example/a", "https://evil.example/x.com/a",
+                        'https://x.com/a"><script>', "@tracced", "", None, 7):
+                self.assertIsNone(_x_link(bad), bad)
+
         async def test_layout_containers(self):
             # верстка тримається на трьох речах: смуги шапки/підвалу з внутрішнім контейнером і широка сторінка результату
             for path in ("/", "/docs"):
@@ -251,7 +323,7 @@ if AioHTTPTestCase:
                 self.assertIn('<footer class="foot"><div class="foot-in">', html)
                 from tracced import __version__
                 self.assertIn(">v" + ".".join(__version__.split(".")[:2]) + "<", html)   # product version, not the asset hash
-                self.assertIn('href="https://github.com/mostronton-commits/tracced"', html)
+                self.assertNotIn("github.com/mostronton-commits", html)          # the code is private (owner, 09.11)
                 self.assertIn('href="https://x.com/tracced_xyz"', html)
                 self.assertIn('href="https://t.me/tracced_xyz"', html)        # the Telegram channel (owner, 05.10)
             html = await (await self.client.get("/docs")).text()
@@ -2458,6 +2530,7 @@ if AioHTTPTestCase:
             self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
             self.st = FakeWebST(TRADES)
             s = settings.load()
+            s["design_v2"] = "cookie"                                # the pill follows a guest's cookie
             s["replay_s"] = 0.6
             return create_app(self.st, s, {}, out_dir=self.tmp.name + "/web", store_dir=self.tmp.name + "/cache")
 
@@ -2483,6 +2556,16 @@ if AioHTTPTestCase:
             r = await self.client.post("/auth/verify", json={"pubkey": pk, "signature": sig, "message": msg, "wallet": "Phantom"},
                                        headers={"Origin": self.origin})
             return r, pk, msg, sig
+
+        async def test_sign_in_draws_the_pill_of_the_design_in_use(self):
+            r, pk, _, _ = await self._sign_in()
+            self.assertIn('<i class="dot"></i>', (await r.json())["pill"])             # the old look's pill
+            self.client.session.headers["Cookie"] = "design=v2"
+            r, pk, _, _ = await self._sign_in()
+            pill = (await r.json())["pill"]
+            self.assertIn('class="acct-pill"', pill)                                   # v2: short address and menu
+            self.assertIn(pk[:4] + "…" + pk[-4:], pill)
+            self.assertIn("Sign out", pill)
 
         async def test_new_wallets_from_one_network_stop_at_the_days_cap_known_ones_do_not(self):
             self.app["s"]["new_accounts_per_ip_per_day"] = 2

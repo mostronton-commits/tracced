@@ -9,12 +9,12 @@ took out, how long it held. No scores, no "smart money" labels. Raw swaps only, 
 
 1. **Paste the address.** The chart loads with the token's whole life on it.
 2. **Mark the range.** Two clicks on the chart: where buying starts, where it takes off.
-3. **Press Get wallets.** A line under the chart fills as the run goes, and the table of everyone who bought in that
-   range appears below it, on the same page. Each range you analyze becomes a tab: switch between them in a click.
+3. **Press Get wallets.** The table of everyone who bought in that range appears below the chart. Each range you analyze
+   becomes a tab.
 
-!!! tip "🎬 Nothing to sign to look around"
-    The demo token replays a real analysis for anyone, no account. A wallet is asked for only when you analyze
-    something new, or open wallet-card numbers nobody has loaded yet — a signature, not a transaction, and no fee.
+!!! tip "Nothing to sign to look around"
+    The demo token replays a real analysis, no account. A wallet is asked for only when you analyze something new, or open
+    wallet-card numbers nobody has loaded yet: a signature, not a transaction, and no fee.
 
 ## Why not just sort by profit
 
@@ -23,16 +23,3 @@ Every terminal ranks traders of a token by what they made. That looks backwards 
 A range is a different question. It catches everyone who was there, winners and losers alike, and that is where
 the pattern lives. Eleven wallets funded by the same address, all buying within four minutes, never show up in a
 profit ranking. In a list of everyone who was present, they are obvious.
-
-## What each page is for
-
-| Page | Read it when |
-|---|---|
-| [Compare](/docs/compare) | You already use Axiom or GMGN and wonder what this adds |
-| [How it works](/docs/how-it-works) | You want to know where a number came from |
-| [Tags](/docs/tags) | A row has a label and you want its exact rule |
-| [Limits](/docs/limits) | You hit a cap, or you want to know what is free |
-| [Your account](/docs/account) | Your watchlist, your own tags, repeats across analyses |
-| [Roadmap](/docs/roadmap) | You want to know what is coming, and what never will |
-| [Updates](/docs/updates) | You want to know what changed, and when |
-| [The project](/docs/project) | You want the argument behind it, and what it refuses to do |

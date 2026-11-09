@@ -13,6 +13,7 @@
   const FMT = {
     int: v => Math.round(v).toLocaleString('en-US'),
     usd: v => (v < 0 ? '-$' : '$') + fmtShort(Math.abs(v)),
+    signed: v => (v < 0 ? '−$' : '+$') + fmtShort(Math.abs(v)),
     short: v => fmtShort(v),
     mult: v => (v ? (v >= 10 ? v.toFixed(0) : v.toFixed(1)) + '×' : '—'),
     pct: v => Math.round(v) + '%',
@@ -122,11 +123,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const ALPHA = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
   const fake = () => { let s = ''; for (let i = 0; i < 40; i++) s += ALPHA[Math.floor(Math.random() * ALPHA.length)]; return s + 'pump'; };
   let addr = fake(), i = 0, dir = 1;
+  // v2 types slower, rests between addresses and off screen (owner, 07.11: the page must not load the machine)
+  const rest = el.placeholder, V2 = document.documentElement.dataset.design === 'v2';
+  const away = () => V2 && (document.hidden || el.getBoundingClientRect().bottom < 0);
   const tick = () => {
-    if (document.activeElement === el || el.value) { el.placeholder = 'Paste a token address'; setTimeout(tick, 1500); return; }
+    if (document.activeElement === el || el.value || away()) { el.placeholder = rest; setTimeout(tick, 1500); return; }
+    if (V2 && dir === -1) { i = 0; dir = 1; addr = fake(); el.placeholder = rest; setTimeout(tick, 2500); return; }
     i += dir; el.placeholder = addr.slice(0, i) + (i < addr.length ? '▍' : '');
-    let d = 26;
-    if (dir === 1 && i >= addr.length) { dir = -1; d = 2200; }
+    let d = V2 ? 70 : 26;
+    if (dir === 1 && i >= addr.length) { dir = -1; d = V2 ? 4000 : 2200; }
     else if (dir === -1 && i <= 0) { dir = 1; addr = fake(); d = 600; }
     else if (dir === -1) d = 10;
     setTimeout(tick, d);
@@ -146,6 +151,13 @@ document.addEventListener('DOMContentLoaded', () => {
   m.classList.add('fresh');
   m.addEventListener('click', mark);
 });
+/* design v2 (26.10): «/» anywhere but in a field puts the cursor in the header's search, as the key drawn in it says */
+document.addEventListener('keydown', e => {
+  if (document.documentElement.dataset.design !== 'v2') return;
+  if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || e.target.closest('input, textarea, select, [contenteditable]')) return;
+  const q = document.querySelector('.topsearch input'); if (!q) return;
+  e.preventDefault(); q.focus();
+});
 /* copy buttons: [data-copy="text"]; the button may hold an icon, so its markup comes back, not only its text */
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-copy]'); if (!b || !b.dataset.copy || !navigator.clipboard) return;
@@ -161,11 +173,14 @@ document.addEventListener('click', e => {
 
 /* a card or the agent opens under the site's top bar and ends above the footer: --dtop is where the bar's bottom edge
    is on screen now, --dbot how much of the footer is in view (owner, 30.09: the card covered the whole footer) */
+/* a big screen zooms the whole page (v2/tokens.css): what a script reads off the screen is in real pixels, what it writes
+   into a style is in the page's, this many to one. Exactly 1 on every other screen and in the old look */
+window.EarlyZoom = () => { const b = document.body, k = b ? b.getBoundingClientRect().width / (b.offsetWidth || 1) : 1; return Math.abs(k - 1) < .01 || !k ? 1 : k; };
 (function () {
   let raf = 0;
-  const set = () => { raf = 0; const bar = document.querySelector('header.top'); const h = bar ? Math.max(0, Math.round(bar.getBoundingClientRect().bottom)) : 0;
+  const set = () => { raf = 0; const z = EarlyZoom(), bar = document.querySelector('header.top'); const h = bar ? Math.max(0, Math.round(bar.getBoundingClientRect().bottom / z)) : 0;
     // a hidden footer (a wide screen, where the status bar is the footer) has no box: its top would read 0, the card none
-    const foot = document.querySelector('footer.foot'), b = foot && foot.getClientRects().length ? Math.max(0, Math.round(innerHeight - foot.getBoundingClientRect().top)) : 0;
+    const foot = document.querySelector('footer.foot'), b = foot && foot.getClientRects().length ? Math.max(0, Math.round((innerHeight - foot.getBoundingClientRect().top) / z)) : 0;
     document.documentElement.style.setProperty('--dtop', h + 'px'); document.documentElement.style.setProperty('--dbot', b + 'px'); };
   const soon = () => { if (!raf) raf = requestAnimationFrame(set); };
   addEventListener('scroll', soon, { passive: true }); addEventListener('resize', soon);
@@ -263,7 +278,17 @@ window.EarlyTags = (function () {
     });
     return out.join('');
   }
-  return { ICON, BRANDS, chip, iconify, idMarks, isKol, handle, platforms, displayName, esc };
+  /* the same facts as words, for the note over an address in v2's table */
+  function idLines(idn) {
+    if (!idn) return [];
+    const out = [], h = handle(idn), apps = platforms(idn).map(f => Object.values(BRANDS).find(b => b[0] === f)[1]);
+    if (isKol(idn)) out.push('A known trader (KOL)');
+    if (h) out.push('@' + h + ' on X');
+    if (apps.length) out.push('Trades through ' + apps.join(', '));
+    [...new Set([idn.type].concat(idn.tags || []))].filter(r => ROLES[r]).forEach(r => out.push(ROLES[r]));
+    return out;
+  }
+  return { ICON, BRANDS, chip, iconify, idMarks, idLines, isKol, handle, platforms, displayName, esc };
 })();
 /* Ready lists (owner, 07.10): «Follow N wallets» puts a list's wallets in the person's watchlist, under the list's own
    name, with their bells on while the account has bells left. A guest connects first, and the follow goes on by itself. */

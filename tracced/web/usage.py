@@ -338,7 +338,7 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
 
     # ── пульс і графік за 30 днів ──
     days = [_day(now_ms, tz) - datetime.timedelta(days=i) for i in range(29, -1, -1)]
-    daily = {d: {"active": set(), "new": 0, "runs": 0, "failed": 0, "st": 0, "rpc": 0, "ai_usd": 0.0} for d in days}
+    daily = {d: {"active": set(), "new": 0, "runs": 0, "failed": 0, "st": 0, "rpc": 0, "de": 0, "ai_usd": 0.0} for d in days}
     for e in events:
         if e["ts_ms"] < d30:
             continue
@@ -352,6 +352,7 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
             slot["failed"] += 0 if e.get("ok") else 1
         slot["st"] += int(e.get("st") or 0) if e.get("event") in ("run", "spend") else 0
         slot["rpc"] += int(e.get("rpc") or 0) if e.get("event") == "spend" else 0
+        slot["de"] += int(e.get("de") or 0) if e.get("event") == "node" else 0
         slot["ai_usd"] += _ai_usd(e) if e.get("event") == "agent" else 0
     for a in accounts:                                   # нові гаманці за днями — міні-графік плитки «Connected»
         if person(a.get("pubkey")) and (a.get("created_ms") or 0) >= d30:
@@ -359,7 +360,7 @@ def summarize(events, *, accounts, jobs=(), onchain=None, now_ms, period="7d", t
             if slot is not None:
                 slot["new"] += 1
     series = [{"day": d.isoformat(), "label": f"{d:%b} {d.day}", "active": len(v["active"]), "new": v["new"], "runs": v["runs"], "failed": v["failed"],
-               "st": v["st"], "rpc": v["rpc"], "ai_usd": round(v["ai_usd"], 4)} for d, v in daily.items()]
+               "st": v["st"], "rpc": v["rpc"], "de": v["de"], "ai_usd": round(v["ai_usd"], 4)} for d, v in daily.items()]
     mau = len({e["pubkey"] for e in acts if e["ts_ms"] >= d30})
     wau = len({e["pubkey"] for e in acts if e["ts_ms"] >= period_start(now_ms, "7d", tz)})
     dau = len({e["pubkey"] for e in acts if e["ts_ms"] >= today})
@@ -827,6 +828,47 @@ def api_usage(events, now_ms, recent_n=30):
     return {"keys": per, "recent": [dict(e, key=e["pubkey"][4:]) for e in recent[:recent_n]]}
 
 
+def tg_usage(events, now_ms, recent_n=30):
+    """Telegram-бот /early за місяць (власник, 21.10): кожен чат — група за назвою, особистий чат за ніком людини —
+    скільки питав, скільки нових аналізів запустив (сьогодні й за місяць) і скільки кредитів вони коштували: огляд токена
+    і вікно — рядками з чатом, сам прогін, імена й збагачення — за id аналізу, який чат запустив. День — за UTC, як і
+    денна межа чату."""
+    day0 = now_ms - now_ms % 86_400_000
+    chats, job_chat, recent = {}, {}, []
+    for e in events:
+        cid = e.get("tg_chat")
+        if cid is None:
+            continue
+        c = chats.setdefault(cid, {"chat": cid, "kind": e.get("tg_kind"), "name": None, "asks": 0, "refused": 0,
+                                   "new": 0, "new_today": 0, "st": 0, "rpc": 0, "last_ms": 0})
+        c["name"] = e.get("tg_name") or c["name"]                  # остання назва групи чи нік
+        ev = e.get("event")
+        if ev == "tg_early":
+            c["asks"] += 1
+            c["refused"] += int(bool(e.get("refused")))
+            c["last_ms"] = max(c["last_ms"], int(e.get("ts_ms") or 0))
+            if e.get("new"):
+                c["new"] += 1
+                c["new_today"] += int(int(e.get("ts_ms") or 0) >= day0)
+            recent.append(e)
+        elif ev == "analyze" and e.get("job"):
+            job_chat[e["job"]] = cid
+        elif ev == "spend":
+            c["st"] += int(e.get("st") or 0)
+            c["rpc"] += int(e.get("rpc") or 0)
+    for e in events:                                     # прогони бота і їхні імена й збагачення: за id аналізу
+        cid = job_chat.get(e.get("job"))
+        if cid is not None and e.get("tg_chat") is None and e.get("pubkey") == "system" and e.get("event") in ("run", "spend"):
+            chats[cid]["st"] += int(e.get("st") or 0)
+            chats[cid]["rpc"] += int(e.get("rpc") or 0)
+    rows = sorted(chats.values(), key=lambda c: (-c["st"], -c["asks"]))
+    total = {"asks": sum(c["asks"] for c in rows), "chats": len(rows), "groups": sum(1 for c in rows if c["kind"] == "group"),
+             "new": sum(c["new"] for c in rows), "new_today": sum(c["new_today"] for c in rows),
+             "st": sum(c["st"] for c in rows), "rpc": sum(c["rpc"] for c in rows)}
+    recent.sort(key=lambda e: -int(e.get("ts_ms") or 0))
+    return {"chats": rows, "total": total, "recent": recent[:recent_n]}
+
+
 # ───────────────────────── скільки лишилось у постачальників ─────────────────────────
 
 DAY_MS = 86_400_000
@@ -897,7 +939,7 @@ def credit_meters(budget, *, now_ms):
 
     Solana Tracker: баланс ключа (один ключ на сайт і dev); API дає лише залишок, тож розмір тарифу — `credits_month`,
     день оновлення — `credits_renew_day`. Helius: власний лічильник цього сервера — його частка акаунта на календарний
-    місяць UTC. AI: ліміт ключа OpenRouter і гроші на акаунті, діє менше з двох. Прогноз — за темпом від початку циклу
+    місяць UTC. Digital Energy: теж власний лічильник (API ліміту не віддає, точна цифра — у її порталі). AI: ліміт ключа OpenRouter і гроші на акаунті, діє менше з двох. Прогноз — за темпом від початку циклу
     (для AI — від понеділка): `lasts` True — вистачить до оновлення, False — `runs_out_ms`, None — судити рано."""
     b, out = budget or {}, []
     of, left = int(b.get("credits_month") or 0), b.get("credits_left")
@@ -911,6 +953,11 @@ def credit_meters(budget, *, now_ms):
         first, nxt = renewal(1, now_ms)
         lim, spent = int(rpc["limit"]), int(rpc.get("spent") or 0)
         out.append(_meter("rpc", "Helius", max(0, lim - spent), lim, nxt, _runs_out(max(0, lim - spent), spent, first, now_ms), now_ms))
+    de = b.get("de") or {}
+    if de.get("limit"):
+        first, nxt = renewal(1, now_ms)
+        lim, spent = int(de["limit"]), int(de.get("spent") or 0)
+        out.append(_meter("de", "Digital Energy", max(0, lim - spent), lim, nxt, _runs_out(max(0, lim - spent), spent, first, now_ms), now_ms))
     ai = b.get("ai") or {}
     lefts = [v for v in (ai.get("key_left"), ai.get("account_left")) if isinstance(v, (int, float))]
     if lefts:

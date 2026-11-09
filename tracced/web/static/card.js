@@ -33,6 +33,8 @@
       + '<div class="dspark-x"><span>' + utcDay(t0) + '</span><span>' + utcDay(t1) + '</span></div>';
   }
   const DIST = [['>500', '> 500%', 'g3'], ['200-500', '200–500%', 'g2'], ['50-200', '50–200%', 'g1'], ['0-50', '0–50%', 'g0'], ['-50-0', '−50–0%', 'r0'], ['<-50', '< −50%', 'r1']];
+  // a return as a multiple of what went in: 0.73×, 3.1×, 12× (v2, owner 26.10: «roi краще в іксах»)
+  const multX = m => (m <= 0 ? '0' : m < 1 ? m.toFixed(2) : m < 10 ? m.toFixed(1) : String(Math.round(m))) + '×';
   function distHtml(p) {
     // closed positions by result, big wins on the left, big losses on the right: the count sits on each wide part,
     // hover (or tap) any part for its range and share
@@ -41,7 +43,7 @@
     return '<div class="ddist"><div class="dbar">' + DIST.map(x => { const k = d[x[0]] || 0; if (!k) return '';
         const pct = Math.round(k / n * 100), tip = x[1] + ': ' + k + (k === 1 ? ' position' : ' positions') + ', ' + pct + '%';
         return '<i class="' + x[2] + '" style="flex:' + k + '" title="' + tip + '" tabindex="0" aria-label="' + tip + '">' + (pct >= 10 ? k : '') + '</i>'; }).join('')
-      + '</div><div class="dends"><span>big wins</span><span>big losses</span></div></div>';
+      + '</div>' + (V2 ? '' : '<div class="dends"><span>big wins</span><span>big losses</span></div>') + '</div>';   // v2: the colours say it (owner, 26.10)
   }
   function heatHtml(heat) {
     // when the wallet trades, by weekday and hour; the grid comes in UTC and follows the footer's time zone
@@ -84,7 +86,8 @@
     return '<table class="drecent"><thead><tr><th>Token</th><th class="num">PnL</th><th class="num">ROI</th><th></th><th class="num">Last</th></tr></thead><tbody>'
       + RECENT.map((t, i) => '<tr class="rt" data-i="' + i + '" tabindex="0" title="Show ' + esc(t.symbol || 'this token') + '\'s chart with this wallet\'s buys and sells"><td><b class="rts">' + esc(t.symbol || short(t.mint)) + '</b></td>'
         + '<td class="num mono ' + (t.realized_usd > 0 ? 'pos' : (t.realized_usd < 0 ? 'neg' : '')) + '">' + (t.realized_usd == null ? '—' : money(t.realized_usd)) + '</td>'
-        + '<td class="num mono">' + (t.roi == null ? '—' : (t.roi > 0 ? '+' : '') + Math.round(t.roi) + '%') + '</td>'
+        + '<td class="num mono"' + (V2 && t.roi != null ? ' title="' + (t.roi > 0 ? '+' : '') + Math.round(t.roi) + '%"' : '') + '>'
+        + (t.roi == null ? '—' : V2 ? multX(1 + t.roi / 100) : (t.roi > 0 ? '+' : '') + Math.round(t.roi) + '%') + '</td>'   // v2: as a multiple, the % under the pointer (owner, 26.10)
         + '<td><span class="st st-' + t.state.replace(' ', '-') + '">' + t.state + '</span></td>'
         + '<td class="num muted">' + ago(t.last_ms) + '</td></tr>').join('') + '</tbody></table>';
   }
@@ -121,7 +124,60 @@
       + (!(opts && opts.recent === false) ? '<div class="dtv">' + tokensHtml(all, p) + '</div>' : '');
     if (window.EarlyTZ) EarlyTZ.apply();
   }
+  /* design v2 (26.10, DESIGN-v2.md «Page frame»): the wallet's fingerprint, the same picture fingerprint() draws on the
+     server — sha256 of the address, five rows of five dots, the left three columns mirrored; byte i sets cell i, % 4:
+     0 an empty faint dot, 1 mint, else ink. Synchronous (a row is drawn in one go), so sha256 is computed here */
+  const V2 = document.documentElement.dataset.design === 'v2';
+  const K256 = [0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01,
+    0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f,
+    0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70,
+    0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
+    0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2];
+  function sha256(str) {                                    // bytes of the UTF-8 text → 32 bytes
+    const b = Array.from(new TextEncoder().encode(str)), n = b.length;
+    b.push(0x80); while (b.length % 64 !== 56) b.push(0);
+    const bits = n * 8; for (let i = 7; i >= 0; i--) b.push(i >= 4 ? 0 : (bits >>> (i * 8)) & 255);
+    const H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19], W = new Array(64);
+    const r = (x, k) => (x >>> k) | (x << (32 - k));
+    for (let o = 0; o < b.length; o += 64) {
+      for (let i = 0; i < 16; i++) W[i] = (b[o + 4 * i] << 24) | (b[o + 4 * i + 1] << 16) | (b[o + 4 * i + 2] << 8) | b[o + 4 * i + 3];
+      for (let i = 16; i < 64; i++) {
+        const s0 = r(W[i - 15], 7) ^ r(W[i - 15], 18) ^ (W[i - 15] >>> 3), s1 = r(W[i - 2], 17) ^ r(W[i - 2], 19) ^ (W[i - 2] >>> 10);
+        W[i] = (W[i - 16] + s0 + W[i - 7] + s1) | 0;
+      }
+      let [a, bb, c, d, e, f, g, h] = H;
+      for (let i = 0; i < 64; i++) {
+        const t1 = (h + (r(e, 6) ^ r(e, 11) ^ r(e, 25)) + ((e & f) ^ (~e & g)) + K256[i] + W[i]) | 0;
+        const t2 = ((r(a, 2) ^ r(a, 13) ^ r(a, 22)) + ((a & bb) ^ (a & c) ^ (bb & c))) | 0;
+        h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = bb; bb = a; a = (t1 + t2) | 0;
+      }
+      H[0] = (H[0] + a) | 0; H[1] = (H[1] + bb) | 0; H[2] = (H[2] + c) | 0; H[3] = (H[3] + d) | 0;
+      H[4] = (H[4] + e) | 0; H[5] = (H[5] + f) | 0; H[6] = (H[6] + g) | 0; H[7] = (H[7] + h) | 0;
+    }
+    const out = []; H.forEach(x => out.push((x >>> 24) & 255, (x >>> 16) & 255, (x >>> 8) & 255, x & 255));
+    return out;
+  }
+  const FPS = new Map();
+  function fingerprint(w, size) {
+    if (!w) return '';
+    let body = FPS.get(w);
+    if (!body) {
+      const h = sha256(String(w)), dots = [];
+      for (let row = 0; row < 5; row++) for (let col = 0; col < 3; col++) {
+        const v = h[row * 3 + col] % 4;
+        [...new Set([col, 4 - col])].sort().forEach(c => {
+          const x = (2.4 + c * 4.8).toFixed(1), y = (2.4 + row * 4.8).toFixed(1);
+          dots.push(v === 0 ? '<circle cx="' + x + '" cy="' + y + '" r="0.6" class="f0"/>' : '<circle cx="' + x + '" cy="' + y + '" r="1.7" class="' + (v === 1 ? 'f1' : 'f2') + '"/>');
+        });
+      }
+      body = dots.join(''); FPS.set(w, body);
+    }
+    const s = size || 22;
+    return '<svg class="fp" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" aria-hidden="true">' + body + '</svg>';
+  }
   function identicon(w) {
+    if (V2) return fingerprint(w);                          // the same picture everywhere (DESIGN-v2.md «Page frame»)
     // a picture made from the address, so wallets without a name are still told apart at a glance
     let h = 2166136261;
     for (let i = 0; i < w.length; i++) h = Math.imul(h ^ w.charCodeAt(i), 16777619) >>> 0;
@@ -212,5 +268,5 @@
   };
   document.addEventListener('touchend', dropDrag);
   document.addEventListener('touchcancel', dropDrag);
-  window.EarlyCard = { render, identicon, recent: all => { const h = tokensHtml(all, null); return h ? '<div class="dtv">' + h + '</div>' : ''; } };
+  window.EarlyCard = { render, identicon, fingerprint, recent:all => { const h = tokensHtml(all, null); return h ? '<div class="dtv">' + h + '</div>' : ''; } };
 })();

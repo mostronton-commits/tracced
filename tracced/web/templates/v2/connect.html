@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{# design v2 · the 401 card (canvas «Connect», the page under the sheet): Connect, Back to the chart. «Beta, free for
+   now» is gone (owner, 26.10); the demo link lives in the sheet and in the footer #}
+{% block title %}Connect a wallet · tracced{% endblock %}
+{% block main_class %}center{% endblock %}
+{% block body %}
+<section class="pcard cc">
+  <h1>Connect a wallet to run this analysis</h1>
+  <p class="pc-sub">A signature only: no transaction, no fees.</p>
+  {% if mint and t_from and t_to %}<form id="again" method="post" action="/analyze" data-wallet-after hidden><input type="hidden" name="mint" value="{{ mint }}"><input type="hidden" name="from" value="{{ t_from }}"><input type="hidden" name="to" value="{{ t_to }}"></form>{% endif %}
+  <div class="pc-acts"><button type="button" class="pk mint" data-wallet-signin data-wallet-note="Connect a wallet to start this analysis.">Connect</button>{% if mint %}<a class="pk quiet" href="/token?mint={{ mint }}{% if t_from and t_to %}&amp;from={{ t_from|urlencode }}&amp;to={{ t_to|urlencode }}{% endif %}">Back to the chart</a>{% endif %}</div>
+</section>
+{% endblock %}

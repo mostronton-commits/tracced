@@ -6,7 +6,7 @@
     {% for l in bg_lines %}<span style="--i: {{ loop.index0 }}">{{ l }}</span>{% endfor %}
   </div>
   <div class="hero-in">
-    <div class="hero-top"><div class="hero-acct">{% include "_acct.html" %}</div>{% include "_news.html" %}</div>
+    <div class="hero-top">{% if design_v2 %}<a class="xfollow" href="https://x.com/intent/follow?screen_name=tracced_xyz" target="_blank" rel="noopener" title="Follow tracced on X">{{ glyph('x', 'Follow tracced on X') }}</a>{% endif %}<div class="hero-acct">{% include "_acct.html" %}</div>{% if not design_v2 %}{% include "_news.html" %}{% endif %}</div>
     <h1 class="brandline">tracced</h1>
     <p class="tagline mono">every wallet <em>on the record</em><span class="cursor">_</span></p>
     <p class="lead"><span class="lead-long">Paste a token, mark the pump — see who bought before it and what they did next.</span><span class="lead-short">See who bought before the pump, and what they did next.</span></p>

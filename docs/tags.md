@@ -36,7 +36,7 @@ bundle's page at Jito, so you can check it yourself.
 `seen-before` is the only tag that depends on you rather than the chain. It appears when the wallet was also an
 early buyer in **another analysis you saved**, and clicking it opens that list.
 
-!!! info "🔒 Nobody else's analyses are ever part of it"
+!!! info "Nobody else's analyses are ever part of it"
     Repeats are computed only across the analyses saved to your own account. Nothing leaves the server, and no
     request is spent on it.
 

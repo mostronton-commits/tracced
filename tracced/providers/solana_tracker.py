@@ -41,13 +41,21 @@ def _launch_pool(pools):
     return min(with_curve, key=lambda x: x.get("createdAt") or 0) if with_curve else {}
 
 
-def _migration(pools):
+def _migration(pools, launchpad=None):
     """Коли торгівля переїхала з лаунчпада на біржу: створення першого пулу після того, як крива добігла.
 
     Пізніші пули створюють сторонні люди (у нашого демо-токена їх шість), тож бере саме перший. Крива не
-    завершена або токен запущено одразу на біржі — міграції не було, і малювати на графіку нічого."""
+    завершена або токен запущено одразу на біржі — міграції не було, і малювати на графіку нічого.
+    Буває, що після міграції пулу кривої у відповіді вже нема (GLITCH, 21.10: лише pumpfun-amm, і DexScreener дає той
+    самий час пари): токен pump.fun потрапляє в PumpSwap лише міграцією, тож перший його пул там і є нею."""
     launch = _launch_pool(pools)
-    if not launch or (launch.get("curvePercentage") or 0) < 100:
+    if not launch:
+        amm = [x for x in pools if x.get("market") == "pumpfun-amm" and x.get("createdAt")]
+        if amm and "pump.fun" in str(launchpad or ""):
+            first = min(amm, key=lambda x: x["createdAt"])
+            return {"ms": first["createdAt"], "market": first.get("market"), "from": "pumpfun"}
+        return None
+    if (launch.get("curvePercentage") or 0) < 100:
         return None
     born = launch.get("createdAt") or 0
     later = [x for x in pools if x is not launch and (x.get("createdAt") or 0) > born]
@@ -136,7 +144,7 @@ class SolanaTracker(PumpDataSource):
             "liquidity_usd": (p.get("liquidity") or {}).get("usd"),
             "creator": creation.get("creator") or _launch_pool(pools).get("deployer"),   # творець токена: тег `dev`
             "deployer": p.get("deployer"),              # хто створив пул pools[0] — не обовʼязково творець токена
-            "migration": _migration(pools),             # коли крива добігла і торгівля переїхала на біржу
+            "migration": _migration(pools, tok.get("createdOn")),   # коли крива добігла і торгівля переїхала на біржу
             "launch_pool": _launch_pool(pools).get("poolId"),   # пул кривої: свічки до міграції живуть тільки в ньому
             # усі пули коротко: де токен торгувався і коли кожен пул з'явився (у частини пулів дати нема)
             "pools": [{"id": x.get("poolId"), "market": x.get("market"), "created": x.get("createdAt"),

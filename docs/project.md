@@ -33,7 +33,7 @@ is now checked for completeness.
 The same audit found trades that arrive with a broken token amount. The dollar figure is right, the derived price
 is not. Those trades are repaired, and the count is shown with the results.
 
-!!! info "📏 What that costs to prove"
+!!! info "What that costs to prove"
     On the demo token the whole trade history had to be reconstructed, 489,000 swaps, before a single exit could be
     called complete. It is, for all 4,634 wallets across the three ranges, and 370 of them share a funding source.
     Those are not user numbers. They are the size of the claim being checked.
@@ -48,7 +48,8 @@ Tags are facts with fixed definitions you can read: bought within 60 seconds of 
 hours, funded by the same wallet as others in the list. Each is derived from trades you can open yourself. The
 judgement stays with the person.
 
-No tracking by third parties. Visits are counted with Umami, which sets no cookies and never gets a wallet address.
+No tracking by third parties. Visits are counted by a privacy-friendly analytics tool, which sets no cookies and never gets a wallet
+address.
 When you connect a wallet, tracced's own server also keeps what that wallet does here and what each step cost, so
 the owner can see how the product is used. None of it goes to anyone else:
 [what is recorded](/docs/account#what-we-record).
