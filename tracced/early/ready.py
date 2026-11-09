@@ -45,7 +45,7 @@ DROPPED = {"pace": "trade at a machine's pace", "fresh": "fresh wallets", "bot":
 MAX_TRADES = 1500             # the board's pace: a month of about fifty trades a day
 NOT_PEOPLE = {"bot", "exchange", "pool", "hacker", "spam_dusting"}
 HUMAN = {"max_swaps": 1500, "max_tokens": 300, "min_closed": 5, "win_rate": [30.0, 90.0], "min_hold_min": 2.0,
-         "max_quick_share": 0.5, "min_age_days": 30, "max_roi": 100.0, "roi_from_usd": 1_000_000.0}
+         "max_quick_share": 0.5, "min_age_days": 30, "max_roi": 100.0, "roi_from_usd": 1_000_000.0, "max_sell_to_buy": 100.0}
 
 
 def prev_month(now_ms):
@@ -164,6 +164,9 @@ def by_facts(facts, month_from, rules=None, wallet=None, operators=None):
         return "launch"
     if f.get("arbitrage") or f.get("type") in NOT_PEOPLE:
         return "bot"
+    b, s = f.get("avg_buy"), f.get("avg_sell")
+    if b and s and s > float(r["max_sell_to_buy"]) * b:
+        return "data"                         # 09.11, DtPt…: buys of $119, sells of $145K on average: the source's broken sells"
     ft = f.get("first_trade")
     if ft and ft > month_from - int(r["min_age_days"]) * DAY:
         return "fresh"

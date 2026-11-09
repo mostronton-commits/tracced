@@ -221,16 +221,18 @@ class EarlyST(SolanaTracker):
 
     def wallet_summaries(self, wallets):
         """When each wallet first traded and whether Solana Tracker takes it for an arbitrage bot: `POST
-        /v2/pnl/wallets/batch`, 100 wallets a request. {wallet: {"first_trade": ms or None, "arbitrage": bool, "type": str}}."""
+        /v2/pnl/wallets/batch`, 100 wallets a request. {wallet: {"first_trade": ms or None, "arbitrage": bool, "type": str, "avg_buy", "avg_sell": $ or None}}."""
         out, wallets = {}, list(dict.fromkeys(w for w in wallets if w))
         for i in range(0, len(wallets), 100):
             d = self._get("/v2/pnl/wallets/batch", body={"wallets": wallets[i:i + 100]}) or {}
             for x in d.get("wallets") or []:
-                timing = ((x.get("summary") or {}).get("timing")) or {}
-                ft = timing.get("firstTrade")
+                sm = x.get("summary") or {}
+                ft, av = (sm.get("timing") or {}).get("firstTrade"), sm.get("averages") or {}
+                num = lambda v: float(v) if isinstance(v, (int, float)) and v > 0 else None
                 out[x.get("wallet")] = {"first_trade": int(ft) if isinstance(ft, (int, float)) and ft > 0 else None,
                                         "arbitrage": bool((x.get("tags") or {}).get("isArbitrage")),
-                                        "type": (x.get("identity") or {}).get("type")}
+                                        "type": (x.get("identity") or {}).get("type"),
+                                        "avg_buy": num(av.get("buy")), "avg_sell": num(av.get("sell"))}
         return out
 
     def kol_leaderboard(self, days=30, limit=10):
