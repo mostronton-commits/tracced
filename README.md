@@ -109,7 +109,7 @@ docker compose run --rm --no-deps -v "$PWD/tests:/app/tests" web python -m unitt
 ## Data and privacy
 
 The table is built from swaps recorded on chain. No third-party PnL, scores or "smart money" labels. A funder's
-exchange name comes from our own list of exchange wallets; InsightX labels tell which of the other funders are
+exchange name comes from our own list of exchange wallets; address labels tell which of the other funders are
 exchanges or apps. What is
 recorded about a connected wallet is spelled out in [Your account](https://tracced.xyz/docs/account#what-we-record).
 

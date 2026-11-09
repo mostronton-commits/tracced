@@ -23,7 +23,7 @@ counted by tracced from the wallet's own swaps and links to the transaction on S
 ## How a result is built
 
 ```
-token + range ──► Solana Tracker swaps (cached by time span) ──► wallets that bought inside the range
+token + range ──► on-chain swaps (cached by time span) ──► wallets that bought inside the range
      ──► each wallet's whole history on this token ──► our ledger: average cost, realized PnL, ROI, hold
      ──► tags from the numbers (9 rules) ──► enrichment: wallet age and first funder from Solana RPC, identities
      ──► the result page under the chart (a tab per analyzed range)
@@ -73,15 +73,14 @@ GMGN too; a trade's amount is within 1% of the chain (median); the realized prof
 
 ## Engineering notes
 
-- **Stack:** Python (aiohttp, Jinja2), vanilla JavaScript, Docker, Caddy, one VPS. `main` deploys to production, `dev`
-  to a private staging server.
-- **Data:** Solana Tracker (swaps, candles, wallet trades), Solana RPC (wallet age, funders), DexScreener (paid
-  promotions on the chart). Wallet sign-in: Sign in with Solana (`tracced/web/accounts.py`).
+- **Stack:** Python, vanilla JavaScript, one server. `main` deploys to production, `dev` to a private staging server.
+- **Data:** indexed on-chain swaps, candles and wallet trades; Solana RPC for wallet age and funders; paid token
+  promotions on the chart. Wallet sign-in: Sign in with Solana (`tracced/web/accounts.py`).
 - **Cost control:** every paid request goes through daily and monthly budgets; swaps and candles are cached on disk.
-- **Privacy:** visits are counted with Umami, without cookies or addresses; nothing is sold or shared.
+- **Privacy:** visits are counted without cookies or addresses; nothing is sold or shared.
 - **Tests:** `docker compose run --rm --no-deps -v "$PWD/tests:/app/tests" web python -m unittest discover -s tests -t .`
 - **Docs** live in `docs/` and are served by the app at https://tracced.xyz/docs; `docs/updates.md` lists every release.
-- **Built with AI:** a product founder, building with Claude Code (Anthropic) as the engineering team; every change
+- **Built with AI:** a product founder, building with an AI coding agent as the engineering team; every change
   goes through tests, a staging server and the founder's review before production.
 
 ## What is next

@@ -500,7 +500,7 @@ if AioHTTPTestCase:
                 self.assertIn('class="sbar"', html, path)
                 self.assertIn("Live on Solana", html, path)
                 bar = html[html.index('class="sbar"'):]
-                for link in ('href="/docs/how-it-works"', 'href="/docs/project"', 'href="/feedback"', "github.com/mostronton-commits/tracced"):
+                for link in ('href="/docs/how-it-works"', 'href="/docs/project"', 'href="/feedback"'):
                     self.assertIn(link, bar, path)
                 self.assertNotIn('id="sbtheme"', html, path)                                      # публічний сайт: темної нема
                 self.assertNotIn('id="ftheme"', html, path)

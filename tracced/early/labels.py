@@ -110,7 +110,7 @@ class InsightX:
             d = self._get_json(URL + ",".join(batch))
         except urllib.error.HTTPError as e:
             if e.code in (401, 403, 429):
-                raise Unavailable(f"InsightX answered {e.code}") from e
+                raise Unavailable(f"labels answered {e.code}") from e
             raise
         return d if isinstance(d, list) else (d or {}).get("data") or []
 

@@ -261,7 +261,7 @@ if AioHTTPTestCase:
                 for gone in ('class="sbar"', 'id="newsmark"', "early:theme", "foot-brand"):
                     self.assertNotIn(gone, html, path)
                 foot = html[html.index('<footer class="foot">'):]
-                for link in ('href="/docs/updates"', 'href="/feedback"', "t.me/tracced_xyz", "github.com/mostronton-commits/tracced"):
+                for link in ('href="/docs/updates"', 'href="/feedback"', "t.me/tracced_xyz"):
                     self.assertIn(link, foot, path)
                 self.assertIn("x.com/intent/follow?screen_name=tracced_xyz", html, path)
                 self.assertIn('class="acct-pill"', html, path)                          # the pill: the address alone (owner, 26.10)
@@ -323,7 +323,7 @@ if AioHTTPTestCase:
                 self.assertIn('<footer class="foot"><div class="foot-in">', html)
                 from tracced import __version__
                 self.assertIn(">v" + ".".join(__version__.split(".")[:2]) + "<", html)   # product version, not the asset hash
-                self.assertIn('href="https://github.com/mostronton-commits/tracced"', html)
+                self.assertNotIn("github.com/mostronton-commits", html)          # the code is private (owner, 09.11)
                 self.assertIn('href="https://x.com/tracced_xyz"', html)
                 self.assertIn('href="https://t.me/tracced_xyz"', html)        # the Telegram channel (owner, 05.10)
             html = await (await self.client.get("/docs")).text()

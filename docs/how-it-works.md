@@ -20,7 +20,7 @@ click opens the chart.
 **Top traders**: up to ten wallets that made the most last month and trade like people, for when you have no token to start
 from. On the 1st of the month (UTC) the next list is counted.
 
-The candidates are known KOLs and the best of Solana Tracker's rankings. How much each one made, tracced counts itself, from
+The candidates are known KOLs and the best of public PnL rankings. How much each one made, tracced counts itself, from
 the wallet's own swaps over the month, the same way as its card. A sale with no purchase under it is left out: the rankings
 count such tokens as profit. A swap of a memecoin into a tokenized stock (RACE, SKHY, SPCX) is a real exit and counts at the
 stock's price.
@@ -123,7 +123,7 @@ unrelated wallets, so from such a busy funder only wallets funded close together
 creates wallets for a launch. In the table a bundle's tag has one colour per funder; a click shows that bundle alone.
 
 When the first SOL came straight from a known exchange, the card names it. Funders our own list does not know are looked up in
-the labels of [InsightX](https://insightx.network): an exchange, an app or a casino makes no bundle, and its wallets count among
+address labels: an exchange, an app or a casino makes no bundle, and its wallets count among
 those funded from exchanges.
 
 ## Organised launches
@@ -178,8 +178,7 @@ analysis, and a line that fails is dropped. It never tells you to buy or sell, p
 wallet connected it sees your own watchlist when you ask, so "which of my wallets are here?" has an answer.
 
 Anything outside the analysis gets one fixed reply. Questions go to AI model hosts whose policy is not to collect them or train
-on them; when they are unavailable, to Claude, Anthropic's model, which does not train on them and keeps them only for a limited
-time. Do not type anything personal into it.{% if not assistant_on %}
+on them, or to keep them only for a limited time. Do not type anything personal into it.{% if not assistant_on %}
 
 !!! warning "The agent is off on this server"
     It needs a model key that this deployment does not have yet.

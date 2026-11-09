@@ -523,7 +523,7 @@ def _label_funders(r, labels, s, job=None):
     used = labels.requests - before
     if used and job is not None:
         ex = sum(1 for x in found.values() if x.get("kind") == "exchange")
-        job.log.append(f"InsightX named {len(found)} funders ({ex} exchanges) in {used} request{'' if used == 1 else 's'}")
+        job.log.append(f"address labels named {len(found)} funders ({ex} exchanges) in {used} request{'' if used == 1 else 's'}")
     labels.flush()
 
 

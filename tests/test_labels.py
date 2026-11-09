@@ -88,7 +88,7 @@ class TestEnrichment(unittest.TestCase):
         app_mod._label_funders(r, ix, {"insightx_calls_per_run": 3}, job)
         self.assertEqual(r["labels"], {"CB": ["Coinbase", "Coinbase Hot Wallet 2", "exchange"], "ST": ["Stake.com", "Stake.com", "gambling"]})
         self.assertTrue(r["labels_at"])
-        self.assertIn("InsightX named 2 funders (1 exchanges) in 1 request", job.log[-1])
+        self.assertIn("address labels named 2 funders (1 exchanges) in 1 request", job.log[-1])
         app_mod._check_services(r, None)
         self.assertEqual(set(r["services"]), {"CB", "ST"})                     # funds strangers: no bundle from it
         rows = [{"wallet": w, "tag_list": []} for w in r["funders"]]

@@ -15,7 +15,7 @@ per person a day, not per wallet.
 
 A strip of facts under the chart: who bought, how much is sold out or still held, the share of fresh wallets and of
 wallets funded straight from an exchange, whether the bundles sold out. Tags for wallets that never sold and for
-wallets that slept a week before buying. Exchange names for funders from our own list, and which other funders are exchanges or apps from InsightX labels.
+wallets that slept a week before buying. Exchange names for funders from our own list, and which other funders are exchanges or apps from address labels.
 
 Fresh pumps on the home page: tokens of the last two days that reached a real peak and are really traded, without the
 clones and the wash volume. Telegram alerts for everyone: a bell on a wallet or on a whole list, a buy or a sell
@@ -40,7 +40,7 @@ wallet.{% if not assistant_on %}
 
 !!! agent "tracced for agents"
     The same tools, open to any AI agent through the Model Context Protocol (MCP): analyze a token's range, read the
-    wallets, open a card, keep lists. An agent you already use, in Claude, Cursor or your own trading bot, asks
+    wallets, open a card, keep lists. An agent you already use, in your AI assistant or your own trading bot, asks
     tracced who bought before a pump the way it would search the web. Alerts reach it next, then copy-trading, and
     no trade leaves without your confirmation.
 
