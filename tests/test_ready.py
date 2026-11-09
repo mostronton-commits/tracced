@@ -402,6 +402,12 @@ if AioHTTPTestCase:
                 saved = json.load(f)
             self.assertEqual((saved["v"], set(saved["lists"])), (6, {SLUG, "top-roi"}))      # після перезапуску — з файлу
 
+        async def test_a_wallet_taken_out_after_a_check_stays_out(self):
+            self.app["s"]["ready_exclude"] = [addr("K", 1)]                                 # owner, 09.11: the top is checked twice
+            t = (await self.refresh())[SLUG]
+            self.assertNotIn(addr("K", 1), [r["wallet"] for r in t["rows"]])
+            self.assertIn(["taken out after a check", 1], t["funnel"]["reasons"])
+
         async def test_a_new_month_counts_again_but_not_after_every_failure(self):
             await self.refresh()
             for v in self.app["ready"]["lists"].values():

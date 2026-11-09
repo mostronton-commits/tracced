@@ -4531,7 +4531,11 @@ def _ready_count(app, cands, month, facts):
     rules = dict(ready_mod.HUMAN, **(s.get("ready_human") or {}))
     operators = launch_mod.load_operators()
 
+    out = set(s.get("ready_exclude") or [])
+
     def one(row):
+        if row["wallet"] in out:
+            return None, "checked"               # прибраний руками після перевірки (власник, 09.11: топ перевіряти двічі)
         f = dict(facts.get(row["wallet"]) or {})
         f["type"] = f.get("type") or row.get("type")
         why = ready_mod.by_facts(f, month["from"], rules, wallet=row["wallet"], operators=operators)

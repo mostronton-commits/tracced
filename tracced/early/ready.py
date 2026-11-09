@@ -40,7 +40,8 @@ LISTS = {
 DROPPED = {"pace": "trade at a machine's pace", "fresh": "fresh wallets", "bot": "bots, exchanges, arbitrage",
            "sniper": "snipers", "win rate": "win rate outside 30–90 %", "few": "too few closed trades",
            "error": "could not be read", "small": "people who made less",
-           "launch": "wallets of organised launches", "data": "numbers that do not add up"}
+           "launch": "wallets of organised launches", "data": "numbers that do not add up",
+           "checked": "taken out after a check"}
 MAX_TRADES = 1500             # the board's pace: a month of about fifty trades a day
 NOT_PEOPLE = {"bot", "exchange", "pool", "hacker", "spam_dusting"}
 HUMAN = {"max_swaps": 1500, "max_tokens": 300, "min_closed": 5, "win_rate": [30.0, 90.0], "min_hold_min": 2.0,
