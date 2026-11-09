@@ -6,8 +6,9 @@ TelegramWidget.request (64 bytes out, 1 KB back). Production sends widgets to pr
 text answer of tgbot.early_text.
 
 Two cards:
-- the /early answer: the chart around the pump with its window, the wallets (tap one for its numbers, Copy, Solscan,
-  Follow), the launch facts. Two taps on the chart mark another range, and its button asks the bot to analyse it;
+- the /early answer: candles around the pump with its window shaded, the wallets (tap one, and only that one opens with
+  its numbers, Copy, Solscan, Follow), the launch facts. Two taps on the chart mark another range, and its button asks
+  the bot to analyse it. The link to the analysis is the message's own button, under the card;
 - the owner's live panel: what the site did today and what is left of each paid budget, asked for every 5 s while it is
   on screen.
 Requests: "f:<wallet>" follow, "r:<mint>:<from>:<to>" (unix minutes, base 36) analyse a range, "s" the panel's numbers.
@@ -20,7 +21,6 @@ import zlib
 from . import tgbot
 
 MAX_HTML, MAX_Z = 32768, 4096
-POINTS = 120                     # the chart's points: a pump's shape, and 4 KB with room for the wallets
 MINUTE = 60_000
 
 BASE_CSS = """:root{color-scheme:light dark;--g:light-dark(#059669,#34D399);--l:light-dark(#DC2626,#F87171);--m:var(--tg-theme-hint-color,#64748B);--ln:var(--tg-theme-section-separator-color,#E2E8F0)}
@@ -34,35 +34,38 @@ BASE_JS = """const T=window.TelegramWidget,D=JSON.parse(document.getElementById(
 if(T)document.documentElement.style.colorScheme=T.colorScheme;
 const M=v=>{const a=Math.abs(v),s=a>=1e6?(a/1e6).toFixed(1)+'M':a>=1e5?(a/1e3).toFixed(0)+'K':a>=1e3?(a/1e3).toFixed(1)+'K':a.toFixed(0);return(v<0?'−$':'$')+s.replace('.0','')};"""
 
-EARLY_CSS = """#c{background:#090D16;border-radius:10px;margin:8px 0 2px;height:104px;position:relative;touch-action:pan-y}svg{display:block;width:100%;height:100%}
-#c i{position:absolute;top:6px;font:11px ui-monospace,monospace;color:#94A3B8;font-style:normal}#h{min-height:16px}
-.r{display:flex;gap:8px;align-items:center;padding:7px 0;border-top:1px solid var(--ln)}
-.r b{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
-.d{display:none;padding:0 0 8px;font-size:13px}.o .d{display:block}.t{color:light-dark(#92400E,#FBBF24);font-size:12px}#L{margin-top:6px}"""
+EARLY_CSS = """#c{background:#090D16;border-radius:10px;margin:8px 0 6px;height:132px;position:relative;touch-action:pan-y;overflow:hidden}svg{display:block;width:100%;height:100%}
+#c i{position:absolute;font:11px ui-monospace,monospace;color:#94A3B8;font-style:normal;pointer-events:none}
+.r{display:flex;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--ln)}
+.r b{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}.r b em{font-style:normal;font-weight:400;color:var(--m)}
+.d{display:none;padding:0 0 10px}.o .d{display:block}.v{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}.v span{display:block;font-size:11px;color:var(--m)}
+.t{color:light-dark(#92400E,#FBBF24);font-size:12px;margin-bottom:4px}.k button{padding:6px 4px}#L{margin-top:2px}"""
 
-EARLY_JS = """const S=v=>(v<0?'−':'+')+M(Math.abs(v)),n=D.c.length,hm=m=>new Date(m*6e4).toISOString().slice(11,16);let A=-1,B=-1;
-function chart(){const x=i=>(i/(n-1)*100).toFixed(2),y=v=>(98-v/999*84).toFixed(1);let p='';D.c.forEach((v,i)=>p+=(i?'L':'M')+x(i)+' '+y(v));
-const band=(a,b,o)=>'<rect x="'+x(a)+'" width="'+(x(b)-x(a)).toFixed(2)+'" height="104" fill="#A7F3D0" opacity="'+o+'"/>';
-const sel=A<0?'':B<0?band(A,Math.min(n-1,A+1),.6):band(A,B,.32);
-$('#c').innerHTML='<svg viewBox="0 0 100 104" preserveAspectRatio="none">'+band(D.a,D.b,.16)+sel+'<path d="'+p+'" fill="none" stroke="#A7F3D0" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg><i style="left:8px">'+M(D.lo)+'</i><i style="right:8px">'+M(D.hi)+'</i>';
-const t=i=>D.t0+i*D.dt;$('#h').innerHTML=A<0?'<span class=s>Tap the chart twice to mark another range</span>':B<0?'<span class=s>From '+hm(t(A))+' UTC… tap where it ends</span>':'<div class=k><button class=a id=g>Get wallets '+hm(t(A))+'–'+hm(t(B))+' UTC</button></div>'}
-function rows(){let h='';D.r.forEach((r,i)=>{const[w,s,who,tg,e,x,pnl,roi,b,tk,l,nb,ns,fb]=r;
-h+='<div class=i><div class=r><b>'+s+(who?' · '+who:'')+'</b><span class="n s">'+M(e)+' → '+(x?M(x):'holding')+'</span><span class="n '+(pnl<0?'q':'p')+'">'+(roi<0?'−':'+')+Math.abs(roi)+'%</span></div>'
-+'<div class=d>'+(tg?'<div class=t>'+tg+'</div>':'')+'<div class=n>PnL '+S(pnl)+' · in '+M(b)+' · took '+M(tk)+(l!=null?' · left '+M(l):'')+'</div><div class=s>'+nb+' buys · '+ns+' sells · first buy '+fb+' UTC</div>'
+EARLY_JS = """const n=D.c.length/8,Z='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_',hm=m=>new Date(m*6e4).toISOString().slice(11,16);
+const C=[];for(let i=0;i<n;i++){const q=[];for(let k=0;k<4;k++){const j=i*8+k*2;q.push(Z.indexOf(D.c[j])*64+Z.indexOf(D.c[j+1]))}C.push(q)}let A=-1,B=-1;
+function chart(){const y=v=>(124-v/4095*112).toFixed(1),band=(a,b,o)=>'<rect x="'+a+'" width="'+(b-a+1)+'" height="132" fill="#A7F3D0" opacity="'+o+'"/>';
+let g=band(D.a,D.b,.13)+(A<0?'':B<0?band(A,A,.45):band(A,B,.28));
+C.forEach(([o,h,l,c],i)=>{const u=c>=o,f=u?'#34D399':'#F87171',t=y(Math.max(o,c)),bt=y(Math.min(o,c));
+g+='<rect x="'+(i+.44)+'" width=".12" y="'+y(h)+'" height="'+Math.max(.5,y(l)-y(h)).toFixed(1)+'" fill="'+f+'"/><rect x="'+(i+.15)+'" width=".7" y="'+t+'" height="'+Math.max(1,bt-t).toFixed(1)+'" fill="'+f+'"/>'});
+$('#c').innerHTML='<svg viewBox="0 0 '+n+' 132" preserveAspectRatio="none">'+g+'</svg><i style="right:8px;top:6px">'+M(D.hi)+'</i><i style="right:8px;bottom:6px">'+M(D.lo)+'</i>'
++(A<0?'<i style="left:8px;top:6px">tap 2 points: new range</i>':'');
+const t=i=>D.t0+i*D.dt;$('#h').innerHTML=B<0?'':'<div class=k style="margin:0 0 6px"><button class=a id=g>Get wallets '+hm(t(A))+'–'+hm(t(B+1))+' UTC</button></div>'}
+function rows(){let h='';D.r.forEach((r,i)=>{const[w,s,who,tg,e,x,pnl,roi,b,tk,l]=r,V=(k,v)=>'<div><span>'+k+'</span><b class=n>'+v+'</b></div>';
+h+='<div class=i><div class=r><b>'+s+(who?' <em>'+who+'</em>':'')+'</b><span class="n s">'+M(e)+' → '+(x?M(x):'hold')+'</span><span class="n '+(pnl<0?'q':'p')+'">'+(roi<0?'−':'+')+Math.abs(roi)+'%</span></div>'
++'<div class=d>'+(tg?'<div class=t>'+tg+'</div>':'')+'<div class=v>'+V('PnL',(pnl<0?'−':'+')+M(Math.abs(pnl)))+V('In',M(b))+V('Out',M(tk))+(l!=null?V('Held',M(l)):'')+'</div>'
 +'<div class=k><button data-c='+i+'>Copy</button><button data-x='+i+'>Solscan</button><button class=a data-f='+i+'>☆ Follow</button></div></div></div>'});
 $('#w').innerHTML=h||'<p class=s>'+D.e+'</p>'}
 function ask(g,q,ok){if(!T)return;g.textContent='…';T.request(q).then(r=>{g.textContent=r.result=='ok'?ok:(r.result||'No answer')},e=>{g.textContent=e.code=='RATE_LIMITED'?'Too fast: tap again':'Not now'})}
-chart();rows();$('#L').innerHTML=D.L.map(x=>'<div class=s>'+x+'</div>').join('');
-$('#c').addEventListener('click',e=>{const r=$('#c').getBoundingClientRect(),i=Math.max(0,Math.min(n-1,Math.round((e.clientX-r.left)/r.width*(n-1))));
-if(A<0||B>=0){A=i;B=-1}else if(i==A)return;else{B=Math.max(A,i);A=Math.min(A,i)}T&&T.HapticFeedback.selectionChanged();chart()});
+chart();rows();$('#L').innerHTML=D.L.length?'<div class=s>'+D.L.join(' · ')+'</div>':'';
+$('#c').addEventListener('click',e=>{const r=$('#c').getBoundingClientRect(),i=Math.max(0,Math.min(n-1,Math.floor((e.clientX-r.left)/r.width*n)));
+if(A<0||B>=0){A=i;B=-1}else{B=Math.max(A,i);A=Math.min(A,i)}T&&T.HapticFeedback.selectionChanged();chart()});
 document.addEventListener('click',e=>{const g=e.target,a=g.dataset;
-if(g.id=='g')return ask(g,'r:'+D.m+':'+(D.t0+A*D.dt).toString(36)+':'+(D.t0+B*D.dt).toString(36),'Running: the card comes here');
-if(a.c!=null)return T&&T.copyText(D.r[a.c][0]);if(a.x!=null)return T&&T.openLink('https://solscan.io/account/'+D.r[a.x][0]);
-if(a.f!=null)return ask(g,'f:'+D.r[a.f][0],'★ In your watchlist');if(g.id=='o')return T&&T.openLink(D.u);
-const it=g.closest('.i');if(it&&!g.closest('.d')){T&&T.HapticFeedback.selectionChanged();it.classList.toggle('o')}});"""
+if(g.id=='g')return ask(g,'r:'+D.m+':'+(D.t0+A*D.dt).toString(36)+':'+(D.t0+(B+1)*D.dt).toString(36),'Running: a new card comes');
+if(a.c!=null){T&&T.copyText(D.r[a.c][0]);g.textContent='Copied';return}if(a.x!=null)return T&&T.openLink('https://solscan.io/account/'+D.r[a.x][0]);
+if(a.f!=null)return ask(g,'f:'+D.r[a.f][0],'★ Following');
+const it=g.closest('.i');if(it&&!g.closest('.d')){const o=it.classList.contains('o');document.querySelectorAll('.o').forEach(x=>x.classList.remove('o'));if(!o)it.classList.add('o');T&&T.HapticFeedback.selectionChanged()}});"""
 
-EARLY_BODY = ('<h1>{sym}</h1><div class=s>pump {span} UTC · early wallets, best first</div><div id=c></div><div id=h></div>'
-              '<div id=w></div><div id=L></div><div class=k><button id=o class=a>Open on tracced</button></div>')
+EARLY_BODY = '<h1>{sym}</h1><div class=s>pump {span} UTC</div><div id=c></div><div id=h></div><div id=w></div><div id=L></div>'
 
 PANEL_CSS = """.g{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0}.g div{min-width:0;background:var(--tg-theme-secondary-bg-color,#F1F5F9);border-radius:8px;padding:6px 8px}
 .g b{display:block;font:700 18px ui-monospace,monospace}.m{margin-top:7px}.m div{height:6px;border-radius:3px;background:var(--ln);overflow:hidden;margin-top:3px}
@@ -81,28 +84,55 @@ draw(D.x);pull();setInterval(pull,5100);T&&T.onEvent('activated',pull);"""
 PANEL_BODY = '<h1>tracced · today</h1><div class=s id=u></div><div class=g id=g></div><div id=m></div>'
 
 
-def series(pts, a, b, n=POINTS):
-    """Caps [(t_ms, cap, …)] → (n caps on an even grid from a to b, scaled 0..999; first minute; minutes per point; the
-    lowest and highest cap). Even steps let a tap on the chart turn into a time; each point is the last close at or
-    before its moment (the first close before the first candle)."""
-    pts = sorted(p for p in pts if p[1])
-    if not pts:
-        return [], a // MINUTE, 1, 0, 0
-    t0, dt = a // MINUTE, max(1, -(-(b - a) // MINUTE) // (n - 1))
-    out, j = [], 0
+B64 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_"
+CANDLES = 72                     # the chart's candles: 4 KB with room for the wallets
+
+
+def candles(raw, supply, a, b, n=CANDLES):
+    """Price candles → n candles on an even grid from a to b (market cap: open, high, low, close), packed 8 characters
+    each (four values 0..4095, two base-64 digits each); first minute; minutes per candle; the lowest and highest cap
+    on the chart. Even steps let a tap turn into a time. A step with no trade repeats the last close. A source's shifted
+    decimal does not flatten the chart: a candle 50x off the median is left out, and the scale follows opens and closes,
+    so a broken wick is cut at the chart's edge."""
+    raw = sorted((int(c["time"]), c) for c in raw or [] if c.get("close") and c.get("time") is not None)
+    if raw:                                             # a price a source shifted by a decimal (PAIDDOGE's first close at
+        mid = sorted(float(c["close"]) for _, c in raw)[len(raw) // 2]     # 1/150 of the rest) is not a candle
+        raw = [(t, c) for t, c in raw if mid / 50 <= float(c["close"]) <= mid * 50
+               and mid / 50 <= float(c.get("open") or c["close"]) <= mid * 50]
+    if raw:
+        a = max(a, raw[0][0] // MINUTE * MINUTE)        # a young token: the chart starts at its first trade
+    t0, dt = a // MINUTE, max(1, -(-(b - a) // MINUTE) // n)
+    if not raw or not supply:
+        return "", t0, dt, 0, 0
+    out, j, last = [], 0, float(raw[0][1].get("open") or raw[0][1]["close"]) * supply
     for i in range(n):
-        t = (t0 + i * dt) * MINUTE
-        while j + 1 < len(pts) and pts[j + 1][0] <= t:
+        lo_t, hi_t, got = (t0 + i * dt) * MINUTE, (t0 + (i + 1) * dt) * MINUTE, []
+        while j < len(raw) and raw[j][0] < hi_t:
+            if raw[j][0] >= lo_t:
+                got.append(raw[j][1])
             j += 1
-        out.append(pts[j][1])
-    lo, hi = min(out), max(out)
-    return [round((c - lo) / ((hi - lo) or 1) * 999) for c in out], t0, dt, lo, hi
+        if got:
+            o = float(got[0].get("open") or got[0]["close"]) * supply
+            c = float(got[-1]["close"]) * supply
+            h = max(float(x.get("high") or x["close"]) for x in got) * supply
+            l = min(float(x.get("low") or x["close"]) for x in got) * supply
+            out.append((o, max(h, o, c), min(l, o, c), c))
+            last = c
+        else:
+            out.append((last, last, last, last))
+    lo = min(min(o, c) for o, _, _, c in out)
+    hi = max(max(o, c) for o, _, _, c in out)
+    pad = (hi - lo) * 0.08 or hi * 0.05 or 1
+    lo, hi = max(0.0, lo - pad), hi + pad
+    q = lambda v: max(0, min(4095, round((v - lo) / ((hi - lo) or 1) * 4095)))
+    packed = "".join(B64[q(v) // 64] + B64[q(v) % 64] for cnd in out for v in cnd)
+    return packed, t0, dt, lo, hi
 
 
-def early_card(symbol, mint, t_from, t_to, rows, names, result, pts, job_id, site, creator=None, min_profit=0,
-               min_mult=0, price_ratio=1.0, around=None):
-    """The /early answer as a widget. pts: caps over `around` (from, to), the chart's span; the window is shaded on it.
-    Same wallets and facts as tgbot.early_text."""
+def early_card(symbol, mint, t_from, t_to, rows, names, result, raw_candles, supply, job_id, site, creator=None,
+               min_profit=0, min_mult=0, price_ratio=1.0, around=None):
+    """The /early answer as a widget. raw_candles: price candles over `around` (from, to), the chart's span; the window
+    is shaded on it. Same wallets and facts as tgbot.early_text; the link to the analysis is the message's own button."""
     out = []
     for r in tgbot.top_rows(rows, min_profit=min_profit, min_mult=min_mult, creator=creator):
         w, idn = r["wallet"], (names or {}).get(r["wallet"]) or {}
@@ -112,17 +142,21 @@ def early_card(symbol, mint, t_from, t_to, rows, names, result, pts, job_id, sit
         out.append([w, tgbot.short(w), who, ", ".join(t for t in tgbot.SHOWN_TAGS if t in (r.get("tag_list") or [])),
                     round(r.get("entry_mcap_avg") or r.get("entry_range_mcap") or 0),
                     round((r.get("exit_mcap_avg") or 0) if took else 0), round(pnl),
-                    round(pnl / size * 100) if size else 0, round(size), round(took), None if left is None else round(left),
-                    r.get("buys") or 0, r.get("sells") or 0, tgbot.utc(r.get("first_buy_ms") or t_from, short=True)])
+                    round(pnl / size * 100) if size else 0, round(size), round(took), None if left is None else round(left)])
     a, b = around or (t_from - 60 * MINUTE, t_to + 120 * MINUTE)
-    c, t0, dt, lo, hi = series(pts, a, b)
-    idx = lambda t: max(0, min(len(c) - 1, round((t // MINUTE - t0) / dt)))
-    launch = [html.unescape(re.sub(r"<[^>]+>", "", x)) for x in tgbot.launch_lines(result or {}, creator, waiting=False)]
-    data = {"c": c, "t0": t0, "dt": dt, "lo": round(lo), "hi": round(hi), "a": idx(t_from), "b": idx(t_to), "m": mint,
-            "r": out, "u": f"{site}/job/{job_id}", "L": launch,
-            "e": f"{tgbot.plural(len(rows or []), 'early wallet')}, none in profit."}
+    launch = [html.unescape(re.sub(r"<[^>]+>", "", x)).lstrip("• ").rstrip(":")
+              for x in tgbot.launch_lines(result or {}, creator, waiting=False)]
     sym = "$" + html.escape(str(symbol or tgbot.short(mint))[:16])
-    return page(EARLY_CSS, EARLY_BODY.format(sym=sym, span=tgbot.span(t_from, t_to)), data, EARLY_JS)
+    for n in (CANDLES, 60, 48, 36):                     # over Telegram's 4 KB: fewer candles, not a missing card
+        c, t0, dt, lo, hi = candles(raw_candles, supply, a, b, n)
+        k = len(c) // 8
+        idx = lambda t: max(0, min(k - 1, (t // MINUTE - t0) // dt)) if k else 0
+        data = {"c": c, "t0": t0, "dt": dt, "lo": round(lo), "hi": round(hi), "a": idx(t_from), "b": idx(t_to - 1),
+                "m": mint, "r": out, "L": launch, "e": f"{tgbot.plural(len(rows or []), 'early wallet')}, none in profit."}
+        doc = page(EARLY_CSS, EARLY_BODY.format(sym=sym, span=tgbot.span(t_from, t_to)), data, EARLY_JS)
+        if fits(doc):
+            break
+    return doc
 
 
 def panel_card(stats=None):

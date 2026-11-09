@@ -52,32 +52,52 @@ def tgwidget_b36(n):
 
 
 class TestCards(unittest.TestCase):
-    def test_the_chart_is_an_even_grid(self):
-        pts = [(T + i * 5 * MIN, 1000.0 + i) for i in range(10)]               # a candle every 5 minutes
-        c, t0, dt, lo, hi = tgwidget.series(pts, T, T + 45 * MIN, n=10)
-        self.assertEqual((t0, dt, len(c)), (T // MIN, 5, 10))
-        self.assertEqual((c[0], c[-1], lo, hi), (0, 999, 1000.0, 1009.0))
-        c, *_ = tgwidget.series(pts, T, T + 45 * MIN, n=19)                   # between candles: the last close
-        self.assertEqual(c[1], c[0])
-        self.assertEqual(tgwidget.series([], T, T + MIN)[0], [])
+    def test_the_chart_is_an_even_grid_of_candles(self):
+        raw = [{"time": T + i * MIN, "open": 1 + i, "high": 2 + i, "low": 0.5 + i, "close": 1.5 + i} for i in range(10)]
+        c, t0, dt, lo, hi = tgwidget.candles(raw, 1000, T, T + 10 * MIN, n=5)
+        self.assertEqual((t0, dt, len(c)), (T // MIN, 2, 5 * 8))              # two minutes a candle
+        dec = lambda k: tgwidget.B64.index(c[k]) * 64 + tgwidget.B64.index(c[k + 1])
+        o, h, l, cl = (dec(k) for k in (0, 2, 4, 6))
+        self.assertLess(o, cl)                                                 # it rose: 1 → 2.5
+        self.assertGreaterEqual(h, cl)
+        self.assertLessEqual(l, o)
+        c2, *_ = tgwidget.candles(raw[:2], 1000, T, T + 10 * MIN, n=5)         # no trades later: the last close repeats
+        self.assertEqual(c2[16:24], c2[24:32])
+        self.assertEqual(tgwidget.candles([], 1000, T, T + MIN)[0], "")
+
+    def test_a_broken_wick_does_not_flatten_the_chart(self):
+        raw = [{"time": T + i * MIN, "open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1} for i in range(10)]
+        raw[4]["low"] = 1e-9                                                    # a source's shifted decimal
+        raw[6]["close"] = 1e-6                                                  # and a whole candle off by decimals
+        _, _, _, lo, hi = tgwidget.candles(raw, 1000, T, T + 10 * MIN, n=10)
+        self.assertGreater(lo, 800)                                             # the scale follows opens and closes
+        _, t0, *_ = tgwidget.candles(raw, 1000, T - 60 * MIN, T + 10 * MIN, n=10)
+        self.assertEqual(t0, T // MIN)                                          # nothing to draw before the first trade
 
     def test_the_card_fits_telegrams_limits(self):
         rows = [row(W[:-1] + str(i), 10_000 * (i + 1), tag_list=["bundle", "sniper", "fresh"]) for i in range(9)]
         names = {r["wallet"]: {"twitter": "a_long_handle_x"} for r in rows}
-        pts = [(T + i * MIN, 50_000 * (1 + (i % 17) / 3)) for i in range(400)]
-        page = tgwidget.early_card("SYMBOLSYMBOLSYM", MINT, T + 60 * MIN, T + 90 * MIN, rows, names, {}, pts, "job1",
+        cs = [{"time": T + i * MIN, "open": 1 + (i % 17) / 3, "high": 2 + (i % 13) / 3, "low": 0.5 + (i % 7) / 9,
+                "close": 1 + (i % 11) / 3} for i in range(400)]
+        page = tgwidget.early_card("SYMBOLSYMBOLSYM", MINT, T + 60 * MIN, T + 90 * MIN, rows, names, {}, cs, 1e9, "job1",
                                    "https://tracced.xyz", around=(T, T + 400 * MIN))
         raw, z = tgwidget.sizes(page)
         self.assertTrue(tgwidget.fits(page), (raw, z))
         self.assertLess(z, tgwidget.MAX_Z - 400)                              # room for a longer launch section
         d = json.loads(page.split("id=d>")[1].split("</script>")[0])
         self.assertEqual(len(d["r"]), tgbot.TOP)                              # the same five as the text answer
-        self.assertEqual((d["a"], d["b"], d["m"]), (round(60 / d["dt"]), round(90 / d["dt"]), MINT))
-        self.assertEqual(d["u"], "https://tracced.xyz/job/job1")
+        self.assertEqual((d["a"], d["b"], d["m"]), (60 // d["dt"], (90 * MIN - 1) // MIN // d["dt"], MINT))
+        self.assertEqual(len(d["c"]), tgwidget.CANDLES * 8)
         self.assertTrue(tgwidget.fits(tgwidget.panel_card(None)))
+        busy = {"launch": {"launch": {"wallets": [W] * 40, "bundle": "b" * 88},
+                           "pairs": [{"bundle": "c" * 88}] * 30, "fee": {"to": [[W]], "paid": {"sol": 12.5}}}}
+        noisy = [dict(x, open=x["open"] * (1 + i % 5 / 7), close=x["close"] * (1 + i % 3 / 5)) for i, x in enumerate(cs)]
+        page = tgwidget.early_card("SYM", MINT, T + 60 * MIN, T + 90 * MIN, rows, names, busy, noisy, 1e9, "job1",
+                                   "https://tracced.xyz", around=(T, T + 400 * MIN))
+        self.assertTrue(tgwidget.fits(page), tgwidget.sizes(page))                # fewer candles before a missing card
 
     def test_a_symbol_cannot_break_out_of_the_data(self):
-        page = tgwidget.early_card('</script><script>alert(1)</script>', MINT, T, T + MIN, [], {}, {}, [], "j", "https://x")
+        page = tgwidget.early_card('</script><script>alert(1)</script>', MINT, T, T + MIN, [], {}, {}, [], 1, "j", "https://x")
         self.assertNotIn("<script>alert", page)
         self.assertEqual(page.count("<script"), 2)
 
@@ -152,7 +172,8 @@ if AioHTTPTestCase:
             w = tg.of("sendWidget")[-1]
             self.assertIn("$TST", w["html"])
             self.assertIn(W1, w["html"])                                         # the full address: Copy and Solscan
-            self.assertIn("/job/" + OTHER_JID, w["caption"])                     # apps without widgets show the caption
+            self.assertEqual(w["reply_markup"]["inline_keyboard"][0][0]["url"], "https://tracced.xyz/job/" + OTHER_JID)
+            self.assertNotIn("caption", w)                                       # no line repeating the card's title
             self.assertEqual(tg.of("deleteMessage")[-1]["message_id"], 77)      # the «Looking at…» text goes
             self.assertEqual(self.app["tg_pending"], {})
 

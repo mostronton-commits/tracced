@@ -2210,9 +2210,10 @@ async def _tg_watch(app, http, e):
 
 
 async def _tg_card(app, http, chat, mid, job, rows, info, ratio):
-    """/prism: відповідь /early карткою-віджетом (Bot API 10.4; поки лише особистий чат). Графік — хвилинні свічки від
+    """/prism: відповідь /early карткою-віджетом (Bot API 10.4; поки лише особистий чат). Свічки — з хвилинних, від
     години до вікна до двох після (кеш спільний із графіком сайту, 1–2 запити); вікно затінене, двома тапами розмічається
-    інше. Не влізло чи Telegram відмовив — лишається текстова відповідь."""
+    інше. Під карткою — кнопка «Open on tracced» (власник, 09.11: без підпису, що повторює заголовок). Не влізло чи
+    Telegram відмовив — лишається текстова відповідь."""
     s, r = app["s"], job.result
     now = int(time.time() * 1000)
     around = (job.t_from - HOUR, min(now, job.t_to + 2 * HOUR))
@@ -2227,23 +2228,21 @@ async def _tg_card(app, http, chat, mid, job, rows, info, ratio):
             finally:
                 _spend(app, "system", "tg-card", st=st.requests_here() - req0, mint=job.mint, **who)
     try:
-        pts = tgbot.caps(await asyncio.to_thread(load), info.get("supply") or 0)
+        raw = await asyncio.to_thread(load)
     except Exception as e:  # noqa: BLE001 — без графіка картка однаково корисна
         log.warning("telegram card chart %s: %s", job.mint[:6], e)
-        pts = []
+        raw = []
     page = tgwidget.early_card(job.symbol or info.get("symbol"), job.mint, job.t_from, job.t_to, rows,
-                               r.get("identities") or {}, r, pts, job.id, _site_url(app),
+                               r.get("identities") or {}, r, raw, info.get("supply") or 0, job.id, _site_url(app),
                                creator=info.get("creator") or info.get("deployer"),
                                min_profit=float(s.get("tg_top_min_profit_usd", 250)),
                                min_mult=float(s.get("tg_top_min_multiple", 2)), price_ratio=ratio, around=around)
     if not tgwidget.fits(page):
         log.warning("telegram card %s: %s bytes, over the widget limit", job.id, tgwidget.sizes(page))
         return False
-    sym = html_mod.escape(str(job.symbol or tgbot.short(job.mint))[:16])
-    try:
+    try:                                                # посилання на аналіз — кнопка самого повідомлення, як у тексті
         await _tg_call(http, app["tg"]["token"], "sendWidget", chat_id=chat, html=page, allow_queries=True,
-                       caption=f"<b>${sym}</b> early wallets · <a href=\"{_site_url(app)}/job/{job.id}\">open on tracced</a>",
-                       parse_mode="HTML")
+                       reply_markup=tgbot.keyboard(job.id, _site_url(app)))
     except Exception as e:  # noqa: BLE001
         log.warning("telegram card %s: %s", job.id, e)
         return False
