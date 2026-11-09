@@ -2,7 +2,7 @@
 
 <div class="ulog" markdown="1">
 
-## 0.8.0 <span class="ud">Nov 7, 2026</span>
+## 0.8.0 <span class="ud">Nov 9, 2026</span>
 
 - A new look across the whole site
 - It fills a big screen to the edges
