@@ -2,6 +2,11 @@
 
 <div class="ulog" markdown="1">
 
+## 0.8.1 <span class="ud">Nov 9, 2026</span>
+
+- On a phone, the tour points at the first wallet and the star
+- A tidy footer on a phone
+
 ## 0.8.0 <span class="ud">Nov 9, 2026</span>
 
 - A new look across the whole site

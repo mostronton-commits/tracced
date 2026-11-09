@@ -342,6 +342,10 @@ a.hm-lrow:focus-visible { outline: none; border-radius: var(--r-m); box-shadow: 
   .hm-call::before { background: radial-gradient(320px 240px at 50% 240px, color-mix(in srgb, var(--mint) 10%, transparent), transparent 70%),
     radial-gradient(500px 200px at 50% 540px, color-mix(in srgb, var(--mint) 16%, transparent), transparent 70%); }
   .hm-rings svg { top: calc(560px + 240px); }
+  /* the light and the rings stop 80 px under the call, but on a phone the footer is taller: they ended across it as a
+     sharp line (owner, 09.11). They fade out instead */
+  .hm-call::before, .hm-rings { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 200px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 200px), transparent); }
   .hm-call h2 { font-size: var(--fs-h1); }
   .hm-call p { font-size: var(--fs-read); }
 }

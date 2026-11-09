@@ -21,13 +21,19 @@
       done: () => !!document.getElementById('facts') },
     { el: () => document.getElementById('facts'), when: () => shown(document.getElementById('facts')),
       h: 'The wallets', p: 'What each one bought, sold and earned. Click a wallet to open it.',
+      phone: () => document.querySelector('#facts tbody tr'),
       done: () => shown(document.getElementById('drawer')) },
     { el: () => document.getElementById('drawer'), when: () => shown(document.getElementById('drawer')),
       h: 'Follow a wallet', p: 'The star keeps it. In your watchlist, its bell sends its trades to Telegram.',
+      phone: () => document.getElementById('dstar'),
       done: () => false, last: true },
   ];
 
   let step = +read() || 0, open = false, raf = 0;
+  // on a phone the table and the card fill the screen: outlining all of it showed nothing (owner, 09.11), so the step
+  // points at what to touch, the first wallet and the star
+  const isPhone = () => innerWidth / EarlyZoom() <= 640;
+  const target = () => { const s = STEPS[step], e = isPhone() && s.phone && s.phone(); return shown(e) ? e : s.el(); };
   if (DEMO && step === 0) step = 1;                       // the demo's zones are marked already
   const spot = document.createElement('div'); spot.className = 'tour-spot'; spot.hidden = true;
   const tip = document.createElement('div'); tip.className = 'tour-tip'; tip.hidden = true; tip.setAttribute('role', 'dialog');
@@ -36,12 +42,14 @@
 
   function place() {
     raf = 0; if (!open) return;
-    const t = STEPS[step].el(); if (!shown(t)) { hide(); return; }
+    if (!shown(STEPS[step].el())) { hide(); return; }
+    const t = target();
     const z = EarlyZoom(), q = t.getBoundingClientRect(), pad = 6, vw = innerWidth / z, vh = innerHeight / z;
     const r = { left: q.left / z, top: q.top / z, bottom: q.bottom / z, width: q.width / z };
     // a target taller than the screen (the table, the card) is outlined only where it is in view
     const top = Math.max(r.top, 8), bottom = Math.min(r.bottom, vh - 8);
-    Object.assign(spot.style, { left: (r.left - pad) + 'px', top: (top - pad) + 'px', width: (r.width + 2 * pad) + 'px', height: Math.max(0, bottom - top + 2 * pad) + 'px' });
+    const left = Math.max(2, r.left - pad), right = Math.min(vw - 2, r.left + r.width + pad);   // never past the screen's edges
+    Object.assign(spot.style, { left: left + 'px', top: (top - pad) + 'px', width: (right - left) + 'px', height: Math.max(0, bottom - top + 2 * pad) + 'px' });
     if (vw <= 640) { tip.classList.add('tour-sheet'); tip.style.left = tip.style.top = ''; return; }
     tip.classList.remove('tour-sheet');
     const tw = tip.offsetWidth, th = tip.offsetHeight;
@@ -64,8 +72,8 @@
   function show() {
     open = true; render(); spot.hidden = tip.hidden = false;
     // a target low on the screen comes up: on a phone to the top, from under the sheet; elsewhere to the middle, the tip above it
-    const top = STEPS[step].el().getBoundingClientRect().top, phone = innerWidth <= 640, H = innerHeight;
-    if (top > H * (phone ? .5 : .7)) scrollBy({ top: phone ? top - 16 : top - H * .45, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    const top = target().getBoundingClientRect().top, phone = innerWidth <= 640, H = innerHeight;
+    if (top > H * (phone ? .5 : .7)) scrollBy({ top: phone ? top - H * .3 : top - H * .45, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
     place();
   }
   function hide() { open = false; spot.hidden = tip.hidden = true; }
