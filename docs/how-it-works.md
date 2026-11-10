@@ -164,7 +164,8 @@ A card someone already opened today opens free for everyone.
 
 ## Filters and views
 
-**Filters** holds every number from and to, the tags to hide, **Hide bots** and **Only my watchlist**. A set you use often can
+**Filters** holds every number from and to, **Only my watchlist** and the tags to hide in one row, bots first. One `bundle`
+chip hides `launch-bundle` and `own-bundle` too. A set you use often can
 be kept: press *Save these filters* and name it. It stays in your browser and applies to any analysis in one click.
 
 ## The AI agent

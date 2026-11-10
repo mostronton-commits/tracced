@@ -37,7 +37,11 @@
       hold: { t: 'Held', u: 'min', step: 5, hint: 'how long it held what it sold, weighted by amount', get: o => o.hold == null ? null : +o.hold },
       buys: { t: 'Buys', u: '', step: 1, hint: 'its buys on this token', get: o => +o.buys || 0 },
     };
-    const HIDE_TAGS = Object.keys(CFG.tags).filter(x => !['seen-before', 'pre-range', 're-bought'].includes(x));
+    // one «bundle» chip hides all three bundle tags, and no «dormant» chip (owner, 10.11: three bundles were one thing twice over)
+    const HIDE_ALSO = { bundle: ['launch-bundle', 'own-bundle'] };
+    const HIDE_TAGS = Object.keys(CFG.tags).filter(x => !['seen-before', 'pre-range', 're-bought', 'dormant', 'launch-bundle', 'own-bundle'].includes(x));
+    const hideList = h => [...new Set((h || []).map(x => x === 'launch-bundle' || x === 'own-bundle' ? 'bundle' : x))].filter(x => HIDE_TAGS.includes(x));
+    const hidden = (o, t) => o.tags.includes(t) || (HIDE_ALSO[t] || []).some(x => o.tags.includes(x));
     const FDEF = { r: {}, q: '', hide: [], funder: '', bundle: '', repeat: false, only: '', mine: false, profit: false, exits: false };
     const fresh0 = () => JSON.parse(JSON.stringify(FDEF));
     const f = fresh0();
@@ -53,7 +57,7 @@
     } catch (e) {}
     if (!f.r || typeof f.r !== 'object') f.r = {};
     Object.keys(f.r).forEach(k => { const v = f.r[k]; if (!RANGES[k] || !Array.isArray(v) || (v[0] == null && v[1] == null)) delete f.r[k]; });
-    f.hide = (f.hide || []).filter(x => HIDE_TAGS.includes(x));     // a saved hide these chips no longer offer could not be undone
+    f.hide = hideList(f.hide);     // a saved hide these chips no longer offer could not be undone
     f.exits = f.profit = f.repeat = f.mine = false; f.only = f.q = f.bundle = '';   // a finding's filter and a search are for this visit
     const saveF = () => { try { localStorage.setItem(FKEY, JSON.stringify(f)); } catch (e) {} };
     // saved sets of filters (owner, 12.10, after Phanes' «Views»): the numbers, the hidden tags, the toggles and the order,
@@ -374,7 +378,7 @@
         || userTags(o.w).some(x => x.toLowerCase().includes(q)); };
     const okRow = o => inRange(o) && qOk(o) && (!f.profit || o.real > 0) &&
       (!f.exits || o.exit) && (!f.mine || inList(o.w)) &&
-      (!f.funder || fundKey(o.w) === f.funder) && (!f.bundle || (!!bundle[o.w] && bundle[o.w].funder === f.bundle)) && (!f.repeat || !!crossings[o.w]) && !f.hide.some(t => o.tags.includes(t)) &&
+      (!f.funder || fundKey(o.w) === f.funder) && (!f.bundle || (!!bundle[o.w] && bundle[o.w].funder === f.bundle)) && (!f.repeat || !!crossings[o.w]) && !f.hide.some(t => hidden(o, t)) &&
       (!f.only || (f.only === 'cex' ? !!(funders[o.w] && EXCH[funders[o.w]])
         : f.only === 'launch' ? (o.tags.includes('own-bundle') || o.tags.includes('launch-bundle')) : o.tags.includes(f.only)));
     function draw() {
@@ -619,14 +623,18 @@
     const PANEL_NUMS = ['inv', 'sold', 'real', 'mult', 'hold', 'buys'];
     function drawPanel() {
       const fp = document.getElementById('fpanel');
-      fp.innerHTML = '<div class="fp-top">' + (V2   // owner, 06.11: no wallet search in v2; Hide bots moved here from the toolbar
-          ? '<label class="fck fbots" title="Hide every wallet tagged bot-like: its own trades on this token look automated"><input type="checkbox" data-bots>' + (EarlyTags.ICON['bot-like'] || '') + 'Hide bots</label>'
-          : '<input type="text" class="fq" maxlength="44" placeholder="Find a wallet: address or name" aria-label="Find a wallet">')
-        + '<label class="fck fmine" hidden><input type="checkbox" data-mine>' + EarlyIcon('star-on') + 'Only my watchlist</label></div>'
+      // v2 (owner, 10.11): one row, your watchlist as a chip, then Hide with bots first; no wallet search (06.11)
+      const chip = x => '<button type="button" class="tagchip t-' + x + '" data-hide="' + x + '" aria-pressed="false" title="Hide wallets tagged '
+        + x + ': ' + esc(TAGDEF[x] || '') + (HIDE_ALSO[x] ? ' (also ' + HIDE_ALSO[x].join(', ') + ')' : '') + '">' + (EarlyTags.ICON[x] || '') + (V2 && x === 'bot-like' ? 'bots' : x) + '</button>';
+      const hideTags = V2 ? ['bot-like'].concat(HIDE_TAGS.filter(x => x !== 'bot-like')).filter(x => HIDE_TAGS.includes(x)) : HIDE_TAGS;
+      fp.innerHTML = (V2 ? ''
+          : '<div class="fp-top"><input type="text" class="fq" maxlength="44" placeholder="Find a wallet: address or name" aria-label="Find a wallet">'
+            + '<label class="fck fmine" hidden><input type="checkbox" data-mine>' + EarlyIcon('star-on') + 'Only my watchlist</label></div>')
         + '<div class="fp-nums">' + PANEL_NUMS.map(k => '<label class="fnum" title="' + esc(RANGES[k].hint) + '"><span>' + RANGES[k].t + (RANGES[k].u ? ', ' + RANGES[k].u : '')
           + '</span>' + numIn(k, 0, null) + '<i>–</i>' + numIn(k, 1, null) + '</label>').join('') + '</div>'
-        + '<div class="fp-hide"><span class="fph">Hide</span>' + (V2 ? HIDE_TAGS.filter(x => x !== 'bot-like') : HIDE_TAGS).map(x => '<button type="button" class="tagchip t-' + x + '" data-hide="' + x + '" aria-pressed="false" title="Hide wallets tagged '
-          + x + ': ' + esc(TAGDEF[x] || '') + '">' + (EarlyTags.ICON[x] || '') + x + '</button>').join('') + '</div>'
+        + '<div class="fp-hide">' + (V2 ? '<button type="button" class="tagchip mine fmine" data-mine aria-pressed="false" title="Show only the wallets in your watchlist" hidden>'
+            + EarlyIcon('star-on') + 'Only my watchlist</button>' : '')
+          + '<span class="fph">Hide</span>' + hideTags.map(chip).join('') + '</div>'
         + '<div class="fp-views"><span class="fph">Views</span><span class="fvlist"></span>'
         + '<button type="button" class="ghost fvsave" title="Keep these filters and this order under a name, for any analysis">Save these filters</button>'
         + '<input type="text" class="fvname" maxlength="24" placeholder="Name, then Enter" aria-label="Name of the saved filters" hidden></div>';
@@ -635,8 +643,8 @@
     function fillPanel() {                                     // the values from the state, never under the field being typed in
       const fp = document.getElementById('fpanel'); if (!fp || fp.hidden || !fp.firstChild) return;
       const q = fp.querySelector('.fq'); if (q && q !== document.activeElement) q.value = f.q;
-      const hb = fp.querySelector('[data-bots]'); if (hb) hb.checked = f.hide.includes('bot-like');
-      const m = fp.querySelector('.fmine'); m.hidden = !(hasLists || f.mine); m.querySelector('input').checked = !!f.mine;
+      const m = fp.querySelector('.fmine'); m.hidden = !(hasLists || f.mine);
+      const mi = m.querySelector('input'); if (mi) mi.checked = !!f.mine; else { m.classList.toggle('on', !!f.mine); m.setAttribute('aria-pressed', String(!!f.mine)); }
       fp.querySelectorAll('input[data-k]').forEach(x => { if (x !== document.activeElement) { const v = (f.r[x.dataset.k] || [null, null])[+x.dataset.i]; x.value = v == null ? '' : v; } });
       fp.querySelectorAll('[data-hide]').forEach(b => { const on = f.hide.includes(b.dataset.hide); b.classList.toggle('off', on); b.setAttribute('aria-pressed', String(on)); });
       const vs = loadViews(), cur = JSON.stringify(viewOf());
@@ -654,12 +662,6 @@
       fpanel.hidden = !open; ftoggle.setAttribute('aria-expanded', String(open));
       if (open) { closeFilter(); fillPanel(); }
       EarlyUI.use('filters-toggle', { on: open });
-    });
-    if (V2) fpanel.addEventListener('change', e => {
-      if (!e.target.matches('[data-bots]')) return;
-      const on = e.target.checked;
-      f.hide = on ? f.hide.concat(['bot-like']) : f.hide.filter(y => y !== 'bot-like');
-      saveF(); limit = LIMIT; apply(); fillPanel(); EarlyUI.use('hide', { tag: 'bot-like', on, via: 'panel' });
     });
     let qT = 0, nT = 0;
     fpanel.addEventListener('input', e => {
@@ -693,7 +695,7 @@
       const vb = e.target.closest('[data-view]');
       if (vb) {
         const v = loadViews()[+vb.dataset.view]; if (!v) return;
-        Object.assign(f, fresh0(), JSON.parse(JSON.stringify(v.f))); saveF(); syncHeads(); closeFilter();
+        Object.assign(f, fresh0(), JSON.parse(JSON.stringify(v.f))); f.hide = hideList(f.hide); saveF(); syncHeads(); closeFilter();
         sortBy(v.sort[0], v.sort[1], v.sort[0] === 'funder'); fillPanel(); EarlyUI.use('view-apply');
         return;
       }
@@ -703,6 +705,8 @@
         const inp = fpanel.querySelector('.fvname'); inp.hidden = false; inp.value = 'View ' + (loadViews().length + 1);
         fillPanel(); inp.focus(); inp.select(); return;
       }
+      const mb = e.target.closest('button[data-mine]');
+      if (mb) { f.mine = !f.mine; saveF(); limit = LIMIT; apply(); fillPanel(); return; }
       const b = e.target.closest('[data-hide]'); if (!b) return;
       const tg = b.dataset.hide, on = !f.hide.includes(tg);
       f.hide = on ? f.hide.concat([tg]) : f.hide.filter(y => y !== tg);
