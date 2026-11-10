@@ -2055,6 +2055,21 @@ def _tg_admin_pk(app, user_id):
     return next((pk for pk in sorted(app["admins"]) if (app["accounts"].load(pk).get("telegram") or {}).get("chat") == user_id), None)
 
 
+def _tg_account_pk(app, user_id):
+    """Гаманець, до якого цей Telegram прив'язаний на /me (Connect Telegram), або None. Особистий чат з ботом має той
+    самий id, що й людина, тож шукаємо за ним."""
+    if not isinstance(user_id, int):
+        return None
+    return _tg_admin_pk(app, user_id) or next(
+        (a["pubkey"] for a in app["accounts"].all() if (a.get("telegram") or {}).get("chat") == user_id), None)
+
+
+def _tg_wants_card(app, chat_o):
+    """/early відповідає карткою в особистому чаті (власник, 10.11), у групі — текстом: Telegram показує віджети лише в
+    особистих чатах. tg_cards: false повертає всім текст."""
+    return (chat_o or {}).get("type") == "private" and bool(app["s"].get("tg_cards", True))
+
+
 async def _tg_new_job(app, chat, mint, who=None, admin=False, window_ms=None):
     """Новий аналіз для /early: вікно — з _tg_window. Стелі: чат і бот за добу, прогони водночас, місячний резерв і денний
     бюджет запитів — ті самі, що в Analyze на сайті; власник — без денних лічильників. Витрати пишуться на чат (who).
@@ -2131,7 +2146,7 @@ async def _tg_early(app, http, msg, mint, widget=False, window_ms=None):
             app["events"].add("system", "tg_early", mint=mint, refused=str(e)[:80], **who)
             await _tg_edit(app, http, chat, mid, html_mod.escape(str(e), quote=False))
             return
-        app["events"].add("system", "tg_early", job=job.id, symbol=job.symbol, new=int(new), **who, **({"via": "prism"} if widget else {}))
+        app["events"].add("system", "tg_early", job=job.id, symbol=job.symbol, new=int(new), **who, **({"via": "card"} if widget else {}))
         entry = {"chat": chat, "mid": mid, "job": job.id, "at": time.time(), **({"w": 1} if widget else {})}
         await _tg_watch(app, http, entry)
     except asyncio.CancelledError:
@@ -2201,7 +2216,7 @@ async def _tg_watch(app, http, e):
                 last = text
             named = r.get("identities_done") or app["jobs"].namer is None or time.time() * 1000 - (job.finished_ms or 0) > 180_000
             if not waiting and named:
-                if e.get("w"):                                  # /prism: картка-віджет замість тексту, текст прибираємо
+                if e.get("w"):                                  # особистий чат: картка-віджет замість тексту, текст прибираємо
                     await _tg_card(app, http, chat, mid, job, rows, info, ratio)
                 return
             await asyncio.sleep(15)
@@ -2210,7 +2225,8 @@ async def _tg_watch(app, http, e):
 
 
 async def _tg_card(app, http, chat, mid, job, rows, info, ratio):
-    """/prism: відповідь /early карткою-віджетом (Bot API 10.4; поки лише особистий чат). Свічки — з хвилинних, від
+    """Відповідь /early карткою-віджетом в особистому чаті (Bot API 10.4: групи бачать текст; власник, 10.11 — усім, не
+    лише через /prism). Свічки — з хвилинних, від
     години до вікна до двох після (кеш спільний із графіком сайту, 1–2 запити); вікно затінене, двома тапами розмічається
     інше. Під карткою — кнопка «Open on tracced» (власник, 09.11: без підпису, що повторює заголовок). Не влізло чи
     Telegram відмовив — лишається текстова відповідь."""
@@ -2283,19 +2299,25 @@ async def _tg_prism(app, http, msg, arg):
 
 
 async def _tg_widget_query(app, http, q):
-    """Запит із картки-віджета. Відповідь — завжди і до 15 с (інакше в картці «TIMEOUT»), не більше 1 КБ. Поки картки лише
-    у власника, тож і запити — лише від нього: решті «no»."""
+    """Запит із картки-віджета. Відповідь — завжди і до 15 с (інакше в картці «TIMEOUT»), не більше 1 КБ; її текст стає
+    написом на кнопці, тож короткий. Панель — лише власнику; Follow — тому, чий Telegram прив'язаний до гаманця на /me;
+    нова розмітка — будь-кому, у стелях /early цього чату."""
     answer = "no"
     try:
-        pk = await asyncio.to_thread(_tg_admin_pk, app, (q.get("from") or {}).get("id"))
+        user = (q.get("from") or {}).get("id")
         what = tgwidget.parse_query(q.get("data"))
-        if pk and what:
+        if what:
             if what[0] == "stats":
-                answer = json.dumps(await asyncio.wait_for(_tg_panel_stats(app), 10), separators=(",", ":"))[:1024]
+                if await asyncio.to_thread(_tg_admin_pk, app, user):
+                    answer = json.dumps(await asyncio.wait_for(_tg_panel_stats(app), 10), separators=(",", ":"))[:1024]
             elif what[0] == "follow":
-                added, _ = await asyncio.to_thread(app["accounts"].add_wallets, pk, [{"wallet": what[1]}])
-                app["events"].add(pk, "save_wallets", n=added, via="tg-card")
-                answer = "ok"
+                pk = await asyncio.to_thread(_tg_account_pk, app, user)
+                if not pk:
+                    answer = "Connect at tracced.xyz/me"
+                else:
+                    added, _ = await asyncio.to_thread(app["accounts"].add_wallets, pk, [{"wallet": what[1]}])
+                    app["events"].add(pk, "save_wallets", n=added, via="tg-card")
+                    answer = "ok"
             elif what[0] == "range":
                 chat = (q.get("chat") or {}).get("id")
                 msg = {"message_id": q.get("message_id"), "chat": q.get("chat") or {}, "from": q.get("from") or {}}
@@ -2355,7 +2377,7 @@ async def _tg_bot_loop(app):
                     mint = tgbot.parse_early(m.get("text"), app["tg"]["name"], chat_o.get("type") == "private")
                     if mint is not None and isinstance(chat_o.get("id"), int):
                         if mint:
-                            _tg_task(app, _tg_early(app, http, m, mint))
+                            _tg_task(app, _tg_early(app, http, m, mint, widget=_tg_wants_card(app, chat_o)))
                         else:
                             await _tg_send(app, http, chat_o["id"], tgbot.HELP)
                         continue

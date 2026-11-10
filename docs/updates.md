@@ -8,6 +8,7 @@
 - Six numbers over the wallets, with the token's main finding
 - Telegram bot: /early with a token's address, in a chat or a group
 - It finds the pump and the early wallets worth a look, with PnL and ROI
+- In a private chat the answer is a card: the chart, each wallet's trades on it
 - The launch check's facts, each with its proof
 - Top traders: no wallets whose sales the data source priced wrong
 - A wallet that trades like a bot can't get a bell
