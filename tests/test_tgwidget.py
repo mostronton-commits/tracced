@@ -53,17 +53,18 @@ def tgwidget_b36(n):
 
 class TestCards(unittest.TestCase):
     def test_the_chart_is_an_even_grid_of_candles(self):
-        raw = [{"time": T + i * MIN, "open": 1 + i, "high": 2 + i, "low": 0.5 + i, "close": 1.5 + i} for i in range(10)]
-        c, t0, dt, lo, hi = tgwidget.candles(raw, 1000, T, T + 10 * MIN, n=5)
-        self.assertEqual((t0, dt, len(c)), (T // MIN, 2, 5 * 8))              # two minutes a candle
+        H = T // (60 * MIN) * 60 * MIN                                         # an hour on the clock
+        raw = [{"time": H + i * MIN, "open": 1 + i, "high": 2 + i, "low": 0.5 + i, "close": 1.5 + i} for i in range(10)]
+        c, t0, dt, lo, hi = tgwidget.candles(raw, 1000, H, H + 10 * MIN, n=5)
+        self.assertEqual((t0, dt, len(c)), (H // MIN, 2, 5 * 8))              # two minutes a candle
         dec = lambda k: tgwidget.B64.index(c[k]) * 64 + tgwidget.B64.index(c[k + 1])
         o, h, l, cl = (dec(k) for k in (0, 2, 4, 6))
         self.assertLess(o, cl)                                                 # it rose: 1 → 2.5
         self.assertGreaterEqual(h, cl)
         self.assertLessEqual(l, o)
-        c2, *_ = tgwidget.candles(raw[:2], 1000, T, T + 10 * MIN, n=5)         # no trades later: the last close repeats
+        c2, *_ = tgwidget.candles(raw[:2], 1000, H, H + 10 * MIN, n=5)         # no trades later: the last close repeats
         self.assertEqual(c2[16:24], c2[24:32])
-        self.assertEqual(tgwidget.candles([], 1000, T, T + MIN)[0], "")
+        self.assertEqual(tgwidget.candles([], 1000, H, H + MIN)[0], "")
 
     def test_a_broken_wick_does_not_flatten_the_chart(self):
         raw = [{"time": T + i * MIN, "open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1} for i in range(10)]
@@ -83,11 +84,13 @@ class TestCards(unittest.TestCase):
                                    "https://tracced.xyz", around=(T, T + 400 * MIN))
         raw, z = tgwidget.sizes(page)
         self.assertTrue(tgwidget.fits(page), (raw, z))
-        self.assertLess(z, tgwidget.MAX_Z - 400)                              # room for a longer launch section
+        self.assertLess(z, tgwidget.MAX_Z - 64)                               # all 72 candles, with a little room left
         d = json.loads(page.split("id=d>")[1].split("</script>")[0])
         self.assertEqual(len(d["r"]), tgbot.TOP)                              # the same five as the text answer
-        self.assertEqual((d["a"], d["b"], d["m"]), (60 // d["dt"], (90 * MIN - 1) // MIN // d["dt"], MINT))
-        self.assertEqual(len(d["c"]), tgwidget.CANDLES * 8)
+        self.assertEqual((d["a"], d["b"], d["m"]), ((T // MIN + 60 - d["t0"]) // d["dt"], (T // MIN + 89 - d["t0"]) // d["dt"], MINT))
+        self.assertIn(d["dt"], tgwidget.TFS)                                  # a usual timeframe: 10m here, not 6
+        self.assertEqual(d["t0"] % d["dt"], 0)                                # its candles on the clock's own steps
+        self.assertLessEqual(len(d["c"]), tgwidget.CANDLES * 8)
         self.assertTrue(tgwidget.fits(tgwidget.panel_card(None)))
         busy = {"launch": {"launch": {"wallets": [W] * 40, "bundle": "b" * 88},
                            "pairs": [{"bundle": "c" * 88}] * 30, "fee": {"to": [[W]], "paid": {"sol": 12.5}}}}

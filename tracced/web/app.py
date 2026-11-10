@@ -2211,28 +2211,51 @@ async def _tg_watch(app, http, e):
                                     r.get("identities") or {}, r, creator=info.get("creator") or info.get("deployer"),
                                     waiting=waiting, min_profit=float(s.get("tg_top_min_profit_usd", 250)),
                                     min_mult=float(s.get("tg_top_min_multiple", 2)), price_ratio=ratio)
+            named = r.get("identities_done") or app["jobs"].namer is None or time.time() * 1000 - (job.finished_ms or 0) > 180_000
+            if e.get("w") and not named and not e.get("cm"):     # імена ще йдуть: рядок про етап, не список
+                if phase != "names":
+                    phase = "names"
+                    await _tg_edit(app, http, chat, mid,
+                                   f"<b>${html_mod.escape(str(job.symbol or tgbot.short(job.mint))[:16])}</b> · pump "
+                                   f"{tgbot.span(job.t_from, job.t_to)} UTC\nNaming the wallets…")
+                await asyncio.sleep(5)
+                continue
+            if e.get("w") and named:
+                # особистий чат: картка, щойно є гаманці й імена, з «Launch: checking…», поки йде перевірка запуску
+                # (власник, 10.11: новий діапазон приходив текстом — картка чекала на перевірку до години). Факти
+                # запуску прийшли — картка один раз надсилається знову, стара прибирається: HTML віджета не редагується
+                if not e.get("cm") or not waiting:
+                    cm = await _tg_card(app, http, chat, None if e.get("cm") else mid, job, rows, info, ratio,
+                                        waiting=waiting, old=e.get("cm"))
+                    if cm is None and not e.get("cm"):
+                        e["w"] = 0                              # картка не пішла: далі текстом, як у групі
+                    else:
+                        e["cm"] = cm or e["cm"]
+                        _tg_pending_set(app, pkey, e)
+                        if not waiting:
+                            return
+                if e.get("w"):
+                    await asyncio.sleep(15)
+                    continue
             if text != last:
                 await _tg_edit(app, http, chat, mid, text, tgbot.keyboard(job.id, site))
                 last = text
-            named = r.get("identities_done") or app["jobs"].namer is None or time.time() * 1000 - (job.finished_ms or 0) > 180_000
             if not waiting and named:
-                if e.get("w"):                                  # особистий чат: картка-віджет замість тексту, текст прибираємо
-                    await _tg_card(app, http, chat, mid, job, rows, info, ratio)
                 return
             await asyncio.sleep(15)
     finally:
         _tg_pending_set(app, pkey, None)
 
 
-async def _tg_card(app, http, chat, mid, job, rows, info, ratio):
+async def _tg_card(app, http, chat, mid, job, rows, info, ratio, waiting=False, old=None):
     """Відповідь /early карткою-віджетом в особистому чаті (Bot API 10.4: групи бачать текст; власник, 10.11 — усім, не
-    лише через /prism). Свічки — з хвилинних, від
-    години до вікна до двох після (кеш спільний із графіком сайту, 1–2 запити); вікно затінене, двома тапами розмічається
-    інше. Під карткою — кнопка «Open on tracced» (власник, 09.11: без підпису, що повторює заголовок). Не влізло чи
-    Telegram відмовив — лишається текстова відповідь."""
+    лише через /prism). Свічки — з хвилинних, від двох годин до вікна (або від запуску) до шести після (кеш спільний із
+    графіком сайту, 1–2 запити); вікно затінене, двома тапами розмічається інше. Під карткою — кнопка «Open on tracced»
+    (власник, 09.11: без підпису, що повторює заголовок). Надіслано — прибирає текст `mid` і попередню картку `old`;
+    → id нової картки. Не влізло чи Telegram відмовив — None, і лишається те, що було."""
     s, r = app["s"], job.result
     now = int(time.time() * 1000)
-    around = (job.t_from - HOUR, min(now, job.t_to + 2 * HOUR))
+    around = (job.t_from - 2 * HOUR, min(now, job.t_to + 6 * HOUR))     # власник, 10.11: запуск і продажі тих, хто тримав довше
     who = {"tg_chat": chat, "tg_kind": "private"}
 
     def load():
@@ -2252,19 +2275,22 @@ async def _tg_card(app, http, chat, mid, job, rows, info, ratio):
                                r.get("identities") or {}, r, raw, info.get("supply") or 0, job.id, _site_url(app),
                                creator=info.get("creator") or info.get("deployer"),
                                min_profit=float(s.get("tg_top_min_profit_usd", 250)),
-                               min_mult=float(s.get("tg_top_min_multiple", 2)), price_ratio=ratio, around=around)
+                               min_mult=float(s.get("tg_top_min_multiple", 2)), price_ratio=ratio, around=around, now_ms=now,
+                               waiting=waiting)
     if not tgwidget.fits(page):
         log.warning("telegram card %s: %s bytes, over the widget limit", job.id, tgwidget.sizes(page))
-        return False
+        return None
     try:                                                # посилання на аналіз — кнопка самого повідомлення, як у тексті
-        await _tg_call(http, app["tg"]["token"], "sendWidget", chat_id=chat, html=page, allow_queries=True,
-                       reply_markup=tgbot.keyboard(job.id, _site_url(app)))
+        sent = await _tg_call(http, app["tg"]["token"], "sendWidget", chat_id=chat, html=page, allow_queries=True,
+                              reply_markup=tgbot.keyboard(job.id, _site_url(app)))
     except Exception as e:  # noqa: BLE001
         log.warning("telegram card %s: %s", job.id, e)
-        return False
-    with contextlib.suppress(Exception):
-        await _tg_call(http, app["tg"]["token"], "deleteMessage", chat_id=chat, message_id=mid)
-    return True
+        return None
+    for m in (mid, old):
+        if m:
+            with contextlib.suppress(Exception):
+                await _tg_call(http, app["tg"]["token"], "deleteMessage", chat_id=chat, message_id=m)
+    return (sent.get("message_id") if isinstance(sent, dict) else None) or -1
 
 
 async def _tg_panel_stats(app):
