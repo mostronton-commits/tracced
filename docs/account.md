@@ -63,6 +63,12 @@ The answer is one message that fills in as the work goes:
 
 *Open on tracced* opens the whole analysis.
 
+In a private chat the answer is a card: the candles around the pump with its window shaded, the same wallets and the
+launch's facts. Tap a wallet to see its numbers (how long it held among them) and its buys and sells on the chart, to
+copy its address or open it on Solscan, and to follow it: *Follow* adds it to your watchlist once this chat is
+connected at tracced.xyz/me. Two taps on the chart mark another range, and its button analyses it, within the same
+daily limits. In a group the answer stays a message, as Telegram shows cards in private chats only.
+
 A token already analysed answers at once. A new one is a real analysis: up to
 {{ s.tg_runs_per_chat }} a day per chat or group, and {{ s.tg_runs_per_day }} a day from the bot for everyone, within
 the site's own budget.

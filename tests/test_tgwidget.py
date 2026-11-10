@@ -207,15 +207,43 @@ if AioHTTPTestCase:
             self.assertEqual(tg.of("deleteMessage")[-1]["message_id"], 77)      # the «Looking at…» text goes
             self.assertEqual(self.app["tg_pending"], {})
 
-        async def test_a_tap_follows_a_wallet_for_the_owner_only(self):
+        async def test_a_tap_follows_a_wallet_for_whoever_linked_telegram(self):
+            other_pk, linked, stranger = "8" * 43 + "A", 666, 777
+            self.app["accounts"].set_telegram(other_pk, linked, "@someone")
             tg = FakeTelegram()
             q = {"id": "q1", "from": {"id": OWNER_TG}, "chat": {"id": OWNER_TG, "type": "private"}, "message_id": 9,
                  "data": "f:" + W1}
             with mock.patch.object(app_mod, "_tg_call", tg):
                 await app_mod._tg_widget_query(self.app, None, q)
-                await app_mod._tg_widget_query(self.app, None, dict(q, id="q2", **{"from": {"id": 777}}))
-            self.assertEqual([(a["widget_query_id"], a["data"]) for a in tg.of("answerWidgetQuery")], [("q1", "ok"), ("q2", "no")])
+                await app_mod._tg_widget_query(self.app, None, dict(q, id="q2", **{"from": {"id": linked}}))
+                await app_mod._tg_widget_query(self.app, None, dict(q, id="q3", **{"from": {"id": stranger}}))
+            got = [(a["widget_query_id"], a["data"]) for a in tg.of("answerWidgetQuery")]
+            self.assertEqual(got[:2], [("q1", "ok"), ("q2", "ok")])
+            self.assertIn("tracced.xyz/me", got[2][1])                           # not linked: where to connect
+            self.assertLess(len(got[2][1]), 30)                                  # it becomes the button's label
             self.assertIn(W1, self.app["accounts"].load(TEST_PK)["wallets"])
+            self.assertIn(W1, self.app["accounts"].load(other_pk)["wallets"])
+
+        async def test_everyone_gets_the_card_in_a_private_chat_and_text_in_a_group(self):
+            self.assertTrue(app_mod._tg_wants_card(self.app, {"id": 777, "type": "private"}))
+            self.assertFalse(app_mod._tg_wants_card(self.app, {"id": -100, "type": "supergroup"}))
+            self.app["s"]["tg_cards"] = False
+            self.assertFalse(app_mod._tg_wants_card(self.app, {"id": 777, "type": "private"}))
+            self.app["s"]["tg_cards"] = True
+            _job_file(self.tmp.name + "/web", OTHER_JID, OTHER_MINT, DEMO_A, DEMO_B, _result(OTHER_MINT, DEMO_A, DEMO_B, W1))
+            self.app["jobs"]._load()
+            self.app["s"]["tg_top_min_profit_usd"] = 50
+            tg = FakeTelegram()
+            with mock.patch.object(app_mod, "_tg_call", tg):                    # a stranger, not the owner
+                await app_mod._tg_early(self.app, None, self.msg(f"/early {OTHER_MINT}", user=777), OTHER_MINT, widget=True)
+            self.assertEqual(tg.of("sendWidget")[-1]["chat_id"], 777)
+
+        async def test_only_the_owner_gets_the_panels_numbers(self):
+            tg = FakeTelegram()
+            q = {"id": "q1", "from": {"id": 777}, "chat": {"id": 777}, "message_id": 9, "data": "s"}
+            with mock.patch.object(app_mod, "_tg_call", tg):
+                await app_mod._tg_widget_query(self.app, None, q)
+            self.assertEqual(tg.of("answerWidgetQuery")[-1]["data"], "no")
 
         async def test_a_marked_range_starts_its_analysis(self):
             tg, mint2 = FakeTelegram(), "C" * 40
