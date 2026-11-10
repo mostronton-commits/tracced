@@ -96,6 +96,36 @@ class TestCards(unittest.TestCase):
                                    "https://tracced.xyz", around=(T, T + 400 * MIN))
         self.assertTrue(tgwidget.fits(page), tgwidget.sizes(page))                # fewer candles before a missing card
 
+    def test_a_wallets_trades_are_markers_on_the_chart(self):
+        dec = lambda s: [((tgwidget.B64.index(s[j]) * 64 + tgwidget.B64.index(s[j + 1])) >> 1,
+                          (tgwidget.B64.index(s[j]) * 64 + tgwidget.B64.index(s[j + 1])) & 1, tgwidget.B64.index(s[j + 2]))
+                         for j in range(0, len(s), 3)]
+        trades = [[T + 30_000, "buy", 1, 100, 1.0], [T + 40_000, "buy", 1, 300, 2.0],   # one candle, one side: one marker
+                  [T + 3 * MIN, "sell", 1, 500, 3.0], [T + 3 * MIN, "transfer", 1, 9, 3.0],
+                  [T + 99 * MIN, "sell", 1, 900, 3.0], [T - MIN, "buy", 1, 50, 1.0]]   # outside the chart: not drawn
+        got = dec(tgwidget.marks(trades, 1000, T // MIN, 1, 10, 0, 3000))
+        self.assertEqual([(x, s) for x, s, _ in got], [(0, 0), (3, 1)])
+        self.assertEqual(got[0][2], round(1750 / 3000 * 63))                     # the dollar-weighted cap: $1.75K
+        self.assertEqual(got[1][2], 63)
+        many = [[T + i * MIN, "sell", 1, i + 1, 1.0] for i in range(40)]
+        kept = dec(tgwidget.marks(many, 1000, T // MIN, 1, 40, 0, 3000))
+        self.assertEqual([x for x, *_ in kept], list(range(26, 40)))            # the 14 biggest, in time order
+
+    def test_the_card_shows_trades_and_how_long_it_held(self):
+        rows = [row(W[:-1] + str(i), 10_000 * (i + 1), hold_minutes=95) for i in range(5)]
+        wt = {r["wallet"]: {"trades": [[T + 60 * MIN + j * MIN, "buy" if j < 20 else "sell", 1, 100 + j, 1.0 + j / 9]
+                                       for j in range(40)]} for r in rows}
+        cs = [{"time": T + i * MIN, "open": 1 + (i % 17) / 3, "high": 2 + (i % 13) / 3, "low": 0.5 + (i % 7) / 9,
+               "close": 1 + (i % 11) / 3} for i in range(400)]
+        names = {r["wallet"]: {"twitter": "a_long_handle_x"} for r in rows}
+        page = tgwidget.early_card("SYM", MINT, T + 60 * MIN, T + 90 * MIN, rows, names, {"wallet_trades": wt}, cs, 1e9,
+                                   "job1", "https://tracced.xyz", around=(T, T + 400 * MIN))
+        self.assertTrue(tgwidget.fits(page), tgwidget.sizes(page))
+        d = json.loads(page.split("id=d>")[1].split("</script>")[0])
+        self.assertTrue(all(6 <= len(r[11]) <= tgwidget.MARKS * 3 for r in d["r"]), [r[11] for r in d["r"]])
+        self.assertEqual({r[12] for r in d["r"]}, {"2h"})
+        self.assertGreater(d["lo"], 0)                                           # the label is the lowest candle, not $0
+
     def test_a_symbol_cannot_break_out_of_the_data(self):
         page = tgwidget.early_card('</script><script>alert(1)</script>', MINT, T, T + MIN, [], {}, {}, [], 1, "j", "https://x")
         self.assertNotIn("<script>alert", page)
