@@ -163,11 +163,22 @@ if AioHTTPTestCase:
             self.assertIn("const SHARE = {", res)
             self.assertIn("tripSvg(o, 100, 18, null, false, true)", res) # the line takes its column's width
             self.assertIn("const main = verdictNote ? null : out.find(x => x.k !== 'won') || null;", res)
-            self.assertIn("data-bots", res)
+            self.assertIn("V2 && x === 'bot-like' ? 'bots' : x", res)   # owner, 10.11: bots is the first Hide chip
             self.assertIn("tr:nth-child(even) td { background-color: var(--row-alt); }", css)
             self.assertIn("--row-alt:", static_js("v2/tokens.css"))
             self.assertIn("position: sticky; left: 0;", css)             # Wallet stays when the rest scrolls sideways
             self.assertIn("tr.botlike td > * { opacity: .5; }", css)     # what a bot's cell holds dims, not the shade
+
+        def test_the_filters_are_one_row_with_one_bundle_and_no_dormant(self):
+            res, css = static_js("result.js"), static_js("v2/style.css")
+            # owner, 10.11: three bundle chips were one thing; «bundle» hides launch-bundle and own-bundle too; no dormant
+            self.assertIn("const HIDE_ALSO = { bundle: ['launch-bundle', 'own-bundle'] };", res)
+            self.assertIn("'dormant', 'launch-bundle', 'own-bundle'].includes(x)", res)
+            self.assertIn("!f.hide.some(t => hidden(o, t))", res)
+            self.assertIn("f.hide = hideList(f.hide); saveF();", res)    # a saved view with an old bundle chip still applies
+            self.assertIn('class="tagchip mine fmine" data-mine', res)  # the watchlist is a chip in the same row
+            self.assertNotIn("data-bots", res)
+            self.assertIn(".fpanel .fp-hide .fmine", css)
 
         def test_a_big_screen_zooms_the_page_and_keeps_the_chart_true(self):
             tokens, css = static_js("v2/tokens.css"), static_js("v2/analysis.css")

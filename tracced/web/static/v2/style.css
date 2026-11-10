@@ -250,6 +250,9 @@ th.sortable.desc::after { content: " ↓"; color: var(--ink); font-size: 11px; }
 .fpanel .fck { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink); cursor: pointer; }
 .fpanel .fck input { margin: 0; accent-color: var(--mint); } .fpanel .fck svg.ci { color: var(--risk); }
 .fpanel .tagchip { height: 28px; padding: 0 10px; gap: 6px; cursor: pointer; }
+/* owner, 10.11: one row: your watchlist as a chip, a line, then Hide with bots first */
+.fpanel .fp-hide .fmine { margin-right: 6px; } .fpanel .fp-hide .fmine:not([hidden]) + .fph { padding-left: 12px; border-left: 1px solid var(--line); height: 20px; display: inline-flex; align-items: center; }
+.fpanel .tagchip.mine:not(.on) { color: var(--ink); border-color: var(--line); } .fpanel .tagchip.mine svg { color: var(--risk); }
 /* saved sets of filters (owner, 12.10): a chip applies one, its × deletes it; the one in force is sage */
 .fpanel .fp-views { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .fpanel .fvlist { display: contents; }
