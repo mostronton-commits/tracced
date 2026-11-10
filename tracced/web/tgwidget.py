@@ -7,7 +7,8 @@ text answer of tgbot.early_text.
 
 Two cards:
 - the /early answer: candles around the pump with its window shaded, the wallets (tap one, and only that one opens with
-  its numbers, Copy, Solscan, Follow), the launch facts. Two taps on the chart mark another range, and its button asks
+  its numbers — how long it held among them — Copy, Solscan, Follow, and its buys and sells show on the chart as B and
+  S), the launch facts. Two taps on the chart mark another range, and its button asks
   the bot to analyse it. The link to the analysis is the message's own button, under the card;
 - the owner's live panel: what the site did today and what is left of each paid budget, asked for every 5 s while it is
   on screen.
@@ -19,6 +20,7 @@ import re
 import zlib
 
 from . import tgbot
+from ..early import agent
 
 MAX_HTML, MAX_Z = 32768, 4096
 MINUTE = 60_000
@@ -36,23 +38,27 @@ const M=v=>{const a=Math.abs(v),s=a>=1e6?(a/1e6).toFixed(1)+'M':a>=1e5?(a/1e3).t
 
 EARLY_CSS = """#c{background:#090D16;border-radius:10px;margin:8px 0 6px;height:132px;position:relative;touch-action:pan-y;overflow:hidden}svg{display:block;width:100%;height:100%}
 #c i{position:absolute;font:11px ui-monospace,monospace;color:#94A3B8;font-style:normal;pointer-events:none}
+#c u{position:absolute;width:13px;height:13px;margin:-7px 0 0 -7px;border-radius:50%;background:#4ADE80;color:#052E16;font:700 8px/13px system-ui;text-align:center;text-decoration:none;box-shadow:0 0 0 1.5px #090D16;pointer-events:none}
+#c u.x{background:#FB7185;color:#fff}.f svg{opacity:.5}
 .r{display:flex;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--ln)}
 .r b{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}.r b em{font-style:normal;font-weight:400;color:var(--m)}
-.d{display:none;padding:0 0 10px}.o .d{display:block}.v{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}.v span{display:block;font-size:11px;color:var(--m)}
+.d{display:none;padding:0 0 10px}.o .d{display:block}.v{display:grid;grid-template-columns:repeat(auto-fit,minmax(52px,1fr));gap:4px}.v span{display:block;font-size:11px;color:var(--m)}
 .t{color:light-dark(#92400E,#FBBF24);font-size:12px;margin-bottom:4px}.k button{padding:6px 4px}#L{margin-top:2px}"""
 
 EARLY_JS = """const n=D.c.length/8,Z='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_',hm=m=>new Date(m*6e4).toISOString().slice(11,16);
-const C=[];for(let i=0;i<n;i++){const q=[];for(let k=0;k<4;k++){const j=i*8+k*2;q.push(Z.indexOf(D.c[j])*64+Z.indexOf(D.c[j+1]))}C.push(q)}let A=-1,B=-1;
+const C=[];for(let i=0;i<n;i++){const q=[];for(let k=0;k<4;k++){const j=i*8+k*2;q.push(Z.indexOf(D.c[j])*64+Z.indexOf(D.c[j+1]))}C.push(q)}let A=-1,B=-1,O=-1;
+function mk(){const s=O<0?'':D.r[O][11];let h='';for(let j=0;j<s.length;j+=3){const v=Z.indexOf(s[j])*64+Z.indexOf(s[j+1]),x=v>>1,sl=v&1;
+h+='<u class="'+(sl?'x':'')+'" style="left:'+((x+.5)/n*100).toFixed(2)+'%;top:'+(124-Z.indexOf(s[j+2])/63*112).toFixed(0)+'px">'+(sl?'S':'B')+'</u>'}return h}
 function chart(){const y=v=>(124-v/4095*112).toFixed(1),band=(a,b,o)=>'<rect x="'+a+'" width="'+(b-a+1)+'" height="132" fill="#A7F3D0" opacity="'+o+'"/>';
 let g=band(D.a,D.b,.13)+(A<0?'':B<0?band(A,A,.45):band(A,B,.28));
 C.forEach(([o,h,l,c],i)=>{const u=c>=o,f=u?'#34D399':'#F87171',t=y(Math.max(o,c)),bt=y(Math.min(o,c));
 g+='<rect x="'+(i+.44)+'" width=".12" y="'+y(h)+'" height="'+Math.max(.5,y(l)-y(h)).toFixed(1)+'" fill="'+f+'"/><rect x="'+(i+.15)+'" width=".7" y="'+t+'" height="'+Math.max(1,bt-t).toFixed(1)+'" fill="'+f+'"/>'});
 $('#c').innerHTML='<svg viewBox="0 0 '+n+' 132" preserveAspectRatio="none">'+g+'</svg><i style="right:8px;top:6px">'+M(D.hi)+'</i><i style="right:8px;bottom:6px">'+M(D.lo)+'</i>'
-+(A<0?'<i style="left:8px;top:6px">tap 2 points: new range</i>':'');
++(A<0&&O<0?'<i style="left:8px;top:6px">tap 2 points: new range</i>':'')+mk();$('#c').classList.toggle('f',O>=0&&!!D.r[O][11]);
 const t=i=>D.t0+i*D.dt;$('#h').innerHTML=B<0?'':'<div class=k style="margin:0 0 6px"><button class=a id=g>Get wallets '+hm(t(A))+'–'+hm(t(B+1))+' UTC</button></div>'}
-function rows(){let h='';D.r.forEach((r,i)=>{const[w,s,who,tg,e,x,pnl,roi,b,tk,l]=r,V=(k,v)=>'<div><span>'+k+'</span><b class=n>'+v+'</b></div>';
-h+='<div class=i><div class=r><b>'+s+(who?' <em>'+who+'</em>':'')+'</b><span class="n s">'+M(e)+' → '+(x?M(x):'hold')+'</span><span class="n '+(pnl<0?'q':'p')+'">'+(roi<0?'−':'+')+Math.abs(roi)+'%</span></div>'
-+'<div class=d>'+(tg?'<div class=t>'+tg+'</div>':'')+'<div class=v>'+V('PnL',(pnl<0?'−':'+')+M(Math.abs(pnl)))+V('In',M(b))+V('Out',M(tk))+(l!=null?V('Held',M(l)):'')+'</div>'
+function rows(){let h='';D.r.forEach((r,i)=>{const[w,s,who,tg,e,x,pnl,roi,b,tk,l,,hd]=r,V=(k,v)=>'<div><span>'+k+'</span><b class=n>'+v+'</b></div>';
+h+='<div class=i data-i='+i+'><div class=r><b>'+s+(who?' <em>'+who+'</em>':'')+'</b><span class="n s">'+M(e)+' → '+(x?M(x):'hold')+'</span><span class="n '+(pnl<0?'q':'p')+'">'+(roi<0?'−':'+')+Math.abs(roi)+'%</span></div>'
++'<div class=d>'+(tg?'<div class=t>'+tg+'</div>':'')+'<div class=v>'+V('PnL',(pnl<0?'−':'+')+M(Math.abs(pnl)))+V('In',M(b))+V('Out',M(tk))+(hd?V('Held',hd):'')+(l!=null?V('Unsold',M(l)):'')+'</div>'
 +'<div class=k><button data-c='+i+'>Copy</button><button data-x='+i+'>Solscan</button><button class=a data-f='+i+'>☆ Follow</button></div></div></div>'});
 $('#w').innerHTML=h||'<p class=s>'+D.e+'</p>'}
 function ask(g,q,ok){if(!T)return;g.textContent='…';T.request(q).then(r=>{g.textContent=r.result=='ok'?ok:(r.result||'No answer')},e=>{g.textContent=e.code=='RATE_LIMITED'?'Too fast: tap again':'Not now'})}
@@ -63,7 +69,7 @@ document.addEventListener('click',e=>{const g=e.target,a=g.dataset;
 if(g.id=='g')return ask(g,'r:'+D.m+':'+(D.t0+A*D.dt).toString(36)+':'+(D.t0+(B+1)*D.dt).toString(36),'Running: a new card comes');
 if(a.c!=null){T&&T.copyText(D.r[a.c][0]);g.textContent='Copied';return}if(a.x!=null)return T&&T.openLink('https://solscan.io/account/'+D.r[a.x][0]);
 if(a.f!=null)return ask(g,'f:'+D.r[a.f][0],'★ Following');
-const it=g.closest('.i');if(it&&!g.closest('.d')){const o=it.classList.contains('o');document.querySelectorAll('.o').forEach(x=>x.classList.remove('o'));if(!o)it.classList.add('o');T&&T.HapticFeedback.selectionChanged()}});"""
+const it=g.closest('.i');if(it&&!g.closest('.d')){const o=it.classList.contains('o');document.querySelectorAll('.o').forEach(x=>x.classList.remove('o'));if(!o)it.classList.add('o');O=o?-1:+it.dataset.i;chart();T&&T.HapticFeedback.selectionChanged()}});"""
 
 EARLY_BODY = '<h1>{sym}</h1><div class=s>pump {span} UTC</div><div id=c></div><div id=h></div><div id=w></div><div id=L></div>'
 
@@ -129,12 +135,50 @@ def candles(raw, supply, a, b, n=CANDLES):
     return packed, t0, dt, lo, hi
 
 
+def extremes(packed, lo, hi):
+    """The lowest and highest open or close drawn, for the chart's labels: the scale's padding would read «$0» under a
+    launch that started near zero (owner's $PUSSY card, 10.11)."""
+    v = [B64.index(packed[i]) * 64 + B64.index(packed[i + 1]) for i in range(0, len(packed), 8)
+         for i in (i, i + 6)]
+    if not v:
+        return lo, hi
+    f = lambda x: lo + x / 4095 * (hi - lo)
+    return f(min(v)), f(max(v))
+
+
+MARKS = 14                       # a wallet's markers on the chart: its biggest steps, so a bot's 60 sells stay one card
+
+
+def marks(trades, supply, t0, dt, k, lo, hi, n=MARKS):
+    """One wallet's buys and sells on the card's chart (owner, 10.11: tap a wallet, see its trades), packed 3 characters
+    each: candle and side (two base-64 digits, candle × 2 + 1 for a sell), then the market cap on the chart's scale
+    (one digit, 0..63). Trades in one candle on one side are one marker at their dollar-weighted cap; the n biggest are
+    kept; a trade outside the chart's span is not drawn (its numbers are in the row)."""
+    by = {}
+    for t in trades or []:
+        side, at, usd, price = t[1], int(t[0]) // MINUTE, float(t[3] or 0), float(t[4] or 0)
+        x = (at - t0) // dt
+        if side not in ("buy", "sell") or not price or not 0 <= x < k:
+            continue
+        m = by.setdefault((x, side == "sell"), [0.0, 0.0])
+        m[0] += usd or 1e-9
+        m[1] += (usd or 1e-9) * price * supply
+    top = sorted(by.items(), key=lambda kv: -kv[1][0])[:n]
+    out = ""
+    for (x, sell), (usd, cap_usd) in sorted(top):
+        y = max(0, min(63, round((cap_usd / usd - lo) / ((hi - lo) or 1) * 63)))
+        v = x * 2 + sell
+        out += B64[v // 64] + B64[v % 64] + B64[y]
+    return out
+
+
 def early_card(symbol, mint, t_from, t_to, rows, names, result, raw_candles, supply, job_id, site, creator=None,
                min_profit=0, min_mult=0, price_ratio=1.0, around=None):
     """The /early answer as a widget. raw_candles: price candles over `around` (from, to), the chart's span; the window
     is shaded on it. Same wallets and facts as tgbot.early_text; the link to the analysis is the message's own button."""
-    out = []
-    for r in tgbot.top_rows(rows, min_profit=min_profit, min_mult=min_mult, creator=creator):
+    out, top = [], tgbot.top_rows(rows, min_profit=min_profit, min_mult=min_mult, creator=creator)
+    trades = (result or {}).get("wallet_trades") or {}
+    for r in top:
         w, idn = r["wallet"], (names or {}).get(r["wallet"]) or {}
         took, size, left = r.get("proceeds_usd") or 0, r.get("invested_usd") or 0, tgbot.unsold_now(r, price_ratio)
         pnl = took + (left or 0) - size
@@ -142,7 +186,8 @@ def early_card(symbol, mint, t_from, t_to, rows, names, result, raw_candles, sup
         out.append([w, tgbot.short(w), who, ", ".join(t for t in tgbot.SHOWN_TAGS if t in (r.get("tag_list") or [])),
                     round(r.get("entry_mcap_avg") or r.get("entry_range_mcap") or 0),
                     round((r.get("exit_mcap_avg") or 0) if took else 0), round(pnl),
-                    round(pnl / size * 100) if size else 0, round(size), round(took), None if left is None else round(left)])
+                    round(pnl / size * 100) if size else 0, round(size), round(took), None if left is None else round(left),
+                    "", agent.held(r.get("hold_minutes")) or ""])
     a, b = around or (t_from - 60 * MINUTE, t_to + 120 * MINUTE)
     launch = [html.unescape(re.sub(r"<[^>]+>", "", x)).lstrip("• ").rstrip(":")
               for x in tgbot.launch_lines(result or {}, creator, waiting=False)]
@@ -151,7 +196,10 @@ def early_card(symbol, mint, t_from, t_to, rows, names, result, raw_candles, sup
         c, t0, dt, lo, hi = candles(raw_candles, supply, a, b, n)
         k = len(c) // 8
         idx = lambda t: max(0, min(k - 1, (t // MINUTE - t0) // dt)) if k else 0
-        data = {"c": c, "t0": t0, "dt": dt, "lo": round(lo), "hi": round(hi), "a": idx(t_from), "b": idx(t_to - 1),
+        for row_, r in zip(out, top):
+            row_[11] = marks((trades.get(r["wallet"]) or {}).get("trades"), supply, t0, dt, k, lo, hi) if k else ""
+        lab_lo, lab_hi = extremes(c, lo, hi)
+        data = {"c": c, "t0": t0, "dt": dt, "lo": round(lab_lo), "hi": round(lab_hi), "a": idx(t_from), "b": idx(t_to - 1),
                 "m": mint, "r": out, "L": launch, "e": f"{tgbot.plural(len(rows or []), 'early wallet')}, none in profit."}
         doc = page(EARLY_CSS, EARLY_BODY.format(sym=sym, span=tgbot.span(t_from, t_to)), data, EARLY_JS)
         if fits(doc):
