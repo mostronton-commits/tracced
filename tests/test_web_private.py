@@ -63,6 +63,36 @@ if AioHTTPTestCase:
             self.assertNotEqual(r.status, 403)
             self.assertEqual(await (await self.client.get("/robots.txt", headers=DEV)).text(), "User-agent: *\nDisallow: /\n")
 
+        async def test_lookalike_paths_get_the_door_not_the_sites_404(self):
+            # аудит 20.11: «/healthz», «/auth/будь-що» і «/favicon.ico» проходили за початком адреси і віддавали звичайну
+            # сторінку 404 робочого сайту, без noindex
+            for path in ("/healthz", "/auth/x", "/favicon.ico", "/robots.txt.bak"):
+                r = await self.client.get(path, headers=DEV)
+                self.assertEqual(r.status, 403, path)
+                self.assertIn("This copy of tracced is private", await r.text(), path)
+                self.assertEqual(r.headers.get("X-Robots-Tag"), "noindex, nofollow", path)
+
+        async def test_a_strangers_wallet_cannot_sign_in_here_and_leaves_no_account(self):
+            import base64
+            from nacl.signing import SigningKey
+            origin = {"Origin": "http://dev.example", "Host": "dev.example"}
+
+            async def sign_in(sk):
+                pk = acct_mod.b58encode(bytes(sk.verify_key))
+                d = await (await self.client.post("/auth/nonce", headers=origin)).json()
+                msg = acct_mod.build_message(d["domain"], pk, d["nonce"], d["issued_at"])
+                sig = base64.b64encode(sk.sign(msg.encode()).signature).decode()
+                r = await self.client.post("/auth/verify", headers=origin,
+                                           json={"pubkey": pk, "signature": sig, "message": msg, "wallet": "Phantom"})
+                return r, pk
+            r, pk = await sign_in(SigningKey.generate())
+            self.assertEqual((r.status, (await r.json())["error"]), (403, "This copy of tracced is private."))
+            self.assertFalse(self.app["accounts"].exists(pk))
+            owner = SigningKey.generate()
+            self.app["admins"] = {TEST_PK, acct_mod.b58encode(bytes(owner.verify_key))}
+            r, pk = await sign_in(owner)
+            self.assertEqual(r.status, 200)                                          # власник входить, як і раніше
+
         async def test_the_copy_is_closed_under_any_name_and_health_says_only_ok(self):
             os.environ["SITE_URL"] = "https://dev.example"                              # the copy's own address is private
             try:

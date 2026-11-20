@@ -1184,7 +1184,7 @@
       if (df) df.addEventListener('click', () => {                   // the table shows who else this funder paid for
         f.funder = df.dataset.fund; saveF(); limit = LIMIT; apply(); closeCard();
         EarlyUI.use('funder', { on: true });
-        EarlyUI.toast('Showing the wallets funded by ' + fundLabel(df.dataset.fund) + ' · Reset in the filters clears it');
+        EarlyUI.toast('Showing the wallets funded by ' + esc(fundLabel(df.dataset.fund)) + ' · Reset in the filters clears it');
       });
       const go = document.getElementById('dagego');
       if (go) go.addEventListener('click', () => EarlyWallet.open(() => { acctOn = true; ageTried.delete(w); loadMe().then(() => loadAge(w)); }));

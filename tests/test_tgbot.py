@@ -301,6 +301,19 @@ if AioHTTPTestCase:
             self.assertEqual(self.app["runs_daily"].left("tg:-100", 5), 5)     # a ready answer takes no new analysis
             self.assertEqual(self.app["tg_pending"], {})                       # nothing left to update after a restart
 
+        async def test_looking_at_new_tokens_is_capped_for_the_whole_bot_before_it_spends(self):
+            # аудит 20.11: огляд нової адреси коштує запити ще до лічильників прогонів, а стеля була лише на чат
+            tg = FakeTelegram()
+            self.app["s"]["tg_lookups_per_day"] = 1
+            with mock.patch.object(app_mod, "_tg_call", tg), mock.patch.object(app_mod, "_tg_watch", mock.AsyncMock()):
+                await app_mod._tg_early(self.app, None, self.msg(f"/early {'E' * 40}", chat=-201), "E" * 40)
+                await asyncio.to_thread(self.app["jobs"].q.join)
+                before = self.st.requests
+                await app_mod._tg_early(self.app, None, self.msg(f"/early {'F' * 40}", chat=-202), "F" * 40)   # another chat
+            self.assertEqual(self.st.requests, before)                         # the second look spent nothing
+            self.assertIn("as many new tokens as I can today", tg.of("editMessageText")[-1]["text"])
+            self.assertIsNone(next((j for j in self.app["jobs"].jobs.values() if j.mint == "F" * 40), None))
+
         async def test_a_new_token_starts_one_analysis_within_the_chats_cap(self):
             tg = FakeTelegram()
             self.app["s"]["tg_runs_per_chat"] = 1
