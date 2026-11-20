@@ -76,12 +76,17 @@ class Ledger:
 
 MINUTE = 60_000
 REPAIR_FACTOR = 1000         # у скільки разів ціна має розійтись із ринковою, щоб не вірити кількості
+REPAIR_NEAR_MIN = 10         # ринкова ціна хвилини-сусіда годиться як мірило лише так близько до угоди
+REPAIR_FAR_FACTOR = 1e7      # далі ціна сама могла піти у сотні разів: за дефект лічимо лише зміщену крапку (вона дає 1e10+)
+REF_MIN_TRADES = 3           # з однієї-двох угод медіани нема: зіпсована угода сама стає «ринком» або тягне середнє
 
 
 def price_reference(trades):
     """Ринкова ціна по хвилинах: медіана цін угод кожної хвилини.
 
-    Медіана стійка до кількох зіпсованих значень, тому її можна рахувати прямо з сирого потоку.
+    Медіана стійка до кількох зіпсованих значень, тому її можна рахувати прямо з сирого потоку. Хвилина з однією
+    чи двома угодами добирає ціни найближчих хвилин (не далі REPAIR_NEAR_MIN), поки їх не стане три; якщо й так
+    не набралось, такої хвилини в мірилі нема: по ній не можна судити навіть її власні угоди.
     Повертає (відсортовані хвилини, медіани) для пошуку найближчої хвилини з даними.
     """
     by_min = {}
@@ -90,8 +95,32 @@ def price_reference(trades):
         if t is None or not pr or pr <= 0:
             continue
         by_min.setdefault(t // MINUTE, []).append(float(pr))
-    mins = sorted(by_min)
-    return mins, [statistics.median(by_min[m]) for m in mins]
+    all_mins = sorted(by_min)
+    mins, meds = [], []
+    for i, m in enumerate(all_mins):
+        ps = by_min[m]
+        if len(ps) < REF_MIN_TRADES:
+            ps, lo, hi = list(ps), i - 1, i + 1
+            while len(ps) < REF_MIN_TRADES:
+                dl = m - all_mins[lo] if lo >= 0 else None
+                dh = all_mins[hi] - m if hi < len(all_mins) else None
+                if dl is not None and dl > REPAIR_NEAR_MIN:
+                    dl = None
+                if dh is not None and dh > REPAIR_NEAR_MIN:
+                    dh = None
+                if dl is None and dh is None:
+                    break
+                if dh is None or (dl is not None and dl <= dh):
+                    ps += by_min[all_mins[lo]]
+                    lo -= 1
+                else:
+                    ps += by_min[all_mins[hi]]
+                    hi += 1
+            if len(ps) < REF_MIN_TRADES:
+                continue
+        mins.append(m)
+        meds.append(statistics.median(ps))
+    return mins, meds
 
 
 def repair_quantities(trades, ref=None, factor=REPAIR_FACTOR):
@@ -101,6 +130,11 @@ def repair_quantities(trades, ref=None, factor=REPAIR_FACTOR):
     (баг десяткових у деяких агрегаторах: гаманець «продає» 5.8e-11 токена за $1 821). Сума в доларах
     при цьому правильна, а похідна ціна — ні, і через неї ламаються капа виходу, множник і частка
     проданого. Беремо ринкову ціну тієї хвилини, кількість перераховуємо з доларів; долари не чіпаємо.
+
+    Мірило чинне лише поруч із угодою. Угоди гаманця приходять з усієї його історії, а мірило інколи покриває
+    самий діапазон входу: продаж через три дні у 2 000 разів дорожче — це справжній вихід, а не дефект. Тому
+    далі REPAIR_NEAR_MIN хвилин від найближчої хвилини мірила за дефект лічимо тільки розбіжність у
+    REPAIR_FAR_FACTOR разів (зміщена крапка дає на кілька порядків більше).
 
     Міняє список на місці. Повертає, скільки угод полагоджено.
     """
@@ -122,7 +156,8 @@ def repair_quantities(trades, ref=None, factor=REPAIR_FACTOR):
         qty = float(tr.get("qty") or 0)
         if market <= 0:
             continue
-        if price > 0 and qty > 0 and 1 / factor <= price / market <= factor:
+        tol = factor if abs(mins[m] - t // MINUTE) <= REPAIR_NEAR_MIN else max(factor, REPAIR_FAR_FACTOR)
+        if price > 0 and qty > 0 and 1 / tol <= price / market <= tol:
             continue                                  # ціна в межах ринкової — віримо кількості
         tr["price"], tr["qty"], tr["repaired"] = market, usd / market, True
         fixed += 1
@@ -137,7 +172,9 @@ def build(trades, t_from, t_to, t_exit, range_from=None):
     L = {}
     stats = {"n_trades": 0}
     rf = t_from if range_from is None else range_from
-    for tr in sorted(trades, key=lambda x: x["time"] or 0):
+    # у межах однієї секунди покупка йде першою: джерело інколи віддає продаж тієї ж секунди раніше за покупку,
+    # і тоді продаж лишився б «без позиції», а гаманець — «ніколи не продавав»
+    for tr in sorted(trades, key=lambda x: (x["time"] or 0, x.get("type") != "buy")):
         t = tr["time"]
         if t is None or t < t_from or t > t_exit:
             continue

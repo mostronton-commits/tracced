@@ -234,3 +234,60 @@ class TestRepairQuantities(unittest.TestCase):
     def test_no_reference_and_empty_input(self):
         self.assertEqual(ledger.repair_quantities([]), 0)
         self.assertEqual(ledger.repair_quantities([{"wallet": "A", "type": "buy", "time": 1, "qty": 0, "usd": 0, "price": 0}]), 0)
+
+    def test_a_real_exit_far_from_the_reference_is_not_a_broken_amount(self):
+        # угоди гаманця приходять з усієї його історії, а мірило покриває лише діапазон входу: продаж через
+        # три дні у 2 000 разів дорожче — справжній вихід, його кількість чіпати не можна
+        ref = ledger.price_reference(self.market(price=1e-5))
+        day3 = 1_000_000_000_000 + 3 * 86_400_000
+        sell = {"wallet": "A", "type": "sell", "time": day3, "qty": 10_000_000.0, "usd": 200_000.0, "price": 0.02}
+        self.assertEqual(ledger.repair_quantities([sell], ref=ref), 0)
+        self.assertEqual(sell["qty"], 10_000_000.0)
+        self.assertNotIn("repaired", sell)
+
+    def test_a_shifted_decimal_point_is_repaired_even_far_from_the_reference(self):
+        ref = ledger.price_reference(self.market(price=1e-5))
+        day3 = 1_000_000_000_000 + 3 * 86_400_000
+        broken = {"wallet": "A", "type": "sell", "time": day3, "qty": 5.8e-11, "usd": 1821.71, "price": 3.1e13}
+        self.assertEqual(ledger.repair_quantities([broken], ref=ref), 1)
+        self.assertTrue(broken["repaired"])
+
+    def test_a_minute_of_two_trades_keeps_the_good_one(self):
+        # медіана двох значень — їхнє середнє: без сусідніх хвилин зіпсована угода зсувала «ринок» до себе,
+        # і лагодилась ЗДОРОВА угода, а зіпсована лишалась
+        t0 = 1_000_000_000_000
+        others = [{"wallet": f"O{m}", "type": "buy", "time": t0 + m * 60_000, "qty": 10.0, "usd": 10.0, "price": 1.0}
+                  for m in (1, 2, 3, 4, 6, 7)]
+        good = {"wallet": "G", "type": "buy", "time": t0 + 5 * 60_000, "qty": 100.0, "usd": 100.0, "price": 1.0}
+        bad = {"wallet": "Z", "type": "sell", "time": t0 + 5 * 60_000 + 1000, "qty": 5e-10, "usd": 50.0, "price": 1e11}
+        self.assertEqual(ledger.repair_quantities(others + [good, bad]), 1)
+        self.assertNotIn("repaired", good)
+        self.assertEqual(good["qty"], 100.0)
+        self.assertTrue(bad["repaired"])
+        self.assertAlmostEqual(bad["qty"], 50.0)
+
+    def test_a_lone_broken_trade_does_not_become_its_own_market(self):
+        tr = self.market()                                            # 40 угод у перших 40 секундах
+        lone = {"wallet": "L", "type": "sell", "time": tr[0]["time"] + 5 * 60_000, "qty": 5.8e-11,
+                "usd": 1821.71, "price": 3.1e13}                      # єдина угода своєї хвилини
+        tr.append(lone)
+        self.assertEqual(ledger.repair_quantities(tr), 1)
+        self.assertAlmostEqual(lone["price"], 0.01)
+
+    def test_too_few_trades_to_tell_the_market_changes_nothing(self):
+        a = {"wallet": "A", "type": "buy", "time": 1_000_000_000_000, "qty": 100.0, "usd": 100.0, "price": 1.0}
+        b = {"wallet": "B", "type": "sell", "time": 1_000_000_001_000, "qty": 5e-10, "usd": 50.0, "price": 1e11}
+        self.assertEqual(ledger.repair_quantities([a, b]), 0)         # з двох угод не видно, котра зіпсована
+        self.assertEqual(a["qty"], 100.0)
+
+
+class TestSameSecondOrder(unittest.TestCase):
+    def test_a_sell_listed_before_its_buy_in_the_same_second_is_counted(self):
+        t = 1_000_000_000_000
+        trades = [{"wallet": "S", "type": "sell", "time": t, "qty": 100.0, "usd": 200.0, "price": 2.0},
+                  {"wallet": "S", "type": "buy", "time": t, "qty": 100.0, "usd": 100.0, "price": 1.0}]
+        L, _ = ledger.build(trades, 0, t + 60_000, t + 3_600_000)
+        f = ledger.facts(L["S"], 1_000_000, 2.0)
+        self.assertEqual(f["sells"], 1)
+        self.assertAlmostEqual(f["realized_usd"], 100.0)
+        self.assertEqual(f["sold_share_pct"], 100.0)

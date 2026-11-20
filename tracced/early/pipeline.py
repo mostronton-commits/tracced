@@ -192,10 +192,10 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
             return None
         return credits["seen"] - (here() - credits["at"])
 
-    def guard(planned):
+    def guard(planned, cap=True):
         if planned <= 0:
             return
-        if run_cap and (here() - req0) + planned > run_cap:
+        if cap and run_cap and (here() - req0) + planned > run_cap:
             raise EarlyError(f"This range would take about {(here() - req0) + planned:,} requests; one run may "
                              f"use at most {run_cap:,}. Shorten the range.")
         if not guard_pct:
@@ -286,8 +286,10 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
     wallet_trades, counts_extra = {}, {}
     if mode == "trades" and choice.cost > 0:
         pages_before, t_hist = pages, time.monotonic()
+        # оцінка історії буває заниженою: сторінки історії теж ідуть у стелю запитів прогону, а не лише в max_pages
+        hist_cap = min(max_pages, pages + max(0, run_cap - (here() - req0))) if run_cap else max_pages
         try:
-            pages = store.ensure(created, t_end, fetch_hist, max_pages, log=log, pages_done=pages,
+            pages = store.ensure(created, t_end, fetch_hist, hist_cap, log=log, pages_done=pages,
                                  on_page=lambda n, t: progress("trades", n, max(n, pages_before + cost_full)), workers=workers)
             log(hist_t.line("whole history", t_hist))
         except PageBudget as e:
@@ -297,7 +299,12 @@ def run(st, mint, t_from, t_to, s, log=None, store_dir="cache/early",
             mode = "wallet-trades"
             n_look = min(len(early), lookups_cap)
             choice = budget.Choice("wallet-trades", n_look, n_look, len(early), cost_full, "fallback after the page cap")
-            guard(n_look + 1)
+            guard(n_look + 1, cap=False)       # стелю прогону тримає fetch_wallets: бере стільки гаманців, скільки під неї влізе
+        # історія прийшла ПІСЛЯ лагодження кроку 2: її угоди теж бувають зі зміщеною кількістю
+        more = ledger.repair_quantities(store.trades)
+        if more:
+            repaired += more
+            log(f"{more:,} more trades of the fetched history had a broken token amount — repriced the same way")
     price_end = price_at(st, mint, t_end)
     if mode == "trades":
         by_wallet = {}
