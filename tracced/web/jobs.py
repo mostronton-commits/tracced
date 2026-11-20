@@ -85,6 +85,15 @@ def unnamed(result):
 REPLAY_THREADS = 2                        # демо лише спить між рядками журналу: двох потоків досить і на натовп
 
 
+LAUNCH_RETRIES = 3
+
+
+def launch_retry(result):
+    """Перевірку запуску цього результату обірвав збій мережі (rev не поставлено), і спроб ще не LAUNCH_RETRIES."""
+    la = (result or {}).get("launch") or {}
+    return la.get("rev") is None and 0 < int(la.get("retries") or 0) < LAUNCH_RETRIES
+
+
 class JobQueue:
     def __init__(self, runner, persist_dir, enricher=None, on_error=None, namer=None, enrich_upto=0, on_finish=None):
         self.runner = runner
@@ -129,7 +138,8 @@ class JobQueue:
                         else min(len(j.result.get("rows") or []), int(enrich_upto or 0)))
                 if (not e or e.get("done", 0) < e.get("total", 0) or e.get("failed") or e.get("funders_failed")
                         or e.get("funders_done", 0) < e.get("total", 0) or e.get("total", 0) < upto
-                        or (j.result.get("funders") and j.result.get("bundle_rev") != BUNDLE_REV)):   # бандли за старим правилом
+                        or (j.result.get("funders") and j.result.get("bundle_rev") != BUNDLE_REV)    # бандли за старим правилом
+                        or launch_retry(j.result)):                 # перевірку запуску обірвав збій мережі
                     self.eq.put(j)
 
     def _load(self):

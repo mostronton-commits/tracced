@@ -179,3 +179,23 @@ class TestNoSharedLock(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestWalletTradesPaging(unittest.TestCase):
+    def test_a_transaction_split_by_the_page_boundary_keeps_both_legs(self):
+        # одна транзакція з двох обмінів на межі сторінки: друга сторінка перечитує межову секунду, і другу ногу
+        # не можна відкинути як дубль лише за підписом
+        t = 1_790_000_000_000
+        raw = [{"wallet": "W", "type": "buy", "time": t - 60_000, "amount": 10.0, "priceUsd": 1.0, "volume": 10.0, "tx": "A", "program": "p"},
+               {"wallet": "W", "type": "sell", "time": t, "amount": 4.0, "priceUsd": 2.0, "volume": 8.0, "tx": "SPLIT", "program": "p"},
+               {"wallet": "W", "type": "sell", "time": t, "amount": 6.0, "priceUsd": 2.0, "volume": 12.0, "tx": "SPLIT", "program": "p"}]
+        st = EarlyST("k", pause=0)
+
+        def fake(path, body=None):
+            cur = int(path.split("cursor=")[1]) if "cursor=" in path else -1
+            after = [x for x in raw if x["time"] > cur]
+            return {"trades": after[:2], "hasNextPage": len(after) > 2}
+        st._get = fake
+        got = st.wallet_token_trades("W", MINT, max_pages=4, fresh=True, store=False)
+        self.assertEqual(len(got), 3)
+        self.assertEqual(sorted(x["qty"] for x in got if x["tx"] == "SPLIT"), [4.0, 6.0])

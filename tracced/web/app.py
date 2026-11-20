@@ -478,6 +478,11 @@ def _launch_check(r, rows, s, job, save):
         job.log.append(f"launch check failed: {str(ex)[:80]}")
     out["calls"] = {"jito": jito.calls, "rpc": rpc.calls, "throttled": jito.p.throttled + rpc.p.throttled,
                     "failed": jito.p.failed + rpc.p.failed}
+    if out.get("failed") or out["calls"]["failed"]:
+        # збій мережі — це «не знаємо», а не «запуск не організований»: позначку чинної перевірки не ставимо, і
+        # наступний старт сервера питає ще раз (JobQueue, до LAUNCH_RETRIES разів на результат)
+        out["rev"] = None
+        out["retries"] = int((r.get("launch") or {}).get("retries") or 0) + 1
     r["launch"] = out
     lt = launch_mod.wallet_tags(out)
     r["launch_tags"] = lt

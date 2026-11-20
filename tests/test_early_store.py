@@ -106,6 +106,24 @@ class TestTradeStore(unittest.TestCase):
             self.assertTrue(st2.gaps(T0, T0 + 900 * MIN))               # прогалина лишилась
             self.assertLess(st2.gaps(T0, T0 + 900 * MIN)[0][0], T0 + 900 * MIN)
 
+    def test_a_torn_last_line_does_not_swallow_the_next_trade(self):
+        # запис обірвався посеред рядка (збій, повний диск): наступна угода дописувалась би в той самий рядок і
+        # зникала разом з ним при наступному читанні
+        with tempfile.TemporaryDirectory() as d:
+            st = TradeStore(d, MINT)
+            st.ensure(T0, T0 + 5 * MIN, make_fetch(n_total=6, page=100), max_pages=5)
+            n = len(st.trades)
+            with open(st.path, "rb+") as f:
+                f.seek(-20, 2)
+                f.truncate()                               # останній рядок без кінця і без переводу рядка
+            st2 = TradeStore(d, MINT)
+            self.assertEqual(len(st2.trades), n - 1)
+            new = {"wallet": "late", "type": "buy", "time": T0 + 9 * MIN, "qty": 1.0, "usd": 1.0, "price": 1.0, "tx": "late", "program": "p"}
+            self.assertEqual(st2.add([new]), 1)
+            st3 = TradeStore(d, MINT)
+            self.assertEqual(len(st3.trades), n)           # n-1 цілих + нова
+            self.assertIn("late", {t["tx"] for t in st3.trades})
+
     def test_dedup(self):
         with tempfile.TemporaryDirectory() as d:
             st = TradeStore(d, MINT)
