@@ -24,7 +24,8 @@ repository instead.
 `bash deploy/autodeploy.sh install /opt/tracced-dev compose.dev.yml` (dev) or
 `bash deploy/autodeploy.sh install /opt/tracced compose.vps.yml` (production) adds a cron line: every minute the server
 asks GitHub whether the checked-out branch moved; when it did, it waits for a running analysis to finish (up to 10 min),
-pulls, builds, starts the new container and checks `/health`. If the build fails or the new container does not answer,
+pulls, builds, starts the new container and checks `/health` (it waits up to 3 minutes for a slow start; a container
+that stopped or restarted is not waited for). If the build fails or the new container does not answer,
 it goes back to the previous commit, rebuilds it, and marks the rejected commit so it is not retried until a new push.
 Log: `/var/log/tracced-autodeploy.log` (`AUTODEPLOY_LOG` to change). `remove` takes the cron line out again. The server
 needs no GitHub secret: it only reads a public repository, so the only way to deploy is to push to that branch.
