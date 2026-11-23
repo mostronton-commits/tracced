@@ -18,6 +18,10 @@ healthy() {                       # ask the container itself; python is always t
   docker compose -f "$COMPOSE" exec -T web python -c \
     "import urllib.request,os,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:'+os.getenv('WEB_PORT','8095')+'/health', timeout=5).status==200 else 1)" >/dev/null 2>&1
 }
+alive() {                         # the container runs and has not restarted: a slow start, not a crash
+  local id; id=$(docker compose -f "$COMPOSE" ps -q web 2>/dev/null | head -1)
+  [ -n "$id" ] && [ "$(docker inspect -f '{{.State.Running}} {{.RestartCount}}' "$id" 2>/dev/null)" = "true 0" ]
+}
 busy() {                          # an analysis in flight: a restart now would lose it
   docker compose -f "$COMPOSE" exec -T web python -c \
     "import urllib.request,os,sys,json; d=json.load(urllib.request.urlopen('http://127.0.0.1:'+os.getenv('WEB_PORT','8095')+'/health', timeout=5)); sys.exit(0 if d.get('running') or d.get('queued') else 1)" >/dev/null 2>&1
@@ -44,7 +48,14 @@ run() {
   fi
   docker compose -f "$COMPOSE" up -d 2>&1 | tail -3
   sleep 8
-  for i in 1 2 3 4 5; do healthy && { say "deployed $BR $(git rev-parse --short HEAD), /health ok"; exit 0; }; sleep 5; done
+  # the site reads every saved analysis before it answers, so a start grows with the data (23.11: 35-40 s after two
+  # weeks up, and a 33 s wait rolled a good build back): wait up to 3 minutes while the container runs and has not
+  # restarted; one that crashed is rolled back at once
+  for i in $(seq 1 30); do
+    healthy && { say "deployed $BR $(git rev-parse --short HEAD), /health ok"; exit 0; }
+    alive || { say "the new container stopped or restarted"; break; }
+    sleep 5
+  done
   say "new container does not answer /health: rolling back to ${LOCAL:0:7}"
   echo "$REMOTE" > "$REJECTED"
   git reset -q --hard "$LOCAL"
