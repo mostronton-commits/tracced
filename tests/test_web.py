@@ -1068,9 +1068,16 @@ if AioHTTPTestCase:
 
         async def test_analytics_counts_only_on_the_live_domains_and_never_names_the_wallet(self):
             from unittest import mock
+            admins = self.app["admins"]
             with mock.patch.dict(os.environ, {"UMAMI_WEBSITE_ID": "site-id", "UMAMI_DOMAINS": "tracced.xyz"}):
-                html = await (await self.client.get("/")).text()
+                owner = await (await self.client.get("/")).text()            # тестовий гаманець тут — власник
+                self.app["admins"] = set()
+                try:
+                    html = await (await self.client.get("/")).text()         # той самий гаманець як звичайний користувач
+                finally:
+                    self.app["admins"] = admins
                 guest = await (await self.client.get("/", headers=GUEST)).text()
+            self.assertNotIn("umami.is", owner)                            # аудит 20.11: чужого скрипта в сесії власника нема
             self.assertIn('data-website-id="site-id" data-domains="tracced.xyz" data-performance="true" data-tag="wallet"', html)
             self.assertIn('data-tag="guest"', guest)                       # сегмент без адреси: гаманець чи гість
             self.assertNotIn(TEST_PK, html.split("umami.is/script.js")[1].split("</script>")[0])

@@ -184,3 +184,40 @@ class TestRows(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFailedCheckIsNotAnAnswer(unittest.TestCase):
+    """Аудит 20.11: збій мережі під час перевірки запуску записувався як «запуск не організований» назавжди."""
+
+    def run_check(self, failed, prev=None):
+        from types import SimpleNamespace
+        from unittest import mock
+        from tracced.web import app as webapp
+
+        class P:
+            throttled = 0
+        P.failed = failed
+
+        class Net:
+            calls, p = 0, P
+        r = {"info": {}, "wallet_trades": {}, "launch": prev}
+        job = SimpleNamespace(mint="M", log=[])
+        with mock.patch.object(webapp.launch_mod, "Jito", lambda: Net), mock.patch.object(webapp.launch_mod, "Rpc", lambda: Net):
+            webapp._launch_check(r, [], {"launch_on": True}, job, lambda j: None)
+        return r["launch"]
+
+    def test_a_clean_check_is_stamped(self):
+        from tracced.early import launch
+        self.assertEqual(self.run_check(0)["rev"], launch.REV)
+
+    def test_a_check_with_network_failures_is_left_open_and_counted(self):
+        from tracced.web.jobs import LAUNCH_RETRIES, launch_retry
+        out = self.run_check(1)
+        self.assertIsNone(out["rev"])
+        self.assertEqual(out["retries"], 1)
+        self.assertTrue(launch_retry({"launch": out}))
+        again = self.run_check(1, prev=out)
+        self.assertEqual(again["retries"], 2)
+        self.assertFalse(launch_retry({"launch": dict(out, retries=LAUNCH_RETRIES)}))    # досить спроб
+        self.assertFalse(launch_retry({"launch": None}))                                  # ще не перевіряли: це не повтор
+        self.assertFalse(launch_retry({}))

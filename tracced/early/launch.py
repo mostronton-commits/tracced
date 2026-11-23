@@ -17,6 +17,8 @@ import time
 import urllib.error
 import urllib.request
 
+from .wallet_age import TX_VERSION     # з 0 нода не віддає транзакції версії 1, і перевірка бачила б «транзакції нема»
+
 REV = 2                     # 18.10: пакет творця від створення, продажі тієї ж секунди першими, терпіння до 429
 JITO_API = "https://bundles.jito.wtf/api/v1"
 FEE_PROGRAM = "pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ"
@@ -147,7 +149,7 @@ class Rpc:
 def receivers(rpc, sig, mint, supply):
     """Хто отримав токен у транзакції: власники, у яких баланс цього токена зріс. Пул і криву (на старті вони тримають
     більшість випуску) відсіюємо за балансом понад 10% випуску до чи після. [(власник, кількість)]."""
-    tx = rpc("getTransaction", [sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}]) if rpc else None
+    tx = rpc("getTransaction", [sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": TX_VERSION}]) if rpc else None
     meta = (tx or {}).get("meta") or {}
     if not tx or meta.get("err"):
         return []
@@ -190,7 +192,7 @@ def creation_tx(rpc, creator, mint, created_ms, sigs=None, max_tx=10):
     near = sorted((x for x in sigs if x.get("blockTime") and abs(x["blockTime"] - t0) <= 60 and not x.get("err")),
                   key=lambda x: (abs(x["blockTime"] - t0), x.get("slot") or 0))
     for x in near[:max_tx]:
-        tx = rpc("getTransaction", [x["signature"], {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}])
+        tx = rpc("getTransaction", [x["signature"], {"encoding": "jsonParsed", "maxSupportedTransactionVersion": TX_VERSION}])
         keys = [k.get("pubkey") if isinstance(k, dict) else k for k in ((tx or {}).get("transaction") or {}).get("message", {}).get("accountKeys", [])]
         if mint in keys:
             return x["signature"]
@@ -268,7 +270,7 @@ def fee_shares(rpc, creator, mint, created_ms, max_tx=30, sigs=None):
                   key=lambda x: x.get("slot") or 0)
     found = None
     for x in near[:max_tx]:
-        tx = rpc("getTransaction", [x["signature"], {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}])
+        tx = rpc("getTransaction", [x["signature"], {"encoding": "jsonParsed", "maxSupportedTransactionVersion": TX_VERSION}])
         if not tx:
             continue
         for ins in (tx.get("transaction") or {}).get("message", {}).get("instructions", []):
@@ -298,7 +300,7 @@ def fee_paid(rpc, config, wallet, max_tx=200):
         before = page[-1]["signature"]
     sol, n = 0.0, 0
     for x in sigs[:max_tx]:
-        tx = rpc("getTransaction", [x["signature"], {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}])
+        tx = rpc("getTransaction", [x["signature"], {"encoding": "jsonParsed", "maxSupportedTransactionVersion": TX_VERSION}])
         if not tx:
             continue
         logs = (tx.get("meta") or {}).get("logMessages") or []

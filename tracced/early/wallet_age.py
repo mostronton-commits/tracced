@@ -214,7 +214,7 @@ class WalletAge:
                         raise
                     if e.code == 429:
                         pause = _retry_after(e, pause)
-                except urllib.error.URLError as e:
+                except (urllib.error.URLError, OSError, ValueError) as e:   # і тайм-аут читання, і обірване тіло відповіді
                     slot["last"] = time.monotonic()
                     last_err = e
                     if attempt == len(RETRY_SLEEP):

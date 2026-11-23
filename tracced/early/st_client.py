@@ -21,6 +21,10 @@ LIVE_EDGE_MS = 300_000       # шматок свічок, що закінчує�
 LIVE_TTL_S = 60              # але хвилину його ділять усі глядачі: графік рухається, а перегляд не коштує кредиту щоразу
 
 
+def _leg(tr):
+    return (tr.get("tx"), tr.get("type"), tr.get("time"), tr.get("qty"), tr.get("usd"))
+
+
 class EarlyST(SolanaTracker):
     def __init__(self, api_key, chart_cache=None, stats_cache=None, identity_cache=None, **kw):
         super().__init__(api_key, **kw)
@@ -163,7 +167,7 @@ class EarlyST(SolanaTracker):
         """All trades of one wallet on one token (ST `/trades/{mint}/by-wallet/{owner}`, ASC, cursor
         pages of 500; 1 request per page, cached). Same raw swaps as the token feed, filtered by
         wallet on their side. Cursor is exclusive (time > cursor), so pages restart one ms before the last
-        time and duplicates are dropped by tx — otherwise trades sharing the boundary second are lost.
+        time and duplicates are dropped by transaction leg — otherwise trades sharing the boundary second are lost.
 
         fresh=True skips the cached copy (the result is still stored): a live run claims history up to now,
         and a copy fetched hours ago misses every exit made since. store=False keeps a shorter read (an alert reads
@@ -179,8 +183,10 @@ class EarlyST(SolanaTracker):
             d = self._get(f"/trades/{mint}/by-wallet/{wallet}?sortDirection=ASC&limit={PAGE}"
                           + (f"&cursor={int(cursor)}" if cursor else ""))
             page = [normalize(tr) for tr in (d.get("trades") or [])]
-            new = [tr for tr in page if tr["tx"] not in seen]
-            seen.update(tr["tx"] for tr in new)
+            # дубль = та сама нога тієї самої транзакції: одна транзакція буває з двох обмінів, і межа сторінки
+            # може їх розділити — за самим підписом друга нога губилась як «уже бачена»
+            new = [tr for tr in page if _leg(tr) not in seen]
+            seen.update(_leg(tr) for tr in new)
             out.extend(new)
             times = [tr["time"] for tr in page if tr["time"] is not None]
             if not d.get("hasNextPage") or not times:

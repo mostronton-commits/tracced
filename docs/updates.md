@@ -12,6 +12,7 @@
 - The launch check's facts, each with its proof
 - Top traders: no wallets whose sales the data source priced wrong
 - A wallet that trades like a bot can't get a bell
+- An exit days later at hundreds of times the entry price is counted in full
 
 ## 0.7.10 <span class="ud">Oct 18, 2026</span>
 

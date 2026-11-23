@@ -19,6 +19,18 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 SPLIT_MIN_PAGES = 4          # залишок шматка ділимо навпіл, лише коли в ньому ще стільки сторінок
 
 
+def _ends_with_newline(path):
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            if f.tell() == 0:
+                return True
+            f.seek(-1, os.SEEK_END)
+            return f.read(1) == b"\n"
+    except OSError:
+        return True
+
+
 class PageBudget(Exception):
     """Стеля сторінок за прогін досягнута; усе завантажене вже збережено."""
 
@@ -47,6 +59,7 @@ class TradeStore:
         self._trades = []
         self._unsorted = False       # сортуємо, коли хтось читає, а не після кожної сторінки
         self._keys = set()
+        self._tail_ok = False        # чи файл кінчається переводом рядка: перевіряємо раз, перед першим дописом
         self.covered = []
         self._load()
 
@@ -100,6 +113,10 @@ class TradeStore:
         if not new:
             return 0
         with open(self.path, "a", encoding="utf-8") as f:
+            if not self._tail_ok:                    # останній рядок обірваний збоєм: нова угода приклеїлась би до нього
+                if not _ends_with_newline(self.path):
+                    f.write("\n")
+                self._tail_ok = True
             for tr in new:
                 self._keys.add(self._key(tr))
                 f.write(json.dumps(tr, ensure_ascii=False) + "\n")

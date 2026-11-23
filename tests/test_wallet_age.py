@@ -62,6 +62,14 @@ class TestWalletAge(unittest.TestCase):
         wa = WalletAge(post=FakePost([[]]), sleep=lambda s: None, pace_s=0)
         self.assertEqual(wa.oldest_tx("W3"), {"oldest_ms": None, "exact": True, "n": 0, "oldest_sig": None})
 
+    def test_a_read_timeout_or_a_broken_body_is_retried(self):
+        # тайм-аут читання (TimeoutError) і обірване тіло (ValueError) — не URLError: раніше гаманець одразу лишався
+        # без віку і без спонсора
+        post = FakePost([TimeoutError("timed out"), ValueError("bad json"), sigs(3), []])
+        wa = WalletAge(post=post, sleep=lambda s: None, pace_s=0)
+        self.assertEqual(wa.oldest_tx("W9")["n"], 3)
+        self.assertEqual(len(post.calls), 4)
+
     def test_retries_on_429_then_gives_up_on_400(self):
         slept = []
         err = lambda code: urllib.error.HTTPError("u", code, "x", {}, None)  # noqa: E731

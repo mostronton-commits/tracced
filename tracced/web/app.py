@@ -478,6 +478,11 @@ def _launch_check(r, rows, s, job, save):
         job.log.append(f"launch check failed: {str(ex)[:80]}")
     out["calls"] = {"jito": jito.calls, "rpc": rpc.calls, "throttled": jito.p.throttled + rpc.p.throttled,
                     "failed": jito.p.failed + rpc.p.failed}
+    if out.get("failed") or out["calls"]["failed"]:
+        # збій мережі — це «не знаємо», а не «запуск не організований»: позначку чинної перевірки не ставимо, і
+        # наступний старт сервера питає ще раз (JobQueue, до LAUNCH_RETRIES разів на результат)
+        out["rev"] = None
+        out["retries"] = int((r.get("launch") or {}).get("retries") or 0) + 1
     r["launch"] = out
     lt = launch_mod.wallet_tags(out)
     r["launch_tags"] = lt
@@ -1223,11 +1228,16 @@ class DailyCount:
             return int(cap) - (rec[1] if rec and rec[0] == day else 0)
 
 
+def _client_addr(request):
+    """The address itself, as the proxy's last hop wrote it. For an allowlist; budgets use _client_ip."""
+    xff = request.headers.get("X-Forwarded-For", "")
+    return (xff.split(",")[-1].strip() if xff else None) or request.remote or "?"
+
+
 def _client_ip(request):
     """The address the request really came from: behind our proxy that is the last hop it added. An IPv6 host is
     keyed by its /64, otherwise one machine would own 2^64 separate budgets."""
-    xff = request.headers.get("X-Forwarded-For", "")
-    raw = (xff.split(",")[-1].strip() if xff else None) or request.remote or "?"
+    raw = _client_addr(request)
     try:
         ip = ipaddress.ip_address(raw)
         return str(ipaddress.ip_network((ip, 64), strict=False)) if ip.version == 6 else str(ip)
@@ -1418,7 +1428,9 @@ async def auth_mw(request, handler):
 # Закрита копія сайту (dev.tracced.xyz, власник 30.09: «щоб тільки я мав доступ до робочих сторінок»): сторінки, дані й
 # API — лише гаманцям власника (ADMIN_WALLETS). Решта бачить закриті двері з кнопкою входу і нічого більше; пошуковикам —
 # noindex. Відкрите лише те, без чого не працює сам вхід: статика, /auth/*, /health (перевірка автодеплою), robots.txt.
-PRIVATE_OPEN = ("/static/", "/auth/", "/health", "/robots.txt", "/favicon.ico")
+PRIVATE_OPEN = ("/static/",)
+# точні адреси, а не початки: «/healthz» чи «/auth/будь-що» віддавали звичайну сторінку 404 з шапкою робочого сайту
+PRIVATE_OPEN_EXACT = frozenset(("/auth/nonce", "/auth/verify", "/auth/logout", "/health", "/robots.txt"))
 
 
 def _private_site(app):
@@ -1440,7 +1452,8 @@ def _private_host(request):
 async def private_mw(request, handler):
     if not _private_host(request):
         return await handler(request)
-    shut = not request.path.startswith(PRIVATE_OPEN) and request.get("acct") not in request.app["admins"]
+    is_open = request.path.startswith(PRIVATE_OPEN) or request.path in PRIVATE_OPEN_EXACT
+    shut = not is_open and request.get("acct") not in request.app["admins"]
     if shut and (request.method != "GET" or request.path.endswith((".json", ".csv")) or request.path.startswith("/api/")):
         resp = web.json_response({"error": "This copy of tracced is private."}, status=403)
     elif shut:
@@ -2088,6 +2101,15 @@ async def _tg_new_job(app, chat, mint, who=None, admin=False, window_ms=None):
     if _tg_in_flight(app, bot_only=True) >= int(s.get("tg_inflight_max", 3)):
         raise WebError("A few analyses are running already. Try again in a few minutes.")
     who = who or {}
+    # огляд нової адреси коштує 1-4 запити ще ДО лічильників прогонів, і стеля була лише на чат: бот у півсотні груп
+    # спалював би денний бюджет самими оглядами (аудит 20.11). Тепер їх рахує і весь бот, і місячний резерв
+    if not admin:
+        if not _st_open_now(app):
+            raise WebError("This month's data budget is nearly used up, so new tokens wait until it renews. "
+                           "Tokens analysed already still answer.")
+        if not rd.take("tg:look", int(s.get("tg_lookups_per_day", 600))):
+            raise WebError("I have looked at as many new tokens as I can today. Tokens analysed already still answer; "
+                           "more after 00:00 UTC.")
     info, _ = await _overview(app, mint, None, "system", via="tg", **who)
     now = int(time.time() * 1000)
     t_from, t_to = window_ms or await _tg_window(app, mint, info, who)     # window_ms: розмічене на картці-віджеті
@@ -2098,6 +2120,8 @@ async def _tg_new_job(app, chat, mint, who=None, admin=False, window_ms=None):
     cur = app["jobs"].get(make_id(mint, t_from, t_to))
     if cur and cur.mint == mint and (cur.status in ("queued", "running") or (cur.status == "done" and cur.result)):
         return cur, False
+    if cur and cur.mint != mint:                # id = початок адреси + вікно: чужий токен з таким самим id не затираємо
+        raise WebError("This range collides with another token's analysis. Mark the range a minute wider or narrower.")
     worst = int(s.get("tg_run_cap_requests", 1500))
     reserve = _credits_reserve(s)
     if reserve:
@@ -3388,6 +3412,9 @@ async def auth_verify(request):
             th.miss(ip, now)
         return _jerr(why, 401)
     th.hit(ip)
+    if pubkey not in app["admins"] and _private_host(request):
+        # закрита копія: чужий гаманець сторінок однаково не побачить, тож і акаунта з записом у журналі йому не заводимо
+        return _jerr("This copy of tracced is private.", 403)
     if not app["accounts"].exists(pubkey) and pubkey not in app["admins"]:
         # новий гаманець нічого не коштує, тож без стелі скрипт створював би тисячі акаунтів з однієї адреси
         daily, s = app["auth_daily"], app["s"]
@@ -4186,7 +4213,7 @@ async def api_check(request):
         return _jerr("Unknown or missing API key. Send it as: Authorization: Bearer <key>.", 401)
     if not rec.get("enabled"):
         return _jerr("This API key is switched off.", 403)
-    if rec.get("ips") and not api_mod.ip_allowed(ip, rec["ips"]):   # ключ прив'язано до серверів партнера
+    if rec.get("ips") and not api_mod.ip_allowed(_client_addr(request), rec["ips"]):   # ключ прив'язано до серверів партнера; сама адреса, не її /64
         return _jerr("This key does not work from this address.", 403)
     who = "api:" + rec["id"]
     th = app["api_throttle"]
@@ -4376,7 +4403,8 @@ def _render_html(name, request, **ctx):
     # а сторонній скрипт на сторінці бачить усе, що на ній є
     if ctx.get("design_v2") and (HERE / "templates" / "v2" / name).is_file():
         name = "v2/" + name                                   # design v2 has its own copy of this page or part (26.10)
-    admin_page = request is not None and request.path.startswith("/admin")
+    admin_page = request is not None and (request.path.startswith("/admin")
+                                          or (request.get("acct") and request.get("acct") in (request.app.get("admins") or ())))
     ctx.setdefault("umami_id", "" if admin_page else os.getenv("UMAMI_WEBSITE_ID", ""))
     ctx.setdefault("umami_domains", os.getenv("UMAMI_DOMAINS", "tracced.xyz,www.tracced.xyz"))   # і лише на цих доменах: локальні запуски з тим самим id не рахуються
     return env.get_template(name).render(**ctx)

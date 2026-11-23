@@ -203,6 +203,71 @@ class TestPipeline(unittest.TestCase):
 
 
 
+class FreshST(FakeST):
+    """Як справжнє джерело: кожна сторінка — нові об'єкти. Лагодження міняє угоду на місці, і спільний з фікстурою
+    словник повернувся б наступною сторінкою вже полагодженим, тобто «новою» угодою."""
+
+    def trades_page(self, mint, cursor):
+        d = super().trades_page(mint, cursor)
+        return dict(d, trades=[dict(t) for t in d["trades"]])
+
+    def wallet_token_trades(self, wallet, mint, max_pages=4, fresh=False, store=True):
+        return [dict(t) for t in super().wallet_token_trades(wallet, mint, max_pages, fresh, store)]
+
+
+class TestAmountsAndCaps(unittest.TestCase):
+    """Аудит 20.11: справжній вихід не можна «лагодити» ціною діапазону; історія лагодиться після завантаження;
+    сторінки історії йдуть у стелю запитів прогону."""
+
+    def test_a_2000x_exit_days_later_stays_2000x_in_per_wallet_mode(self):
+        day = 24 * 60
+        trades = [tr(1, "buy", "A", 10_000_000, 1e-5), tr(2, "buy", "B", 10_000_000, 1e-5)]
+        trades += [tr(21 + i, "buy", f"N{i}", 10, 1e-5) for i in range(6)]      # після діапазону торгують далі
+        trades.append(tr(3 * day, "sell", "A", 10_000_000, 0.02))              # $100 → $200 000
+        with tempfile.TemporaryDirectory() as d:
+            res = pipeline.run(FreshST(trades, page=2), MINT, T0, T0 + 20 * MIN, settings.load(), store_dir=d,
+                               max_pages=1, now_ms=T0 + 4 * day * MIN)
+            self.assertEqual(res["mode"], "wallet-trades")
+            a = next(r for r in res["rows"] if r["wallet"] == "A")
+            self.assertAlmostEqual(a["proceeds_usd"], 200_000.0)
+            self.assertAlmostEqual(a["multiple"], 2000.0)
+            self.assertEqual(res["coverage"]["repaired_trades"], 0)
+
+    def test_history_fetched_after_the_first_repair_is_repaired_too(self):
+        trades = [tr(1, "buy", "A", 100, 1.0), tr(2, "buy", "B", 100, 1.0)]
+        for m in range(25, 40):
+            for k in range(3):
+                t = tr(m, "buy" if k else "sell", f"X{m}{k}", 10, 3.0)
+                t["time"] += k * 1000
+                trades.append(t)
+        broken = tr(30, "sell", "A", 50, 3.0)                                   # насправді продав 50 за $150
+        broken["time"] += 5000
+        broken["qty"], broken["price"] = 5e-10, 150 / 5e-10                     # кількість зі зміщеною крапкою
+        trades.append(broken)
+        with tempfile.TemporaryDirectory() as d:
+            res = pipeline.run(FreshST(trades, page=500), MINT, T0, T0 + 20 * MIN, settings.load(), store_dir=d,
+                               now_ms=T0 + 2 * H)
+            a = next(r for r in res["rows"] if r["wallet"] == "A")
+            self.assertEqual(res["mode"], "trades")
+            self.assertAlmostEqual(a["multiple"], 3.0)
+            self.assertAlmostEqual(a["realized_usd"], 100.0)
+            self.assertEqual(a["sold_share_pct"], 50.0)
+
+    def test_history_pages_count_against_the_run_cap(self):
+        trades = [tr(1, "buy", "A", 100, 1.0), tr(2, "buy", "B", 100, 1.0)]
+        for i in range(600):
+            t = tr(21, "sell" if i % 2 else "buy", f"Y{i}", 10, 2.0)
+            t["time"] += i * 1000
+            trades.append(t)
+        with tempfile.TemporaryDirectory() as d:
+            st = FreshST(trades, page=2)
+            s = dict(settings.load(), run_cap_requests=30, max_trade_pages=200, probe_pages=0, budget_guard_pct=0)
+            res = pipeline.run(st, MINT, T0, T0 + 20 * MIN, s, store_dir=d, now_ms=T0 + 2 * H)
+            self.assertLessEqual(st.requests, 32)                               # було 201 і помилка замість результату
+            self.assertEqual(res["mode"], "wallet-trades")
+            self.assertEqual(len(res["rows"]), 2)
+
+
 class SlowST(FakeST):
     """Угоди гаманця приходять із затримкою; рахуємо, скільки викликів ідуть одночасно.
 
