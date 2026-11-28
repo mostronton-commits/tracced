@@ -3,10 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}tracced{% endblock %}</title>
+<title>{% block title %}{{ page_title or 'tracced' }}{% endblock %}</title>
 {# what a shared link shows in X, Telegram and Discord (owner, 08.10). The big card (owner, 12.10: «a bit more
    information»): X shows the picture with the domain and nothing else, so the picture says what tracced does #}
-<meta name="description" content="Paste a Solana token, mark the pump — see who bought before it and what they did next.">
+<meta name="description" content="{{ desc or 'Paste a Solana token, mark the pump — see who bought before it and what they did next.' }}">
+{# one address per page for search engines; what is not a page of its own (cabinets, forms, errors) stays out of them #}
+{% if canonical %}<link rel="canonical" href="{{ canonical }}">
+<meta property="og:url" content="{{ canonical }}">
+{% elif noindex %}<meta name="robots" content="noindex">
+{% endif %}{% if verify and verify.google %}<meta name="google-site-verification" content="{{ verify.google }}">
+{% endif %}{% if verify and verify.bing %}<meta name="msvalidate.01" content="{{ verify.bing }}">
+{% endif %}{% if ld %}<script type="application/ld+json">{{ ld }}</script>
+{% endif %}
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="tracced">
 <meta property="og:title" content="tracced · see who bought before the pump">

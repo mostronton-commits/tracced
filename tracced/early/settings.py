@@ -28,6 +28,8 @@ DEFAULTS = {
     "insightx_month": 1000,       # безкоштовний план: 1000 запитів на місяць і 5 на хвилину
     "insightx_reserve_pct": 10,
     "insightx_pace_s": 13,
+    "google_site_verification": "",   # код з Google Search Console (метатег на головній); порожньо — тега нема
+    "bing_site_verification": "",     # те саме для Bing Webmaster Tools: його індекс читають ChatGPT і Copilot
     "private_hosts": [],          # копії сайту лише для власника (config.yaml: dev.tracced.xyz)
     "private_copy": {},           # що закрита копія (її SITE_URL серед private_hosts) робить інакше: вона ділить ключ ST із сайтом
     "alerts_open": False,

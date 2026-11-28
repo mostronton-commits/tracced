@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% import "v2/_ag.html" as ag %}
-{% block title %}{{ info.symbol or mint[:8] }}{% if active %} · result{% endif %} · tracced{% endblock %}
+{% block title %}{% if page_title %}{{ page_title }}{% else %}{{ info.symbol or mint[:8] }}{% if active %} · result{% endif %} · tracced{% endif %}{% endblock %}
 {% block main_class %}wide{% endblock %}
 {% block crumb %}{{ info.symbol or mint[:8] }}{% endblock %}
 {% block head %}<script src="/static/vendor/lightweight-charts.standalone.production.js?v={{ v }}"></script><script src="/static/chart.js?v={{ v }}"></script><script src="/static/card.js?v={{ v }}"></script><script src="/static/result.js?v={{ v }}"></script><script src="/static/tokenpage.js?v={{ v }}" defer></script><script src="/static/tour.js?v={{ v }}" defer></script>{% endblock %}

@@ -14,6 +14,9 @@ early:
   design_v2: all                # owner, 07.11: the new look for everyone at once. closed brings the old one back for all
   plan: advanced                # owner, 27.10: Advanced, €50 for 200,000 requests a month, no rate limit (was Pro, 1,000,000). One call is one credit.
   private_hosts: [dev.tracced.xyz]   # owner, 30.09: the working copy opens for the owner's wallets only
+  # search engines: the code each console gives for its «HTML tag» check goes here and appears on the home page
+  # google_site_verification: ""    # Google Search Console
+  # bing_site_verification: ""      # Bing Webmaster Tools (ChatGPT and Copilot search read Bing's index)
   private_copy:                 # the working copy shares the Solana Tracker key with the site, so its background spends less:
     ready_lists_on: false       # no monthly count of the ready lists (production counts them; dev took 5,044 in October)
     token_images_backfill: false
