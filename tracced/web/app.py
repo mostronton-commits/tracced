@@ -628,6 +628,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
                labels=None):
     app = web.Application(middlewares=[www_mw, errors_mw, auth_mw, private_mw])
     app.on_response_prepare.append(_security_headers)
+    app["indexnow"] = set()                                        # адреси нових аналізів, яких пошуковики ще не чули
     app["bg"] = {}                                                 # фонові задачі сервера (лише з background=True, не в тестах)
     app["fresh"], app["fresh_peaks"] = {"at": 0, "ok_at": 0, "rows": [], "busy": False, "live": background, "day": "", "n": 0}, {}   # свіжі пампи на головній
     if background:
@@ -758,6 +759,8 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
         """Живий прогін закінчився: рядок журналу — хто, що, скільки запитів і що знайшов (дашборд власника); і те, що
         він витратив, лягає в денний бюджет запитів на нові аналізи (прогони власника — поза ним)."""
         app["events"].add(job.owner or "system", "run", **usage_mod.run_facts(job))
+        if job.status == "done" and job.result and not job.replay:      # a new page for search engines: told within minutes
+            app["indexnow"].update((f"/job/{job.id}", f"/token?mint={job.mint}"))
         if job.owner and job.owner not in app["admins"] and not job.replay and job.spent:
             app["runs_daily"].add("req:global", int(job.spent))
 
@@ -775,6 +778,9 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_get("/docs", docs_page)
     app.router.add_get("/docs.md", docs_page)                       # the overview as plain markdown, for llms.txt
     app.router.add_get("/docs/{slug}", docs_page)
+    app.router.add_get("/guides", docs_page)
+    app.router.add_get("/guides.md", docs_page)
+    app.router.add_get("/guides/{slug}", docs_page)
     app.router.add_get("/project", project)
     app.router.add_get("/token", token_page)
     app.router.add_get("/candles.json", candles_json)
@@ -796,6 +802,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_get("/sitemap.xml", sitemap_xml)
     app.router.add_get("/llms.txt", llms_txt)
     app.router.add_get("/favicon.ico", favicon_ico)
+    app.router.add_get("/indexnow.txt", indexnow_txt)
     app.router.add_post("/auth/nonce", auth_nonce)
     app.router.add_post("/auth/verify", auth_verify)
     app.router.add_post("/auth/logout", auth_logout)
@@ -865,6 +872,8 @@ async def _start_background(app):
     loop = asyncio.get_running_loop()
     app["bg"]["usage"] = loop.create_task(_usage_loop(app))
     app["bg"]["ready"] = loop.create_task(_ready_loop(app))
+    if app["s"].get("indexnow_key") and not _private_site(app):
+        app["bg"]["indexnow"] = loop.create_task(_indexnow_loop(app))
     fresh_age = time.time() * 1000 - app["fresh"]["at"]
     if app["s"].get("fresh_on") and fresh_age > float(app["s"].get("fresh_refresh_min", 10)) * 60_000:
         app["bg"]["fresh"] = loop.create_task(_fresh_refresh(app))       # головна не чекає; свіжий список з файла — не питаємо знову
@@ -1497,12 +1506,59 @@ def _public_jobs(app):
             if j.status == "done" and j.result and not j.replay]
 
 
+async def indexnow_txt(request):
+    """IndexNow's proof that the key is ours: the key itself, at the address the submission names."""
+    key = request.app["s"].get("indexnow_key")
+    if not key or _private_host(request):
+        raise web.HTTPNotFound()
+    return web.Response(text=key, headers={"Cache-Control": "public, max-age=86400"})
+
+
+def _indexnow_send(app, urls):
+    """One POST with the addresses; True when IndexNow took them (200 or 202). Failures are only logged."""
+    site = _site_url(app)
+    body = json.dumps(seo.indexnow_body(site, app["s"]["indexnow_key"], [site + u for u in urls])).encode()
+    req = urllib.request.Request(seo.INDEXNOW_URL, data=body, method="POST",
+                                 headers={"Content-Type": "application/json; charset=utf-8", "User-Agent": "tracced-indexnow"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return r.status in (200, 202)
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        log.warning("indexnow: %s", e)
+        return False
+
+
+async def _indexnow_loop(app):
+    """Every few minutes, tells search engines about analyses finished since: no provider request, one POST. Once per
+    server (a file beside the analyses), it sends every public address the sitemap lists, so old pages are heard too."""
+    mark = Path(app["jobs"].dir) / "indexnow.json"
+    await asyncio.sleep(120)
+    while True:
+        try:
+            if not mark.exists():
+                urls = ["/", "/docs"] + [f"/docs/{p['slug']}" for p in docs_mod.nav(DOCS_DIR, None) if p["slug"] != "index"]
+                urls += [("/guides" if p["slug"] == "index" else f"/guides/{p['slug']}") for p in docs_mod.nav(DOCS_DIR, None, "guides")]
+                for jid, mint, _ in _public_jobs(app):
+                    urls += [f"/job/{jid}", f"/token?mint={mint}"]
+                if await asyncio.to_thread(_indexnow_send, app, list(dict.fromkeys(urls))):
+                    mark.write_text(json.dumps({"all_at": int(time.time() * 1000)}), encoding="utf-8")
+                    app["indexnow"].clear()
+            elif app["indexnow"]:
+                urls = sorted(app["indexnow"])
+                if await asyncio.to_thread(_indexnow_send, app, urls):
+                    app["indexnow"].difference_update(urls)
+        except Exception as e:  # noqa: BLE001 — фон не падає
+            log.warning("indexnow loop: %s", e)
+        await asyncio.sleep(60 * float(app["s"].get("indexnow_every_min", 10)))
+
+
 async def sitemap_xml(request):
     """Every page a guest can read, for search engines. Built from what the server holds in memory: no requests."""
     app = request.app
     lists = [(v.get("slug") or k) for k, v in ((app.get("ready") or {}).get("lists") or {}).items() if v and v.get("rows")]
     docs = [p["slug"] for p in docs_mod.nav(DOCS_DIR, None)]
-    return web.Response(text=seo.sitemap(_site_url(app), docs, lists, _public_jobs(app)), content_type="application/xml",
+    guides = [p["slug"] for p in docs_mod.nav(DOCS_DIR, None, "guides")]
+    return web.Response(text=seo.sitemap(_site_url(app), docs, lists, _public_jobs(app), guides), content_type="application/xml",
                         charset="utf-8", headers={"Cache-Control": "public, max-age=600"})
 
 
@@ -1519,7 +1575,8 @@ async def llms_txt(request):
                          "wallets": (j.result.get("counts") or {}).get("n_early"), "fact": (fact or {}).get("text")})
         if len(rows) >= 20:
             break
-    return web.Response(text=seo.llms(_site_url(app), docs_mod.nav(DOCS_DIR, None), lists, rows), content_type="text/plain",
+    return web.Response(text=seo.llms(_site_url(app), docs_mod.nav(DOCS_DIR, None), lists, rows,
+                                      docs_mod.nav(DOCS_DIR, None, "guides")), content_type="text/plain",
                         charset="utf-8", headers={"Cache-Control": "public, max-age=600"})
 
 
@@ -5058,6 +5115,13 @@ def _live_feed(app, now_ms=None):
     return {"rows": rows, "day": day}
 
 
+def _list_desc(lst):
+    """The list in one line for search results: its rule and its sums, the same words the page says."""
+    sm = lst.get("summary") or {}
+    return (f"{lst.get('title') or 'Top traders'}: {sm.get('n') or 0} Solana memecoin wallets by realized profit, "
+            f"+{_usd3(sm.get('pnl') or 0)} together. {lst.get('rule') or ''}").strip()
+
+
 async def list_page(request):
     """Готовий список гаманців: хто в ньому, за яким правилом, і кнопка взяти його собі разом зі сповіщеннями."""
     app = request.app
@@ -5066,14 +5130,17 @@ async def list_page(request):
     if not lst or not lst.get("rows"):
         raise web.HTTPNotFound(text="This list is not ready yet.")
     if not request.get("acct"):                 # власник, 08.10: список — лише з підключеним гаманцем, щоб його не забирали
-        return render("lists.html", request, lst=lst, rows=[], rows_js=[], gate=True, following=None, others=[], alerts_ok=False,
-                      canonical="/lists/" + slug)
+        _view(request, "list", ref=slug)
+        return render("lists.html", request, lst=lst, rows=_ready_rows(lst)[:5], rows_js=[], gate=True, following=None, others=[],
+                      alerts_ok=False, canonical="/lists/" + slug, desc=_list_desc(lst),
+                      page_title=f"{lst.get('title') or 'Top traders'} · Solana memecoin wallets · tracced")
     following = _ready_follow_id(app, request["acct"], lst)
     _view(request, "list", ref=slug)
     rows = _ready_rows(lst)
     # the page's script needs only who is in a row; the month's own tokens and trades stay out (the card has 7D/30D)
     rows_js = [{k: r.get(k) for k in ("wallet", "name", "x", "avatar")} for r in rows]
-    return render("lists.html", request, lst=lst, rows=rows, rows_js=rows_js, following=following,
+    return render("lists.html", request, lst=lst, rows=rows, rows_js=rows_js, following=following, canonical="/lists/" + slug,
+                  desc=_list_desc(lst), page_title=f"{lst.get('title') or 'Top traders'} · Solana memecoin wallets · tracced",
                   others=[dict(v, slug=k) for k, v in (app["ready"].get("lists") or {}).items() if k != slug and v.get("rows")],
                   alerts_ok=_alerts_allowed(app, request.get("acct")))
 
@@ -5162,28 +5229,33 @@ async def index(request):
 async def docs_page(request):
     """Документація: markdown з docs/ поруч із кодом, той самий деплой, те саме оформлення сайту. З «.md» в кінці —
     той самий текст без оформлення, для ШІ-асистентів (llms.txt веде саме туди); пошуковикам його не пропонуємо."""
+    section = "guides" if request.path.startswith("/guides") else "docs"
+    root = "/" + section
     slug = request.match_info.get("slug") or "index"
-    plain = slug.endswith(".md") or request.path == "/docs.md"
+    plain = slug.endswith(".md") or request.path in ("/docs.md", "/guides.md")
     slug = slug[:-3] if slug.endswith(".md") else slug
     ctx = {"s": request.app["s"], "TAGS": tags.DEFS, "EXCH_N": len(exch_mod.KNOWN), "assistant_on": request.app.get("assistant") is not None,
            "API": api_mod}   # межі правил API — з коду, щоб сторінка не розійшлась із тим, що рахує сервер
-    path = "/docs" if slug == "index" else "/docs/" + slug
+    path = root if slug == "index" else f"{root}/{slug}"
     if plain:
-        text = docs_mod.source(DOCS_DIR, slug, ctx)
+        text = docs_mod.source(DOCS_DIR, slug, ctx, section)
         if text is None:
             raise web.HTTPNotFound(text="There is no such page in the documentation.")
         return web.Response(text=text, content_type="text/markdown", charset="utf-8",
                             headers={"X-Robots-Tag": "noindex", "Link": f'<{_site_url(request.app)}{path}>; rel="canonical"',
                                      "Cache-Control": "public, max-age=600"})
-    body, title = docs_mod.page(DOCS_DIR, slug, ctx)
+    body, title = docs_mod.page(DOCS_DIR, slug, ctx, section)
     if body is None:
         raise web.HTTPNotFound(text="There is no such page in the documentation.")
-    prev, nxt = docs_mod.around(DOCS_DIR, slug)
-    blurb = next((p["blurb"] for p in docs_mod.nav(DOCS_DIR, slug) if p["slug"] == slug), None)
-    _view(request, "docs", slug)
-    return render("docs.html", request, body=body, title=title, nav=docs_mod.nav(DOCS_DIR, slug), prev=prev, nxt=nxt, slug=slug,
-                  canonical=path, desc=f"{blurb}. tracced documentation." if blurb else None,
-                  ld=Markup(seo.docs_ld(_site_url(request.app), slug, title, blurb)))
+    prev, nxt = docs_mod.around(DOCS_DIR, slug, section)
+    blurb = next((p["blurb"] for p in docs_mod.nav(DOCS_DIR, slug, section) if p["slug"] == slug), None)
+    _view(request, "docs" if section == "docs" else "guide", slug)
+    return render("docs.html", request, body=body, title=title, slug=slug, root=root, section=section,
+                  nav=docs_mod.nav(DOCS_DIR, slug if section == "docs" else None),
+                  guides=docs_mod.nav(DOCS_DIR, slug if section == "guides" else None, "guides"), prev=prev, nxt=nxt,
+                  canonical=path, page_title=f"{title} · tracced" if section == "guides" else None,
+                  desc=(f"{blurb}. tracced documentation." if section == "docs" else f"{blurb}.") if blurb else None,
+                  ld=Markup(seo.docs_ld(_site_url(request.app), slug, title, blurb, section)))
 
 
 FORM_MIN_S, FORM_MAX_S = 2, 6 * 3600          # швидше — не людина; довше — сторінку відкрили вчора

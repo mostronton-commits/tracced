@@ -38,12 +38,13 @@ def _day(ms):
     return time.strftime("%Y-%m-%d", time.gmtime((ms or 0) / 1000)) if ms else None
 
 
-def sitemap(site, docs, lists, jobs):
+def sitemap(site, docs, lists, jobs, guides=()):
     """sitemap.xml: home, the documentation, the ready lists, every token that has a finished analysis and every such
     analysis. `docs` and `lists` are slugs; `jobs` are (id, mint, finished_ms) of finished analyses. A token's date is
     its newest analysis."""
     urls = [(site + "/", None), (site + "/docs", None)]
     urls += [(f"{site}/docs/{s}", None) for s in docs if s != "index"]
+    urls += [(site + ("/guides" if s == "index" else f"/guides/{s}"), None) for s in guides]
     urls += [(f"{site}/lists/{s}", None) for s in lists]
     tokens = {}
     for _id, mint, done in jobs:
@@ -57,7 +58,7 @@ def sitemap(site, docs, lists, jobs):
     return "\n".join(out) + "\n"
 
 
-def llms(site, docs, lists, analyses):
+def llms(site, docs, lists, analyses, guides=()):
     """llms.txt (llmstxt.org): what the site is and where its plain-text pages are, for an assistant that answers a
     question about it. `docs` are {slug, label, blurb}; `lists` are {slug, title}; `analyses` are
     {id, symbol, wallets, fact} of the newest finished analyses."""
@@ -67,6 +68,11 @@ def llms(site, docs, lists, analyses):
     for d in docs:
         path = "/docs.md" if d["slug"] == "index" else f"/docs/{d['slug']}.md"
         out.append(f"- [{d['label']}]({site}{path}): {d['blurb']}")
+    if guides:
+        out += ["", "## Guides", ""]
+        for g in guides:
+            path = "/guides.md" if g["slug"] == "index" else f"/guides/{g['slug']}.md"
+            out.append(f"- [{g['label']}]({site}{path}): {g['blurb']}")
     out += ["", "## The product", "", f"- [Home]({site}/): paste a token address and mark the pump on its chart"]
     out += [f"- [{x['title']}]({site}/lists/{x['slug']}): a ready list of wallets, counted once a month" for x in lists]
     if analyses:
@@ -98,11 +104,12 @@ def home_ld(site):
     return _ld({"@context": "https://schema.org", "@graph": [org, web, app]})
 
 
-def docs_ld(site, slug, title, blurb):
-    """A documentation page: where it sits and what it is about."""
-    url = site + ("/docs" if slug == "index" else "/docs/" + slug)
+def docs_ld(site, slug, title, blurb, section="docs"):
+    """A documentation page or a guide: where it sits and what it is about."""
+    root = "/" + section
+    url = site + (root if slug == "index" else f"{root}/{slug}")
     crumbs = [{"@type": "ListItem", "position": 1, "name": "tracced", "item": site + "/"},
-              {"@type": "ListItem", "position": 2, "name": "Docs", "item": site + "/docs"}]
+              {"@type": "ListItem", "position": 2, "name": "Docs" if section == "docs" else "Guides", "item": site + root}]
     if slug != "index":
         crumbs.append({"@type": "ListItem", "position": 3, "name": title, "item": url})
     page = {"@type": "TechArticle", "headline": title, "url": url, "inLanguage": "en",
@@ -110,6 +117,15 @@ def docs_ld(site, slug, title, blurb):
     if blurb:
         page["description"] = blurb
     return _ld({"@context": "https://schema.org", "@graph": [page, {"@type": "BreadcrumbList", "itemListElement": crumbs}]})
+
+
+INDEXNOW_URL = "https://api.indexnow.org/indexnow"   # one address shares the list with Bing, Yandex, Seznam, Naver
+
+
+def indexnow_body(site, key, urls):
+    """What IndexNow takes (indexnow.org): our host, the key, where the key file lives, and up to 10,000 addresses."""
+    host = site.split("://", 1)[-1].split("/", 1)[0]
+    return {"host": host, "key": key, "keyLocation": f"{site}/indexnow.txt", "urlList": list(urls)[:10_000]}
 
 
 def ico(png):

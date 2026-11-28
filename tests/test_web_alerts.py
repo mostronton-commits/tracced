@@ -19,6 +19,19 @@ try:
 except ImportError:
     from test_early_pipeline import TRADES
 
+
+async def _spam_settled(timeout=5):
+    """Wait for the spam checks the stream started (and the stops they start), not a fixed pause: under a loaded
+    machine 0.05 s was not always enough and the test failed now and then (28.11)."""
+    import asyncio
+    loop_end = asyncio.get_running_loop().time() + timeout
+    while asyncio.get_running_loop().time() < loop_end:
+        busy = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()
+                and getattr(t.get_coro(), "__qualname__", "") in ("_spam_check", "_spam_stop")]
+        if not busy:
+            return
+        await asyncio.wait(busy, timeout=loop_end - asyncio.get_running_loop().time())
+
 if AioHTTPTestCase:
     try:
         from tests.test_web import FakeWebST, TEST_PK, W1, wallet_cookie, seed_demo, DEMO_JID
@@ -528,7 +541,7 @@ if AioHTTPTestCase:
             with mock.patch.object(app_mod, "_rpc", dust), mock.patch.object(app_mod, "_tg_send", tg):
                 for sig in ("A", "A", "B", "C", "D"):                                  # stream and poll saw A twice: it counts once
                     app_mod._spam_count(self.app, None, W1, sig)
-                await asyncio.sleep(0.05)
+                await _spam_settled()
             self.assertIn(W1, self.app["alerts_wm"])                                   # four, but none his own: he stays
             self.assertEqual(self.app["alerts_spam"].recent.get(W1), None)             # and the count starts over
             self.assertEqual(sent, [])
@@ -537,7 +550,7 @@ if AioHTTPTestCase:
             with mock.patch.object(app_mod, "_rpc", bot), mock.patch.object(app_mod, "_tg_send", tg):
                 for sig in "EFGH":
                     app_mod._spam_count(self.app, None, W1, sig)
-                await asyncio.sleep(0.05)
+                await _spam_settled()
             self.assertEqual(list(self.app["alerts_wm"]), ["OTHER"])
             self.assertFalse(a.load(TEST_PK)["wallets"][W1].get("alert"))
             self.assertEqual(len(sent), 1)

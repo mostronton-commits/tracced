@@ -28,6 +28,8 @@ DEFAULTS = {
     "insightx_month": 1000,       # безкоштовний план: 1000 запитів на місяць і 5 на хвилину
     "insightx_reserve_pct": 10,
     "insightx_pace_s": 13,
+    "indexnow_key": "",               # IndexNow (Bing, Yandex): сайт сам каже про нові аналізи; порожньо — не каже
+    "indexnow_every_min": 10,         # не частіше: нові адреси збираються в один запит
     "google_site_verification": "",   # код з Google Search Console (метатег на головній); порожньо — тега нема
     "bing_site_verification": "",     # те саме для Bing Webmaster Tools: його індекс читають ChatGPT і Copilot
     "private_hosts": [],          # копії сайту лише для власника (config.yaml: dev.tracced.xyz)

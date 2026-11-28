@@ -14,6 +14,7 @@ early:
   design_v2: all                # owner, 07.11: the new look for everyone at once. closed brings the old one back for all
   plan: advanced                # owner, 27.10: Advanced, €50 for 200,000 requests a month, no rate limit (was Pro, 1,000,000). One call is one credit.
   private_hosts: [dev.tracced.xyz]   # owner, 30.09: the working copy opens for the owner's wallets only
+  indexnow_key: 510f7b9a8153f4bc9d99f0ac01b2f1d7   # public on purpose (served at /indexnow.txt): Bing and Yandex hear of new analyses
   # search engines: the code each console gives for its «HTML tag» check goes here and appears on the home page
   # google_site_verification: ""    # Google Search Console
   # bing_site_verification: ""      # Bing Webmaster Tools (ChatGPT and Copilot search read Bing's index)

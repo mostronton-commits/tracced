@@ -4,6 +4,7 @@
    The rules of v2/style.css for .docs stay underneath; these take their place where the canvas differs ───────── */
 .docs { grid-template-columns: 240px minmax(0, 720px) 220px; gap: 48px; margin-top: 16px; align-items: start; justify-content: center; }
 .docs .dn-h { display: block; padding: 0 12px 10px; color: var(--faint); font-size: var(--fs-caption); }
+.docs-nav ul + .dn-h { margin-top: 24px; }   /* Guides under Documentation: its own group, not the next item */
 .dic { width: 15px; height: 15px; flex: none; display: block; }
 
 .docs-nav { position: sticky; top: 24px; }
@@ -97,6 +98,7 @@
   .docs { grid-template-columns: minmax(0, 1fr); gap: 20px; margin-top: 4px; }
   .docs-nav { position: static; }
   .docs-nav .dn-h { display: none; }
+  .docs-nav[data-sec="docs"] .sec-guides, .docs-nav[data-sec="guides"] .sec-docs { display: none; }   /* only this section's chips */
   .docs-nav ul { display: flex; flex-wrap: wrap; gap: 6px; }
   .docs-nav a { height: 34px; background: var(--surface); }
   .docs-pager .pg { min-width: 0; }
