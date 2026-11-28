@@ -76,6 +76,12 @@ class TestSeoText(unittest.TestCase):
                          [SITE + "/", SITE + "/docs", SITE + "/docs/tags"])
         self.assertEqual(len(json.loads(seo.docs_ld(SITE, "index", "Overview", None))["@graph"][1]["itemListElement"]), 2)
 
+    def test_indexnow_body_names_our_host_and_the_key_file(self):
+        body = seo.indexnow_body(SITE, "k" * 32, [SITE + "/job/a", SITE + "/"])
+        self.assertEqual(body, {"host": "tracced.xyz", "key": "k" * 32, "keyLocation": "https://tracced.xyz/indexnow.txt",
+                                "urlList": ["https://tracced.xyz/job/a", "https://tracced.xyz/"]})
+        self.assertEqual(len(seo.indexnow_body(SITE, "k", [str(i) for i in range(12_000)])["urlList"]), 10_000)
+
     def test_ico_wraps_the_png_whole(self):
         png = b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\rIHDR" + struct.pack(">II", 32, 32) + b"rest-of-the-picture"
         ico = seo.ico(png)
@@ -115,6 +121,7 @@ if AioHTTPTestCase:
             self.st = FakeWebST(TRADES)
             s = settings.load()
             s["private_hosts"] = ["dev.example"]
+            s["design_v2"] = "all"                                       # the look everyone gets since 0.8.0
             app = create_app(self.st, s, {}, out_dir=self.tmp.name + "/web", store_dir=self.tmp.name + "/cache")
             app["admins"] = {TEST_PK}
             return app
@@ -167,6 +174,32 @@ if AioHTTPTestCase:
             self.assertNotIn('rel="canonical"', html)
             self.assertIn('<meta name="robots" content="noindex">', html)
 
+        async def test_guides_are_pages_with_their_own_menu_and_plain_text(self):
+            import re
+            from tracced.web import docs as docs_mod
+            for g in docs_mod.GUIDES:
+                path = "/guides" if g[0] == "index" else "/guides/" + g[0]
+                r = await self.client.get(path)
+                html = await r.text()
+                self.assertEqual(r.status, 200, path)
+                self.assertIn(f'<link rel="canonical" href="https://tracced.xyz{path}">', html, path)
+                self.assertIn('<span class="dn-h">Guides</span>', html, path)
+                body = html.split('<article class="docs-body')[1].split("</article>")[0]
+                self.assertIsNone(re.search(r"[\u0400-\u04FF]", body), path)          # no Cyrillic on the site's pages
+                for href in re.findall(r'href="(/[^"#?]*)', body):                  # every link inside a guide leads somewhere
+                    if href.startswith(("/lists/", "/job/")):
+                        continue                                                    # a ready list and a real analysis live only on the site
+                    self.assertEqual((await self.client.get(href)).status, 200, (path, href))
+                r = await self.client.get(path + ".md" if g[0] != "index" else "/guides.md")
+                self.assertEqual((r.status, r.content_type), (200, "text/markdown"), path)
+            html = await (await self.client.get("/guides/dev-sold")).text()
+            self.assertIn("<title>Dev sold: what it means and how to check it · tracced</title>", html)
+            xml = await (await self.client.get("/sitemap.xml")).text()
+            self.assertIn("<loc>https://tracced.xyz/guides</loc>", xml)
+            self.assertIn("<loc>https://tracced.xyz/guides/check-if-a-coin-is-bundled</loc>", xml)
+            self.assertIn("(https://tracced.xyz/guides/dev-sold.md)", await (await self.client.get("/llms.txt")).text())
+            self.assertEqual((await self.client.get("/guides/nope")).status, 404)
+
         async def test_cabinets_forms_and_errors_stay_out_of_search(self):
             for path in ("/me", "/feedback", "/no-such-page"):
                 html = await (await self.client.get(path)).text()
@@ -194,6 +227,21 @@ if AioHTTPTestCase:
             self.assertEqual((r.status, r.content_type, body[:4]), (200, "image/x-icon", b"\x00\x00\x01\x00"))
             self.assertIn("Sitemap: https://tracced.xyz/sitemap.xml", await (await self.client.get("/robots.txt")).text())
             self.assertEqual(self.st.requests, before)
+
+        async def test_indexnow_key_file_and_a_finished_analysis_waits_to_be_told(self):
+            self.assertEqual((await self.client.get("/indexnow.txt")).status, 404)      # no key: no file
+            self.app["s"]["indexnow_key"] = "abc123"
+            r = await self.client.get("/indexnow.txt")
+            self.assertEqual((r.status, await r.text()), (200, "abc123"))
+            self.assertEqual((await self.client.get("/indexnow.txt", headers={"Host": "dev.example"})).status, 403)
+            r = await self.client.post("/analyze", data={"mint": MINT, "from": "2001-09-09T02:30", "to": "2001-09-09T02:50"},
+                                       headers={"Cookie": wallet_cookie(TEST_PK), "Origin": f"http://{self.client.host}:{self.client.port}"},
+                                       allow_redirects=False)
+            self.assertIn(r.status, (302, 303))
+            import asyncio
+            await asyncio.to_thread(self.app["jobs"].q.join)
+            jid = r.headers["Location"].split("/job/")[1].split("?")[0]
+            self.assertEqual(self.app["indexnow"], {f"/job/{jid}", f"/token?mint={MINT}"})
 
         async def test_www_moves_to_the_bare_name_for_pages_only(self):
             www = {"Host": "www.tracced.xyz"}

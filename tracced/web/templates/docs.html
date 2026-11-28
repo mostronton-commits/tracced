@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ title }} · tracced docs{% endblock %}
+{% block title %}{{ page_title or (title ~ ' · tracced docs') }}{% endblock %}
 {% block crumb %}Docs{% endblock %}
 {% block body %}
 <div class="docs">
@@ -8,13 +8,17 @@
     <ul>{% for p in nav %}
       <li><a href="/docs/{{ p.slug }}"{% if p.on %} class="on" aria-current="page"{% endif %}><i aria-hidden="true">{{ p.icon }}</i>{{ p.label }}</a></li>
     {% endfor %}</ul>
+    {% if guides %}<b>Guides</b>
+    <ul>{% for p in guides %}
+      <li><a href="{{ '/guides' if p.slug == 'index' else '/guides/' ~ p.slug }}"{% if p.on %} class="on" aria-current="page"{% endif %}><i aria-hidden="true">{{ p.icon }}</i>{{ p.label }}</a></li>
+    {% endfor %}</ul>{% endif %}
   </nav>
   <div class="docs-main">
     <article class="docs-body card p-{{ slug }}">{{ body|safe }}</article>
     {% if prev or nxt %}
     <nav class="docs-pager" aria-label="More pages">
-      {% if prev %}<a class="pg" href="/docs/{{ prev.slug }}"><span>← Previous</span><b>{{ prev.icon }} {{ prev.label }}</b></a>{% else %}<span></span>{% endif %}
-      {% if nxt %}<a class="pg next" href="/docs/{{ nxt.slug }}"><span>Next →</span><b>{{ nxt.icon }} {{ nxt.label }}</b></a>{% endif %}
+      {% if prev %}<a class="pg" href="{{ root or '/docs' }}/{{ prev.slug }}"><span>← Previous</span><b>{{ prev.icon }} {{ prev.label }}</b></a>{% else %}<span></span>{% endif %}
+      {% if nxt %}<a class="pg next" href="{{ root or '/docs' }}/{{ nxt.slug }}"><span>Next →</span><b>{{ nxt.icon }} {{ nxt.label }}</b></a>{% endif %}
     </nav>
     {% endif %}
   </div>

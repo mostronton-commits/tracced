@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {# design v2 · Docs (canvas «Docs», 26.10): the pages on the left with our own marks, the page in the middle with no card
    around it, «On this page» on the right; the text itself is the markdown of docs/*.md, as before #}
-{% block title %}{{ title }} · tracced docs{% endblock %}
+{% block title %}{{ page_title or (title ~ ' · tracced docs') }}{% endblock %}
 {% macro dico(slug) -%}
 <svg class="dic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 {%- if slug == 'index' %}<circle cx="8" cy="8" r="5.8"/><path d="M10.4 5.6 9 9 5.6 10.4 7 7Z"/>
@@ -14,22 +14,27 @@
 {%- elif slug == 'roadmap' %}<path d="M2.6 4 6 2.6 10 4 13.4 2.6V12 10 13.4 6 12 2.6 13.4Z M6 2.6V12M10 4V13.4"/>
 {%- elif slug == 'updates' %}<path d="M8 2.4 L9.3 6.7 L13.6 8 L9.3 9.3 L8 13.6 L6.7 9.3 L2.4 8 L6.7 6.7 Z"/>
 {%- elif slug == 'project' %}<path d="M8 14V9.6M4.8 9.6H11.2L10 7.6V3.8L11 2.6H5L6 3.8V7.6Z"/>
+{%- elif slug == 'g' %}<path d="M8 4.2C6.6 3.2 4.6 2.8 2.4 3V12.6C4.6 12.4 6.6 12.8 8 13.8C9.4 12.8 11.4 12.4 13.6 12.6V3C11.4 2.8 9.4 3.2 8 4.2Z M8 4.2V13.8"/>
 {%- else %}<circle cx="8" cy="8" r="2"/>{% endif %}</svg>
 {%- endmacro %}
 {% block body %}
 <div class="docs">
-  <nav class="docs-nav" aria-label="Documentation">
+  <nav class="docs-nav" aria-label="Documentation" data-sec="{{ section or 'docs' }}">
     <span class="dn-h">Documentation</span>
-    <ul>{% for p in nav %}
+    <ul class="sec-docs">{% for p in nav %}
       <li><a href="/docs/{{ p.slug }}"{% if p.on %} class="on" aria-current="page"{% endif %}>{{ dico(p.slug) }}{{ p.label }}</a></li>
     {% endfor %}</ul>
+    {% if guides %}<span class="dn-h">Guides</span>
+    <ul class="sec-guides">{% for p in guides %}
+      <li><a href="{{ '/guides' if p.slug == 'index' else '/guides/' ~ p.slug }}"{% if p.on %} class="on" aria-current="page"{% endif %}>{{ dico('g') }}{{ p.label }}</a></li>
+    {% endfor %}</ul>{% endif %}
   </nav>
   <div class="docs-main">
     <article class="docs-body p-{{ slug }}">{{ body|safe }}</article>
     {% if prev or nxt %}
     <nav class="docs-pager" aria-label="More pages">
-      {% if prev %}<a class="pg prev" href="/docs/{{ prev.slug }}"><svg class="pg-ch" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.8 3.4 5.2 8 9.8 12.6"/></svg><span class="pg-t"><span>Previous</span><b>{{ dico(prev.slug) }}{{ prev.label }}</b></span></a>{% endif %}
-      {% if nxt %}<a class="pg next" href="/docs/{{ nxt.slug }}"><span class="pg-t"><span>Next</span><b>{{ dico(nxt.slug) }}{{ nxt.label }}</b></span><svg class="pg-ch" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.2 3.4 10.8 8 6.2 12.6"/></svg></a>{% endif %}
+      {% if prev %}<a class="pg prev" href="{{ root or '/docs' }}/{{ prev.slug }}"><svg class="pg-ch" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.8 3.4 5.2 8 9.8 12.6"/></svg><span class="pg-t"><span>Previous</span><b>{{ dico(prev.slug) }}{{ prev.label }}</b></span></a>{% endif %}
+      {% if nxt %}<a class="pg next" href="{{ root or '/docs' }}/{{ nxt.slug }}"><span class="pg-t"><span>Next</span><b>{{ dico(nxt.slug) }}{{ nxt.label }}</b></span><svg class="pg-ch" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.2 3.4 10.8 8 6.2 12.6"/></svg></a>{% endif %}
     </nav>
     {% endif %}
   </div>

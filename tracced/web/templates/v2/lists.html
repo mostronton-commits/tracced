@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ lst.title }} · tracced{% endblock %}
+{% block title %}{{ page_title or (lst.title ~ ' · tracced') }}{% endblock %}
 {% block main_class %}withcard v2lists{% endblock %}
 {% block head %}<script src="/static/vendor/lightweight-charts.standalone.production.js?v={{ v }}"></script><script src="/static/chart.js?v={{ v }}"></script><script src="/static/card.js?v={{ v }}"></script>{% endblock %}
 {% block body %}
@@ -21,10 +21,8 @@
       {% else %}<button type="button" class="primary" data-follow="{{ lst.slug }}" data-n="{{ lst.summary.n }}" data-go="1">{{ bell() }}Follow {{ lst.summary.n }} wallets</button>{% endif %}
     </div>{% endif %}
   </div>
-  {% if gate %}
-  {# owner, 08.10: the list is for connected wallets only, so it cannot be taken without connecting #}
-  <div class="lv-gate"><p>Connect a wallet to see the {{ lst.summary.n }} traders of this list and follow them.</p><button type="button" class="primary" data-wallet-signin data-wallet-note="Connect a wallet to see the list.">Connect a wallet</button></div>
-  {% else %}
+  {# owner, 08.10: the whole list is for connected wallets, so it cannot be taken without connecting. A guest (and a search
+     engine) sees the first five, as the home page shows them (28.11) #}
   <div class="lv-tally">
     {% if lst.kind == 'roi' %}<div><span>Best ROI</span><b class="up">{{ rows[0].roi_text if rows else '—' }}</b></div>{% endif %}
     <div><span>Profit</span><b class="up">+{{ lst.summary.pnl|usd3 }}</b></div>
@@ -34,13 +32,15 @@
   </div>
   <ol class="lv-rows">
   {% for r in rows %}
-    <li data-w="{{ r.wallet }}" tabindex="0" title="Open this wallet's card">
+    <li data-w="{{ r.wallet }}"{% if not gate %} tabindex="0" title="Open this wallet's card"{% endif %}>
       <span class="lv-rk">{{ r.rank }}</span>
       <span class="lv-nm"><b{% if not r.name %} class="mono"{% endif %}>{{ r.label }}</b><small>{% if lst.kind == 'roi' %}+{{ r.rv }} profit · {% endif %}{{ sub(r) }}</small></span>
       <b class="lv-v">{% if lst.kind == 'roi' %}{{ r.roi_text }}{% else %}+{{ r.rv }}{% endif %}</b>
     </li>
   {% endfor %}
   </ol>
+  {% if gate %}
+  <div class="lv-gate"><p>Connect a wallet to see all {{ lst.summary.n }} traders of this list and follow them.</p><button type="button" class="primary" data-wallet-signin data-wallet-note="Connect a wallet to see the list.">Connect a wallet</button></div>
   {% endif %}
   {% for o in others %}<p class="lv-other">Also: <a href="/lists/{{ o.slug }}">{{ o.title }}</a></p>{% endfor %}
 </section>

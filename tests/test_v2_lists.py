@@ -139,11 +139,15 @@ if AioHTTPTestCase:
             await _ready_refresh(self.app)
             html = await self.page("/lists/top-traders", GUEST_V2)
             self.assertIn('class="lv-gate"', html)
-            self.assertIn("Connect a wallet to see the 10 traders of this list and follow them.", html)
+            self.assertIn("Connect a wallet to see all 10 traders of this list and follow them.", html)
             self.assertIn("data-wallet-signin", html)
-            self.assertNotIn(addr("K", 1), html)
-            self.assertNotIn("lv-rows", html)
+            # 28.11: the first five, as the home page shows them, for a guest and a search engine; the rest stays behind
+            # the sign-in, and nothing opens a card or follows the list
+            self.assertEqual(html.count('<li data-w="'), 5)
+            self.assertNotIn('tabindex="0" title="Open this wallet', html)
             self.assertNotIn('id="drawer"', html)
+            self.assertNotIn("data-follow=", html)
+            self.assertIn('<link rel="canonical" href="https://tracced.xyz/lists/top-traders">', html)
 
         async def test_after_follow_the_key_opens_the_watchlist(self):
             await _ready_refresh(self.app)
