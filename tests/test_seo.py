@@ -187,8 +187,8 @@ if AioHTTPTestCase:
                 body = html.split('<article class="docs-body')[1].split("</article>")[0]
                 self.assertIsNone(re.search(r"[\u0400-\u04FF]", body), path)          # no Cyrillic on the site's pages
                 for href in re.findall(r'href="(/[^"#?]*)', body):                  # every link inside a guide leads somewhere
-                    if href.startswith("/lists/"):
-                        continue                                                    # ready lists exist only once counted
+                    if href.startswith(("/lists/", "/job/")):
+                        continue                                                    # a ready list and a real analysis live only on the site
                     self.assertEqual((await self.client.get(href)).status, 200, (path, href))
                 r = await self.client.get(path + ".md" if g[0] != "index" else "/guides.md")
                 self.assertEqual((r.status, r.content_type), (200, "text/markdown"), path)

@@ -33,6 +33,15 @@ wallets that shared a funder with two or more others were in profit 77% of the t
 Filter the table by a tag to see how much those wallets bought, and whether they have already sold. Every trade opens on
 Solscan, so nothing has to be taken on trust.
 
+## A real example
+
+[JEANJAK on September 20, 2026](/job/CDAC33_20260920-1606_1637), a 31-minute range before its pump. 711 wallets bought in
+it. 299 of them were under a day old **and** shared their first funder with at least two other buyers. All 20 of the most
+profitable wallets were among those 299. The best one put in about $1,070 at a $4K market cap and sold six minutes later
+around $232K: a $60.9K profit, 58 times its money. Every one of those trades opens on Solscan from the analysis.
+
+A holder list would have shown hundreds of separate wallets. The funding trail groups them.
+
 ## Check it by hand
 
 On Solscan, open the token's first transactions. The creation transaction shows the creator's own buy; buys from other
