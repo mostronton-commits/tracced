@@ -30,6 +30,20 @@ it goes back to the previous commit, rebuilds it, and marks the rejected commit 
 Log: `/var/log/tracced-autodeploy.log` (`AUTODEPLOY_LOG` to change). `remove` takes the cron line out again. The server
 needs no GitHub secret: it only reads a public repository, so the only way to deploy is to push to that branch.
 
+## Search engines and AI assistants
+
+The site serves these itself (`tracced/web/seo.py`), from what it holds in memory, with no provider requests:
+
+- `/robots.txt`: cabinets, actions and raw data (`*.json`, `*.csv`) stay out; it names the sitemap.
+- `/sitemap.xml`: home, the docs, the ready lists, every token with a finished analysis and every such analysis.
+- `/llms.txt` and `/docs/<page>.md`: what the site is and its documentation as plain markdown, for AI assistants.
+- Every page a guest can read has one `canonical` address; the rest (cabinets, forms, errors, a token nobody
+  analysed) carry `noindex`. `www.` moves to the bare name with a 301.
+- The closed copy (dev) offers none of this: everything there is 403 and `noindex`.
+
+To confirm the site in Google Search Console or Bing Webmaster Tools, choose the «HTML tag» method and put the code
+in `config.yaml` (`google_site_verification`, `bing_site_verification`); it appears on the home page after the deploy.
+
 ## Promote dev → main (production)
 
 1. Back up production data on the VPS: `tar czf ~/tracced-prod-$(date +%F).tgz -C /opt/tracced output cache .env`.

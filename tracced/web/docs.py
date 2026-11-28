@@ -70,6 +70,17 @@ def page(docs_dir, slug, ctx=None):
     return out
 
 
+def source(docs_dir, slug, ctx=None):
+    """The page as plain markdown, numbers filled in like on the site: what an AI assistant reads (llms.txt links here).
+    None if there is no such page."""
+    if slug not in _slugs():
+        return None
+    path = docs_dir / f"{slug}.md"
+    if not path.exists():
+        return None
+    return jinja2.Template(path.read_text(encoding="utf-8"), autoescape=False).render(**(ctx or {})).strip() + "\n"
+
+
 def _live(docs_dir):
     """Лише ті сторінки, для яких файл справді є: меню не показує того, чого нема."""
     return [{"slug": s, "label": label, "icon": icon, "blurb": blurb}

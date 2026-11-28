@@ -47,6 +47,7 @@ from . import chart
 from . import demo as demo_mod
 from . import replay
 from . import partner_api as api_mod
+from . import seo
 from . import usage as usage_mod
 from . import tgbot, tgwidget
 from .agent_store import AgentStore
@@ -625,7 +626,7 @@ def _check_services(r, ages):
 
 def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/early", ages=None, assistant=None, background=False,
                labels=None):
-    app = web.Application(middlewares=[errors_mw, auth_mw, private_mw])
+    app = web.Application(middlewares=[www_mw, errors_mw, auth_mw, private_mw])
     app.on_response_prepare.append(_security_headers)
     app["bg"] = {}                                                 # фонові задачі сервера (лише з background=True, не в тестах)
     app["fresh"], app["fresh_peaks"] = {"at": 0, "ok_at": 0, "rows": [], "busy": False, "live": background, "day": "", "n": 0}, {}   # свіжі пампи на головній
@@ -772,6 +773,7 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_get("/how", how)
     app.router.add_get("/design", design_switch)
     app.router.add_get("/docs", docs_page)
+    app.router.add_get("/docs.md", docs_page)                       # the overview as plain markdown, for llms.txt
     app.router.add_get("/docs/{slug}", docs_page)
     app.router.add_get("/project", project)
     app.router.add_get("/token", token_page)
@@ -791,6 +793,9 @@ def create_app(st, s, cfg=None, out_dir="output/early/web", store_dir="cache/ear
     app.router.add_get("/job/{id}", job_page)
     app.router.add_get("/health", health)
     app.router.add_get("/robots.txt", robots_txt)
+    app.router.add_get("/sitemap.xml", sitemap_xml)
+    app.router.add_get("/llms.txt", llms_txt)
+    app.router.add_get("/favicon.ico", favicon_ico)
     app.router.add_post("/auth/nonce", auth_nonce)
     app.router.add_post("/auth/verify", auth_verify)
     app.router.add_post("/auth/logout", auth_logout)
@@ -1085,6 +1090,18 @@ def _error_event(request, status, msg):
 
 # мертві посилання: сторінка «rugged» з Wick. Решта 404 (немає гаманця в аналізі тощо) — звичайна помилка з причиною
 RUGGED = {"No such analysis.", "There is no such page in the documentation."}
+
+
+@web.middleware
+async def www_mw(request, handler):
+    """One spelling of the site's name: www goes to the bare name for good, so a search engine sees one site, not two
+    copies of every page (audit, 20.11). Only pages are moved: a form's POST keeps its answer."""
+    host = (request.host or "").split(":")[0].lower().rstrip(".")
+    if host.startswith("www.") and request.method in ("GET", "HEAD"):
+        site = _site_url(request.app)
+        if host[4:] == (urllib.parse.urlparse(site).hostname or "").lower():
+            return web.Response(status=301, headers={"Location": site + request.path_qs, "Cache-Control": "public, max-age=3600"})
+    return await handler(request)
 
 
 @web.middleware
@@ -1469,10 +1486,51 @@ async def private_mw(request, handler):
 
 
 async def robots_txt(request):
-    """Закрита копія — нікому нічого; публічний сайт — усе, крім кабінетів і входу."""
-    if _private_host(request):
-        return web.Response(text="User-agent: *\nDisallow: /\n")
-    return web.Response(text="User-agent: *\nDisallow: /admin\nDisallow: /me\nDisallow: /auth/\nDisallow: /api/\n")
+    """Закрита копія — нікому нічого; публічний сайт — усе, крім кабінетів, дій і сирих даних, і де лежить карта."""
+    return web.Response(text=seo.robots(_site_url(request.app), private=_private_host(request)),
+                        headers={"Cache-Control": "public, max-age=3600"})
+
+
+def _public_jobs(app):
+    """Finished analyses anyone can open: (id, mint, finished_ms). The demo's replays are copies and stay out."""
+    return [(j.id, j.mint, j.finished_ms or j.created_ms or 0) for j in list(app["jobs"].jobs.values())
+            if j.status == "done" and j.result and not j.replay]
+
+
+async def sitemap_xml(request):
+    """Every page a guest can read, for search engines. Built from what the server holds in memory: no requests."""
+    app = request.app
+    lists = [(v.get("slug") or k) for k, v in ((app.get("ready") or {}).get("lists") or {}).items() if v and v.get("rows")]
+    docs = [p["slug"] for p in docs_mod.nav(DOCS_DIR, None)]
+    return web.Response(text=seo.sitemap(_site_url(app), docs, lists, _public_jobs(app)), content_type="application/xml",
+                        charset="utf-8", headers={"Cache-Control": "public, max-age=600"})
+
+
+async def llms_txt(request):
+    """What the site is and where its plain-text pages are, for AI assistants (llmstxt.org)."""
+    app = request.app
+    lists = [{"slug": v.get("slug") or k, "title": v.get("title") or k}
+             for k, v in ((app.get("ready") or {}).get("lists") or {}).items() if v and v.get("rows")]
+    rows = []
+    for j in app["jobs"].recent(200):
+        if j.status == "done" and j.result:
+            fact = _feed_fact(j.result, app["s"])
+            rows.append({"id": j.id, "symbol": str(j.symbol or j.mint[:6])[:16],
+                         "wallets": (j.result.get("counts") or {}).get("n_early"), "fact": (fact or {}).get("text")})
+        if len(rows) >= 20:
+            break
+    return web.Response(text=seo.llms(_site_url(app), docs_mod.nav(DOCS_DIR, None), lists, rows), content_type="text/plain",
+                        charset="utf-8", headers={"Cache-Control": "public, max-age=600"})
+
+
+_FAVICON = []
+
+
+async def favicon_ico(request):
+    """Browsers take the icon from the page's <link>; crawlers and feed readers ask for /favicon.ico blindly."""
+    if not _FAVICON:
+        _FAVICON.append(seo.ico((HERE / "static" / "brand" / "icon-32.png").read_bytes()))
+    return web.Response(body=_FAVICON[0], content_type="image/x-icon", headers={"Cache-Control": "public, max-age=604800"})
 
 
 # ───────────────────────── wallet sign-in and the account ─────────────────────────
@@ -4399,6 +4457,11 @@ def _render_html(name, request, **ctx):
         ctx.setdefault("design_v2", _design_v2(request))
         lists = (request.app.get("ready") or {}).get("lists") or {}   # «Top traders» у меню акаунта v2 веде на список, коли він є
         ctx.setdefault("top_list", next(((lists[k].get("slug") or k) for k in READY_ORDER if lists.get(k)), None))
+        # one address per page for search engines (canonical: a path the handler names), and noindex for everything a
+        # guest cannot read or that is not a page of its own: cabinets, forms, errors, a token nobody analysed
+        path = ctx.get("canonical")
+        ctx["canonical"] = _site_url(request.app) + path if path and not _private_host(request) else None
+        ctx.setdefault("noindex", not ctx["canonical"])
     # аналітика вмикається лише там, де задано id, і ніколи на сторінках власника: там показується новий ключ API,
     # а сторонній скрипт на сторінці бачить усе, що на ній є
     if ctx.get("design_v2") and (HERE / "templates" / "v2" / name).is_file():
@@ -5003,7 +5066,8 @@ async def list_page(request):
     if not lst or not lst.get("rows"):
         raise web.HTTPNotFound(text="This list is not ready yet.")
     if not request.get("acct"):                 # власник, 08.10: список — лише з підключеним гаманцем, щоб його не забирали
-        return render("lists.html", request, lst=lst, rows=[], rows_js=[], gate=True, following=None, others=[], alerts_ok=False)
+        return render("lists.html", request, lst=lst, rows=[], rows_js=[], gate=True, following=None, others=[], alerts_ok=False,
+                      canonical="/lists/" + slug)
     following = _ready_follow_id(app, request["acct"], lst)
     _view(request, "list", ref=slug)
     rows = _ready_rows(lst)
@@ -5087,21 +5151,39 @@ async def index(request):
     if s.get("fresh_on") and f["ok_at"] and now_ms - f["ok_at"] < float(s.get("fresh_stale_hours", 3)) * 3_600_000:
         # вік рахується зараз, а не в момент оновлення; список, старший за кілька годин, не показується зовсім (рев'ю 30.09)
         fresh = [dict(r, age_h=max(0.0, (now_ms - r["created_ms"]) / 3_600_000) if r.get("created_ms") else None) for r in f["rows"]]
-    return render("index.html", request, live=_live_feed(app), ready=_ready_view(app, request.get("acct")),
+    site = _site_url(app)
+    return render("index.html", request, canonical="/", page_title=seo.HOME_TITLE, ld=Markup(seo.home_ld(site)),
+                  verify={"google": s.get("google_site_verification"), "bing": s.get("bing_site_verification")},
+                  live=_live_feed(app), ready=_ready_view(app, request.get("acct")),
                   totals=totals, sample=sample, bg_lines=lines, my_n=my_n,
                   fresh=fresh, fresh_min=int((now_ms - f["ok_at"]) / 60_000) if f["ok_at"] else None)
 
 
 async def docs_page(request):
-    """Документація: markdown з docs/ поруч із кодом, той самий деплой, те саме оформлення сайту."""
+    """Документація: markdown з docs/ поруч із кодом, той самий деплой, те саме оформлення сайту. З «.md» в кінці —
+    той самий текст без оформлення, для ШІ-асистентів (llms.txt веде саме туди); пошуковикам його не пропонуємо."""
     slug = request.match_info.get("slug") or "index"
-    body, title = docs_mod.page(DOCS_DIR, slug, {"s": request.app["s"], "TAGS": tags.DEFS, "EXCH_N": len(exch_mod.KNOWN), "assistant_on": request.app.get("assistant") is not None,
-                                                 "API": api_mod})   # межі правил API — з коду, щоб сторінка не розійшлась із тим, що рахує сервер
+    plain = slug.endswith(".md") or request.path == "/docs.md"
+    slug = slug[:-3] if slug.endswith(".md") else slug
+    ctx = {"s": request.app["s"], "TAGS": tags.DEFS, "EXCH_N": len(exch_mod.KNOWN), "assistant_on": request.app.get("assistant") is not None,
+           "API": api_mod}   # межі правил API — з коду, щоб сторінка не розійшлась із тим, що рахує сервер
+    path = "/docs" if slug == "index" else "/docs/" + slug
+    if plain:
+        text = docs_mod.source(DOCS_DIR, slug, ctx)
+        if text is None:
+            raise web.HTTPNotFound(text="There is no such page in the documentation.")
+        return web.Response(text=text, content_type="text/markdown", charset="utf-8",
+                            headers={"X-Robots-Tag": "noindex", "Link": f'<{_site_url(request.app)}{path}>; rel="canonical"',
+                                     "Cache-Control": "public, max-age=600"})
+    body, title = docs_mod.page(DOCS_DIR, slug, ctx)
     if body is None:
         raise web.HTTPNotFound(text="There is no such page in the documentation.")
     prev, nxt = docs_mod.around(DOCS_DIR, slug)
+    blurb = next((p["blurb"] for p in docs_mod.nav(DOCS_DIR, slug) if p["slug"] == slug), None)
     _view(request, "docs", slug)
-    return render("docs.html", request, body=body, title=title, nav=docs_mod.nav(DOCS_DIR, slug), prev=prev, nxt=nxt, slug=slug)
+    return render("docs.html", request, body=body, title=title, nav=docs_mod.nav(DOCS_DIR, slug), prev=prev, nxt=nxt, slug=slug,
+                  canonical=path, desc=f"{blurb}. tracced documentation." if blurb else None,
+                  ld=Markup(seo.docs_ld(_site_url(request.app), slug, title, blurb)))
 
 
 FORM_MIN_S, FORM_MAX_S = 2, 6 * 3600          # швидше — не людина; довше — сторінку відкрили вчора
@@ -5265,7 +5347,15 @@ async def token_page(request):
                 last.clear()
             last[gkey] = now_ms
             request.app["events"].add("guest", "view", page="token", ref=mint, src=src, dev=_device(request))
-    return render("token.html", request, active=None, result_html=None, **_token_ctx(request, mint, info))
+    ctx = _token_ctx(request, mint, info)
+    done = sum(1 for t in ctx["tabs"] if t["status"] == "done")
+    sym = str(info.get("symbol") or mint[:8])
+    seo_ctx = {}
+    if done:                                    # a token somebody analysed is a page of its own; a bare chart is not
+        seo_ctx = {"canonical": "/token?mint=" + mint, "page_title": f"{sym} · who bought before the pump · tracced",
+                   "desc": f"Who bought {sym} before the pump: {done} analysed range{'s' if done != 1 else ''} on tracced, "
+                           "each with every wallet that bought there and what it paid, sold and earned."}
+    return render("token.html", request, active=None, result_html=None, **seo_ctx, **ctx)
 
 
 async def marks_json(request):
@@ -5648,7 +5738,13 @@ async def job_page(request):
     active = {"id": job.canon or job.id, "status": job.status if job.status != "done" or job.result else "error",
               "from": chart.to_input(job.t_from), "to": chart.to_input(job.t_to), "error": job.error, "run": job.id}
     result_html = Markup(_render_html("_result.html", request, **rc)) if rc else None
-    return render("token.html", request, active=active, result_html=result_html, **_token_ctx(request, job.mint, info))
+    seo_ctx = {}
+    if job.status == "done" and job.result:
+        sym, n = str(info.get("symbol") or job.mint[:8]), ((job.result.get("counts") or {}).get("n_early") or 0)
+        seo_ctx = {"canonical": "/job/" + (job.canon or job.id), "page_title": f"Who bought {sym} before the pump · tracced",
+                   "desc": (f"{n:,} wallet{'s' if n != 1 else ''}" if n else "The wallets that") + f" bought {sym} in the marked range before the pump: "
+                           "what each paid, sold and earned, every trade on Solscan."}
+    return render("token.html", request, active=active, result_html=result_html, **seo_ctx, **_token_ctx(request, job.mint, info))
 
 
 async def job_view(request):
