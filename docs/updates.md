@@ -14,6 +14,8 @@
 - A wallet that trades like a bot can't get a bell
 - An exit days later at hundreds of times the entry price is counted in full
 - Clear page titles and descriptions in search results
+- Guides: how to check a launch, with numbers from 159 tokens
+- Top traders: the first five open without a wallet
 
 ## 0.7.10 <span class="ud">Oct 18, 2026</span>
 
